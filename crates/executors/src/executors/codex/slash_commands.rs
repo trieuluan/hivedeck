@@ -1,10 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use codex_app_server_protocol::{ConfigEdit, JSONRPCNotification, MergeStrategy};
-use codex_protocol::{
-    config_types::ServiceTier,
-    protocol::{AgentMessageEvent, ErrorEvent, EventMsg},
-};
+use codex_protocol::protocol::{AgentMessageEvent, ErrorEvent, EventMsg};
 use serde_json::json;
 
 use super::{
@@ -191,8 +188,8 @@ impl Codex {
                             .await
                             .ok()
                             .and_then(|r| r.config.service_tier)
-                            .map(|t| matches!(t, ServiceTier::Fast))
-                            .unwrap_or(false);
+                            .as_deref()
+                            == Some("fast");
                         if status {
                             let message = if current_is_fast || session_fast {
                                 "**Fast mode is enabled.**".to_string()
@@ -225,7 +222,7 @@ impl Codex {
                         // Fork current session with new tier if one is active
                         if let Some(old_thread_id) = session_id {
                             let service_tier = if want_fast {
-                                Some(Some(ServiceTier::Fast))
+                                Some(Some("fast".to_string()))
                             } else {
                                 Some(None)
                             };
@@ -270,10 +267,12 @@ impl Codex {
                     message,
                     phase: None,
                     memory_citation: None,
+                    delivery: None,
                 }),
                 Err(message) => EventMsg::Error(ErrorEvent {
                     message,
                     codex_error_info: None,
+                    misalignment: None,
                 }),
             }],
         )
@@ -334,6 +333,7 @@ pub async fn log_event_raw(log_writer: &LogWriter, message: String) -> Result<()
             message,
             phase: None,
             memory_citation: None,
+            delivery: None,
         }),
     )
     .await
@@ -400,9 +400,8 @@ async fn fetch_status_message(
     // Show fast mode
     let global_fast = config_resp
         .as_ref()
-        .and_then(|r| r.config.service_tier.as_ref())
-        .map(|t| matches!(t, ServiceTier::Fast))
-        .unwrap_or(false);
+        .and_then(|r| r.config.service_tier.as_deref())
+        == Some("fast");
     if global_fast || session_fast {
         lines.push("- **Service Tier**: `fast ⚡`".to_string());
     }
@@ -662,6 +661,7 @@ fn format_mcp_auth_status(status: &codex_app_server_protocol::McpAuthStatus) -> 
         codex_app_server_protocol::McpAuthStatus::NotLoggedIn => "not logged in",
         codex_app_server_protocol::McpAuthStatus::BearerToken => "bearer token",
         codex_app_server_protocol::McpAuthStatus::OAuth => "oauth",
+        codex_app_server_protocol::McpAuthStatus::Unknown => "unknown",
     }
 }
 

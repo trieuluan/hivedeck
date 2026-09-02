@@ -230,6 +230,7 @@ impl AppServerClient {
                 cursor,
                 limit: None,
                 detail: Some(McpServerStatusDetail::ToolsAndAuthOnly),
+                thread_id: None,
             },
         };
         self.send_request(request, "mcpServerStatus/list").await
@@ -449,6 +450,12 @@ impl AppServerClient {
                     "deprecated v1 server request".to_string(),
                 )
                 .into())
+            }
+            ServerRequest::AttestationGenerate { .. }
+            | ServerRequest::CurrentTimeRead { .. }
+            | _ => {
+                tracing::warn!("Unhandled server request variant: {request:?}");
+                Ok(())
             }
         }
     }

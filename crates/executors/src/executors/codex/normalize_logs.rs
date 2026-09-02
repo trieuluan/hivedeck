@@ -14,7 +14,7 @@ use codex_app_server_protocol::{
     JSONRPCResponse, McpToolCallProgressNotification, McpToolCallStatus as AppMcpToolCallStatus,
     PatchApplyStatus as AppPatchApplyStatus, ServerNotification, ServerRequest, ThreadForkResponse,
     ThreadItem as AppThreadItem, ThreadStartResponse, ThreadTokenUsageUpdatedNotification,
-    ToolRequestUserInputQuestion,
+    ToolRequestUserInputQuestion, WebSearchItem,
 };
 use codex_protocol::{
     dynamic_tools::DynamicToolCallOutputContentItem as CoreDynamicToolCallOutputContentItem,
@@ -22,14 +22,15 @@ use codex_protocol::{
     openai_models::ReasoningEffort,
     plan_tool::{StepStatus, UpdatePlanArgs},
     protocol::{
-        AgentMessageDeltaEvent, AgentMessageEvent, AgentReasoningDeltaEvent, AgentReasoningEvent,
-        AgentReasoningSectionBreakEvent, ApplyPatchApprovalRequestEvent, BackgroundEventEvent,
-        ErrorEvent, EventMsg, ExecApprovalRequestEvent, ExecCommandBeginEvent, ExecCommandEndEvent,
+        AgentMessageContentDeltaEvent, AgentMessageEvent, AgentReasoningEvent,
+        AgentReasoningSectionBreakEvent, ApplyPatchApprovalRequestEvent, ErrorEvent, EventMsg,
+        ExecApprovalRequestEvent, ExecCommandBeginEvent, ExecCommandEndEvent,
         ExecCommandOutputDeltaEvent, ExecOutputStream, ExitedReviewModeEvent,
         FileChange as CodexProtoFileChange, ItemCompletedEvent, ItemStartedEvent, McpInvocation,
         McpToolCallBeginEvent, McpToolCallEndEvent, ModelRerouteEvent, PatchApplyBeginEvent,
-        PatchApplyEndEvent, PlanDeltaEvent, RequestUserInputEvent, StreamErrorEvent,
-        ViewImageToolCallEvent, WarningEvent, WebSearchBeginEvent, WebSearchEndEvent,
+        PatchApplyEndEvent, PlanDeltaEvent, ReasoningContentDeltaEvent, RequestUserInputEvent,
+        StreamErrorEvent, ViewImageToolCallEvent, WarningEvent, WebSearchBeginEvent,
+        WebSearchEndEvent,
     },
 };
 use futures::StreamExt;
@@ -669,6 +670,7 @@ fn dynamic_tool_markdown_from_app_items(items: &[AppDynamicToolCallOutputContent
             AppDynamicToolCallOutputContentItem::InputImage { image_url } => {
                 format!("Image: {image_url}")
             }
+            _ => String::new(),
         })
         .collect::<Vec<_>>()
         .join("\n")
@@ -682,6 +684,7 @@ fn dynamic_tool_markdown_from_core_items(items: &[CoreDynamicToolCallOutputConte
             CoreDynamicToolCallOutputContentItem::InputImage { image_url } => {
                 format!("Image: {image_url}")
             }
+            _ => String::new(),
         })
         .collect::<Vec<_>>()
         .join("\n")
@@ -1007,7 +1010,7 @@ fn handle_direct_item_started(
                 },
             );
         }
-        AppThreadItem::WebSearch { id, .. } => {
+        AppThreadItem::WebSearch(WebSearchItem { id, .. }) => {
             state.web_searches.insert(id.clone(), WebSearchState::new());
             let web_search_state = state.web_searches.get_mut(&id).unwrap();
             let normalized_entry = web_search_state.to_normalized_entry();
@@ -1169,7 +1172,7 @@ fn handle_direct_item_completed(
                 },
             );
         }
-        AppThreadItem::WebSearch { id, query, .. } => {
+        AppThreadItem::WebSearch(WebSearchItem { id, query, .. }) => {
             if let Some(mut entry) = state.web_searches.remove(&id) {
                 entry.status = ToolStatus::Success;
                 entry.query = Some(query);
@@ -1179,7 +1182,7 @@ fn handle_direct_item_completed(
             }
         }
         AppThreadItem::ImageView { path, .. } => {
-            let relative_path = make_path_relative(&path.to_string_lossy(), worktree_path);
+            let relative_path = make_path_relative(&path.to_string(), worktree_path);
             add_normalized_entry(
                 msg_store,
                 entry_index,
@@ -1606,12 +1609,16 @@ pub fn normalize_logs(
                         &mut state.model_params,
                     );
                 }
-                EventMsg::AgentMessageDelta(AgentMessageDeltaEvent { delta }) => {
+                EventMsg::AgentMessageContentDelta(AgentMessageContentDeltaEvent {
+                    delta, ..
+                }) => {
                     state.thinking = None;
                     let (entry, index, is_new) = state.assistant_message_append(delta);
                     upsert_normalized_entry(&msg_store, index, entry, is_new);
                 }
-                EventMsg::AgentReasoningDelta(AgentReasoningDeltaEvent { delta }) => {
+                EventMsg::ReasoningContentDelta(ReasoningContentDeltaEvent {
+                    delta, ..
+                }) => {
                     state.assistant = None;
                     let (entry, index, is_new) = state.thinking_append(delta);
                     upsert_normalized_entry(&msg_store, index, entry, is_new);
@@ -1677,11 +1684,7 @@ pub fn normalize_logs(
                     }
                 }
                 EventMsg::ApplyPatchApprovalRequest(ApplyPatchApprovalRequestEvent {
-                    call_id,
-                    turn_id: _,
-                    changes,
-                    reason: _,
-                    grant_root: _,
+                    call_id, changes, ..
                 }) => {
                     state.assistant = None;
                     state.thinking = None;
@@ -1743,14 +1746,7 @@ pub fn normalize_logs(
                     }
                 }
                 EventMsg::ExecCommandBegin(ExecCommandBeginEvent {
-                    call_id,
-                    turn_id: _,
-                    command,
-                    cwd: _,
-                    parsed_cmd: _,
-                    source: _,
-                    interaction_input: _,
-                    process_id: _,
+                    call_id, command, ..
                 }) => {
                     state.assistant = None;
                     state.thinking = None;
@@ -1840,18 +1836,6 @@ pub fn normalize_logs(
                             command_state.to_normalized_entry(),
                         );
                     }
-                }
-                EventMsg::BackgroundEvent(BackgroundEventEvent { message }) => {
-                    add_normalized_entry(
-                        &msg_store,
-                        &entry_index,
-                        NormalizedEntry {
-                            timestamp: None,
-                            entry_type: NormalizedEntryType::SystemMessage,
-                            content: format!("Background event: {message}"),
-                            metadata: None,
-                        },
-                    );
                 }
                 EventMsg::StreamError(StreamErrorEvent {
                     message,
@@ -2125,7 +2109,7 @@ pub fn normalize_logs(
                 EventMsg::ViewImageToolCall(ViewImageToolCallEvent { call_id: _, path }) => {
                     state.assistant = None;
                     state.thinking = None;
-                    let path_str = path.to_string_lossy().to_string();
+                    let path_str = path.to_string();
                     let relative_path = make_path_relative(&path_str, &worktree_path_str);
                     add_normalized_entry(
                         &msg_store,
@@ -2219,6 +2203,7 @@ pub fn normalize_logs(
                 EventMsg::Error(ErrorEvent {
                     message,
                     codex_error_info,
+                    ..
                 }) => {
                     add_normalized_entry(
                         &msg_store,
@@ -2290,8 +2275,8 @@ pub fn normalize_logs(
                 }
                 EventMsg::RequestUserInput(RequestUserInputEvent {
                     call_id,
-                    turn_id: _,
                     questions: event_questions,
+                    ..
                 }) => {
                     state.assistant = None;
                     state.thinking = None;
@@ -2371,57 +2356,7 @@ pub fn normalize_logs(
                         }
                     }
                 }
-                EventMsg::AgentReasoningRawContent(..)
-                | EventMsg::AgentReasoningRawContentDelta(..)
-                | EventMsg::ThreadRolledBack(..)
-                | EventMsg::TurnStarted(..)
-                | EventMsg::UserMessage(..)
-                | EventMsg::TurnDiff(..)
-                | EventMsg::GetHistoryEntryResponse(..)
-                | EventMsg::McpListToolsResponse(..)
-                | EventMsg::McpStartupComplete(..)
-                | EventMsg::McpStartupUpdate(..)
-                | EventMsg::DeprecationNotice(..)
-                | EventMsg::UndoCompleted(..)
-                | EventMsg::UndoStarted(..)
-                | EventMsg::RawResponseItem(..)
-                | EventMsg::ItemStarted(..)
-                | EventMsg::ItemCompleted(..)
-                | EventMsg::AgentMessageContentDelta(..)
-                | EventMsg::ReasoningContentDelta(..)
-                | EventMsg::ReasoningRawContentDelta(..)
-                | EventMsg::ListSkillsResponse(..)
-                | EventMsg::SkillsUpdateAvailable
-                | EventMsg::TurnAborted(..)
-                | EventMsg::ShutdownComplete
-                | EventMsg::TerminalInteraction(..)
-                | EventMsg::ElicitationRequest(..)
-                | EventMsg::TurnComplete(..)
-                | EventMsg::CollabAgentSpawnBegin(..)
-                | EventMsg::CollabAgentSpawnEnd(..)
-                | EventMsg::CollabAgentInteractionBegin(..)
-                | EventMsg::CollabAgentInteractionEnd(..)
-                | EventMsg::CollabWaitingBegin(..)
-                | EventMsg::CollabWaitingEnd(..)
-                | EventMsg::CollabCloseBegin(..)
-                | EventMsg::CollabCloseEnd(..)
-                | EventMsg::CollabResumeBegin(..)
-                | EventMsg::CollabResumeEnd(..)
-                | EventMsg::ThreadNameUpdated(..)
-                | EventMsg::RealtimeConversationStarted(..)
-                | EventMsg::RealtimeConversationSdp(..)
-                | EventMsg::RealtimeConversationRealtime(..)
-                | EventMsg::RealtimeConversationClosed(..)
-                | EventMsg::RealtimeConversationListVoicesResponse(..)
-                | EventMsg::ImageGenerationBegin(..)
-                | EventMsg::ImageGenerationEnd(..)
-                | EventMsg::RequestPermissions(..)
-                | EventMsg::HookCompleted(..)
-                | EventMsg::HookStarted(..)
-                | EventMsg::GuardianAssessment(..)
-                | EventMsg::GuardianWarning(..)
-                | EventMsg::ModelVerification(..)
-                | EventMsg::PatchApplyUpdated(..) => {}
+                _ => {}
             }
         }
     });

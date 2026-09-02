@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use sqlx::SqlitePool;
+use sqlx::{AssertSqlSafe, SqlitePool};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -44,7 +44,7 @@ impl IssueComment {
                 DateTime<Utc>,
                 DateTime<Utc>,
             ),
-        >(&query)
+        >(AssertSqlSafe(query.clone()))
         .bind(id)
         .fetch_optional(pool)
         .await
