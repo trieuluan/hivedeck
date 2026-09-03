@@ -31,6 +31,20 @@
 
 # Welcome to indie version of Vibe-Kanban
 
+## About this fork
+
+Fork of [dexloom/vibe-kanban-indie](https://github.com/dexloom/vibe-kanban-indie) (Apache-2.0), bumped to **codex 0.152.1**:
+
+- `crates/executors` pins `npx -y @openai/codex@0.152.1` and compiles against the `rust-v0.152.1` protocol crates (`codex-app-server-protocol`, `codex-protocol`).
+- Migrates `crates/executors/src/executors/codex/*.rs` to the 0.152.1 app-server protocol (`permissionProfile` removed from thread/fork params, `AskForApproval::OnRequest`, `service_tier` as `Option<String>`, `EventMsg` renames, `ThreadItem::WebSearch` tuple variant, ...).
+- `sqlx` 0.8.6 → 0.9.0 (unifies `libsqlite3-sys` 0.37 with `codex-state`); `tokio-tungstenite` 0.28 with the upstream `[patch.crates-io]` openai-oss-forks.
+- `build-env.sh` + `build-frontend.sh`: headless-VM build recipe (locally extracted `libsqlite3-dev` + libclang shim, pnpm via corepack).
+
+Why: VK 0.2.27 hard-codes the codex CLI it spawns. If the pin is older than the model configured in `~/.codex/config.toml` (e.g. 0.124.0 vs `gpt-5.6-sol`), every VK-spawned run fails with a model-rejection error while your own `codex exec` works fine.
+
+---
+
+
 ## Overview
 
 In a world where software engineers spend most of their time planning and reviewing coding agents, the most impactful way to ship more is to get faster at planning and review.
