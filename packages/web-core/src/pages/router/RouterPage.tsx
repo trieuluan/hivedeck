@@ -24,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from '@vibe/ui/components/Dropdown';
 import { CombosView } from './CombosView';
+import { RoutingView } from './RoutingView';
 import { SettingsCheckbox } from '@/shared/dialogs/settings/settings/SettingsComponents';
 
 type RouterAction =
@@ -33,7 +34,7 @@ type RouterAction =
   | 'restart'
   | 'update'
   | 'rollback';
-type Tab = 'dashboard' | 'combos' | 'logs';
+type Tab = 'dashboard' | 'combos' | 'routing' | 'logs';
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 
@@ -361,6 +362,15 @@ export function RouterPage() {
   const main = (() => {
     if (!status) return null;
     if (tab === 'logs') return <LogsView />;
+    if (tab === 'routing' && settings) {
+      return (
+        <RoutingView
+          status={status}
+          settings={settings}
+          onSave={(next) => void updateAndSaveConfig({ nine_router: next })}
+        />
+      );
+    }
     if (tab === 'combos' && settings) {
       const setAllowed = (allow: boolean) =>
         void updateAndSaveConfig({
@@ -439,6 +449,7 @@ export function RouterPage() {
   const TAB_LABELS: Record<Tab, string> = {
     dashboard: t('settings.router.tabs.dashboard'),
     combos: t('settings.router.tabs.combos'),
+    routing: t('settings.router.tabs.routing'),
     logs: t('settings.router.tabs.logs'),
   };
 
@@ -555,7 +566,7 @@ export function RouterPage() {
         )}
 
         <nav className="flex gap-1">
-          {(['dashboard', 'combos', 'logs'] as const).map((id) => (
+          {(['dashboard', 'combos', 'routing', 'logs'] as const).map((id) => (
             <button
               key={id}
               type="button"
@@ -568,6 +579,12 @@ export function RouterPage() {
               )}
             >
               {TAB_LABELS[id]}
+              {id === 'routing' && settings?.route_agents && (
+                <span
+                  className="ml-1.5 inline-block size-1.5 rounded-full bg-success align-middle"
+                  aria-label={t('settings.router.routing.on')}
+                />
+              )}
               {id === 'combos' && status && status.combos.length > 0 && (
                 <span className="ml-1.5 text-xs text-low tabular-nums">
                   {status.combos.length}

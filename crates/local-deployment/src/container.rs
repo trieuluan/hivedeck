@@ -113,6 +113,59 @@ pub struct LocalContainerService {
 }
 
 impl LocalContainerService {
+    /// ADR-028: when routing is on and 9router answers, point a Claude Code
+    /// run at it through its environment and, unless a model was chosen, run
+    /// it on its role's combo. Returns the action with
+    /// the model override applied, or `None` to keep the original.
+    async fn route_through_9router(
+        &self,
+        workspace: &Workspace,
+        executor_action: &ExecutorAction,
+        env: &mut ExecutionEnv,
+    ) -> Option<ExecutorAction> {
+        use executors::executors::claude::has_explicit_model;
+        use services::services::nine_router::{self, ComboRole, routing};
+
+        let base = executor_action.base_executor()?;
+        if !matches!(
+            base,
+            BaseCodingAgent::ClaudeCode | BaseCodingAgent::ClaudeCodeHeaded
+        ) {
+            return None;
+        }
+        let router = self.config.read().await.nine_router.clone();
+        if !router.route_agents {
+            return None;
+        }
+        if !nine_router::is_running(router.port).await {
+            tracing::warn!(
+                "9router routing is on but nothing answers on port {}; running without it",
+                router.port
+            );
+            return None;
+        }
+        let role = match executor_action.typ() {
+            ExecutorActionType::ReviewRequest(_) => ComboRole::Reviewer,
+            _ if workspace.kind == Some(WorkspaceKind::Orchestrator) => ComboRole::Planner,
+            _ => ComboRole::Coder,
+        };
+        let config = executor_action.executor_config()?;
+        let route = routing::claude_route(&router, role, has_explicit_model(config))?;
+        for (key, value) in &route.env {
+            env.insert(key, value);
+        }
+        tracing::info!(
+            "routing {:?} run through 9router as {} (model: {})",
+            base,
+            role.combo_name(),
+            route.model.as_deref().unwrap_or("unchanged")
+        );
+        let model = route.model?;
+        let mut routed = executor_action.clone();
+        routed.executor_config_mut()?.model_id = Some(model);
+        Some(routed)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
         db: DBService,
@@ -2568,6 +2621,12 @@ impl ContainerService for LocalContainerService {
             env.insert("TELEGRAM_TOPIC", &workspace.branch);
             env.insert("TELEGRAM_DEV", "1");
         }
+
+        // ADR-028: route Claude Code through the embedded 9router by role.
+        let routed_action = self
+            .route_through_9router(workspace, executor_action, &mut env)
+            .await;
+        let executor_action = routed_action.as_ref().unwrap_or(executor_action);
 
         // Interactive (detached tmux) path: run the agent's TUI in a tmux
         // session instead of a headless child. The shared `start_execution`

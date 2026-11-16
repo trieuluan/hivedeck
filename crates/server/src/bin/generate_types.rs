@@ -73,6 +73,7 @@ fn generate_types_content() -> String {
         server::routes::tags::TagSearchParams::decl(),
         server::routes::telegram::TelegramStatus::decl(),
         services::services::nine_router::NineRouterSettings::decl(),
+        services::services::nine_router::routing::RoleCombos::decl(),
         services::services::nine_router::NineRouterInstallSource::decl(),
         services::services::nine_router::NineRouterState::decl(),
         services::services::nine_router::NineRouterStatus::decl(),

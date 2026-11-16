@@ -18,6 +18,7 @@
 mod advisor;
 mod aliases;
 pub mod api;
+pub mod routing;
 mod versions;
 
 pub use advisor::{
@@ -67,6 +68,12 @@ pub struct NineRouterSettings {
     /// 9router's local CLI token (ADR-027).
     #[serde(default)]
     pub allow_management: bool,
+    /// Run agents through 9router with a combo per role (ADR-028).
+    #[serde(default)]
+    pub route_agents: bool,
+    /// Combo used for each agent role.
+    #[serde(default)]
+    pub roles: routing::RoleCombos,
 }
 
 impl Default for NineRouterSettings {
@@ -75,6 +82,8 @@ impl Default for NineRouterSettings {
             auto_start: false,
             port: DEFAULT_PORT,
             allow_management: false,
+            route_agents: false,
+            roles: routing::RoleCombos::default(),
         }
     }
 }
@@ -220,7 +229,7 @@ fn pid_path() -> PathBuf {
     runtime_dir().join(PID_FILE)
 }
 
-fn base_url(port: u16) -> String {
+pub(crate) fn base_url(port: u16) -> String {
     format!("http://127.0.0.1:{port}/v1")
 }
 
@@ -294,6 +303,11 @@ fn managed_pid() -> Option<u32> {
 struct Probe {
     combos: Vec<String>,
     model_count: usize,
+}
+
+/// Whether a 9router answers on `port` right now.
+pub async fn is_running(port: u16) -> bool {
+    probe(port).await.is_some()
 }
 
 /// `GET /v1/models` — unauthenticated on 9router. `None` when nothing answers.

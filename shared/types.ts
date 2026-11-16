@@ -311,7 +311,17 @@ port: number,
  * User opted in to HiveDeck reading quotas and managing combos through
  * 9router's local CLI token (ADR-027).
  */
-allow_management: boolean, };
+allow_management: boolean, 
+/**
+ * Run agents through 9router with a combo per role (ADR-028).
+ */
+route_agents: boolean, 
+/**
+ * Combo used for each agent role.
+ */
+roles: RoleCombos, };
+
+export type RoleCombos = { planner: string | null, coder: string | null, reviewer: string | null, fast: string | null, };
 
 export type NineRouterInstallSource = "managed" | "global";
 

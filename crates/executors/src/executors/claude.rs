@@ -356,6 +356,26 @@ pub const DEFAULT_MODEL_ID: &str = "default";
 
 /// Whether a configured model id means "use Claude's default model" (omit
 /// `--model`). Covers the explicit sentinel and an empty/blank value.
+/// Whether a run already has a model chosen: a per-run override or the
+/// profile's own `model` (the "Default" sentinel does not count).
+pub fn has_explicit_model(config: &crate::profile::ExecutorConfig) -> bool {
+    if config
+        .model_id
+        .as_deref()
+        .is_some_and(|m| !is_default_model(m))
+    {
+        return true;
+    }
+    let profile_model = match crate::profile::ExecutorConfigs::get_cached()
+        .get_coding_agent(&config.profile_id())
+    {
+        Some(crate::executors::CodingAgent::ClaudeCode(c)) => c.model,
+        Some(crate::executors::CodingAgent::ClaudeCodeHeaded(h)) => h.inner.model,
+        _ => None,
+    };
+    profile_model.is_some_and(|m| !is_default_model(&m))
+}
+
 fn is_default_model(model_id: &str) -> bool {
     model_id.trim().is_empty() || model_id == DEFAULT_MODEL_ID
 }

@@ -15,6 +15,7 @@ use crate::{
     env::ExecutionEnv,
     executors::{BaseCodingAgent, ExecutorError, SpawnedChild},
     interactive::InteractiveTmuxConfig,
+    profile::ExecutorConfig,
 };
 pub mod coding_agent_follow_up;
 pub mod coding_agent_initial;
@@ -67,6 +68,27 @@ impl ExecutorAction {
                 Some(request.base_executor())
             }
             ExecutorActionType::ReviewRequest(request) => Some(request.base_executor()),
+            ExecutorActionType::ScriptRequest(_) => None,
+        }
+    }
+
+    /// Executor identity + overrides of a coding-agent action.
+    pub fn executor_config(&self) -> Option<&ExecutorConfig> {
+        match self.typ() {
+            ExecutorActionType::CodingAgentInitialRequest(r) => Some(&r.executor_config),
+            ExecutorActionType::CodingAgentFollowUpRequest(r) => Some(&r.executor_config),
+            ExecutorActionType::ReviewRequest(r) => Some(&r.executor_config),
+            ExecutorActionType::ScriptRequest(_) => None,
+        }
+    }
+
+    /// Mutable access to the executor config (host-side overrides, e.g. the
+    /// 9router role model).
+    pub fn executor_config_mut(&mut self) -> Option<&mut ExecutorConfig> {
+        match &mut self.typ {
+            ExecutorActionType::CodingAgentInitialRequest(r) => Some(&mut r.executor_config),
+            ExecutorActionType::CodingAgentFollowUpRequest(r) => Some(&mut r.executor_config),
+            ExecutorActionType::ReviewRequest(r) => Some(&mut r.executor_config),
             ExecutorActionType::ScriptRequest(_) => None,
         }
     }
