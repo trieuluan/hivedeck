@@ -26,23 +26,37 @@ fn to_api_error(err: NineRouterError) -> ApiError {
     match err {
         NineRouterError::InstallInProgress
         | NineRouterError::AlreadyRunning(_)
-        | NineRouterError::External(_) => ApiError::Conflict(err.to_string()),
+        | NineRouterError::External(_)
+        | NineRouterError::UpToDate(_) => ApiError::Conflict(err.to_string()),
         NineRouterError::Io(e) => ApiError::Io(e),
         other => ApiError::BadRequest(other.to_string()),
     }
 }
 
 async fn status_response(deployment: &DeploymentImpl) -> StatusResponse {
-    let status = nine_router::status(&settings(deployment).await).await;
+    let status = nine_router::status(&settings(deployment).await, false).await;
     Ok(ResponseJson(ApiResponse::success(status)))
 }
 
-async fn get_status(State(deployment): State<DeploymentImpl>) -> StatusResponse {
-    status_response(&deployment).await
+#[derive(Deserialize)]
+struct StatusQuery {
+    /// Query npm for the latest version now instead of using the cache.
+    #[serde(default)]
+    check_updates: bool,
+}
+
+async fn get_status(
+    State(deployment): State<DeploymentImpl>,
+    Query(query): Query<StatusQuery>,
+) -> StatusResponse {
+    let status = nine_router::status(&settings(&deployment).await, query.check_updates).await;
+    Ok(ResponseJson(ApiResponse::success(status)))
 }
 
 async fn install(State(deployment): State<DeploymentImpl>) -> StatusResponse {
-    nine_router::install().await.map_err(to_api_error)?;
+    nine_router::install(&settings(&deployment).await)
+        .await
+        .map_err(to_api_error)?;
     status_response(&deployment).await
 }
 
@@ -62,6 +76,20 @@ async fn stop(State(deployment): State<DeploymentImpl>) -> StatusResponse {
 
 async fn restart(State(deployment): State<DeploymentImpl>) -> StatusResponse {
     nine_router::restart(&settings(&deployment).await)
+        .await
+        .map_err(to_api_error)?;
+    status_response(&deployment).await
+}
+
+async fn update(State(deployment): State<DeploymentImpl>) -> StatusResponse {
+    nine_router::update(&settings(&deployment).await)
+        .await
+        .map_err(to_api_error)?;
+    status_response(&deployment).await
+}
+
+async fn rollback(State(deployment): State<DeploymentImpl>) -> StatusResponse {
+    nine_router::rollback(&settings(&deployment).await)
         .await
         .map_err(to_api_error)?;
     status_response(&deployment).await
@@ -87,4 +115,6 @@ pub(super) fn router() -> Router<DeploymentImpl> {
         .route("/router/start", post(start))
         .route("/router/stop", post(stop))
         .route("/router/restart", post(restart))
+        .route("/router/update", post(update))
+        .route("/router/rollback", post(rollback))
 }

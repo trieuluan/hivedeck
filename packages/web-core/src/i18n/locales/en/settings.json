@@ -675,6 +675,7 @@
       "state": {
         "not_installed": "Not installed",
         "installing": "Installing…",
+        "updating": "Updating…",
         "stopped": "Stopped",
         "starting": "Starting…",
         "running": "Running",
@@ -714,6 +715,15 @@
         "busyBody": "This can take a minute. Progress is in the Logs tab.",
         "noNode": "Node.js and npm must be on your PATH to install and run 9router.",
         "remoteHost": "The dashboard is only reachable from this machine. Open HiveDeck via localhost to use it here."
+      },
+      "update": {
+        "available": "v{{version}} available",
+        "action": "Update to v{{version}}",
+        "globalHint": "Global install — update it with npm, or let HiveDeck manage it:",
+        "check": "Check for updates",
+        "upToDate": "Up to date",
+        "rollback": "Roll back to v{{version}}",
+        "takeOver": "Let HiveDeck manage it"
       }
     }
   },

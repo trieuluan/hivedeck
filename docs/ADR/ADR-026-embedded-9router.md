@@ -26,13 +26,15 @@ Options considered:
    - The process runs **detached in its own process group** and is **not** stopped when HiveDeck exits: other tools (e.g. the user's Claude Code) use the same router. Its PID is stored in `runtime/9router/9router.pid`, and its output is appended to `runtime/9router/9router.log` (never a pipe, so it survives a HiveDeck restart).
    - **Attach, don't duplicate**: if something already answers `GET /v1/models` on the configured port, HiveDeck treats it as an *external* instance. It reads its status but never starts a second instance or stops one it did not start.
 2. **Config**: `Config.nine_router { auto_start, port }` (serde default, no version bump — same approach as ADR-024). With `auto_start`, the server starts 9router at boot unless it is already running.
-3. **API**: `GET /api/router/status`, `GET /api/router/logs`, `POST /api/router/{install,start,stop,restart}`.
+3. **API**: `GET /api/router/status[?check_updates=true]`, `GET /api/router/logs`, `POST /api/router/{install,start,stop,restart,update,rollback}`.
 4. **UI**: a full-width **Router** page (`/router`, opened from the sidebar bottom bar) with status, controls, auto-start toggle, logs, the combos discovered from `/v1/models`, and the 9router dashboard embedded in an iframe for all provider/combo/key management.
+
+5. **Updates** (managed installs only). Each version lives in `runtime/9router/versions/<version>/`; `runtime/9router/active` names the one in use and `previous` the rollback target. HiveDeck reads the latest release from `registry.npmjs.org/9router/latest` (cached 6 h, refreshed in the background; "Check for updates" forces it). **Update** installs the new version side by side, boots it once on a free port with a scratch `HOME` (`runtime/9router/smoke-home`, so `~/.9router` is never touched) and waits for `/v1/models`; only if that passes does it switch `active`, keep the old version as `previous`, prune the rest, and restart the router if HiveDeck is running it. A failed smoke test deletes the new version and leaves the current one in place. **Roll back** swaps `active`/`previous` and restarts. Global installs are never modified: the page shows the `npm i -g 9router@latest` command and a **Let HiveDeck manage it** button, which installs a managed copy (`PINNED_VERSION`, the default first install) and restarts onto it.
 
 Phase 2 (separate change) maps HiveDeck roles to combos and injects `ANTHROPIC_BASE_URL`/model into executor processes.
 
 ## Consequences
 
-- HiveDeck depends on internals of a specific 9router version (the standalone `app/` layout and `hooks/sqliteRuntime.js`). This is contained in the launcher and pinned by `PINNED_VERSION`; bumping the pin requires a quick smoke test.
+- HiveDeck depends on internals of a specific 9router version (the standalone `app/` layout and `hooks/sqliteRuntime.js`). This is contained in the launcher; `PINNED_VERSION` is the tested default, and in-app updates to newer releases are guarded by the smoke test plus rollback.
 - The iframe loads `http://localhost:<port>/dashboard`. `localhost:3001` and `localhost:<port>` are the same site, so 9router's login cookie works in the iframe. When HiveDeck is opened via a LAN IP, the loopback-only router is unreachable from that browser; the page shows a note instead.
 - A HiveDeck-started 9router keeps running after HiveDeck quits; it is stopped from the Router page (or by killing the PID in the pid file).

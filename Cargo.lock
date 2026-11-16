@@ -10523,6 +10523,7 @@ dependencies = [
  "async-trait",
  "backon",
  "chrono",
+ "command-group",
  "croner",
  "dashmap",
  "db",

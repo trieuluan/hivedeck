@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  ArrowCircleUpIcon,
+  ArrowCounterClockwiseIcon,
   ArrowSquareOutIcon,
   ArrowsClockwiseIcon,
   CopyIcon,
@@ -15,7 +17,13 @@ import { useUserSystem } from '@/shared/hooks/useUserSystem';
 import { cn } from '@/shared/lib/utils';
 import { SettingsCheckbox } from '@/shared/dialogs/settings/settings/SettingsComponents';
 
-type RouterAction = 'install' | 'start' | 'stop' | 'restart';
+type RouterAction =
+  | 'install'
+  | 'start'
+  | 'stop'
+  | 'restart'
+  | 'update'
+  | 'rollback';
 type Tab = 'dashboard' | 'logs';
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
@@ -23,6 +31,7 @@ const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 const STATE_STYLES: Record<NineRouterState, string> = {
   not_installed: 'bg-low/15 text-low',
   installing: 'bg-warning/15 text-warning',
+  updating: 'bg-warning/15 text-warning',
   stopped: 'bg-low/15 text-low',
   starting: 'bg-warning/15 text-warning',
   running: 'bg-success/15 text-success',
@@ -30,7 +39,7 @@ const STATE_STYLES: Record<NineRouterState, string> = {
 };
 
 function isBusy(state: NineRouterState | undefined) {
-  return state === 'installing' || state === 'starting';
+  return state === 'installing' || state === 'updating' || state === 'starting';
 }
 
 function isUp(state: NineRouterState | undefined) {
@@ -51,6 +60,7 @@ function StateBadge({ state }: { state: NineRouterState }) {
   const labels: Record<NineRouterState, string> = {
     not_installed: t('settings.router.state.not_installed'),
     installing: t('settings.router.state.installing'),
+    updating: t('settings.router.state.updating'),
     stopped: t('settings.router.state.stopped'),
     starting: t('settings.router.state.starting'),
     running: t('settings.router.state.running'),
@@ -95,6 +105,84 @@ function CopyField({ value }: { value: string }) {
       {value}
       <CopyIcon className="size-icon-xs text-low" />
     </button>
+  );
+}
+
+function UpdateControls({
+  status,
+  busy,
+  checking,
+  checkedNoUpdate,
+  onCheck,
+  onUpdate,
+  onRollback,
+  onTakeOver,
+}: {
+  status: NineRouterStatus;
+  busy: boolean;
+  checking: boolean;
+  checkedNoUpdate: boolean;
+  onCheck: () => void;
+  onUpdate: () => void;
+  onRollback: () => void;
+  onTakeOver: () => void;
+}) {
+  const { t } = useTranslation('settings');
+  const latest = status.latest_version;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {status.update_available && latest ? (
+        <>
+          <span className="rounded-sm bg-warning/15 px-1.5 py-0.5 text-xs font-medium text-warning">
+            {t('settings.router.update.available', { version: latest })}
+          </span>
+          {status.can_update ? (
+            <Button size="xs" onClick={onUpdate} disabled={busy}>
+              <ArrowCircleUpIcon className="mr-1 size-icon-xs" />
+              {t('settings.router.update.action', { version: latest })}
+            </Button>
+          ) : (
+            <>
+              <span className="text-xs text-low">
+                {t('settings.router.update.globalHint')}
+              </span>
+              <CopyField value="npm i -g 9router@latest" />
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={onTakeOver}
+                disabled={busy}
+              >
+                {t('settings.router.update.takeOver')}
+              </Button>
+            </>
+          )}
+        </>
+      ) : (
+        <Button
+          size="xs"
+          variant="ghost"
+          onClick={onCheck}
+          disabled={checking || busy}
+        >
+          <ArrowsClockwiseIcon
+            className={cn('mr-1 size-icon-xs', checking && 'animate-spin')}
+          />
+          {checkedNoUpdate
+            ? t('settings.router.update.upToDate')
+            : t('settings.router.update.check')}
+        </Button>
+      )}
+      {status.can_update && status.previous_version && (
+        <Button size="xs" variant="ghost" onClick={onRollback} disabled={busy}>
+          <ArrowCounterClockwiseIcon className="mr-1 size-icon-xs" />
+          {t('settings.router.update.rollback', {
+            version: status.previous_version,
+          })}
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -169,6 +257,9 @@ export function RouterPage() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('dashboard');
 
+  const [checking, setChecking] = useState(false);
+  const [checkedNoUpdate, setCheckedNoUpdate] = useState(false);
+
   const refresh = useCallback(async () => {
     try {
       setStatus(await nineRouterApi.getStatus());
@@ -176,6 +267,20 @@ export function RouterPage() {
       setError(e instanceof Error ? e.message : String(e));
     }
   }, []);
+
+  const checkForUpdates = async () => {
+    setChecking(true);
+    setCheckedNoUpdate(false);
+    try {
+      const next = await nineRouterApi.getStatus(true);
+      setStatus(next);
+      setCheckedNoUpdate(!next.update_available);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setChecking(false);
+    }
+  };
 
   // Poll faster while installing/starting.
   const busy = isBusy(status?.state) || pending !== null;
@@ -188,7 +293,7 @@ export function RouterPage() {
   const run = async (action: RouterAction) => {
     setPending(action);
     setError(null);
-    if (action === 'install') setTab('logs');
+    if (action === 'install' || action === 'update') setTab('logs');
     try {
       setStatus(await nineRouterApi.action(action));
     } catch (e) {
@@ -367,6 +472,18 @@ export function RouterPage() {
                   ))
                 )}
               </div>
+            )}
+            {status.installed_version && (
+              <UpdateControls
+                status={status}
+                busy={busy}
+                checking={checking}
+                checkedNoUpdate={checkedNoUpdate}
+                onCheck={checkForUpdates}
+                onUpdate={() => run('update')}
+                onRollback={() => run('rollback')}
+                onTakeOver={() => run('install')}
+              />
             )}
             {settings && status.state !== 'not_installed' && (
               <div className="ml-auto">

@@ -1318,8 +1318,10 @@ export const telegramApi = {
 
 // Embedded 9router sidecar (ADR-026)
 export const nineRouterApi = {
-  getStatus: async (): Promise<NineRouterStatus> => {
-    const response = await makeRequest('/api/router/status');
+  getStatus: async (checkUpdates = false): Promise<NineRouterStatus> => {
+    const response = await makeRequest(
+      `/api/router/status${checkUpdates ? '?check_updates=true' : ''}`
+    );
     return handleApiResponse<NineRouterStatus>(response);
   },
 
@@ -1329,7 +1331,7 @@ export const nineRouterApi = {
   },
 
   action: async (
-    action: 'install' | 'start' | 'stop' | 'restart'
+    action: 'install' | 'start' | 'stop' | 'restart' | 'update' | 'rollback'
   ): Promise<NineRouterStatus> => {
     const response = await makeRequest(`/api/router/${action}`, {
       method: 'POST',

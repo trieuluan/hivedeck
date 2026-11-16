@@ -310,7 +310,7 @@ port: number, };
 
 export type NineRouterInstallSource = "managed" | "global";
 
-export type NineRouterState = "not_installed" | "installing" | "stopped" | "starting" | "running" | "external";
+export type NineRouterState = "not_installed" | "installing" | "updating" | "stopped" | "starting" | "running" | "external";
 
 export type NineRouterStatus = { state: NineRouterState, port: number, 
 /**
@@ -320,7 +320,23 @@ base_url: string,
 /**
  * Path of the dashboard on the router (relative to its origin).
  */
-dashboard_path: string, install_source: NineRouterInstallSource | null, installed_version: string | null, pinned_version: string, package_dir: string | null, 
+dashboard_path: string, install_source: NineRouterInstallSource | null, installed_version: string | null, pinned_version: string, 
+/**
+ * Latest version on npm (cached; `None` if never fetched or offline).
+ */
+latest_version: string | null, 
+/**
+ * `latest_version` is newer than `installed_version`.
+ */
+update_available: boolean, 
+/**
+ * HiveDeck can update this install itself (managed installs only).
+ */
+can_update: boolean, 
+/**
+ * Managed version kept for rollback.
+ */
+previous_version: string | null, package_dir: string | null, 
 /**
  * PID of the HiveDeck-started process, if any.
  */

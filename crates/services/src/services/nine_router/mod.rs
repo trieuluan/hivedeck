@@ -9,20 +9,29 @@
 //! A router that HiveDeck did not start (e.g. the user's own `9router --tray`)
 //! is treated as *external*: HiveDeck reads its status but never starts a
 //! second instance or stops it.
+//!
+//! Managed installs are versioned (see [`versions`]). Updates install the new
+//! version side by side, boot it once on a scratch port with a scratch HOME
+//! (smoke test), and only then switch to it; the old version is kept for
+//! rollback.
+
+mod versions;
 
 use std::{
+    ffi::OsString,
     path::{Path, PathBuf},
     process::Stdio,
     sync::{LazyLock, Mutex},
     time::Duration,
 };
 
+use command_group::AsyncGroupChild;
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 use ts_rs::TS;
 use utils::{command_ext::GroupSpawnNoWindowExt, shell::resolve_executable_path};
 
-/// 9router version HiveDeck installs and has been tested against.
+/// 9router version HiveDeck installs by default (tested against).
 pub const PINNED_VERSION: &str = "0.5.116";
 pub const DEFAULT_PORT: u16 = 20128;
 const PACKAGE_NAME: &str = "9router";
@@ -71,6 +80,8 @@ pub enum NineRouterInstallSource {
 pub enum NineRouterState {
     NotInstalled,
     Installing,
+    /// Installing and smoke-testing a newer version.
+    Updating,
     Stopped,
     Starting,
     /// Running and started by HiveDeck.
@@ -90,6 +101,14 @@ pub struct NineRouterStatus {
     pub install_source: Option<NineRouterInstallSource>,
     pub installed_version: Option<String>,
     pub pinned_version: String,
+    /// Latest version on npm (cached; `None` if never fetched or offline).
+    pub latest_version: Option<String>,
+    /// `latest_version` is newer than `installed_version`.
+    pub update_available: bool,
+    /// HiveDeck can update this install itself (managed installs only).
+    pub can_update: bool,
+    /// Managed version kept for rollback.
+    pub previous_version: Option<String>,
     pub package_dir: Option<String>,
     /// PID of the HiveDeck-started process, if any.
     pub pid: Option<u32>,
@@ -117,8 +136,18 @@ pub enum NineRouterError {
     NodeNotFound,
     #[error("npm was not found on PATH")]
     NpmNotFound,
-    #[error("an install is already in progress")]
+    #[error("an install or update is already in progress")]
     InstallInProgress,
+    #[error("this 9router was not installed by HiveDeck; update it with `npm i -g 9router@latest`")]
+    NotManaged,
+    #[error("could not reach the npm registry to check for updates")]
+    RegistryUnavailable,
+    #[error("9router is already up to date (v{0})")]
+    UpToDate(String),
+    #[error("no previous version to roll back to")]
+    NoPrevious,
+    #[error("{0}")]
+    UpdateFailed(String),
     #[error("9router is already running on port {0}")]
     AlreadyRunning(u16),
     #[error("9router on port {0} was not started by HiveDeck; stop it from where it was started")]
@@ -134,6 +163,7 @@ pub enum NineRouterError {
 #[derive(Default)]
 struct Runtime {
     installing: bool,
+    updating: bool,
     starting: bool,
     last_error: Option<String>,
 }
@@ -166,10 +196,6 @@ fn pid_path() -> PathBuf {
     runtime_dir().join(PID_FILE)
 }
 
-fn managed_package_dir() -> PathBuf {
-    runtime_dir().join("node_modules").join(PACKAGE_NAME)
-}
-
 fn base_url(port: u16) -> String {
     format!("http://127.0.0.1:{port}/v1")
 }
@@ -192,11 +218,10 @@ struct Install {
 
 /// Find a usable 9router package: HiveDeck-managed first, then global.
 async fn find_install() -> Option<Install> {
-    let managed = managed_package_dir();
-    if let Some(version) = read_package_version(&managed) {
+    if let Some(version) = versions::active() {
         return Some(Install {
             source: NineRouterInstallSource::Managed,
-            dir: managed,
+            dir: versions::version_package_dir(&version),
             version,
         });
     }
@@ -281,15 +306,27 @@ async fn probe(port: u16) -> Option<Probe> {
     })
 }
 
-pub async fn status(settings: &NineRouterSettings) -> NineRouterStatus {
+/// Current status. `check_updates` queries npm now instead of using the
+/// cached latest version.
+pub async fn status(settings: &NineRouterSettings, check_updates: bool) -> NineRouterStatus {
     let port = settings.port;
     let install = find_install().await;
     let pid = managed_pid();
     let probe = probe(port).await;
-    let (installing, starting, last_error) =
-        with_runtime(|r| (r.installing, r.starting, r.last_error.clone()));
+    let latest = versions::latest(check_updates).await;
+    let (installing, updating, starting, last_error) =
+        with_runtime(|r| (r.installing, r.updating, r.starting, r.last_error.clone()));
+    let managed = install
+        .as_ref()
+        .is_some_and(|i| i.source == NineRouterInstallSource::Managed);
+    let update_available = match (&latest, &install) {
+        (Some(latest), Some(install)) => versions::is_newer(latest, &install.version),
+        _ => false,
+    };
 
-    let state = if installing {
+    let state = if updating {
+        NineRouterState::Updating
+    } else if installing {
         NineRouterState::Installing
     } else if starting {
         NineRouterState::Starting
@@ -316,6 +353,10 @@ pub async fn status(settings: &NineRouterSettings) -> NineRouterStatus {
         install_source: install.as_ref().map(|i| i.source),
         installed_version: install.as_ref().map(|i| i.version.clone()),
         pinned_version: PINNED_VERSION.to_string(),
+        latest_version: latest,
+        update_available,
+        can_update: managed,
+        previous_version: if managed { versions::previous() } else { None },
         package_dir: install
             .as_ref()
             .map(|i| i.dir.to_string_lossy().to_string()),
@@ -348,40 +389,77 @@ async fn log_line(line: &str) {
     }
 }
 
-/// Install the pinned version under the runtime dir. Runs in the background;
-/// progress goes to the log and `status().state == Installing`.
-pub async fn install() -> Result<(), NineRouterError> {
+/// Mark a background job (install/update) as running, or fail if one is.
+fn begin_job(update: bool) -> Result<(), NineRouterError> {
+    with_runtime(|r| {
+        if r.installing || r.updating {
+            return Err(NineRouterError::InstallInProgress);
+        }
+        if update {
+            r.updating = true;
+        } else {
+            r.installing = true;
+        }
+        r.last_error = None;
+        Ok(())
+    })
+}
+
+fn end_job(result: Result<(), String>) {
+    with_runtime(|r| {
+        r.installing = false;
+        r.updating = false;
+        r.last_error = result.err();
+    });
+}
+
+/// Install [`PINNED_VERSION`] as the managed version. Runs in the background;
+/// progress goes to the log and `status().state == Installing`. Also used to
+/// take over from a global install: if HiveDeck is running the router, it is
+/// restarted on the managed copy.
+pub async fn install(settings: &NineRouterSettings) -> Result<(), NineRouterError> {
     let npm = resolve_executable_path("npm")
         .await
         .ok_or(NineRouterError::NpmNotFound)?;
-    if with_runtime(|r| std::mem::replace(&mut r.installing, true)) {
-        return Err(NineRouterError::InstallInProgress);
-    }
-    set_error(None);
+    begin_job(false)?;
 
+    let settings = settings.clone();
     tokio::spawn(async move {
-        let _lock = LIFECYCLE.lock().await;
-        let result = run_npm_install(&npm).await;
+        let result = async {
+            {
+                let _lock = LIFECYCLE.lock().await;
+                npm_install(&npm, PINNED_VERSION).await?;
+                versions::activate(PINNED_VERSION).map_err(|e| e.to_string())?;
+                versions::prune();
+                log_line("install finished").await;
+            }
+            restart_if_managed(&settings)
+                .await
+                .map_err(|e| format!("installed but restart failed: {e}"))
+        }
+        .await;
         if let Err(e) = &result {
             tracing::warn!("9router install failed: {e}");
             log_line(&format!("install failed: {e}")).await;
         }
-        with_runtime(|r| {
-            r.installing = false;
-            r.last_error = result.err();
-        });
+        end_job(result);
     });
     Ok(())
 }
 
-async fn run_npm_install(npm: &Path) -> Result<(), String> {
-    let dir = runtime_dir();
-    tokio::fs::create_dir_all(&dir)
+/// `npm install --prefix versions/<version> 9router@<version>`.
+async fn npm_install(npm: &Path, version: &str) -> Result<(), String> {
+    if versions::is_installed(version) {
+        log_line(&format!("{PACKAGE_NAME}@{version} already present")).await;
+        return Ok(());
+    }
+    let prefix = versions::version_prefix(version);
+    tokio::fs::create_dir_all(&prefix)
         .await
         .map_err(|e| e.to_string())?;
     log_line(&format!(
-        "installing {PACKAGE_NAME}@{PINNED_VERSION} into {}",
-        dir.display()
+        "installing {PACKAGE_NAME}@{version} into {}",
+        prefix.display()
     ))
     .await;
 
@@ -394,9 +472,9 @@ async fn run_npm_install(npm: &Path) -> Result<(), String> {
     let status = tokio::process::Command::new(npm)
         .arg("install")
         .arg("--prefix")
-        .arg(&dir)
+        .arg(&prefix)
         .args(["--no-fund", "--no-audit", "--loglevel=error"])
-        .arg(format!("{PACKAGE_NAME}@{PINNED_VERSION}"))
+        .arg(format!("{PACKAGE_NAME}@{version}"))
         .stdin(Stdio::null())
         .stdout(Stdio::from(log))
         .stderr(Stdio::from(log_err))
@@ -404,13 +482,125 @@ async fn run_npm_install(npm: &Path) -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?;
     if !status.success() {
+        versions::remove(version);
         return Err(format!("npm install exited with {status}"));
     }
-    if read_package_version(&managed_package_dir()).is_none() {
+    if !versions::is_installed(version) {
+        versions::remove(version);
         return Err("npm install finished but the package is missing".to_string());
     }
-    log_line("install finished").await;
     Ok(())
+}
+
+/// Update the managed install to the latest npm release. Runs in the
+/// background (`status().state == Updating`):
+/// install side by side → smoke test on a scratch port and scratch HOME →
+/// switch → restart the router if HiveDeck is running it. A failed smoke test
+/// leaves the current version untouched.
+pub async fn update(settings: &NineRouterSettings) -> Result<(), NineRouterError> {
+    let install = find_install().await.ok_or(NineRouterError::NotInstalled)?;
+    if install.source != NineRouterInstallSource::Managed {
+        return Err(NineRouterError::NotManaged);
+    }
+    let npm = resolve_executable_path("npm")
+        .await
+        .ok_or(NineRouterError::NpmNotFound)?;
+    let node = resolve_executable_path("node")
+        .await
+        .ok_or(NineRouterError::NodeNotFound)?;
+    let latest = versions::latest(true)
+        .await
+        .ok_or(NineRouterError::RegistryUnavailable)?;
+    if !versions::is_newer(&latest, &install.version) {
+        return Err(NineRouterError::UpToDate(install.version));
+    }
+    begin_job(true)?;
+
+    let settings = settings.clone();
+    tokio::spawn(async move {
+        let result = run_update(&npm, &node, &install.version, &latest, &settings).await;
+        if let Err(e) = &result {
+            tracing::warn!("9router update failed: {e}");
+            log_line(&format!("update failed: {e}")).await;
+        }
+        end_job(result);
+    });
+    Ok(())
+}
+
+async fn run_update(
+    npm: &Path,
+    node: &Path,
+    current: &str,
+    target: &str,
+    settings: &NineRouterSettings,
+) -> Result<(), String> {
+    {
+        let _lock = LIFECYCLE.lock().await;
+        log_line(&format!("updating 9router {current} -> {target}")).await;
+        npm_install(npm, target).await?;
+        if let Err(e) = smoke_test(node, &versions::version_package_dir(target)).await {
+            versions::remove(target);
+            return Err(format!(
+                "v{target} failed to start in a test run ({e}); staying on v{current}"
+            ));
+        }
+        versions::activate(target).map_err(|e| e.to_string())?;
+        versions::prune();
+    }
+    log_line(&format!("now using 9router {target}")).await;
+    restart_if_managed(settings)
+        .await
+        .map_err(|e| format!("switched to v{target} but restart failed: {e}"))
+}
+
+/// Switch back to the previous managed version and restart if running.
+pub async fn rollback(settings: &NineRouterSettings) -> Result<(), NineRouterError> {
+    {
+        let _lock = LIFECYCLE.lock().await;
+        if with_runtime(|r| r.installing || r.updating) {
+            return Err(NineRouterError::InstallInProgress);
+        }
+        let version = versions::swap_to_previous().ok_or(NineRouterError::NoPrevious)?;
+        log_line(&format!("rolled back to 9router {version}")).await;
+    }
+    set_error(None);
+    restart_if_managed(settings).await
+}
+
+async fn restart_if_managed(settings: &NineRouterSettings) -> Result<(), NineRouterError> {
+    if managed_pid().is_some() {
+        restart(settings).await
+    } else {
+        Ok(())
+    }
+}
+
+/// Boot a version once on a free port with a scratch HOME (so it never
+/// touches `~/.9router`), wait for `/v1/models`, then kill it.
+async fn smoke_test(node: &Path, package_dir: &Path) -> Result<(), NineRouterError> {
+    let port = free_port()?;
+    let home = runtime_dir().join("smoke-home");
+    tokio::fs::create_dir_all(&home).await?;
+    log_line(&format!("smoke test on 127.0.0.1:{port}")).await;
+    let env = [
+        ("HOME", home.clone().into_os_string()),
+        ("USERPROFILE", home.clone().into_os_string()),
+        ("APPDATA", home.into_os_string()),
+    ];
+    let mut child = spawn_router(node, package_dir, port, &env).await?;
+    let pid = child.id();
+    let ready = wait_ready(&mut child, port).await;
+    if let Some(pid) = pid {
+        let _ = utils::process::terminate_process_group_by_pid(pid).await;
+    }
+    let _ = child.wait().await;
+    ready
+}
+
+fn free_port() -> std::io::Result<u16> {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0")?;
+    Ok(listener.local_addr()?.port())
 }
 
 /// Start 9router on the configured port and wait until it answers.
@@ -441,23 +631,23 @@ pub async fn start(settings: &NineRouterSettings) -> Result<(), NineRouterError>
     result
 }
 
-async fn spawn_and_wait(node: &Path, install: &Install, port: u16) -> Result<(), NineRouterError> {
+/// Spawn the launcher for `package_dir` on `port`, output appended to the log.
+async fn spawn_router(
+    node: &Path,
+    package_dir: &Path,
+    port: u16,
+    extra_env: &[(&str, OsString)],
+) -> Result<AsyncGroupChild, NineRouterError> {
     let dir = runtime_dir();
     tokio::fs::create_dir_all(&dir).await?;
     let launcher = dir.join("launch-9router.cjs");
     tokio::fs::write(&launcher, LAUNCHER_SOURCE).await?;
 
-    log_line(&format!(
-        "starting 9router {} ({:?}) on 127.0.0.1:{port}",
-        install.version, install.source
-    ))
-    .await;
     let log = open_log().await?.into_std().await;
     let log_err = log.try_clone()?;
-
     let mut cmd = tokio::process::Command::new(node);
     cmd.arg(&launcher)
-        .arg(&install.dir)
+        .arg(package_dir)
         .current_dir(&dir)
         .env("PORT", port.to_string())
         .env("HOSTNAME", "127.0.0.1")
@@ -465,25 +655,45 @@ async fn spawn_and_wait(node: &Path, install: &Install, port: u16) -> Result<(),
         .stdin(Stdio::null())
         .stdout(Stdio::from(log))
         .stderr(Stdio::from(log_err));
-    let mut child = cmd.group_spawn_no_window()?;
-    let pid = child
-        .id()
-        .ok_or_else(|| std::io::Error::other("spawned 9router has no PID"))?;
-    tokio::fs::write(pid_path(), pid.to_string()).await?;
+    for (key, value) in extra_env {
+        cmd.env(key, value);
+    }
+    Ok(cmd.group_spawn_no_window()?)
+}
 
+/// Wait until the router answers on `port`, or fail if it exits / times out.
+async fn wait_ready(child: &mut AsyncGroupChild, port: u16) -> Result<(), NineRouterError> {
     let deadline = tokio::time::Instant::now() + START_TIMEOUT;
     loop {
         if probe(port).await.is_some() {
-            break;
+            return Ok(());
         }
         if let Ok(Some(_)) = child.try_wait() {
-            let _ = tokio::fs::remove_file(pid_path()).await;
             return Err(NineRouterError::ExitedEarly);
         }
         if tokio::time::Instant::now() >= deadline {
             return Err(NineRouterError::StartTimeout(START_TIMEOUT.as_secs()));
         }
         tokio::time::sleep(Duration::from_millis(300)).await;
+    }
+}
+
+async fn spawn_and_wait(node: &Path, install: &Install, port: u16) -> Result<(), NineRouterError> {
+    log_line(&format!(
+        "starting 9router {} ({:?}) on 127.0.0.1:{port}",
+        install.version, install.source
+    ))
+    .await;
+    let mut child = spawn_router(node, &install.dir, port, &[]).await?;
+    let pid = child
+        .id()
+        .ok_or_else(|| std::io::Error::other("spawned 9router has no PID"))?;
+    tokio::fs::write(pid_path(), pid.to_string()).await?;
+
+    if let Err(e) = wait_ready(&mut child, port).await {
+        let _ = utils::process::terminate_process_group_by_pid(pid).await;
+        let _ = tokio::fs::remove_file(pid_path()).await;
+        return Err(e);
     }
 
     // Reap the child when it exits so it doesn't linger as a zombie while
@@ -606,11 +816,11 @@ mod tests {
             port: 20199,
         };
 
-        let before = status(&settings).await;
+        let before = status(&settings, false).await;
         assert_eq!(before.state, NineRouterState::Stopped, "{before:?}");
 
         start(&settings).await.expect("start");
-        let up = status(&settings).await;
+        let up = status(&settings, false).await;
         assert_eq!(up.state, NineRouterState::Running, "{up:?}");
         assert!(up.pid.is_some());
         assert!(matches!(
@@ -619,7 +829,7 @@ mod tests {
         ));
 
         stop(&settings).await.expect("stop");
-        let down = status(&settings).await;
+        let down = status(&settings, false).await;
         assert_eq!(down.state, NineRouterState::Stopped, "{down:?}");
         assert!(
             logs(50)
@@ -628,5 +838,62 @@ mod tests {
                 .iter()
                 .any(|l| l.contains("9router is ready"))
         );
+    }
+
+    /// Install → start → update to npm latest (with smoke test) → rollback →
+    /// stop, all under a throwaway HOME. Downloads from npm. Run with:
+    /// `cargo test -p services --lib nine_router::tests::update -- --ignored --nocapture`
+    #[tokio::test]
+    #[ignore = "downloads 9router from npm"]
+    async fn update_and_rollback_with_isolated_home() {
+        let home = tempfile::tempdir().unwrap();
+        // SAFETY: test-only, runs alone (ignored by default).
+        unsafe { std::env::set_var("HOME", home.path()) };
+        let settings = NineRouterSettings {
+            auto_start: false,
+            port: 20198,
+        };
+        let wait_idle = || async {
+            for _ in 0..600 {
+                if !with_runtime(|r| r.installing || r.updating) {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
+            panic!("job did not finish");
+        };
+
+        install(&settings).await.expect("install");
+        wait_idle().await;
+        let installed = status(&settings, true).await;
+        assert_eq!(
+            installed.install_source,
+            Some(NineRouterInstallSource::Managed)
+        );
+        assert_eq!(installed.installed_version.as_deref(), Some(PINNED_VERSION));
+        let latest = installed.latest_version.clone().expect("npm latest");
+
+        start(&settings).await.expect("start");
+        if !installed.update_available {
+            eprintln!("pinned {PINNED_VERSION} is already latest ({latest}); skipping update");
+            stop(&settings).await.unwrap();
+            return;
+        }
+
+        update(&settings).await.expect("update");
+        wait_idle().await;
+        let updated = status(&settings, false).await;
+        assert_eq!(updated.last_error, None, "{updated:?}");
+        assert_eq!(updated.installed_version.as_deref(), Some(latest.as_str()));
+        assert_eq!(updated.previous_version.as_deref(), Some(PINNED_VERSION));
+        assert_eq!(updated.state, NineRouterState::Running, "{updated:?}");
+
+        rollback(&settings).await.expect("rollback");
+        let rolled = status(&settings, false).await;
+        assert_eq!(rolled.installed_version.as_deref(), Some(PINNED_VERSION));
+        assert_eq!(rolled.previous_version.as_deref(), Some(latest.as_str()));
+        assert_eq!(rolled.state, NineRouterState::Running, "{rolled:?}");
+
+        stop(&settings).await.expect("stop");
     }
 }
