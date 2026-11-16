@@ -22,7 +22,13 @@ ADR-026 embedded 9router. Before mapping HiveDeck agent roles to 9router combos 
    Each role gets a chain of up to 4 models, first spread across distinct providers (max 2 per provider, one variant per model) so one exhausted provider never takes a role down.
 5. **Apply and undo.** `POST /api/router/combos {name, models}` creates the combo or replaces an existing one's models, after validating the name and that every model is currently listed. Nothing is written without a click. Each card shows the change as a diff against the current combo (new models tagged, removed models listed); replacing one that drops 3+ models asks for inline confirmation. Before every write HiveDeck stores what it replaced in `runtime/9router/combo-history.json`, and `POST /api/router/combos/undo {name}` restores it (or deletes a combo HiveDeck created). One level of undo per combo.
 
-API: `GET /api/router/suggestions`, `POST /api/router/combos`, `POST /api/router/combos/undo`.
+6. **Excluding failing models.** Three layers, cheapest first:
+   - *Cooldown locks* (free): `GET /api/models/availability` lists models 9router locked after errors, per connection. A model is excluded when it is locked on every usable account of its provider. Model-level errors that 9router also stamps on the connection (`lastError` naming `[provider/model]`, "not supported", `model_not_found`, or a matching `__all` lock) do not mark the whole provider as failing.
+   - *Hidden models* (`runtime/9router/model-blocklist.json`): failures that waiting will not fix (e.g. "not supported when using Codex with a ChatGPT account") are remembered and never suggested again, even after 9router's 30-minute lock expires, until the user clicks "Show again".
+   - *Test* (costs a tiny request per model): each card can ping its chain via `POST /api/models/test`; saving a combo always tests first and refuses to write if any model fails. Permanent failures are hidden; transient ones ("Model is unavailable") are skipped for 30 minutes; a model that passes clears its cooldown.
+   Excluded models and their reasons are listed on the Combos tab.
+
+API: `GET /api/router/suggestions`, `POST /api/router/combos`, `POST /api/router/combos/undo`, `POST /api/router/models/verify`, `POST /api/router/models/unblock`.
 
 ## Consequences
 

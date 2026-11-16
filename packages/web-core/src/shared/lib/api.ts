@@ -84,6 +84,7 @@ import {
   NineRouterStatus,
   NineRouterLogs,
   ComboSuggestions,
+  ModelCheck,
   TelegramTestResponse,
   SpecKitArtifacts,
   SpecKitArtifact,
@@ -1352,6 +1353,22 @@ export const nineRouterApi = {
     const response = await makeRequest('/api/router/combos', {
       method: 'POST',
       body: JSON.stringify({ name, models }),
+    });
+    return handleApiResponse<ComboSuggestions>(response);
+  },
+
+  verifyModels: async (models: string[]): Promise<ModelCheck[]> => {
+    const response = await makeRequest('/api/router/models/verify', {
+      method: 'POST',
+      body: JSON.stringify({ models }),
+    });
+    return handleApiResponse<ModelCheck[]>(response);
+  },
+
+  unblockModel: async (id: string): Promise<ComboSuggestions> => {
+    const response = await makeRequest('/api/router/models/unblock', {
+      method: 'POST',
+      body: JSON.stringify({ id }),
     });
     return handleApiResponse<ComboSuggestions>(response);
   },

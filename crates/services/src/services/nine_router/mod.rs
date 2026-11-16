@@ -21,8 +21,8 @@ pub mod api;
 mod versions;
 
 pub use advisor::{
-    ComboRole, ComboSuggestions, ProviderHealth, ProviderHealthStatus, RoleSuggestion,
-    SuggestedModel,
+    ComboRole, ComboSuggestions, ExcludedModel, ModelCheck, ProviderHealth, ProviderHealthStatus,
+    RoleSuggestion, SuggestedModel,
 };
 
 use std::{
@@ -854,8 +854,30 @@ pub async fn suggestions(
     let models = fetch_models(settings.port)
         .await
         .ok_or(NineRouterError::NotRunning(settings.port))?;
-    let connections = client.connections().await?;
+    let mut connections = client.connections().await?;
     let existing = client.combos().await?;
+    // Older 9router versions may lack the availability route; treat as none.
+    let locks = client.model_locks().await.unwrap_or_default();
+
+    // A connection locked as a whole (`__all`) is as good as failing.
+    for c in &mut connections {
+        if c.error.is_none()
+            && let Some(l) = locks.iter().find(|l| {
+                l.connection_id == c.id
+                    && l.model.is_none()
+                    && !l
+                        .last_error
+                        .as_deref()
+                        .is_some_and(|e| api::is_model_specific_error(e, &c.provider))
+            })
+        {
+            c.error = Some(
+                l.last_error
+                    .clone()
+                    .unwrap_or_else(|| "connection unavailable".to_string()),
+            );
+        }
+    }
 
     // Usage per active, error-free connection, in parallel.
     let usages = futures::future::join_all(connections.iter().map(|c| {
@@ -869,7 +891,7 @@ pub async fn suggestions(
         }
     }))
     .await;
-    let entries: Vec<_> = connections.into_iter().zip(usages).collect();
+    let entries: Vec<_> = connections.iter().cloned().zip(usages).collect();
     let mut health = advisor::provider_health(&entries);
 
     // Fill alias and model counts; list providers that have models but no
@@ -893,7 +915,46 @@ pub async fn suggestions(
         h.model_count += 1;
     }
 
-    let mut roles = advisor::suggest(&models, &health, &existing);
+    // Exclusions: models in cooldown on every account, plus models HiveDeck
+    // learned are not available at all (kept across cooldown resets).
+    let mut blocklist = read_blocklist().await;
+    let mut excluded = advisor::locked_models(&models, &locks, &connections);
+    let mut learned = false;
+    for e in excluded.iter().filter(|e| e.permanent) {
+        if !blocklist.contains_key(&e.id) {
+            blocklist.insert(
+                e.id.clone(),
+                BlockedModel {
+                    reason: e.reason.clone(),
+                    added_at: chrono::Utc::now().to_rfc3339(),
+                    until: None,
+                },
+            );
+            learned = true;
+        }
+    }
+    if learned {
+        write_blocklist(&blocklist).await?;
+    }
+    for (id, b) in &blocklist {
+        if excluded.iter().all(|e| &e.id != id) && models.iter().any(|m| &m.id == id) {
+            excluded.push(ExcludedModel {
+                id: id.clone(),
+                provider: id
+                    .split_once('/')
+                    .map(|(a, _)| advisor::provider_for_alias(a))
+                    .unwrap_or_default(),
+                reason: b.reason.clone(),
+                until: b.until.clone(),
+                permanent: b.until.is_none(),
+            });
+        }
+    }
+    excluded.sort_by(|a, b| (!a.permanent, &a.id).cmp(&(!b.permanent, &b.id)));
+    let excluded_ids: std::collections::HashSet<String> =
+        excluded.iter().map(|e| e.id.clone()).collect();
+
+    let mut roles = advisor::suggest(&models, &health, &existing, &excluded_ids);
     let history = read_combo_history().await;
     for r in &mut roles {
         r.undo_available = history.contains_key(&r.combo_name);
@@ -903,6 +964,7 @@ pub async fn suggestions(
     Ok(ComboSuggestions {
         roles,
         providers,
+        excluded,
         generated_at: chrono::Utc::now().to_rfc3339(),
     })
 }
@@ -945,6 +1007,20 @@ pub async fn apply_combo(
             "unknown model {unknown}"
         )));
     }
+    // Never write a chain with a model that fails right now.
+    let checks = verify_with(&client, models).await?;
+    let failed: Vec<String> = checks
+        .iter()
+        .filter(|c| !c.ok)
+        .map(|c| format!("{} ({})", c.id, c.error.as_deref().unwrap_or("failed")))
+        .collect();
+    if !failed.is_empty() {
+        return Err(NineRouterError::InvalidCombo(format!(
+            "not saved; these models failed a test request: {}",
+            failed.join(", ")
+        )));
+    }
+
     let existing = client.combos().await?.into_iter().find(|c| c.name == name);
     // Remember what we replace so the user can undo it.
     let mut history = read_combo_history().await;
@@ -961,6 +1037,136 @@ pub async fn apply_combo(
         None => client.create_combo(name, models).await?,
     }
     log_line(&format!("combo {name} set to [{}]", models.join(", "))).await;
+    Ok(())
+}
+
+/// A model HiveDeck hides from suggestions until the user restores it.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct BlockedModel {
+    reason: String,
+    added_at: String,
+    /// Set for temporary exclusions (a test failed for a transient reason);
+    /// `None` hides the model until the user restores it.
+    #[serde(default)]
+    until: Option<String>,
+}
+
+/// How long a model that failed a test for a transient reason stays out of
+/// suggestions (matches 9router's typical cooldown).
+const TEST_FAILURE_COOLDOWN: chrono::Duration = chrono::Duration::minutes(30);
+
+fn blocklist_path() -> PathBuf {
+    runtime_dir().join("model-blocklist.json")
+}
+
+/// Hidden models; expired temporary entries are dropped on read.
+async fn read_blocklist() -> std::collections::HashMap<String, BlockedModel> {
+    let mut list: std::collections::HashMap<String, BlockedModel> =
+        tokio::fs::read_to_string(blocklist_path())
+            .await
+            .ok()
+            .and_then(|raw| serde_json::from_str(&raw).ok())
+            .unwrap_or_default();
+    let now = chrono::Utc::now();
+    list.retain(|_, b| {
+        b.until
+            .as_deref()
+            .and_then(|u| chrono::DateTime::parse_from_rfc3339(u).ok())
+            .is_none_or(|u| u > now)
+    });
+    list
+}
+
+async fn write_blocklist(
+    list: &std::collections::HashMap<String, BlockedModel>,
+) -> std::io::Result<()> {
+    tokio::fs::create_dir_all(runtime_dir()).await?;
+    let raw = serde_json::to_string_pretty(list).map_err(std::io::Error::other)?;
+    tokio::fs::write(blocklist_path(), raw).await
+}
+
+/// Ping each model (in parallel) and remember permanent failures.
+async fn verify_with(
+    client: &api::Client,
+    models: &[String],
+) -> Result<Vec<ModelCheck>, NineRouterError> {
+    let pings = futures::future::join_all(models.iter().map(|id| client.ping(id))).await;
+    let mut checks = Vec::with_capacity(models.len());
+    for (id, ping) in models.iter().zip(pings) {
+        let ping = ping?;
+        let raw = ping.error.clone().unwrap_or_default();
+        let permanent = !ping.ok && advisor::is_permanent_failure(&raw);
+        checks.push(ModelCheck {
+            id: id.clone(),
+            ok: ping.ok,
+            latency_ms: ping.latency_ms,
+            error: (!ping.ok).then(|| {
+                if raw.is_empty() {
+                    "no response".to_string()
+                } else {
+                    advisor::summarize_message(&raw)
+                }
+            }),
+            permanent,
+        });
+    }
+    // Failed models leave suggestions: for good when the failure is
+    // permanent, for a cooldown otherwise. A model that passes is cleared.
+    let now = chrono::Utc::now();
+    let mut list = read_blocklist().await;
+    let mut changed = false;
+    for c in &checks {
+        if c.ok {
+            changed |= list.remove(&c.id).is_some_and(|b| b.until.is_some());
+            continue;
+        }
+        let until = (!c.permanent).then(|| (now + TEST_FAILURE_COOLDOWN).to_rfc3339());
+        log_line(&format!(
+            "test failed for {} ({}): {:?}",
+            c.id,
+            if c.permanent { "hidden" } else { "cooldown" },
+            c.error
+        ))
+        .await;
+        list.insert(
+            c.id.clone(),
+            BlockedModel {
+                reason: c.error.clone().unwrap_or_default(),
+                added_at: now.to_rfc3339(),
+                until,
+            },
+        );
+        changed = true;
+    }
+    if changed {
+        write_blocklist(&list).await?;
+    }
+    Ok(checks)
+}
+
+/// Send a tiny real request to each model (costs a little quota). Models
+/// that fail permanently are hidden from future suggestions.
+pub async fn verify_models(
+    settings: &NineRouterSettings,
+    models: &[String],
+) -> Result<Vec<ModelCheck>, NineRouterError> {
+    if models.is_empty() || models.len() > 8 {
+        return Err(NineRouterError::InvalidCombo(
+            "test between 1 and 8 models at a time".into(),
+        ));
+    }
+    let client = management_client(settings)?;
+    verify_with(&client, models).await
+}
+
+/// Show a hidden model in suggestions again.
+pub async fn unblock_model(settings: &NineRouterSettings, id: &str) -> Result<(), NineRouterError> {
+    management_client(settings)?;
+    let mut list = read_blocklist().await;
+    if list.remove(id).is_some() {
+        write_blocklist(&list).await?;
+        log_line(&format!("model {id} shown again")).await;
+    }
     Ok(())
 }
 

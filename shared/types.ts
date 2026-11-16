@@ -400,11 +400,28 @@ up_to_date: boolean,
  */
 undo_available: boolean, };
 
-export type ComboSuggestions = { roles: Array<RoleSuggestion>, providers: Array<ProviderHealth>, generated_at: string, };
+export type ComboSuggestions = { roles: Array<RoleSuggestion>, providers: Array<ProviderHealth>, excluded: Array<ExcludedModel>, generated_at: string, };
 
 export type ApplyComboRequest = { name: string, models: Array<string>, };
 
 export type UndoComboRequest = { name: string, };
+
+export type VerifyModelsRequest = { models: Array<string>, };
+
+export type UnblockModelRequest = { id: string, };
+
+export type ExcludedModel = { id: string, provider: string, reason: string, 
+/**
+ * When 9router's cooldown ends (temporary exclusions).
+ */
+until: string | null, 
+/**
+ * Hidden by HiveDeck until the user restores it (e.g. the model is not
+ * available on this account at all).
+ */
+permanent: boolean, };
+
+export type ModelCheck = { id: string, ok: boolean, latency_ms: bigint | null, error: string | null, permanent: boolean, };
 
 export type TelegramTestResponse = { ok: boolean, error: string | null, };
 

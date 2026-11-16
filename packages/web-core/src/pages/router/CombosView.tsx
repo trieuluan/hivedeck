@@ -3,12 +3,17 @@ import { useTranslation } from 'react-i18next';
 import {
   ArrowCounterClockwiseIcon,
   ArrowsClockwiseIcon,
+  CheckCircleIcon,
   CheckIcon,
+  PulseIcon,
   ShieldCheckIcon,
+  XCircleIcon,
 } from '@phosphor-icons/react';
 import type {
   ComboRole,
   ComboSuggestions,
+  ExcludedModel,
+  ModelCheck,
   ProviderHealth,
   ProviderHealthStatus,
   RoleSuggestion,
@@ -211,16 +216,110 @@ function ProviderRow({
   );
 }
 
+function CheckResult({ check }: { check: ModelCheck | undefined }) {
+  const { t } = useTranslation('settings');
+  if (!check) return null;
+  if (check.ok) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] text-success">
+        <CheckCircleIcon className="size-icon-2xs" weight="fill" />
+        {check.latency_ms !== null
+          ? t('settings.router.combos.check.ok', {
+              ms: check.latency_ms.toLocaleString(),
+            })
+          : t('settings.router.combos.check.okNoTime')}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] text-error">
+      <XCircleIcon className="size-icon-2xs" weight="fill" />
+      {check.error ?? t('settings.router.combos.check.failed')}
+      <span className="text-low">
+        ·{' '}
+        {check.permanent
+          ? t('settings.router.combos.check.hidden')
+          : t('settings.router.combos.check.cooldown')}
+      </span>
+    </span>
+  );
+}
+
+function ExcludedList({
+  items,
+  busy,
+  onRestore,
+}: {
+  items: ExcludedModel[];
+  busy: boolean;
+  onRestore: (id: string) => void;
+}) {
+  const { t } = useTranslation('settings');
+  if (items.length === 0) return null;
+  return (
+    <details className="group rounded-sm border border-border">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-base py-2 text-sm hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+        <span className="font-semibold text-high">
+          {t('settings.router.combos.excluded.title')}
+        </span>
+        <span className="text-xs tabular-nums text-low">{items.length}</span>
+        <span className="text-xs text-low">
+          {t('settings.router.combos.excluded.hint')}
+        </span>
+      </summary>
+      <ul className="divide-y divide-border/60 border-t border-border">
+        {items.map((e) => {
+          const until = relativeTime(e.until, true);
+          return (
+            <li
+              key={e.id}
+              className="flex flex-wrap items-center gap-x-base gap-y-1 px-base py-2 text-xs"
+            >
+              <span className="break-all font-mono text-normal">{e.id}</span>
+              <span className="text-error">{e.reason}</span>
+              <span className="ml-auto flex items-center gap-2 text-low">
+                {e.permanent ? (
+                  <>
+                    {t('settings.router.combos.excluded.hidden')}
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() => onRestore(e.id)}
+                    >
+                      {t('settings.router.combos.excluded.restore')}
+                    </Button>
+                  </>
+                ) : until ? (
+                  t('settings.router.combos.excluded.cooldown', { time: until })
+                ) : (
+                  t('settings.router.combos.excluded.cooldownNoTime')
+                )}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </details>
+  );
+}
+
 function RoleCard({
   role,
   busy,
+  testing,
+  checks,
   onApply,
   onUndo,
+  onTest,
 }: {
   role: RoleSuggestion;
   busy: boolean;
+  testing: boolean;
+  checks: Record<string, ModelCheck>;
   onApply: () => void;
   onUndo: () => void;
+  onTest: () => void;
 }) {
   const { t } = useTranslation('settings');
   const [confirming, setConfirming] = useState(false);
@@ -276,6 +375,21 @@ function RoleCard({
           <p className="text-xs text-low">{descriptions[role.role]}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          {role.models.length > 0 && (
+            <Button
+              size="xs"
+              variant="ghost"
+              disabled={busy || testing}
+              onClick={onTest}
+            >
+              <PulseIcon
+                className={cn('mr-1 size-icon-xs', testing && 'animate-pulse')}
+              />
+              {testing
+                ? t('settings.router.combos.testing')
+                : t('settings.router.combos.test')}
+            </Button>
+          )}
           {role.undo_available && (
             <Button size="xs" variant="ghost" disabled={busy} onClick={onUndo}>
               <ArrowCounterClockwiseIcon className="mr-1 size-icon-xs" />
@@ -317,6 +431,7 @@ function RoleCard({
                         {t('settings.router.combos.added')}
                       </span>
                     )}
+                    <CheckResult check={checks[m.id]} />
                   </div>
                   <div className="text-low">{m.reason}</div>
                 </div>
@@ -397,6 +512,8 @@ export function CombosView({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [checks, setChecks] = useState<Record<string, ModelCheck>>({});
+  const [testing, setTesting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -423,8 +540,36 @@ export function CombosView({
       setNotice(message);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      // A failed apply may have hidden broken models; show fresh chains.
+      void load();
     } finally {
       setBusy(false);
+    }
+  };
+
+  const testRole = async (role: RoleSuggestion) => {
+    setTesting(role.combo_name);
+    setError(null);
+    setNotice(null);
+    try {
+      const results = await nineRouterApi.verifyModels(
+        role.models.map((m) => m.id)
+      );
+      setChecks((prev) => ({
+        ...prev,
+        ...Object.fromEntries(results.map((c) => [c.id, c])),
+      }));
+      const failed = results.filter((c) => !c.ok).length;
+      if (failed > 0) {
+        setNotice(
+          t('settings.router.combos.excludedAfterTest', { count: failed })
+        );
+        await load();
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTesting(null);
     }
   };
 
@@ -498,12 +643,26 @@ export function CombosView({
               </ul>
             </section>
 
+            <ExcludedList
+              items={data.excluded}
+              busy={busy}
+              onRestore={(id) =>
+                void act(
+                  () => nineRouterApi.unblockModel(id),
+                  t('settings.router.combos.excluded.restored', { id })
+                )
+              }
+            />
+
             <div className="grid items-start gap-base md:grid-cols-2">
               {data.roles.map((role) => (
                 <RoleCard
                   key={role.role}
                   role={role}
                   busy={busy}
+                  testing={testing === role.combo_name}
+                  checks={checks}
+                  onTest={() => void testRole(role)}
                   onApply={() =>
                     void act(
                       () =>

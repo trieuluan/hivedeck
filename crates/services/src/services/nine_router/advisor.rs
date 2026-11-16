@@ -7,14 +7,14 @@
 //! exhausted provider never takes a role down. Pure functions; I/O lives in
 //! the parent module.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use super::{
     aliases::ALIASES,
-    api::{Combo, Connection, Usage},
+    api::{Combo, Connection, ModelLock, Usage},
 };
 
 const CHAIN_LEN: usize = 4;
@@ -110,10 +110,34 @@ pub struct RoleSuggestion {
     pub undo_available: bool,
 }
 
+/// A model left out of suggestions, and why.
+#[derive(Clone, Debug, Serialize, TS)]
+pub struct ExcludedModel {
+    pub id: String,
+    pub provider: String,
+    pub reason: String,
+    /// When 9router's cooldown ends (temporary exclusions).
+    pub until: Option<String>,
+    /// Hidden by HiveDeck until the user restores it (e.g. the model is not
+    /// available on this account at all).
+    pub permanent: bool,
+}
+
+/// Outcome of pinging one model with a tiny real request.
+#[derive(Clone, Debug, Serialize, TS)]
+pub struct ModelCheck {
+    pub id: String,
+    pub ok: bool,
+    pub latency_ms: Option<u64>,
+    pub error: Option<String>,
+    pub permanent: bool,
+}
+
 #[derive(Clone, Debug, Serialize, TS)]
 pub struct ComboSuggestions {
     pub roles: Vec<RoleSuggestion>,
     pub providers: Vec<ProviderHealth>,
+    pub excluded: Vec<ExcludedModel>,
     pub generated_at: String,
 }
 
@@ -216,6 +240,85 @@ fn connection_health(conn: &Connection, usage: Option<&Usage>) -> ProviderHealth
     h
 }
 
+/// Errors that will not go away by waiting: the model is unknown or not
+/// offered on this account/plan.
+pub fn is_permanent_failure(raw: &str) -> bool {
+    let lower = raw.to_lowercase();
+    [
+        "model_not_found",
+        "not supported",
+        "does not exist",
+        "unknown model",
+        "invalid model",
+        "model not found",
+        "no such model",
+        "not available on your plan",
+        "unsupported model",
+    ]
+    .iter()
+    .any(|n| lower.contains(n))
+}
+
+/// Part of a model id after the alias prefix: `cx/gpt-6` → `gpt-6`.
+fn provider_model_name(id: &str) -> &str {
+    id.split_once('/').map(|(_, rest)| rest).unwrap_or(id)
+}
+
+/// Models 9router has in cooldown on every usable connection of their
+/// provider. A lock on one account is fine while another account can serve
+/// the model (9router rotates).
+pub fn locked_models(
+    models: &[ModelInfo],
+    locks: &[ModelLock],
+    connections: &[Connection],
+) -> Vec<ExcludedModel> {
+    let mut usable: HashMap<&str, Vec<&str>> = HashMap::new();
+    for c in connections
+        .iter()
+        .filter(|c| c.is_active && c.error.is_none())
+    {
+        usable
+            .entry(c.provider.as_str())
+            .or_default()
+            .push(c.id.as_str());
+    }
+    let mut out = Vec::new();
+    for m in models.iter().filter(|m| m.owned_by != "combo") {
+        let provider = provider_for_alias(&m.owned_by);
+        let Some(conns) = usable.get(provider.as_str()) else {
+            continue;
+        };
+        let name = provider_model_name(&m.id);
+        let matching: Vec<&ModelLock> = locks
+            .iter()
+            .filter(|l| l.provider == provider)
+            .filter(|l| l.model.as_deref().is_none_or(|lm| lm == name || lm == m.id))
+            .collect();
+        let all_locked = conns
+            .iter()
+            .all(|cid| matching.iter().any(|l| l.connection_id == *cid));
+        if matching.is_empty() || !all_locked {
+            continue;
+        }
+        let raw = matching.iter().find_map(|l| l.last_error.as_deref());
+        // Prefer an error that names this model; a connection's last error
+        // may belong to another one.
+        let names_model = raw.is_some_and(|e| e.contains(name));
+        let reason = raw
+            .filter(|_| names_model)
+            .map(summarize_message)
+            .unwrap_or_else(|| "In cooldown after errors".to_string());
+        out.push(ExcludedModel {
+            id: m.id.clone(),
+            provider: provider.clone(),
+            reason,
+            until: matching.iter().filter_map(|l| l.until.clone()).max(),
+            permanent: names_model && raw.is_some_and(is_permanent_failure),
+        });
+    }
+    out
+}
+
 /// Turn a raw provider/9router error into one short line.
 pub fn summarize_message(raw: &str) -> String {
     let lower = raw.to_lowercase();
@@ -223,6 +326,32 @@ pub fn summarize_message(raw: &str) -> String {
         (
             &["api_key_expired", "key has expired", "key expired"][..],
             "API key expired",
+        ),
+        (
+            &["not supported when using codex with a chatgpt account"][..],
+            "Not available with a ChatGPT login",
+        ),
+        (
+            &[
+                "model_not_found",
+                "model not found",
+                "does not exist",
+                "no such model",
+            ][..],
+            "Model not available on this account",
+        ),
+        (
+            &["not supported", "unsupported model"][..],
+            "Model not supported",
+        ),
+        (
+            &[
+                "model is unavailable",
+                "temporarily unavailable",
+                "overloaded",
+                "capacity",
+            ][..],
+            "Temporarily unavailable",
         ),
         (
             &["invalid_grant", "refresh token"][..],
@@ -758,10 +887,11 @@ pub fn suggest(
     models: &[ModelInfo],
     health: &HashMap<String, ProviderHealth>,
     existing: &[Combo],
+    excluded: &HashSet<String>,
 ) -> Vec<RoleSuggestion> {
     let usable: Vec<(&ModelInfo, ModelName, String)> = models
         .iter()
-        .filter(|m| is_chat_model(m))
+        .filter(|m| is_chat_model(m) && !excluded.contains(&m.id))
         .filter_map(|m| {
             let provider = provider_for_alias(&m.owned_by);
             if health.get(&provider).is_some_and(|h| !h.status.usable()) {
@@ -888,6 +1018,67 @@ mod tests {
         ]
     }
 
+    fn lock(provider: &str, model: Option<&str>, conn: &str, err: &str) -> ModelLock {
+        ModelLock {
+            provider: provider.into(),
+            model: model.map(str::to_string),
+            connection_id: conn.into(),
+            until: Some("2099-01-01T00:00:00Z".into()),
+            last_error: Some(err.into()),
+        }
+    }
+
+    #[test]
+    fn excludes_models_locked_on_every_account() {
+        let err = r#"HTTP 503: [codex/gpt-5.2] [400]: {"detail":"The 'gpt-5.2' model is not supported when using Codex with a ChatGPT account.","error":{"code":"model_not_found"}} (reset after 30m)"#;
+        let conns = vec![conn("codex", true, None)];
+        let out = locked_models(
+            &catalog(),
+            &[lock("codex", Some("gpt-5.2"), "codex-1", err)],
+            &conns,
+        );
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].id, "cx/gpt-5.2");
+        assert!(out[0].permanent);
+        assert_eq!(out[0].reason, "Not available with a ChatGPT login");
+
+        // A second healthy account can still serve it: not excluded.
+        let mut second = conn("codex", true, None);
+        second.id = "codex-2".into();
+        let out = locked_models(
+            &catalog(),
+            &[lock("codex", Some("gpt-5.2"), "codex-1", err)],
+            &[conns[0].clone(), second],
+        );
+        assert!(out.is_empty());
+
+        // Excluded ids never reach a chain.
+        let excluded: HashSet<String> = ["cx/gpt-5.2-codex-high".to_string()].into();
+        let roles = suggest(&catalog(), &HashMap::new(), &[], &excluded);
+        assert!(
+            roles
+                .iter()
+                .all(|r| r.models.iter().all(|m| m.id != "cx/gpt-5.2-codex-high"))
+        );
+    }
+
+    #[test]
+    fn summarizes_transient_unavailability() {
+        let raw = "Upstream request failed: Model is unavailable";
+        assert_eq!(summarize_message(raw), "Temporarily unavailable");
+        assert!(!is_permanent_failure(raw));
+    }
+
+    #[test]
+    fn classifies_permanent_failures() {
+        assert!(is_permanent_failure("code: model_not_found"));
+        assert!(is_permanent_failure(
+            "The model is not supported when using Codex"
+        ));
+        assert!(!is_permanent_failure("HTTP 429: rate limit exceeded"));
+        assert!(!is_permanent_failure("HTTP 503: upstream timeout"));
+    }
+
     #[test]
     fn summarizes_provider_errors() {
         let raw = r#"[401]: {"error":{"type":"authentication_error","code":"api_key_expired","message":"This API key has expired. Create a new one."}}"#;
@@ -967,7 +1158,7 @@ mod tests {
             (conn("antigravity", true, None), Some(usage(0.5))),
         ]);
         assert_eq!(health["claude"].status, ProviderHealthStatus::Error);
-        let roles = suggest(&catalog(), &health, &[]);
+        let roles = suggest(&catalog(), &health, &[], &HashSet::new());
         for r in &roles {
             assert!(
                 r.models.iter().all(|m| m.provider != "claude"),
@@ -985,7 +1176,7 @@ mod tests {
             (conn("codex", true, None), Some(usage(0.9))),
             (conn("antigravity", true, None), Some(usage(0.9))),
         ]);
-        let roles = suggest(&catalog(), &health, &[]);
+        let roles = suggest(&catalog(), &health, &[], &HashSet::new());
         assert_eq!(
             roles.iter().map(|r| r.role).collect::<Vec<_>>(),
             ComboRole::ALL.to_vec()
@@ -1037,7 +1228,7 @@ mod tests {
             (conn("codex", true, None), Some(usage(0.9))),
         ]);
         assert_eq!(health["claude"].status, ProviderHealthStatus::Exhausted);
-        let roles = suggest(&catalog(), &health, &[]);
+        let roles = suggest(&catalog(), &health, &[], &HashSet::new());
         assert!(roles[1].models.iter().all(|m| m.provider != "claude"));
     }
 
@@ -1056,7 +1247,7 @@ mod tests {
     #[test]
     fn marks_up_to_date_existing_combos() {
         let health = HashMap::new();
-        let first = suggest(&catalog(), &health, &[]);
+        let first = suggest(&catalog(), &health, &[], &HashSet::new());
         let coder = first.iter().find(|r| r.role == ComboRole::Coder).unwrap();
         let existing = vec![Combo {
             id: "1".into(),
@@ -1064,7 +1255,7 @@ mod tests {
             models: coder.models.iter().map(|m| m.id.clone()).collect(),
             kind: None,
         }];
-        let again = suggest(&catalog(), &health, &existing);
+        let again = suggest(&catalog(), &health, &existing, &HashSet::new());
         let coder = again.iter().find(|r| r.role == ComboRole::Coder).unwrap();
         assert!(coder.up_to_date);
         let planner = again.iter().find(|r| r.role == ComboRole::Planner).unwrap();

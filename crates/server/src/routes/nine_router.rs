@@ -10,7 +10,8 @@ use axum::{
 use deployment::Deployment;
 use serde::Deserialize;
 use services::services::nine_router::{
-    self, ComboSuggestions, NineRouterError, NineRouterLogs, NineRouterSettings, NineRouterStatus,
+    self, ComboSuggestions, ModelCheck, NineRouterError, NineRouterLogs, NineRouterSettings,
+    NineRouterStatus,
 };
 use ts_rs::TS;
 use utils::response::ApiResponse;
@@ -144,6 +145,40 @@ async fn undo_combo(
     Ok(ResponseJson(ApiResponse::success(suggestions)))
 }
 
+#[derive(Debug, Deserialize, TS)]
+pub struct VerifyModelsRequest {
+    pub models: Vec<String>,
+}
+
+async fn verify_models(
+    State(deployment): State<DeploymentImpl>,
+    axum::Json(body): axum::Json<VerifyModelsRequest>,
+) -> Result<ResponseJson<ApiResponse<Vec<ModelCheck>>>, ApiError> {
+    let checks = nine_router::verify_models(&settings(&deployment).await, &body.models)
+        .await
+        .map_err(to_api_error)?;
+    Ok(ResponseJson(ApiResponse::success(checks)))
+}
+
+#[derive(Debug, Deserialize, TS)]
+pub struct UnblockModelRequest {
+    pub id: String,
+}
+
+async fn unblock_model(
+    State(deployment): State<DeploymentImpl>,
+    axum::Json(body): axum::Json<UnblockModelRequest>,
+) -> Result<ResponseJson<ApiResponse<ComboSuggestions>>, ApiError> {
+    let settings = settings(&deployment).await;
+    nine_router::unblock_model(&settings, &body.id)
+        .await
+        .map_err(to_api_error)?;
+    let suggestions = nine_router::suggestions(&settings)
+        .await
+        .map_err(to_api_error)?;
+    Ok(ResponseJson(ApiResponse::success(suggestions)))
+}
+
 #[derive(Deserialize)]
 struct LogsQuery {
     limit: Option<usize>,
@@ -169,4 +204,6 @@ pub(super) fn router() -> Router<DeploymentImpl> {
         .route("/router/suggestions", get(get_suggestions))
         .route("/router/combos", post(apply_combo))
         .route("/router/combos/undo", post(undo_combo))
+        .route("/router/models/verify", post(verify_models))
+        .route("/router/models/unblock", post(unblock_model))
 }

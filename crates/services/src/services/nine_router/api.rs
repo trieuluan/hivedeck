@@ -102,6 +102,26 @@ impl Usage {
     }
 }
 
+/// A model 9router has locked on one connection (`GET /api/models/availability`).
+#[derive(Clone, Debug)]
+pub struct ModelLock {
+    pub provider: String,
+    /// Provider-side model name without the alias prefix, or `None` when the
+    /// whole connection is unavailable.
+    pub model: Option<String>,
+    pub connection_id: String,
+    pub until: Option<String>,
+    pub last_error: Option<String>,
+}
+
+/// Result of `POST /api/models/test` (a tiny real completion).
+#[derive(Clone, Debug, Default)]
+pub struct Ping {
+    pub ok: bool,
+    pub latency_ms: Option<u64>,
+    pub error: Option<String>,
+}
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct Combo {
     pub id: String,
@@ -128,25 +148,47 @@ fn str_field(v: &Value, keys: &[&str]) -> Option<String> {
     })
 }
 
+/// The error is about one model (`[codex/gpt-x] ...`, "model not found",
+/// "not supported"), not the account.
+pub fn is_model_specific_error(err: &str, provider: &str) -> bool {
+    let lower = err.to_lowercase();
+    super::advisor::is_permanent_failure(err)
+        || lower.contains(&format!("[{}/", provider.to_lowercase()))
+}
+
 fn parse_connection(v: &Value) -> Option<Connection> {
     let is_active = match v.get("isActive") {
         Some(Value::Bool(b)) => *b,
         Some(Value::Number(n)) => n.as_i64() != Some(0),
         _ => true,
     };
-    // Status fields vary by provider/version; take whatever error is present.
-    let failed_test = v
-        .get("testStatus")
-        .and_then(Value::as_str)
-        .is_some_and(|s| matches!(s, "error" | "failed" | "expired" | "invalid"));
-    let error = str_field(v, &["lastError", "errorMessage", "lastErrorMessage"]).or_else(|| {
-        failed_test.then(|| {
-            str_field(v, &["testStatus"]).unwrap_or_else(|| "connection test failed".to_string())
-        })
+    let provider = str_field(v, &["provider"])?;
+    let test_status = str_field(v, &["testStatus"]);
+    let failed_test = test_status.as_deref().is_some_and(|s| {
+        matches!(
+            s,
+            "error" | "failed" | "expired" | "invalid" | "unavailable"
+        )
     });
+    let last_error = str_field(v, &["lastError", "errorMessage", "lastErrorMessage"]);
+    // 9router records a failing *model* on the connection too (lastError,
+    // testStatus "unavailable"); that must not take the whole provider out,
+    // the per-model lock already covers it.
+    let model_specific = last_error
+        .as_deref()
+        .is_some_and(|e| is_model_specific_error(e, &provider));
+    let error = if model_specific {
+        None
+    } else if failed_test {
+        last_error.or_else(|| test_status.clone())
+    } else if test_status.is_none() {
+        last_error
+    } else {
+        None
+    };
     Some(Connection {
         id: str_field(v, &["id"])?,
-        provider: str_field(v, &["provider"])?,
+        provider,
         name: str_field(v, &["name", "email"]),
         auth_type: str_field(v, &["authType"]),
         is_active,
@@ -255,6 +297,56 @@ impl Client {
         }
     }
 
+    pub async fn model_locks(&self) -> Result<Vec<ModelLock>, ApiError> {
+        let body = self
+            .send(self.http.get(self.url("/api/models/availability")))
+            .await?;
+        Ok(body
+            .get("models")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|v| {
+                        let model = str_field(v, &["model"])?;
+                        Some(ModelLock {
+                            provider: str_field(v, &["provider"])?,
+                            model: (model != "__all").then_some(model),
+                            connection_id: str_field(v, &["connectionId"]).unwrap_or_default(),
+                            until: str_field(v, &["until"]),
+                            last_error: str_field(v, &["lastError"]),
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default())
+    }
+
+    /// Ping one model with a tiny real request through 9router.
+    pub async fn ping(&self, model: &str) -> Result<Ping, ApiError> {
+        let req = self
+            .http
+            .post(self.url("/api/models/test"))
+            .timeout(Duration::from_secs(60))
+            .json(&json!({ "model": model, "kind": "llm" }));
+        let body = match self.send(req).await {
+            Ok(body) => body,
+            Err(ApiError::Http { message, .. }) => {
+                return Ok(Ping {
+                    ok: false,
+                    latency_ms: None,
+                    error: Some(message),
+                });
+            }
+            Err(e) => return Err(e),
+        };
+        Ok(Ping {
+            ok: body.get("ok").and_then(Value::as_bool).unwrap_or(false),
+            latency_ms: body.get("latencyMs").and_then(Value::as_u64),
+            error: str_field(&body, &["error"]),
+        })
+    }
+
     pub async fn combos(&self) -> Result<Vec<Combo>, ApiError> {
         let body = self.send(self.http.get(self.url("/api/combos"))).await?;
         Ok(body
@@ -330,6 +422,14 @@ mod tests {
         .unwrap();
         assert!(c.is_active);
         assert_eq!(c.error.as_deref(), Some("expired"));
+
+        // A model failure recorded on the connection is not an account error.
+        let m = parse_connection(&json!({
+            "id": "c1", "provider": "codex", "testStatus": "unavailable",
+            "lastError": "HTTP 503: [codex/gpt-x] [400]: model is not supported when using Codex with a ChatGPT account"
+        }))
+        .unwrap();
+        assert!(m.error.is_none());
 
         let off = parse_connection(&json!({ "id": "b", "provider": "codex", "isActive": false }))
             .unwrap();

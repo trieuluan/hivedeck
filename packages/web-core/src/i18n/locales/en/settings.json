@@ -693,7 +693,7 @@
       "autoStart": "Start with HiveDeck",
       "baseUrl": "Base URL",
       "combos": {
-        "intro": "Suggested fallback chains per agent role, from the models, provider health and quota 9router reports right now. Nothing changes until you apply a combo.",
+        "intro": "Suggested fallback chains per agent role, from the models, provider health and quota 9router reports right now. Saving tests each model with a tiny request first; nothing changes until you apply a combo.",
         "refresh": "Refresh",
         "providers": "Providers",
         "create": "Create combo",
@@ -740,7 +740,26 @@
         "restored": "Restored {{name}}.",
         "fixInDashboard": "Fix in dashboard",
         "noQuotaApi": "Provider doesn't report quota",
-        "modelCount": "{{count}} models"
+        "modelCount": "{{count}} models",
+        "test": "Test",
+        "testing": "Testing…",
+        "check": {
+          "ok": "{{ms}} ms",
+          "okNoTime": "OK",
+          "failed": "Failed",
+          "hidden": "hidden from suggestions",
+          "cooldown": "skipped for 30 min"
+        },
+        "excluded": {
+          "title": "Excluded models",
+          "hint": "Not suggested: in cooldown, or not available on your accounts",
+          "hidden": "Hidden",
+          "restore": "Show again",
+          "restored": "{{id}} can be suggested again.",
+          "cooldown": "Cooldown · {{time}} left",
+          "cooldownNoTime": "Cooldown"
+        },
+        "excludedAfterTest": "{{count}} model(s) failed the test and were taken out of suggestions; chains updated."
       },
       "version": "Version",
       "pinned": "HiveDeck installs v{{version}}",
