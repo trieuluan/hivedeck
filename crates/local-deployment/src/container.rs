@@ -114,22 +114,24 @@ pub struct LocalContainerService {
 
 impl LocalContainerService {
     /// ADR-028: when routing is on and 9router answers, point a Claude Code
-    /// run at it through its environment and, unless a model was chosen, run
-    /// it on its role's combo. Returns the action with
-    /// the model override applied, or `None` to keep the original.
+    /// or Codex run at it through its environment and, unless a model was
+    /// chosen, run it on its role's combo. Returns the action with the model
+    /// override applied, or `None` to keep the original.
     async fn route_through_9router(
         &self,
         workspace: &Workspace,
         executor_action: &ExecutorAction,
         env: &mut ExecutionEnv,
     ) -> Option<ExecutorAction> {
-        use executors::executors::claude::has_explicit_model;
+        use executors::executors::{claude, codex};
         use services::services::nine_router::{self, ComboRole, routing};
 
         let base = executor_action.base_executor()?;
         if !matches!(
             base,
-            BaseCodingAgent::ClaudeCode | BaseCodingAgent::ClaudeCodeHeaded
+            BaseCodingAgent::ClaudeCode
+                | BaseCodingAgent::ClaudeCodeHeaded
+                | BaseCodingAgent::Codex
         ) {
             return None;
         }
@@ -150,7 +152,11 @@ impl LocalContainerService {
             _ => ComboRole::Coder,
         };
         let config = executor_action.executor_config()?;
-        let route = routing::claude_route(&router, role, has_explicit_model(config))?;
+        let route = if base == BaseCodingAgent::Codex {
+            routing::codex_route(&router, role, codex::has_explicit_model(config))?
+        } else {
+            routing::claude_route(&router, role, claude::has_explicit_model(config))?
+        };
         for (key, value) in &route.env {
             env.insert(key, value);
         }
