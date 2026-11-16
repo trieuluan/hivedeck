@@ -1,7 +1,7 @@
 //! Read-only Telegram integration endpoints for the settings UI.
 //!
 //! The integration itself is configured by hand-editing
-//! `~/.vibe-kanban/telegram.toml` and run by the standalone `vibe-telegram-bridge`
+//! `~/.hivedeck/telegram.toml` and run by the standalone `hivedeck-telegram-bridge`
 //! daemon. These endpoints only let the frontend *observe* that config and send
 //! a one-off test message — they never write the TOML and never expose the token.
 //!
@@ -111,7 +111,7 @@ async fn send_test(
 
     let telegram = Telegram::new(token, chat_id);
     let result = telegram
-        .send_message("✅ vibe-kanban test message", thread)
+        .send_message("✅ hivedeck test message", thread)
         .await;
 
     let response = match result {

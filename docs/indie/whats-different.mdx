@@ -1,33 +1,33 @@
 ---
 title: "What's Different in Indie"
-description: "A complete review of how Vibe Kanban Indie diverges from upstream Vibe Kanban — local-first, single-developer, agent-orchestrated"
+description: "A complete review of how HiveDeck diverges from upstream HiveDeck — local-first, single-developer, agent-orchestrated"
 ---
 
-Vibe Kanban Indie is an independent, self-hosted fork of Vibe Kanban, rebuilt
+HiveDeck is an independent, self-hosted fork of HiveDeck, rebuilt
 around a **single-developer process**: no team, no cloud, no auth. This page is a
 complete review of everything the fork changes or adds on top of upstream, with
 links to the detailed guides for each area.
 
 <Info>
-If you already know upstream Vibe Kanban, read this page top to bottom — it is the
+If you already know upstream HiveDeck, read this page top to bottom — it is the
 shortest path to understanding what is new. If you are new, start with the
 [Home](/) page and [Get Started](/getting-started) guide instead.
 </Info>
 
 <Frame caption="Indie runs entirely on your machine — board, workspaces, and the agent crew, with no cloud and no sign-in.">
-  <img src="/images/indie-overview.png" alt="Vibe Kanban Indie board showing kanban columns and the new issue panel" />
+  <img src="/images/indie-overview.png" alt="HiveDeck board showing kanban columns and the new issue panel" />
 </Frame>
 
 ## At a glance
 
-| Area | Upstream Vibe Kanban | Vibe Kanban Indie |
+| Area | Upstream HiveDeck | HiveDeck |
 |---|---|---|
 | Hosting | Cloud-backed projects and issues | Fully local — SQLite is the source of truth, no account |
 | Auth | Team accounts, sign-in | None — always signed in, no user or org entity |
 | Board data | ElectricSQL cloud sync | Local REST with a built-in fallback transport |
-| Control surfaces | Web UI | Web UI **plus** a terminal cockpit (`vibe-tui`) and Telegram |
+| Control surfaces | Web UI | Web UI **plus** a terminal cockpit (`hivedeck-tui`) and Telegram |
 | Automation | Manual dispatch | Orchestrator + agent crew + per-card pipelines |
-| Package | `vibe-kanban` | `vibe-kanban-indie` (`npx vibe-kanban-indie`) |
+| Package | `hivedeck` | `hivedeck` (`npx hivedeck`) |
 
 ## Local-first architecture
 
@@ -58,12 +58,12 @@ the web UI so blocked agents can be cleared from the terminal or your phone.
 
 <CardGroup cols={2}>
   <Card title="TUI cockpit" icon="terminal" href="/cockpit/tui">
-    `vibe-tui` — a terminal cockpit that lists workspaces and sessions, streams
+    `hivedeck-tui` — a terminal cockpit that lists workspaces and sessions, streams
     live transcripts, and offers an approvals inbox to approve, deny, or answer
     locally.
   </Card>
   <Card title="Telegram orchestration" icon="telegram" href="/cockpit/telegram">
-    A send-only bridge (`vibe-telegram-bridge`) that escalates blocked agents to a
+    A send-only bridge (`hivedeck-telegram-bridge`) that escalates blocked agents to a
     Telegram supergroup, with a forum topic per worktree.
   </Card>
 </CardGroup>
@@ -117,42 +117,42 @@ your actual codebase before drafting the spec.
 
 ## A local MCP server
 
-The `vibe-kanban` MCP server is fully local in Indie — its project, issue,
+The `hivedeck` MCP server is fully local in Indie — its project, issue,
 workspace, and repository tools target the local backend rather than the
 disabled cloud API. It runs in **global** mode (board-wide tools, including
 approval tools so a supervising agent can unblock work) or **orchestrator** mode
 (the dispatch subset), and accepts its launcher options as environment
 variables for a declarative `.mcp.json`.
 
-<Card title="Vibe Kanban MCP server" icon="plug" href="/integrations/vibe-kanban-mcp-server">
+<Card title="HiveDeck MCP server" icon="plug" href="/integrations/hivedeck-mcp-server">
   The MCP tools, launch modes, and how agents drive the board through them.
 </Card>
 
 ## Driven from Claude Code
 
 The crew and the board are driven from Claude Code by three plugins in the
-`sombrax_plugins` marketplace, which link together: **vibe-kanban-indie**
+`sombrax_plugins` marketplace, which link together: **hivedeck**
 (orchestration skills, the crew, and the bundled MCP server), **sombrax-telegram**
 (the inbound channel listener that pairs with the send-only bridge), and
 **sombrax-codex** (Codex review for the plan and code review stages).
 
 <Card title="Claude Code plugins & skills" icon="puzzle-piece" href="/integrations/claude-code-plugins">
-  Install the plugins and see how the vibe-kanban, Telegram, and Codex skills link
+  Install the plugins and see how the hivedeck, Telegram, and Codex skills link
   to Indie.
 </Card>
 
 ## Branding and releases
 
-- **Package** — published to npm as `vibe-kanban-indie`; run it with
-  `npx vibe-kanban-indie`.
-- **Repository** — [`dexloom/vibe-kanban-indie`](https://github.com/dexloom/vibe-kanban-indie),
+- **Package** — published to npm as `hivedeck`; run it with
+  `npx hivedeck`.
+- **Repository** — [`trieuluan/hivedeck`](https://github.com/trieuluan/hivedeck),
   an independent fork with its own CI (`release-indie.yml`) and beta channel
-  (`npx vibe-kanban-indie@beta`).
+  (`npx hivedeck@beta`).
 - **Workspace versioning** — every crate inherits its version from the workspace,
   so a release is a one-line bump; the UI shows the version synced to npm.
 
 For the full release-by-release history, see the
-[CHANGELOG](https://github.com/dexloom/vibe-kanban-indie/blob/main/CHANGELOG.md).
+[CHANGELOG](https://github.com/trieuluan/hivedeck/blob/main/CHANGELOG.md).
 
 ## Next steps
 

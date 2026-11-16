@@ -1,6 +1,6 @@
 # Attachment Migration: Azure → Local Multipart
 
-> **Audience:** the LLM agent merging this PR on the partner side (dexloom/vibe-kanban).
+> **Audience:** the LLM agent merging this PR on the partner side (dexloom/hivedeck).
 > This document describes what changed around attachments, why, and how to migrate
 > an existing database / deployment. Read it in full before merging.
 

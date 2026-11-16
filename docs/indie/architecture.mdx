@@ -1,15 +1,15 @@
 ---
 title: "How Indie Works"
-description: "The local-first architecture behind Vibe Kanban Indie — SQLite source of truth, the fallback transport, control surfaces, and MCP modes"
+description: "The local-first architecture behind HiveDeck — SQLite source of truth, the fallback transport, control surfaces, and MCP modes"
 ---
 
-Vibe Kanban Indie runs entirely on your machine. This page explains the
+HiveDeck runs entirely on your machine. This page explains the
 architecture that makes that possible: where data lives, how the board talks to
 the backend without a cloud, and how the control surfaces and agents connect to it.
 
 ## One backend, no cloud
 
-Everything is served by the local backend (`npx vibe-kanban-indie`, or the `server`
+Everything is served by the local backend (`npx hivedeck`, or the `server`
 binary from source). There is no hosted service, no account, and no sign-in.
 
 - **SQLite is the source of truth.** Projects, repositories, board columns, issues,
@@ -25,7 +25,7 @@ binary from source). There is no hosted service, no account, and no sign-in.
 
 ## The fallback transport
 
-Upstream Vibe Kanban syncs the board through ElectricSQL. Indie keeps the same
+Upstream HiveDeck syncs the board through ElectricSQL. Indie keeps the same
 optimistic-update client but re-homes it onto local REST:
 
 - **Reads** come from `/v1/fallback/<table>`, which returns `{ "<table>": [...] }`.
@@ -54,14 +54,14 @@ Telegram, so a blocked agent can be cleared from wherever you are.
     The full board, workspaces, diffs, and interactive controls in the browser.
   </Card>
   <Card title="TUI cockpit" icon="terminal" href="/cockpit/tui">
-    `vibe-tui` talks directly to the backend, so it works even when the bridge and
+    `hivedeck-tui` talks directly to the backend, so it works even when the bridge and
     supervising agent are down.
   </Card>
   <Card title="Telegram bridge" icon="telegram" href="/cockpit/telegram">
-    `vibe-telegram-bridge` is send-only: it streams escalations out and never reads
+    `hivedeck-telegram-bridge` is send-only: it streams escalations out and never reads
     the bot token, so it coexists with a Telegram listener.
   </Card>
-  <Card title="MCP server" icon="plug" href="/integrations/vibe-kanban-mcp-server">
+  <Card title="MCP server" icon="plug" href="/integrations/hivedeck-mcp-server">
     Agents drive the board through local MCP tools.
   </Card>
 </CardGroup>
@@ -89,7 +89,7 @@ requires a hosted service.
 
 ## MCP launch modes
 
-The local `vibe-kanban` MCP server runs in one of two modes, selected with
+The local `hivedeck` MCP server runs in one of two modes, selected with
 `--mode` (or the `VIBE_MCP_MODE` environment variable):
 
 - **Global** — the full tool set targeting the local backend, including approval

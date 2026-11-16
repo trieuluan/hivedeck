@@ -1,9 +1,9 @@
 ---
 title: "Remote Access"
-description: "Reach your self-hosted Vibe Kanban Indie instance from another device"
+description: "Reach your self-hosted HiveDeck instance from another device"
 ---
 
-Vibe Kanban Indie runs entirely on your own machine — there is no cloud relay
+HiveDeck runs entirely on your own machine — there is no cloud relay
 or pairing service. To use it from another device (a phone, tablet, or second
 laptop), you expose the local web UI over your own network and point a browser
 at it.
@@ -39,7 +39,7 @@ you'll browse from with `VK_ALLOWED_ORIGINS`.
   Start the app with `HOST` set so it listens on every interface:
 
   ```bash
-  HOST=0.0.0.0 npx vibe-kanban-indie
+  HOST=0.0.0.0 npx hivedeck
   ```
 
   <Warning>
@@ -55,7 +55,7 @@ you'll browse from with `VK_ALLOWED_ORIGINS`.
 
   ```bash
   VK_ALLOWED_ORIGINS="https://host.your-tailnet.ts.net,http://192.168.1.50:3000" \
-    HOST=0.0.0.0 npx vibe-kanban-indie
+    HOST=0.0.0.0 npx hivedeck
   ```
 
   <Check>
@@ -69,8 +69,8 @@ you'll browse from with `VK_ALLOWED_ORIGINS`.
 
 For a stable name and HTTPS (required for some browser features on mobile), put
 a reverse proxy in front. The repository ships a
-[`Caddyfile.example`](https://github.com/dexloom/vibe-kanban-indie/blob/main/Caddyfile.example)
-and a full [mobile testing walkthrough](https://github.com/dexloom/vibe-kanban-indie/blob/main/mobile-testing.md)
+[`Caddyfile.example`](https://github.com/trieuluan/hivedeck/blob/main/Caddyfile.example)
+and a full [mobile testing walkthrough](https://github.com/trieuluan/hivedeck/blob/main/mobile-testing.md)
 that combines **Tailscale** (stable networking + certificates) with **Caddy**
 (reverse proxy) so you can reach the UI from a phone on any network in about
 fifteen minutes.

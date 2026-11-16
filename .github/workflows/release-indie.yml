@@ -109,11 +109,11 @@ jobs:
 
       - name: Build (zigbuild)
         if: matrix.zig
-        run: cargo zigbuild --release --target ${{ matrix.target }} --bin server --bin vibe-kanban-mcp --bin review
+        run: cargo zigbuild --release --target ${{ matrix.target }} --bin server --bin hivedeck-mcp --bin review
 
       - name: Build (native)
         if: ${{ !matrix.zig }}
-        run: cargo build --release --target ${{ matrix.target }} --bin server --bin vibe-kanban-mcp --bin review
+        run: cargo build --release --target ${{ matrix.target }} --bin server --bin hivedeck-mcp --bin review
 
       # Package each binary as <base>-<platform>.zip, where the entry inside the
       # zip is the bare binary name the CLI extracts and runs.
@@ -124,12 +124,12 @@ jobs:
           set -euo pipefail
           T="${{ matrix.target }}"; P="${{ matrix.platform }}"
           mkdir -p dist-assets
-          cp "target/$T/release/server" vibe-kanban
-          zip -q "dist-assets/vibe-kanban-$P.zip" vibe-kanban && rm vibe-kanban
-          cp "target/$T/release/vibe-kanban-mcp" vibe-kanban-mcp
-          zip -q "dist-assets/vibe-kanban-mcp-$P.zip" vibe-kanban-mcp && rm vibe-kanban-mcp
-          cp "target/$T/release/review" vibe-kanban-review
-          zip -q "dist-assets/vibe-kanban-review-$P.zip" vibe-kanban-review && rm vibe-kanban-review
+          cp "target/$T/release/server" hivedeck
+          zip -q "dist-assets/hivedeck-$P.zip" hivedeck && rm hivedeck
+          cp "target/$T/release/hivedeck-mcp" hivedeck-mcp
+          zip -q "dist-assets/hivedeck-mcp-$P.zip" hivedeck-mcp && rm hivedeck-mcp
+          cp "target/$T/release/review" hivedeck-review
+          zip -q "dist-assets/hivedeck-review-$P.zip" hivedeck-review && rm hivedeck-review
           ls -la dist-assets
 
       - name: Package (windows)
@@ -138,15 +138,15 @@ jobs:
         run: |
           $T = "${{ matrix.target }}"; $P = "${{ matrix.platform }}"
           New-Item -ItemType Directory -Force -Path dist-assets | Out-Null
-          Copy-Item "target/$T/release/server.exe" "vibe-kanban.exe"
-          Compress-Archive -Force -Path "vibe-kanban.exe" -DestinationPath "dist-assets/vibe-kanban-$P.zip"
-          Remove-Item "vibe-kanban.exe"
-          Copy-Item "target/$T/release/vibe-kanban-mcp.exe" "vibe-kanban-mcp.exe"
-          Compress-Archive -Force -Path "vibe-kanban-mcp.exe" -DestinationPath "dist-assets/vibe-kanban-mcp-$P.zip"
-          Remove-Item "vibe-kanban-mcp.exe"
-          Copy-Item "target/$T/release/review.exe" "vibe-kanban-review.exe"
-          Compress-Archive -Force -Path "vibe-kanban-review.exe" -DestinationPath "dist-assets/vibe-kanban-review-$P.zip"
-          Remove-Item "vibe-kanban-review.exe"
+          Copy-Item "target/$T/release/server.exe" "hivedeck.exe"
+          Compress-Archive -Force -Path "hivedeck.exe" -DestinationPath "dist-assets/hivedeck-$P.zip"
+          Remove-Item "hivedeck.exe"
+          Copy-Item "target/$T/release/hivedeck-mcp.exe" "hivedeck-mcp.exe"
+          Compress-Archive -Force -Path "hivedeck-mcp.exe" -DestinationPath "dist-assets/hivedeck-mcp-$P.zip"
+          Remove-Item "hivedeck-mcp.exe"
+          Copy-Item "target/$T/release/review.exe" "hivedeck-review.exe"
+          Compress-Archive -Force -Path "hivedeck-review.exe" -DestinationPath "dist-assets/hivedeck-review-$P.zip"
+          Remove-Item "hivedeck-review.exe"
 
       - uses: actions/upload-artifact@v4
         with:

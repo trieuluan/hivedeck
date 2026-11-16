@@ -3,7 +3,7 @@ title: "Telegram Orchestration"
 description: "Escalate blocked agents to a Telegram supergroup with a forum topic per worktree"
 ---
 
-The Telegram bridge (`vibe-telegram-bridge`) streams coding-agent escalations to a
+The Telegram bridge (`hivedeck-telegram-bridge`) streams coding-agent escalations to a
 Telegram supergroup so a blocked agent can be unblocked from anywhere — by you
 replying on your phone, or by a supervising agent acting through the MCP approval
 tools. The bridge is **send-only**: it never reads Telegram and never polls the
@@ -17,10 +17,10 @@ bot token, so it coexists with a Telegram listener without conflict.
 
 ## Configure
 
-Configuration lives in `~/.vibe-kanban/telegram.toml`. Copy the example from the
+Configuration lives in `~/.hivedeck/telegram.toml`. Copy the example from the
 repository (`automation/telegram.toml.example`) and edit it:
 
-```toml ~/.vibe-kanban/telegram.toml
+```toml ~/.hivedeck/telegram.toml
 # Master on/off. When false, the bridge exits cleanly.
 enabled = true
 
@@ -72,7 +72,7 @@ and, when an opted-in worktree starts, creates a forum topic named from
 else goes to the General area.
 
 The `workspace_id → message_thread_id` map is persisted in
-`~/.vibe-kanban/telegram-topics.json`, so restarting the bridge reuses existing
+`~/.hivedeck/telegram-topics.json`, so restarting the bridge reuses existing
 topics instead of creating duplicates.
 
 ## Settings panel

@@ -1,9 +1,9 @@
 {
-  "name": "vibe-kanban",
+  "name": "hivedeck",
   "version": "0.2.27",
   "private": true,
   "bin": {
-    "vibe-kanban": "npx-cli/bin/cli.js"
+    "hivedeck": "npx-cli/bin/cli.js"
   },
   "files": [
     "npx-cli/bin/cli.js",

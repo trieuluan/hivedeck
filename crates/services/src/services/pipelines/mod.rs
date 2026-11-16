@@ -1,6 +1,6 @@
 //! File-based card pipelines.
 //!
-//! Each `~/.vibe-kanban/pipelines/*.toml` file defines one selectable pipeline:
+//! Each `~/.hivedeck/pipelines/*.toml` file defines one selectable pipeline:
 //! a `name`, an optional `description`, and an ordered list of `[[stage]]`
 //! tables. The file stem is the pipeline `id` (e.g. `basic.toml` → `basic`).
 //!
@@ -16,7 +16,7 @@
 //! ```
 //!
 //! The New Issue dialog reads these (via `GET /api/pipelines`), the operator
-//! picks one pipeline and ticks which stages apply, and vibe-kanban composes an
+//! picks one pipeline and ticks which stages apply, and hivedeck composes an
 //! ordered `## Pipeline` block into the card description. Stages are ordered by
 //! their position in the file. Bundled defaults are seeded to disk on first run.
 
@@ -232,7 +232,7 @@ pub struct PipelineValidation {
     pub error: Option<PipelineParseError>,
 }
 
-/// Per-file status for every `~/.vibe-kanban/pipelines/*.toml` file, including
+/// Per-file status for every `~/.hivedeck/pipelines/*.toml` file, including
 /// ones that currently fail to parse (and are therefore invisible to
 /// `load_pipelines`/`GET /api/pipelines`).
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]

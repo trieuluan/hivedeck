@@ -1,7 +1,7 @@
 {
   "mcpServers": {
-    "vibe-kanban": {
-      "command": "/Users/eugenevm/VibeCoding/vibe-kanban/target/release/vibe-kanban-mcp",
+    "hivedeck": {
+      "command": "/Users/eugenevm/VibeCoding/hivedeck/target/release/hivedeck-mcp",
       "args": ["--mode", "global"],
       "env": {
         "VIBE_BACKEND_URL": "http://127.0.0.1:8910"

@@ -1,6 +1,6 @@
 //! Bridge configuration.
 //!
-//! Source of truth is `~/.vibe-kanban/telegram.toml` (loaded via
+//! Source of truth is `~/.hivedeck/telegram.toml` (loaded via
 //! `utils::telegram_config`). For backwards compatibility the connection fields
 //! still fall back to the original environment variables (`VK_TG_CHAT_ID`,
 //! `VK_TG_GENERAL_THREAD_ID`, `TELEGRAM_BOT_TOKEN`), so existing env-driven
@@ -96,7 +96,7 @@ async fn resolve_backend() -> Result<(String, String)> {
     let host = std::env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
     let port = match std::env::var("BACKEND_PORT").or_else(|_| std::env::var("PORT")) {
         Ok(p) => p.parse::<u16>().context("invalid port")?,
-        Err(_) => utils::port_file::read_port_file("vibe-kanban")
+        Err(_) => utils::port_file::read_port_file("hivedeck")
             .await
             .context("no port file — is the backend running?")?,
     };

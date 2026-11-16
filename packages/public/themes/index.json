@@ -1,5 +1,5 @@
 {
-  "$comment": "Drop-in theme manifest for Vibe Kanban (local web). Add a new entry + a matching <id>.css file in this folder to register a custom theme; no rebuild required. Each CSS file scopes its token overrides to html[data-theme-variant=\"<id>\"].",
+  "$comment": "Drop-in theme manifest for HiveDeck (local web). Add a new entry + a matching <id>.css file in this folder to register a custom theme; no rebuild required. Each CSS file scopes its token overrides to html[data-theme-variant=\"<id>\"].",
   "$projectColorComment": "Optional per-theme `projectColor` re-paints sidebar project dots via a phosphor-duotone map: each project's perceptual luminance is normalised across the preset palette's range and mapped onto a shadow->highlight ramp, so projects stay distinguishable as brightness steps while adopting the theme's hue (Ghost White = B&W shades, Redline = crimson embers, Amber = gold). `main` is the theme's signature accent used for the orchestrator 'prompt set' indicator; omit it to fall back to --brand. Values are bare HSL triples ('H S% L%'). Omit the whole `projectColor` block to show raw project colors.",
   "themes": [
     {

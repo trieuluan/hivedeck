@@ -7,20 +7,20 @@ import os from 'os';
 // Prebuilt binaries are hosted as GitHub Release assets on the fork repo.
 // The release tag is derived from this package's version, so tagging a commit
 // `v<version>` and publishing the matching npm version keeps them in lockstep.
-export const GITHUB_REPO = 'dexloom/vibe-kanban-indie';
+export const GITHUB_REPO = 'trieuluan/hivedeck';
 const PKG_VERSION: string = require('../package.json').version;
 export const BINARY_TAG = `v${PKG_VERSION}`; // e.g., v0.1.0
 export const RELEASE_BASE = `https://github.com/${GITHUB_REPO}/releases/download/${BINARY_TAG}`;
 // Always resolves to the newest release's manifest (used for update checks).
 export const LATEST_MANIFEST_URL = `https://github.com/${GITHUB_REPO}/releases/latest/download/manifest.json`;
-export const CACHE_DIR = path.join(os.homedir(), '.vibe-kanban', 'bin');
+export const CACHE_DIR = path.join(os.homedir(), '.hivedeck', 'bin');
 
 // Local development mode: use binaries from npx-cli/dist/ instead of GitHub
 // Only activate if dist/ exists (i.e., running from source after local-build.sh)
 export const LOCAL_DIST_DIR = path.join(__dirname, '..', 'dist');
 export const LOCAL_DEV_MODE =
   fs.existsSync(LOCAL_DIST_DIR) ||
-  process.env.VIBE_KANBAN_LOCAL === '1';
+  process.env.HIVEDECK_LOCAL === '1';
 
 export interface BinaryInfo {
   sha256: string;
@@ -205,7 +205,7 @@ export async function ensureBinary(
 
 export const DESKTOP_CACHE_DIR = path.join(
   os.homedir(),
-  '.vibe-kanban',
+  '.hivedeck',
   'desktop'
 );
 

@@ -16,7 +16,7 @@ end; the orchestrator only dispatches and reflects status.
 - **Singleton.** There is at most one active orchestrator at a time. Requesting a
   new one reuses the existing session rather than spawning a second.
 - **Repo-independent.** It does not belong to any one project. It runs from a
-  fixed `~/.vibe-kanban/orchestrator` folder, so it can reason across every
+  fixed `~/.hivedeck/orchestrator` folder, so it can reason across every
   project on the board.
 - **Headed.** It runs as an interactive Claude Code session (a detached tmux
   session), so you can attach to it, watch it think, and send it input — the same
@@ -27,7 +27,7 @@ end; the orchestrator only dispatches and reflects status.
 Spawn the orchestrator from the app. Spawning is **idempotent**: if an
 orchestrator is already running, the action returns the existing session instead
 of creating a new one. The app launches it as the plugin's own session agent
-(`claude --agent vibe-kanban-indie:orchestrator`) on a `/loop` timer. Each tick
+(`claude --agent hivedeck:orchestrator`) on a `/loop` timer. Each tick
 runs in one of two modes: a cheap **monitor** pass over the currently active cards
 (the default), or a full board **sweep** (find ready cards, dispatch one coding
 agent per card) that runs only when a dispatch trigger fires — nothing is active,
@@ -37,20 +37,20 @@ the board goes idle and snapping back when work returns.
 
 <Note>
 The orchestrator's full behaviour lives in the plugin's agent definition
-(`agents/orchestrator.md` in the `vibe-kanban-indie` plugin). The `/loop` body the
+(`agents/orchestrator.md` in the `hivedeck` plugin). The `/loop` body the
 app composes is only a short per-tick pointer — the same one the plugin's own
 launcher uses — so the behaviour survives context compaction over a days-long run.
 </Note>
 
 <Note>
-Because it runs from `~/.vibe-kanban/orchestrator` rather than a project worktree,
+Because it runs from `~/.hivedeck/orchestrator` rather than a project worktree,
 the orchestrator has no working repository of its own. It acts on projects by
 calling MCP tools, not by editing files directly.
 </Note>
 
 ## How it acts on the board
 
-The orchestrator uses the Vibe Kanban MCP server in **global** mode, which gives
+The orchestrator uses the HiveDeck MCP server in **global** mode, which gives
 it board-wide tools to:
 
 - List and read issues, repositories, and workspaces (to find ready cards and avoid

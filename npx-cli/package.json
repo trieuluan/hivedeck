@@ -1,26 +1,26 @@
 {
-  "name": "vibe-kanban-indie",
+  "name": "hivedeck",
   "private": false,
   "version": "0.2.27",
   "main": "index.js",
   "bin": {
-    "vibe-kanban-indie": "bin/cli.js"
+    "hivedeck": "bin/cli.js"
   },
   "scripts": {
     "build": "esbuild src/cli.ts --bundle --platform=node --target=node20 --format=cjs --outfile=bin/cli.js --external:adm-zip --banner:js=\"#!/usr/bin/env node\"",
     "check": "tsc --noEmit -p tsconfig.json"
   },
   "keywords": [],
-  "author": "dexloom",
+  "author": "trieuluan",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dexloom/vibe-kanban-indie.git"
+    "url": "git+https://github.com/trieuluan/hivedeck.git"
   },
   "engines": {
     "node": ">=20.19.0"
   },
   "license": "",
-  "description": "NPX wrapper around vibe-kanban-indie — the single-developer, self-hosted fork of vibe-kanban with a TUI cockpit and Telegram channel orchestration",
+  "description": "NPX wrapper around hivedeck — the single-developer, self-hosted fork of vibe-kanban with a TUI cockpit and Telegram channel orchestration",
   "devDependencies": {
     "esbuild": "^0.27.2"
   },

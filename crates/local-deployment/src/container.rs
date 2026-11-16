@@ -907,22 +907,22 @@ impl LocalContainerService {
         format!("{}-{}", short_uuid(workspace_id), task_title_id)
     }
 
-    /// Base `~/.vibe-kanban` dir (home), falling back to the asset dir when
+    /// Base `~/.hivedeck` dir (home), falling back to the asset dir when
     /// there is no home directory. Shared by all fixed-dir workspace kinds.
-    fn vibe_kanban_base_dir() -> PathBuf {
+    fn hivedeck_base_dir() -> PathBuf {
         dirs::home_dir()
-            .map(|home| home.join(".vibe-kanban"))
+            .map(|home| home.join(".hivedeck"))
             .unwrap_or_else(utils::assets::asset_dir)
     }
 
     /// Fixed working directory for a no-worktree workspace kind. Orchestrator is
-    /// the singleton `~/.vibe-kanban/orchestrator`; recurrent gets one dir per
-    /// routine at `~/.vibe-kanban/recurrent/<short_uuid>-<name-slug>` (unique per
+    /// the singleton `~/.hivedeck/orchestrator`; recurrent gets one dir per
+    /// routine at `~/.hivedeck/recurrent/<short_uuid>-<name-slug>` (unique per
     /// workspace via the short_uuid prefix). No git worktree = no git isolation;
     /// the "recurrent tasks must not mutate repos" guardrail is enforced at the
     /// routine/executor level in Card 2, not here.
     fn fixed_dir_for_kind(workspace: &Workspace, kind: WorkspaceKind) -> PathBuf {
-        let base = Self::vibe_kanban_base_dir();
+        let base = Self::hivedeck_base_dir();
         match kind {
             WorkspaceKind::Orchestrator => base.join("orchestrator"),
             WorkspaceKind::Recurrent => {
@@ -1499,7 +1499,7 @@ impl LocalContainerService {
 
             // Headed approval bridge: when the session runs in approvals
             // (Supervised) OR plan mode, gate tool use through a PreToolUse command
-            // hook that calls back into vibe-kanban so approvals/questions surface
+            // hook that calls back into hivedeck so approvals/questions surface
             // in the web UI (same store/UI as the headless path). Auto/bypass
             // sessions are unaffected. In approvals mode `permission_mode()` returns
             // Default (`--permission-mode=default`) and the deny-list matcher gates
@@ -1553,7 +1553,7 @@ impl LocalContainerService {
             // would not be re-expanded. The backend port is discovered from the
             // port file the server writes at startup.
             if bridge_enabled {
-                match utils::port_file::read_port_file("vibe-kanban").await {
+                match utils::port_file::read_port_file("hivedeck").await {
                     Ok(port) => {
                         let url = format!(
                             "http://127.0.0.1:{port}/api/headed-approvals/{exec_id}/request"
@@ -1663,7 +1663,7 @@ impl LocalContainerService {
     /// Headed launch path for the **OpenCode** TUI variant.
     ///
     /// Unlike Claude's headed path (which tails a transcript JSONL), OpenCode
-    /// runs its interactive TUI inside the tmux session; vibe-kanban tracks only
+    /// runs its interactive TUI inside the tmux session; hivedeck tracks only
     /// liveness here (the operator watches live via the opened terminal or
     /// `tmux attach`). Richer output mirroring — via the TUI's embedded HTTP
     /// server SSE stream — is a follow-up; for now the session lifecycle is owned
@@ -2344,7 +2344,7 @@ impl ContainerService for LocalContainerService {
 
     async fn create(&self, workspace: &Workspace) -> Result<ContainerRef, ContainerError> {
         // No-worktree kinds (orchestrator, recurrent) are repo-independent: they run
-        // from a fixed, on-demand ~/.vibe-kanban/... folder (never a git worktree).
+        // from a fixed, on-demand ~/.hivedeck/... folder (never a git worktree).
         // Ensure the dir exists and point the container at it — no repos, no worktrees.
         if let Some(kind) = workspace.kind.filter(|k| k.is_no_worktree()) {
             let dir = Self::fixed_dir_for_kind(workspace, kind);
@@ -3093,7 +3093,7 @@ impl ContainerService for LocalContainerService {
     async fn kill_all_running_processes(&self) -> Result<(), ContainerError> {
         tracing::info!("Killing all running processes");
 
-        // Detached tmux sessions intentionally OUTLIVE a vibe-kanban shutdown so
+        // Detached tmux sessions intentionally OUTLIVE a hivedeck shutdown so
         // they can be re-adopted on restart. Here (shutdown path) we only cancel
         // their in-memory tail/poller tasks; we do NOT kill the tmux session or
         // change their DB status. Explicit per-execution stop still kills them.

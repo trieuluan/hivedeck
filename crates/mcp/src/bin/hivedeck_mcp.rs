@@ -38,9 +38,9 @@ fn main() -> anyhow::Result<()> {
         .unwrap()
         .block_on(async move {
             let version = env!("CARGO_PKG_VERSION");
-            init_process_logging("vibe-kanban-mcp", version);
+            init_process_logging("hivedeck-mcp", version);
 
-            let base_url = resolve_base_url("vibe-kanban-mcp").await?;
+            let base_url = resolve_base_url("hivedeck-mcp").await?;
             let LaunchConfig {
                 mode,
                 headed_local_control,
@@ -140,7 +140,7 @@ where
 
 fn usage() -> String {
     format!(
-        "Usage: vibe-kanban-mcp --mode <global|orchestrator> [--headed-local-control]\n\
+        "Usage: hivedeck-mcp --mode <global|orchestrator> [--headed-local-control]\n\
          Env fallbacks (CLI flag/arg takes precedence):\n  \
          {MODE_ENV}=<global|orchestrator>  (fallback for --mode)\n  \
          {HEADED_LOCAL_CONTROL_ENV}=<1|true|yes|on>  (fallback for --headed-local-control; case-insensitive, anything else is off)"
@@ -172,7 +172,7 @@ async fn resolve_base_url(log_prefix: &str) -> anyhow::Result<String> {
                 .map_err(|error| anyhow::anyhow!("Invalid port value '{}': {}", port_str, error))?
         }
         Err(_) => {
-            let port = read_port_file("vibe-kanban").await?;
+            let port = read_port_file("hivedeck").await?;
             tracing::info!("[{}] Using port from port file: {}", log_prefix, port);
             port
         }
@@ -197,7 +197,7 @@ fn init_process_logging(log_prefix: &str, version: &str) {
         .init();
 
     tracing::debug!(
-        "[{}] Starting Vibe Kanban MCP server version {}...",
+        "[{}] Starting HiveDeck MCP server version {}...",
         log_prefix,
         version
     );

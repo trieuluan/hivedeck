@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Launch the PM *intake* agent: a Claude Code session bound to the Telegram
-# channel, with the vibe-kanban MCP scoped to THIS session only (never global).
+# channel, with the hivedeck MCP scoped to THIS session only (never global).
 #
 #   ./launch.sh                 # uses defaults below
 #   VIBE_BACKEND_URL=http://127.0.0.1:9001 ./launch.sh
 #
 # Prereqs:
 #   - backend running:   BACKEND_PORT=8910 cargo run --bin server
-#   - mcp binary built:  cargo build --release --bin vibe-kanban-mcp
+#   - mcp binary built:  cargo build --release --bin hivedeck-mcp
 #   - sombrax-telegram listener configured (token in
 #     ~/.claude/channels/telegram/.env)
 set -euo pipefail

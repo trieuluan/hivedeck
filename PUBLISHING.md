@@ -1,17 +1,17 @@
-# Publishing `vibe-kanban-indie`
+# Publishing `hivedeck`
 
 How releases work for this fork, and the exact steps for the **first** publish
 (manual) and **every release after** (automated via GitHub Actions).
 
 ## How distribution works
 
-`vibe-kanban-indie` is a tiny npm package (`npx-cli/`) — just `bin/cli.js`, no
+`hivedeck` is a tiny npm package (`npx-cli/`) — just `bin/cli.js`, no
 binaries. At runtime the CLI downloads the prebuilt Rust binaries for the user's
 platform from this repo's **GitHub Releases**:
 
 ```
-https://github.com/dexloom/vibe-kanban-indie/releases/download/<tag>/<binary>-<platform>.zip
-https://github.com/dexloom/vibe-kanban-indie/releases/download/<tag>/manifest.json   (sha256 + sizes)
+https://github.com/trieuluan/hivedeck/releases/download/<tag>/<binary>-<platform>.zip
+https://github.com/trieuluan/hivedeck/releases/download/<tag>/manifest.json   (sha256 + sizes)
 ```
 
 Two invariants keep everything in lockstep (enforced by CI):
@@ -38,7 +38,7 @@ stored). macOS binaries are unsigned — see [Notes](#notes).
 2. `npm login` locally.
 3. Confirm the name is free (first time only):
    ```bash
-   npm view vibe-kanban-indie    # expect: 404 / "not found"
+   npm view hivedeck    # expect: 404 / "not found"
    ```
 
 ---
@@ -88,18 +88,18 @@ npm publish --access public
 
 Verify:
 ```bash
-cd /tmp && npx vibe-kanban-indie@0.1.0   # downloads binaries from the release
+cd /tmp && npx hivedeck@0.1.0   # downloads binaries from the release
 ```
 
 ### 3. Configure the trusted publisher (enables automation)
 
-On npmjs.com → the **`vibe-kanban-indie`** package → **Settings → Trusted
+On npmjs.com → the **`hivedeck`** package → **Settings → Trusted
 Publisher → GitHub Actions**, enter:
 
 | Field            | Value                     |
 | ---------------- | ------------------------- |
 | Organization/user| `dexloom`                 |
-| Repository       | `vibe-kanban-indie`       |
+| Repository       | `hivedeck`       |
 | Workflow filename| `release-indie.yml`       |
 | Environment      | *(leave blank)*           |
 
@@ -143,7 +143,7 @@ build → GitHub Release (binaries + manifest) → `npm publish` via OIDC (with
 automatic build provenance). When it's green:
 
 ```bash
-npx vibe-kanban-indie@latest
+npx hivedeck@latest
 ```
 
 The `publish-npm` job has a guard that fails fast if the tag and
@@ -158,10 +158,10 @@ betas land on their own channel and never touch `@latest`:
 
 | `npx-cli/package.json` version | npm dist-tag | install with                       |
 | ------------------------------ | ------------ | ---------------------------------- |
-| `0.2.8`                        | `latest`     | `npx vibe-kanban-indie`            |
-| `0.2.8-beta.1`                 | `beta`       | `npx vibe-kanban-indie@beta`       |
-| `0.2.8-rc.1`                   | `rc`         | `npx vibe-kanban-indie@rc`         |
-| `0.2.8-alpha.1`                | `alpha`      | `npx vibe-kanban-indie@alpha`      |
+| `0.2.8`                        | `latest`     | `npx hivedeck`            |
+| `0.2.8-beta.1`                 | `beta`       | `npx hivedeck@beta`       |
+| `0.2.8-rc.1`                   | `rc`         | `npx hivedeck@rc`         |
+| `0.2.8-alpha.1`                | `alpha`      | `npx hivedeck@alpha`      |
 
 (The tag is the prerelease identifier before the first dot — `X.Y.Z-<id>.N` → `@<id>`.)
 
@@ -175,8 +175,8 @@ git tag v0.2.8-beta.1 && git push origin v0.2.8-beta.1
 CI publishes `0.2.8-beta.1` to the `@beta` dist-tag and creates a GitHub
 **pre-release** (so the CLI's `releases/latest` manifest pointer stays on the
 last stable build and beta users don't advertise themselves to stable users).
-`@latest` is left untouched. Install the channel with `npx vibe-kanban-indie@beta`
-or pin exactly with `npx vibe-kanban-indie@0.2.8-beta.1`.
+`@latest` is left untouched. Install the channel with `npx hivedeck@beta`
+or pin exactly with `npx hivedeck@0.2.8-beta.1`.
 
 **Promote to stable** by releasing the matching final version — bump
 `npx-cli/package.json` to `0.2.8`, tag `v0.2.8`. With no prerelease suffix it
@@ -193,7 +193,7 @@ publishes to `@latest` as usual.
 - **Unsigned macOS binaries.** They aren't notarized, so first launch may be
   blocked by Gatekeeper. Clear the quarantine attribute once:
   ```bash
-  xattr -dr com.apple.quarantine ~/.vibe-kanban/bin
+  xattr -dr com.apple.quarantine ~/.hivedeck/bin
   ```
 - **Linux is built static (musl).** If a future dependency fails to build on
   musl, switch the two `*-unknown-linux-musl` matrix targets to

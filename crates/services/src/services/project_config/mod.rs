@@ -91,17 +91,17 @@ struct ProjectConfig {
     statuses: Vec<String>,
 }
 
-/// Default export/import path: `$VIBE_KANBAN_PROJECTS_CONFIG`, otherwise
-/// `~/.vibe-kanban/projects.toml` (falling back to `<asset_dir>/projects.toml`
+/// Default export/import path: `$HIVEDECK_PROJECTS_CONFIG`, otherwise
+/// `~/.hivedeck/projects.toml` (falling back to `<asset_dir>/projects.toml`
 /// only if the home directory can't be determined).
 pub fn config_path() -> PathBuf {
-    if let Ok(p) = std::env::var("VIBE_KANBAN_PROJECTS_CONFIG")
+    if let Ok(p) = std::env::var("HIVEDECK_PROJECTS_CONFIG")
         && !p.is_empty()
     {
         return PathBuf::from(p);
     }
     dirs::home_dir()
-        .map(|home| home.join(".vibe-kanban"))
+        .map(|home| home.join(".hivedeck"))
         .unwrap_or_else(utils::assets::asset_dir)
         .join("projects.toml")
 }

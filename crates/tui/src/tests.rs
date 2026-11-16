@@ -677,7 +677,7 @@ fn create_form_renders() {
 fn create_form_preselects_project_repo() {
     use crate::app::{AppEvent, CreateField, CreateForm, Screen};
 
-    let repo_a = sample_repo("vibe-kanban"); // global list order: first
+    let repo_a = sample_repo("hivedeck"); // global list order: first
     let repo_b = sample_repo("vksnake"); // the project's repo
     let b_id = repo_b.id;
 

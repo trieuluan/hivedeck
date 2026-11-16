@@ -131,7 +131,7 @@ async function extractAndRun(
       fs.unlinkSync(binPath);
     }
   } catch (err: unknown) {
-    if (process.env.VIBE_KANBAN_DEBUG) {
+    if (process.env.HIVEDECK_DEBUG) {
       const msg = err instanceof Error ? err.message : String(err);
       console.warn(`Warning: Could not delete existing binary: ${msg}`);
     }
@@ -199,7 +199,7 @@ function checkForUpdates(): void {
       if (latest && latest !== CLI_VERSION) {
         setTimeout(() => {
           console.log(`\nUpdate available: ${CLI_VERSION} -> ${latest}`);
-          console.log(`Run: npx vibe-kanban-indie@latest`);
+          console.log(`Run: npx hivedeck@latest`);
         }, 2000);
       }
     })
@@ -207,7 +207,7 @@ function checkForUpdates(): void {
 }
 
 async function runMcp(args: string[]): Promise<void> {
-  await extractAndRun("vibe-kanban-mcp", (bin) => {
+  await extractAndRun("hivedeck-mcp", (bin) => {
     const proc = spawn(bin, buildMcpArgs(args), {
       stdio: "inherit",
     });
@@ -224,7 +224,7 @@ async function runMcp(args: string[]): Promise<void> {
 }
 
 async function runReview(args: string[]): Promise<void> {
-  await extractAndRun("vibe-kanban-review", (bin) => {
+  await extractAndRun("hivedeck-review", (bin) => {
     const proc = spawn(bin, args, { stdio: "inherit" });
     proc.on("exit", (c) => process.exit(c || 0));
     proc.on("error", (e) => {
@@ -244,15 +244,15 @@ async function runMain(desktopMode: boolean): Promise<void> {
   // Use --desktop to launch the desktop app instead.
   if (desktopMode && tauriPlatform) {
     if (!LOCAL_DEV_MODE) {
-      // Desktop bundles are not published for vibe-kanban-indie — the release
+      // Desktop bundles are not published for hivedeck — the release
       // workflow ships CLI binaries only. Skip the doomed fetch and fall back.
       console.error(
-        "Desktop builds are not published for vibe-kanban-indie; starting browser mode instead.",
+        "Desktop builds are not published for hivedeck; starting browser mode instead.",
       );
     } else {
       try {
         console.log(
-          `Starting vibe-kanban-indie desktop v${CLI_VERSION}${modeLabel}...`,
+          `Starting hivedeck desktop v${CLI_VERSION}${modeLabel}...`,
         );
         const bundleInfo = await ensureDesktopBundle(
           tauriPlatform,
@@ -270,8 +270,8 @@ async function runMain(desktopMode: boolean): Promise<void> {
   }
 
   // Browser mode (default — headless server + opens browser)
-  console.log(`Starting vibe-kanban-indie v${CLI_VERSION}${modeLabel}...`);
-  await extractAndRun("vibe-kanban", (bin) => {
+  console.log(`Starting hivedeck v${CLI_VERSION}${modeLabel}...`);
+  await extractAndRun("hivedeck", (bin) => {
     execSync(`"${bin}"`, { stdio: "inherit" });
   });
 }
@@ -296,7 +296,7 @@ function runOrExit(task: Promise<void>): void {
   void task.catch((err: unknown) => {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("Fatal error:", msg);
-    if (process.env.VIBE_KANBAN_DEBUG && err instanceof Error) {
+    if (process.env.HIVEDECK_DEBUG && err instanceof Error) {
       console.error(err.stack);
     }
     process.exit(1);
@@ -305,10 +305,10 @@ function runOrExit(task: Promise<void>): void {
 
 async function main(): Promise<void> {
   fs.mkdirSync(versionCacheDir, { recursive: true });
-  const cli = cac("vibe-kanban-indie");
+  const cli = cac("hivedeck");
 
   cli
-    .command("[...args]", "Launch the local vibe-kanban app")
+    .command("[...args]", "Launch the local hivedeck app")
     .option("--desktop", "Launch the desktop app instead of browser mode")
     .allowUnknownOptions()
     .action((_args: string[], options: RootOptions) => {
@@ -337,7 +337,7 @@ async function main(): Promise<void> {
 main().catch((err: unknown) => {
   const msg = err instanceof Error ? err.message : String(err);
   console.error("Fatal error:", msg);
-  if (process.env.VIBE_KANBAN_DEBUG && err instanceof Error) {
+  if (process.env.HIVEDECK_DEBUG && err instanceof Error) {
     console.error(err.stack);
   }
   process.exit(1);

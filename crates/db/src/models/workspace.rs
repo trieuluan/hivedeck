@@ -37,7 +37,7 @@ pub enum WorkspaceKind {
     /// Headed Claude Code session driving the board via `/loop`.
     Orchestrator,
     /// Recurring/scheduled task session, repo-independent, running from a
-    /// fixed `~/.vibe-kanban/recurrent/<slug>` directory.
+    /// fixed `~/.hivedeck/recurrent/<slug>` directory.
     Recurrent,
 }
 

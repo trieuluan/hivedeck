@@ -105,11 +105,11 @@ pub fn normalize_macos_private_alias<P: AsRef<Path>>(p: P) -> PathBuf {
     p.to_path_buf()
 }
 
-pub fn get_vibe_kanban_temp_dir() -> std::path::PathBuf {
+pub fn get_hivedeck_temp_dir() -> std::path::PathBuf {
     let dir_name = if cfg!(debug_assertions) {
-        "vibe-kanban-dev"
+        "hivedeck-dev"
     } else {
-        "vibe-kanban"
+        "hivedeck"
     };
 
     if cfg!(target_os = "macos") {
@@ -119,48 +119,48 @@ pub fn get_vibe_kanban_temp_dir() -> std::path::PathBuf {
         // Linux: use /var/tmp instead of /tmp to avoid RAM usage
         std::path::PathBuf::from("/var/tmp").join(dir_name)
     } else {
-        // Windows and other platforms: use temp dir with vibe-kanban subdirectory
+        // Windows and other platforms: use temp dir with hivedeck subdirectory
         std::env::temp_dir().join(dir_name)
     }
 }
 
-/// Persistent vibe-kanban home directory: `~/.vibe-kanban` (or `~/.vibe-kanban-dev`
+/// Persistent hivedeck home directory: `~/.hivedeck` (or `~/.hivedeck-dev`
 /// for debug builds, so dev and release worktrees/state never collide). This is
-/// the same `~/.vibe-kanban` convention used for `telegram.toml`/`projects.toml`.
+/// the same `~/.hivedeck` convention used for `telegram.toml`/`projects.toml`.
 ///
-/// Falls back to [`get_vibe_kanban_temp_dir`] when the home directory can't be
+/// Falls back to [`get_hivedeck_temp_dir`] when the home directory can't be
 /// determined, preserving the previous temp-dir behaviour in that edge case.
-pub fn get_vibe_kanban_home_dir() -> std::path::PathBuf {
+pub fn get_hivedeck_home_dir() -> std::path::PathBuf {
     let dir_name = if cfg!(debug_assertions) {
-        ".vibe-kanban-dev"
+        ".hivedeck-dev"
     } else {
-        ".vibe-kanban"
+        ".hivedeck"
     };
 
     dirs::home_dir()
         .map(|home| home.join(dir_name))
-        .unwrap_or_else(get_vibe_kanban_temp_dir)
+        .unwrap_or_else(get_hivedeck_temp_dir)
 }
 
 /// Directory holding the user-editable pipeline definition files
-/// (`~/.vibe-kanban/pipelines/*.toml`, or `~/.vibe-kanban-dev/pipelines` in
+/// (`~/.hivedeck/pipelines/*.toml`, or `~/.hivedeck-dev/pipelines` in
 /// debug builds). Each `*.toml` file is one selectable card pipeline.
 pub fn pipelines_dir() -> PathBuf {
-    get_vibe_kanban_home_dir().join("pipelines")
+    get_hivedeck_home_dir().join("pipelines")
 }
 
 /// Directory holding the user-editable recurrent routine definition files
-/// (`~/.vibe-kanban/recurrent/*.toml`, or `~/.vibe-kanban-dev/recurrent` in
+/// (`~/.hivedeck/recurrent/*.toml`, or `~/.hivedeck-dev/recurrent` in
 /// debug builds). Each `*.toml` file is one scheduled routine; the file stem
 /// is the routine id.
 pub fn recurrent_dir() -> PathBuf {
-    get_vibe_kanban_home_dir().join("recurrent")
+    get_hivedeck_home_dir().join("recurrent")
 }
 
 /// The opencode global config directory, matching opencode-ai's own XDG-style
 /// resolution (`$XDG_CONFIG_HOME`, else `$HOME/.config/opencode`) — NOT the
 /// platform-default config dir — so it lines up with where opencode actually
-/// reads `agents/*.md` and `opencode.json`. Used to seed the bundled vibe-kanban
+/// reads `agents/*.md` and `opencode.json`. Used to seed the bundled hivedeck
 /// subagent definitions.
 pub fn opencode_config_dir() -> PathBuf {
     if let Ok(xdg_config) = std::env::var("XDG_CONFIG_HOME")
@@ -206,7 +206,7 @@ mod tests {
     #[test]
     fn test_make_path_relative_macos_private_alias() {
         // Simulate a worktree under /var with a path reported under /private/var
-        let worktree = "/var/folders/zz/abc123/T/vibe-kanban-dev/worktrees/vk-test";
+        let worktree = "/var/folders/zz/abc123/T/hivedeck-dev/worktrees/vk-test";
         let path_under_private = format!(
             "/private/var{}/hello-world.txt",
             worktree.strip_prefix("/var").unwrap()

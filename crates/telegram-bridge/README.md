@@ -1,6 +1,6 @@
-# vibe-telegram-bridge
+# hivedeck-telegram-bridge
 
-A **send-only** daemon that streams vibe-kanban coding-agent escalations to a
+A **send-only** daemon that streams hivedeck coding-agent escalations to a
 Telegram supergroup, so blocked agents can be unblocked remotely (by a human or
 the PM agent). Part of the automation layer — see `../../automation/README.md`.
 

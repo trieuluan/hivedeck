@@ -87,32 +87,32 @@ Each workspace creates a **git worktree** - a separate working directory with a 
 
 ### Where Worktrees Are Stored
 
-By default, worktrees are stored under your home directory at `~/.vibe-kanban/worktrees` on all platforms. This persistent location keeps worktrees safe from system temp-directory cleanup.
+By default, worktrees are stored under your home directory at `~/.hivedeck/worktrees` on all platforms. This persistent location keeps worktrees safe from system temp-directory cleanup.
 
 | Platform | Default Location |
 |----------|-----------------|
-| **macOS** | `~/.vibe-kanban/worktrees` |
-| **Linux** | `~/.vibe-kanban/worktrees` |
-| **Windows** | `%USERPROFILE%\.vibe-kanban\worktrees` |
+| **macOS** | `~/.hivedeck/worktrees` |
+| **Linux** | `~/.hivedeck/worktrees` |
+| **Windows** | `%USERPROFILE%\.hivedeck\worktrees` |
 
-You can configure a custom location in **Settings → General → Workspace Directory**. When set, worktrees are stored in `{your-path}/.vibe-kanban-workspaces`.
+You can configure a custom location in **Settings → General → Workspace Directory**. When set, worktrees are stored in `{your-path}/.hivedeck-workspaces`.
 
 ### Checking Disk Usage
 
 <Tabs>
 <Tab title="macOS">
 ```bash
-du -sh ~/.vibe-kanban/worktrees
+du -sh ~/.hivedeck/worktrees
 ```
 </Tab>
 <Tab title="Linux">
 ```bash
-du -sh ~/.vibe-kanban/worktrees
+du -sh ~/.hivedeck/worktrees
 ```
 </Tab>
 <Tab title="Windows">
 ```powershell
-Get-ChildItem "$env:USERPROFILE\.vibe-kanban\worktrees" -Recurse | Measure-Object -Property Length -Sum
+Get-ChildItem "$env:USERPROFILE\.hivedeck\worktrees" -Recurse | Measure-Object -Property Length -Sum
 ```
 </Tab>
 </Tabs>
@@ -131,7 +131,7 @@ Large directories like `node_modules`, `target/`, or `build/` are copied into ea
 
 ## Manual Worktree Deletion
 
-If you manually delete a worktree directory (e.g., using `rm -rf` in terminal), Vibe Kanban will **automatically recreate it** the next time you open that workspace. The worktree is recreated from the branch's last commit.
+If you manually delete a worktree directory (e.g., using `rm -rf` in terminal), HiveDeck will **automatically recreate it** the next time you open that workspace. The worktree is recreated from the branch's last commit.
 
 <Warning>
 **Uncommitted changes will be lost.** If you had staged or unstaged changes that weren't committed, they cannot be recovered. Always commit your work before manually deleting worktree directories.
@@ -139,7 +139,7 @@ If you manually delete a worktree directory (e.g., using `rm -rf` in terminal), 
 
 ## Orphan Cleanup
 
-Vibe Kanban automatically cleans up "orphaned" worktrees on startup - these are worktree directories that no longer have a matching workspace in the database (e.g., if the app crashed during deletion).
+HiveDeck automatically cleans up "orphaned" worktrees on startup - these are worktree directories that no longer have a matching workspace in the database (e.g., if the app crashed during deletion).
 
 This cleanup runs automatically, so you don't need to manually manage stale worktree directories.
 

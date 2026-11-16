@@ -1,9 +1,9 @@
 {
-  "vibe_kanban": {
+  "hivedeck": {
     "command": "npx",
     "args": [
       "-y",
-      "vibe-kanban@latest",
+      "hivedeck@latest",
       "--mcp"
     ]
   },
@@ -45,9 +45,9 @@
     ]
   },
   "meta": {
-    "vibe_kanban": {
-      "name": "Vibe Kanban",
-      "description": "Create, update and delete Vibe Kanban tasks",
+    "hivedeck": {
+      "name": "HiveDeck",
+      "description": "Create, update and delete HiveDeck tasks",
       "url": "https://www.vibekanban.com/docs/integrations/vibe-kanban-mcp-server",
       "icon": "favicon-vk-light.svg"
     },

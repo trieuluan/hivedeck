@@ -109,8 +109,8 @@ mod tests {
     #[test]
     fn encodes_cwd_like_claude() {
         assert_eq!(
-            claude_project_dir_name(Path::new("/Users/eugenevm/VibeCoding/vibe-kanban")),
-            "-Users-eugenevm-VibeCoding-vibe-kanban"
+            claude_project_dir_name(Path::new("/Users/eugenevm/VibeCoding/hivedeck")),
+            "-Users-eugenevm-VibeCoding-hivedeck"
         );
         // Dotfiles: leading '/' and '.' both become '-' (the observed double dash).
         assert_eq!(

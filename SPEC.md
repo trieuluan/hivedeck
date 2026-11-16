@@ -18,7 +18,7 @@ Today a "pipeline" is **not a first-class entity**. It is:
 3. **Agent-side interpretation**: the execution agent reads that whole block and
    *decides for itself* which bullets to run, "matching by intent", because the
    real pipeline logic lives in plugin prose
-   (`sombrax_plugins/external_plugins/vibe-kanban-indie/prompts/pipeline.md`,
+   (`sombrax_plugins/external_plugins/hivedeck/prompts/pipeline.md`,
    `.../CLAUDE.md`). Nothing enforces order or completion.
 
 Consequences we want to fix:
@@ -42,8 +42,8 @@ Consequences we want to fix:
 3. **Redesign the per-card UI**: the operator first **picks one pipeline**, then
    **ticks which of that pipeline's stages** to enable (the "pipeline options"),
    then optionally edits the composed block — instead of one giant flat list.
-4. **Move pipeline-driving off the agent prompt and onto the vibe-kanban side.**
-   vibe-kanban composes an **explicitly ordered** stage list from the chosen
+4. **Move pipeline-driving off the agent prompt and onto the hivedeck side.**
+   hivedeck composes an **explicitly ordered** stage list from the chosen
    pipeline file into the card block; the agent executes it **in order,
    top-to-bottom, without self-selecting or intent-matching**. The per-stage
    "what to do" lives in the pipeline files, not in agent prompts. Agent prompts
@@ -61,7 +61,7 @@ Consequences we want to fix:
   `speckit-*` steps that currently live in the flat catalog move into a
   `speckit.toml` pipeline file.
 - **No server-side per-stage execution/tracking.** Per the chosen execution
-  model, vibe-kanban composes an ordered prompt; it does **not** run a stage
+  model, hivedeck composes an ordered prompt; it does **not** run a stage
   state machine, dispatch one agent per stage, or verify stage completion
   server-side. (Noted as possible future work.)
 - **No new DB table.** Per-card pipeline data continues to live in the card
@@ -76,10 +76,10 @@ Consequences we want to fix:
 
 ### 1. Pipeline files (new source of truth)
 
-- **Location:** `~/.vibe-kanban/pipelines/*.toml` — the fork's persistent home
-  dir resolved by `utils::path::get_vibe_kanban_home_dir()` (the same
-  `~/.vibe-kanban` convention as `telegram.toml` / `projects.toml` / `worktrees`;
-  debug builds use `~/.vibe-kanban-dev/`). This is **not** the platform
+- **Location:** `~/.hivedeck/pipelines/*.toml` — the fork's persistent home
+  dir resolved by `utils::path::get_hivedeck_home_dir()` (the same
+  `~/.hivedeck` convention as `telegram.toml` / `projects.toml` / `worktrees`;
+  debug builds use `~/.hivedeck-dev/`). This is **not** the platform
   app-data/`asset_dir()` that holds `config.json`.
 - **Format (TOML):**
 
@@ -207,7 +207,7 @@ and *how it is ordered/enforced* changes.
 Move pipeline knowledge out of prompts into the files, and make the agent obey
 the ordered block instead of choosing:
 
-- `sombrax_plugins/external_plugins/vibe-kanban-indie/prompts/pipeline.md`:
+- `sombrax_plugins/external_plugins/hivedeck/prompts/pipeline.md`:
   replace "the block lists *optional* stages; you decide which apply / match by
   intent" with "**Execute the numbered stages in the card's `## Pipeline` block
   in the exact order given; do not add, skip, or reorder them.**" Keep the
@@ -215,7 +215,7 @@ the ordered block instead of choosing:
   drop the per-stage *WHAT/whether* (that now comes from the block text).
 - `.../CLAUDE.md`: keep the canonical conventions the orchestrator still relies on
   (stage ordering reference, `AWAITING OPERATOR APPROVAL` marker, executor-pin
-  line), but reframe the pipeline as "authored by vibe-kanban from a pipeline
+  line), but reframe the pipeline as "authored by hivedeck from a pipeline
   file and delivered pre-ordered in the block" rather than "the agent selects
   points to follow".
 - No change to `orchestrator.md` parsing contracts (delimiters, executor line,
@@ -223,7 +223,7 @@ the ordered block instead of choosing:
 
 ## Acceptance criteria
 
-1. `~/.vibe-kanban/pipelines/` is auto-seeded on first run with `basic.toml`,
+1. `~/.hivedeck/pipelines/` is auto-seeded on first run with `basic.toml`,
    `wikillm.toml`, `speckit.toml`; editing/adding a `*.toml` file and reloading
    makes it appear as a selectable pipeline with no rebuild.
 2. `GET /api/pipelines` returns the three shipped pipelines with correct stages
@@ -264,7 +264,7 @@ the ordered block instead of choosing:
 ## Open questions (defaults chosen unless you say otherwise)
 
 1. **Global vs per-repo files.** Chosen: **host-global**
-   `~/.vibe-kanban/pipelines/`. Per-repo overlay is future work.
+   `~/.hivedeck/pipelines/`. Per-repo overlay is future work.
 2. **File format.** Chosen: **TOML** (1:1 with `PipelineStep`, clean multi-line
    prompts). Markdown-with-frontmatter was the alternative.
 3. **In-app TOML editing depth.** Chosen: raw-TOML edit + reset in Settings

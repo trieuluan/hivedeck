@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd /home/dendro/dev/vibe-kanban-indie
+cd /home/dendro/dev/hivedeck
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 export COREPACK_ENABLE_STRICT=0
 echo "### pnpm install"

@@ -1,19 +1,19 @@
-# Example config bundle for Vibe Kanban (import/export format).
+# Example config bundle for HiveDeck (import/export format).
 #
 # The SQLite database is the source of truth for projects, repos, links, and
 # kanban columns — create and edit them in the app. This file is an explicit,
 # portable export/import format for that *static* config (NOT issues, workspaces,
 # or tags).
 #
-# Import this file:   vibe-kanban import path/to/this.toml
+# Import this file:   hivedeck import path/to/this.toml
 #   (or POST its contents to /api/config/import)
-# Export current DB:  vibe-kanban export path/to/out.toml
+# Export current DB:  hivedeck export path/to/out.toml
 #   (or GET /api/config/export)
 #
 # Import is non-destructive: rows are matched by `id` (then by name/path),
 # existing rows are updated, new ones inserted, and nothing is ever deleted.
-# Default path when none is given: $VIBE_KANBAN_PROJECTS_CONFIG, else
-# ~/.vibe-kanban/projects.toml.
+# Default path when none is given: $HIVEDECK_PROJECTS_CONFIG, else
+# ~/.hivedeck/projects.toml.
 #
 # An export also includes a top-level `profiles_json = "..."` string holding your
 # executor profiles (agents); importing it restores those profile overrides.

@@ -1506,7 +1506,7 @@ mod tests {
                 "issue_id": issue.id.to_string(),
                 "workspace_id": null,
                 "number": 7,
-                "url": "https://github.com/sombrax/vibe-kanban-indie/pull/7",
+                "url": "https://github.com/sombrax/hivedeck/pull/7",
                 "status": "open",
                 "merged_at": null,
                 "target_branch_name": "main",
@@ -1521,7 +1521,7 @@ mod tests {
         assert_eq!(obj["pull_request_count"], serde_json::json!(1));
         assert_eq!(
             obj["latest_pr_url"],
-            serde_json::json!("https://github.com/sombrax/vibe-kanban-indie/pull/7")
+            serde_json::json!("https://github.com/sombrax/hivedeck/pull/7")
         );
         assert_eq!(obj["latest_pr_status"], serde_json::json!("open"));
     }

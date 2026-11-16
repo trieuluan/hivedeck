@@ -681,7 +681,7 @@ theme_variant: string,
 allowed_origins: Array<string>, 
 /**
  * Deprecated and ignored. Pipelines are now file-based
- * (`~/.vibe-kanban/pipelines/*.toml`, see `services::services::pipelines`);
+ * (`~/.hivedeck/pipelines/*.toml`, see `services::services::pipelines`);
  * this field is retained only so pre-existing configs still deserialise. It
  * is no longer read or written by the UI.
  */
@@ -744,7 +744,7 @@ export type Routine = {
  */
 id: string, name: string, enabled: boolean, prompt: string, 
 /**
- * Optional `--agent` id (e.g. "vibe-kanban-indie:orchestrator").
+ * Optional `--agent` id (e.g. "hivedeck:orchestrator").
  */
 agent: string | null, 
 /**
@@ -917,7 +917,7 @@ export type ClaudeCode = { append_prompt: AppendPrompt, claude_code_router?: boo
 export type ClaudeCodeHeaded = { 
 /**
  * Load the Sombrax Telegram channel into the headed session. When enabled,
- * vibe-kanban appends [`TELEGRAM_CHANNEL_FLAG`] to the interactive command
+ * hivedeck appends [`TELEGRAM_CHANNEL_FLAG`] to the interactive command
  * and auto-confirms the startup prompts (folder-trust + the dev-channel
  * warning) by pressing Enter in the tmux session.
  */
@@ -1175,6 +1175,6 @@ export type ExecutorDiscoveredOptions = { model_selector: ModelSelectorConfig, s
 
 export type JsonValue = number | string | boolean | Array<JsonValue> | { [key in string]?: JsonValue } | null;
 
-export const DEFAULT_PR_DESCRIPTION_PROMPT = "Update the PR that was just created with a better title and description.\nThe PR number is #{pr_number} and the URL is {pr_url}.\n\nAnalyze the changes in this branch and write:\n1. A concise, descriptive title that summarizes the changes, postfixed with \"(Vibe Kanban)\"\n2. A detailed description that explains:\n   - What changes were made\n   - Why they were made (based on the task context)\n   - Any important implementation details\n   - At the end, include a note: \"This PR was written using [Vibe Kanban](https://vibekanban.com)\"\n\nUpdate the PR using gh pr edit.";
+export const DEFAULT_PR_DESCRIPTION_PROMPT = "Update the PR that was just created with a better title and description.\nThe PR number is #{pr_number} and the URL is {pr_url}.\n\nAnalyze the changes in this branch and write:\n1. A concise, descriptive title that summarizes the changes, postfixed with \"(HiveDeck)\"\n2. A detailed description that explains:\n   - What changes were made\n   - Why they were made (based on the task context)\n   - Any important implementation details\n   - At the end, include a note: \"This PR was written using [HiveDeck](https://github.com/trieuluan/hivedeck)\"\n\nUpdate the PR using gh pr edit.";
 
 export const DEFAULT_COMMIT_REMINDER_PROMPT = "There are uncommitted changes. Please stage and commit them now with a descriptive commit message.";

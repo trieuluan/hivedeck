@@ -1,6 +1,6 @@
-//! Thin reqwest-based client for the vibe-kanban backend `/api`.
+//! Thin reqwest-based client for the hivedeck backend `/api`.
 //!
-//! Backend discovery mirrors `crates/mcp/src/bin/vibe_kanban_mcp.rs`: honor
+//! Backend discovery mirrors `crates/mcp/src/bin/hivedeck_mcp.rs`: honor
 //! `VIBE_BACKEND_URL`, then `HOST`/`BACKEND_PORT`/`PORT`, then fall back to the
 //! port file written by the server (`utils::port_file::read_port_file`).
 
@@ -570,7 +570,7 @@ async fn resolve_base() -> Result<(String, String), ApiError> {
         Ok(p) => p
             .parse::<u16>()
             .map_err(|e| ApiError::Discovery(format!("invalid port '{p}': {e}")))?,
-        Err(_) => utils::port_file::read_port_file("vibe-kanban")
+        Err(_) => utils::port_file::read_port_file("hivedeck")
             .await
             .map_err(|e| {
                 ApiError::Discovery(format!("no port file — is the backend running? ({e})"))

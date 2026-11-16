@@ -1,9 +1,9 @@
 ---
 title: "Deploy with Docker"
-description: "Run Vibe Kanban Indie on your own server with Docker"
+description: "Run HiveDeck on your own server with Docker"
 ---
 
-Vibe Kanban Indie ships a `Dockerfile` that builds a single, self-contained
+HiveDeck ships a `Dockerfile` that builds a single, self-contained
 image: the Rust backend serving the prebuilt web UI on port `3000`. There is no
 database server, OAuth provider, or relay to run — state lives in a SQLite
 database inside the container, which you persist with a volume.
@@ -22,9 +22,9 @@ exposing it publicly. See [Remote Access](/remote-access).
 ## Step 1: Build the image
 
 ```bash
-git clone https://github.com/dexloom/vibe-kanban-indie.git
-cd vibe-kanban-indie
-docker build -t vibe-kanban-indie .
+git clone https://github.com/trieuluan/hivedeck.git
+cd hivedeck
+docker build -t hivedeck .
 ```
 
 ## Step 2: Run the container
@@ -34,12 +34,12 @@ Mount a named volume so your projects, issues, and settings survive restarts:
 
 ```bash
 docker run -d \
-  --name vibe-kanban-indie \
+  --name hivedeck \
   -p 3000:3000 \
   -e VK_ALLOWED_ORIGINS="http://localhost:3000" \
-  -v vk-data:/home/appuser/.local/share/vibe-kanban \
-  -v vk-config:/home/appuser/.config/vibe-kanban \
-  vibe-kanban-indie
+  -v vk-data:/home/appuser/.local/share/hivedeck \
+  -v vk-config:/home/appuser/.config/hivedeck \
+  hivedeck
 ```
 
 <Check>
@@ -70,12 +70,12 @@ into the container and add them as projects in `projects.toml`:
 
 ```bash
 docker run -d \
-  --name vibe-kanban-indie \
+  --name hivedeck \
   -p 3000:3000 \
-  -v vk-data:/home/appuser/.local/share/vibe-kanban \
-  -v vk-config:/home/appuser/.config/vibe-kanban \
+  -v vk-data:/home/appuser/.local/share/hivedeck \
+  -v vk-config:/home/appuser/.config/hivedeck \
   -v /srv/code:/repos \
-  vibe-kanban-indie
+  hivedeck
 ```
 
 ## Updating
@@ -85,8 +85,8 @@ volume is preserved:
 
 ```bash
 git pull
-docker build -t vibe-kanban-indie .
-docker rm -f vibe-kanban-indie
+docker build -t hivedeck .
+docker rm -f hivedeck
 # re-run the docker run command from Step 2
 ```
 
@@ -94,7 +94,7 @@ docker rm -f vibe-kanban-indie
 
 To serve the app over HTTPS on a domain, put a reverse proxy such as Caddy in
 front. The repository includes a
-[`Caddyfile.example`](https://github.com/dexloom/vibe-kanban-indie/blob/main/Caddyfile.example)
+[`Caddyfile.example`](https://github.com/trieuluan/hivedeck/blob/main/Caddyfile.example)
 to start from. Remember to add the public origin to `VK_ALLOWED_ORIGINS`.
 
 ## Next steps

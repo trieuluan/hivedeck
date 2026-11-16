@@ -1,4 +1,4 @@
-//! vibe-kanban → Telegram bridge.
+//! hivedeck → Telegram bridge.
 //!
 //! A send-only daemon: it subscribes to the backend's approvals stream and posts
 //! an escalation to Telegram whenever a coding agent blocks waiting for a
@@ -6,7 +6,7 @@
 //! carries a machine-readable `‹vk …›` footer the PM agent parses to call the
 //! `respond_to_approval` MCP tool.
 //!
-//! With `per_worktree_topics` enabled (in `~/.vibe-kanban/telegram.toml`), each
+//! With `per_worktree_topics` enabled (in `~/.hivedeck/telegram.toml`), each
 //! Claude Code worktree gets its own forum topic and its escalations are routed
 //! there; everything else goes to the General area.
 //!
@@ -60,7 +60,7 @@ async fn main() -> Result<()> {
     let general_thread = config.general_thread_id;
 
     if let Err(e) = telegram
-        .send_message("🟢 vibe-kanban bridge connected", general_thread)
+        .send_message("🟢 hivedeck bridge connected", general_thread)
         .await
     {
         tracing::warn!("startup ping failed (check token/chat_id): {e}");

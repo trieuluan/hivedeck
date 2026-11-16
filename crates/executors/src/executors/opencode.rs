@@ -856,7 +856,7 @@ fn merge_autoupdate_disabled(existing_json: Option<&str>) -> String {
 ///
 /// The opencode TUI itself embeds the same HTTP server, so this is strictly an
 /// additive observability affordance: an operator can `tmux attach` to watch the
-/// session live while vibe-kanban tracks liveness and mirrors the pane. Because
+/// session live while hivedeck tracks liveness and mirrors the pane. Because
 /// opencode manages its own session ids (it cannot be *forced* to an external
 /// session id on a fresh launch), "resume" maps to opencode's own `-c/--continue`
 /// (continue the last session in the working directory) rather than a forced id.

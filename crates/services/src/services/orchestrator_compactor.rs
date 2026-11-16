@@ -24,8 +24,8 @@
 //! back to/under threshold on any tick resets the failure/escalation state
 //! (the episode is resolved).
 //!
-//! Configured via `~/.vibe-kanban/orchestrator.toml`'s `[compact]` table
-//! (`~/.vibe-kanban-dev` in debug builds). Absent file ⇒ defaults (feature
+//! Configured via `~/.hivedeck/orchestrator.toml`'s `[compact]` table
+//! (`~/.hivedeck-dev` in debug builds). Absent file ⇒ defaults (feature
 //! on); invalid/unreadable file ⇒ warn once and use defaults — never
 //! disabled silently, never a crash:
 //! ```toml
@@ -155,7 +155,7 @@ fn parse_bounded_interval(s: &str) -> Result<Duration, String> {
 }
 
 fn config_path() -> PathBuf {
-    utils::path::get_vibe_kanban_home_dir().join("orchestrator.toml")
+    utils::path::get_hivedeck_home_dir().join("orchestrator.toml")
 }
 
 // ---------------------------------------------------------------------

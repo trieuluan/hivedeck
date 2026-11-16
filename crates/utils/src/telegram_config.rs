@@ -1,10 +1,10 @@
 //! TOML-based Telegram orchestration config, shared by the server (for the
-//! status/test endpoints) and the `vibe-telegram-bridge` daemon.
+//! status/test endpoints) and the `hivedeck-telegram-bridge` daemon.
 //!
 //! The file is the source of truth for the local Telegram integration. It lives
-//! at `~/.vibe-kanban/telegram.toml` (mirroring `projects.toml`), and is
+//! at `~/.hivedeck/telegram.toml` (mirroring `projects.toml`), and is
 //! hand-edited — there is no UI writer. Resolution honours
-//! `$VIBE_KANBAN_TELEGRAM_CONFIG`, then `~/.vibe-kanban/telegram.toml`, then
+//! `$HIVEDECK_TELEGRAM_CONFIG`, then `~/.hivedeck/telegram.toml`, then
 //! `<asset_dir>/telegram.toml`.
 
 use std::path::PathBuf;
@@ -79,26 +79,26 @@ impl TelegramConfig {
     }
 }
 
-/// Resolve the config file path: `$VIBE_KANBAN_TELEGRAM_CONFIG`, otherwise
-/// `~/.vibe-kanban/telegram.toml` (falling back to `<asset_dir>/telegram.toml`
+/// Resolve the config file path: `$HIVEDECK_TELEGRAM_CONFIG`, otherwise
+/// `~/.hivedeck/telegram.toml` (falling back to `<asset_dir>/telegram.toml`
 /// only if the home directory can't be determined).
 pub fn config_path() -> PathBuf {
-    if let Ok(p) = std::env::var("VIBE_KANBAN_TELEGRAM_CONFIG")
+    if let Ok(p) = std::env::var("HIVEDECK_TELEGRAM_CONFIG")
         && !p.is_empty()
     {
         return PathBuf::from(p);
     }
     dirs::home_dir()
-        .map(|home| home.join(".vibe-kanban"))
+        .map(|home| home.join(".hivedeck"))
         .unwrap_or_else(crate::assets::asset_dir)
         .join("telegram.toml")
 }
 
 /// The directory state files (topic map, heartbeat) live in, alongside the
-/// config: `~/.vibe-kanban` (or `<asset_dir>` as a fallback).
+/// config: `~/.hivedeck` (or `<asset_dir>` as a fallback).
 pub fn state_dir() -> PathBuf {
     dirs::home_dir()
-        .map(|home| home.join(".vibe-kanban"))
+        .map(|home| home.join(".hivedeck"))
         .unwrap_or_else(crate::assets::asset_dir)
 }
 

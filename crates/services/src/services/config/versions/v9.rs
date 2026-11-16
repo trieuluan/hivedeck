@@ -46,7 +46,7 @@ fn default_theme_variant() -> String {
 }
 
 /// A single per-card pipeline stage. Stages are defined in pipeline files
-/// (`~/.vibe-kanban/pipelines/*.toml`, loaded by `services::services::pipelines`
+/// (`~/.hivedeck/pipelines/*.toml`, loaded by `services::services::pipelines`
 /// into `Pipeline.stages`). The New Issue "Pipeline" control lets the operator
 /// pick a pipeline and tick which stages apply; the ticked `prompt_fragment`s
 /// are composed, in order, into a `## Pipeline` block on the card description.
@@ -117,7 +117,7 @@ pub struct Config {
     #[serde(default)]
     pub allowed_origins: Vec<String>,
     /// Deprecated and ignored. Pipelines are now file-based
-    /// (`~/.vibe-kanban/pipelines/*.toml`, see `services::services::pipelines`);
+    /// (`~/.hivedeck/pipelines/*.toml`, see `services::services::pipelines`);
     /// this field is retained only so pre-existing configs still deserialise. It
     /// is no longer read or written by the UI.
     #[serde(default)]

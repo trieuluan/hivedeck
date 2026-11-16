@@ -1,6 +1,6 @@
 {
   "name": "@vibe/local-web",
-  "description": "vibe-kanban-indie local web app — the single-developer, self-hosted UI (no team, no cloud).",
+  "description": "hivedeck local web app — the single-developer, self-hosted UI (no team, no cloud).",
   "private": true,
   "version": "0.2.27",
   "type": "module",

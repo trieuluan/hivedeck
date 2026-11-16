@@ -36,7 +36,7 @@
       </div>
     </div>
     <div style="flex:1;display:flex;align-items:center;padding:0 18px;gap:10px">
-      <span style="font:500 12.5px 'Geist Mono',monospace;color:#6b7080">vibe-kanban</span>
+      <span style="font:500 12.5px 'Geist Mono',monospace;color:#6b7080">hivedeck</span>
       <span style="color:#3a3e49">/</span>
       <span style="font:600 13px system-ui;color:#cfd2da">{{ crumb }}</span>
       <sc-if value="{{ crumbBranch }}" hint-placeholder-val="{{ false }}">
@@ -516,10 +516,10 @@ class Component extends DCLogic {
       mkEv('tool', { ok: true, name: 'CronCreate', detail: 'schedule every 5 minutes  ·  */5 * * * *' }),
       mkEv('tool', { ok: true, name: 'Bash', detail: 'cat …/scripts/orchestrator.prompt.md 2>/dev/null || find … -name orchestrator.prompt.md' }),
       mkEv('thinking', { text: 'Loop armed — job 8d720036, every 5 minutes. Now running one sweep: reachability, inventory and backend resolution in parallel.' }),
-      mkEv('tool', { ok: false, name: 'Bash', detail: 'echo "VIBE_BACKEND_URL=${VIBE_BACKEND_URL:-unset}"; for p in …/vibe-kanban.port; do …' }),
-      mkEv('tool', { ok: false, mcp: true, name: 'list_workspaces', detail: 'vibe-kanban-indie · tool not registered' }),
-      mkEv('tool', { ok: false, mcp: true, name: 'list_repos', detail: 'vibe-kanban-indie · tool not registered' }),
-      mkEv('tool', { ok: false, mcp: true, name: 'list_projects', detail: 'vibe-kanban-indie · tool not registered' }),
+      mkEv('tool', { ok: false, name: 'Bash', detail: 'echo "VIBE_BACKEND_URL=${VIBE_BACKEND_URL:-unset}"; for p in …/hivedeck.port; do …' }),
+      mkEv('tool', { ok: false, mcp: true, name: 'list_workspaces', detail: 'hivedeck · tool not registered' }),
+      mkEv('tool', { ok: false, mcp: true, name: 'list_repos', detail: 'hivedeck · tool not registered' }),
+      mkEv('tool', { ok: false, mcp: true, name: 'list_projects', detail: 'hivedeck · tool not registered' }),
       mkEv('thinking', { text: "The MCP tools aren't registered under that name. Let me discover the actual tool names and locate the backend." }),
     ];
 
@@ -527,7 +527,7 @@ class Component extends DCLogic {
     const out = (text) => ({ isCmd: false, isOut: true, text });
     const termLines = [
       cmd('vk session tail 7d5043'),
-      out('[04:11:02] session started  model=claude-opus-4-8  cwd=~/.vibe-kanban/orchestrator'),
+      out('[04:11:02] session started  model=claude-opus-4-8  cwd=~/.hivedeck/orchestrator'),
       out('[04:11:04] cron armed  job=8d720036  every="*/5 * * * *"'),
       out('[04:11:09] tool CronCreate  ok  (120ms)'),
       out('[04:11:11] tool Bash  ok  (340ms)'),
@@ -543,7 +543,7 @@ class Component extends DCLogic {
     ];
 
     const logLines = [
-      { ts: '04:11:02', text: '{"type":"agent-setting","agentSetting":"vibe-kanban-indie:orchestrator","sessionId":"c29e7197-1705-4e45-88e7-735348cd4b19"}' },
+      { ts: '04:11:02', text: '{"type":"agent-setting","agentSetting":"hivedeck:orchestrator","sessionId":"c29e7197-1705-4e45-88e7-735348cd4b19"}' },
       { ts: '04:11:02', text: '<command-message>loop</command-message>' },
       { ts: '04:11:02', text: '<command-name>/loop</command-name>' },
       { ts: '04:11:02', text: '<command-args>5m Run exactly one orchestrator sweep now, following your agent definition and the per-tick brief; then stop until the next tick.</command-args>' },
@@ -551,7 +551,7 @@ class Component extends DCLogic {
       { ts: '04:11:04', text: '{"type":"cron","job":"8d720036","expr":"*/5 * * * *","status":"armed"}' },
       { ts: '04:12:20', text: '{"type":"tool_result","tool":"Bash","exit":1,"stderr":"VIBE_BACKEND_URL=unset"}' },
       { ts: '04:12:24', text: '{"type":"mcp_error","tool":"list_workspaces","error":"tool not registered"}' },
-      { ts: '04:12:31', text: '{"type":"agent-setting","agentSetting":"vibe-kanban-indie:orchestrator","sessionId":"c29e7197-1705-4e45-88e7-735348cd4b19"}' },
+      { ts: '04:12:31', text: '{"type":"agent-setting","agentSetting":"hivedeck:orchestrator","sessionId":"c29e7197-1705-4e45-88e7-735348cd4b19"}' },
     ];
 
     const bar = (n) => {

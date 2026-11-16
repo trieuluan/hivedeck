@@ -3,7 +3,7 @@ title: "Local Projects"
 description: "Declare projects and repositories in a portable projects.toml — no account, no cloud sync"
 ---
 
-Vibe Kanban Indie stores everything locally. Projects, repositories, board
+HiveDeck stores everything locally. Projects, repositories, board
 columns, and issues live in a SQLite database on your machine — there is no
 account and no cloud sync. For the **static** configuration (projects, repos, and
 columns, but not issues), Indie also supports a portable `projects.toml`
@@ -20,17 +20,17 @@ then export when you want a portable copy.
 
 ```bash
 # Import a config bundle (non-destructive)
-vibe-kanban import path/to/projects.toml
+hivedeck import path/to/projects.toml
 
 # Export the current database to a file
-vibe-kanban export path/to/out.toml
+hivedeck export path/to/out.toml
 ```
 
 You can also use the HTTP endpoints: `POST /api/config/import` and
 `GET /api/config/export`.
 
-The default path, when none is given, is `$VIBE_KANBAN_PROJECTS_CONFIG`, falling
-back to `~/.vibe-kanban/projects.toml`.
+The default path, when none is given, is `$HIVEDECK_PROJECTS_CONFIG`, falling
+back to `~/.hivedeck/projects.toml`.
 
 <Info>
 Import is **non-destructive**: rows are matched by `id` (then by name or path),

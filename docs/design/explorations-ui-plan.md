@@ -3,9 +3,9 @@
 Date: 2026-07-08
 Sources:
 
-- Claude Design project **"Vibe Kanban window system"** (`b241cf98-cb16-412c-b6cb-45bec5399e6c`)
+- Claude Design project **"HiveDeck window system"** (`b241cf98-cb16-412c-b6cb-45bec5399e6c`)
   - [`Explorations.dc.html`](./Explorations.dc.html) — 8 design directions across 3 iteration turns (reviewed here)
-  - [`VibeKanbanOneWindow.dc.html`](./VibeKanbanOneWindow.dc.html) — baseline one-window layout (sidebar switcher + workspaces view + live agent strip)
+  - [`HiveDeckOneWindow.dc.html`](./HiveDeckOneWindow.dc.html) — baseline one-window layout (sidebar switcher + workspaces view + live agent strip)
 - Migration plan: [`docs/frontend-ui-library-refactor-audit.md`](../frontend-ui-library-refactor-audit.md) — `@vibe/ui` package extraction
 
 ## 0. Where we are

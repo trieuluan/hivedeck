@@ -2,7 +2,7 @@
 //! session and attaching a terminal emulator to it as a viewer.
 //!
 //! tmux is the universal session backbone: the agent runs under
-//! `tmux new-session -d`, so the session outlives both vibe-kanban and the
+//! `tmux new-session -d`, so the session outlives both hivedeck and the
 //! terminal window. The emulator (iTerm2 / WezTerm / Terminal.app /
 //! gnome-terminal / xterm) merely attaches via `tmux attach -t <name>`.
 
@@ -80,7 +80,7 @@ pub async fn tmux_available() -> bool {
 ///
 /// The agent command is composed into a single shell string with `shlex`
 /// escaping and an `env …` prefix, because the tmux session does NOT inherit
-/// vibe-kanban's per-execution environment the way a child process would.
+/// hivedeck's per-execution environment the way a child process would.
 ///
 /// That composed string is NOT handed to tmux directly: tmux ships every command
 /// to its server over a unix socket whose payload is capped at `MAX_IMSGSIZE`
@@ -729,7 +729,7 @@ async fn run_emulator(
     args: &[&str],
     attach: &str,
 ) -> Result<(), TerminalError> {
-    // Spawn detached: the emulator runs independently of vibe-kanban.
+    // Spawn detached: the emulator runs independently of hivedeck.
     match Command::new(program).args(args).spawn() {
         Ok(_) => Ok(()),
         Err(_) => Err(TerminalError::TerminalUnavailable {

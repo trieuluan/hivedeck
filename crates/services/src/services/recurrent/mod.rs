@@ -1,6 +1,6 @@
 //! File-based recurrent task ("routine") catalog.
 //!
-//! Each `~/.vibe-kanban/recurrent/*.toml` file defines one scheduled routine:
+//! Each `~/.hivedeck/recurrent/*.toml` file defines one scheduled routine:
 //! a `name`, `prompt`, optional `agent`/`executor_profile`/`max_runtime`, and
 //! exactly one schedule (`cron` or `every`). The file stem is the routine
 //! `id` (e.g. `inbox-triage.toml` → `inbox-triage`).
@@ -9,7 +9,7 @@
 //! name = "Daily triage"
 //! enabled = false
 //! prompt = "..."
-//! agent = "vibe-kanban-indie:..."      # optional
+//! agent = "hivedeck:..."      # optional
 //! executor_profile = "CLAUDE_CODE"     # optional; "headed"/"headless"/BaseCodingAgent
 //! max_runtime = "30m"                  # optional; default 30m
 //! cron = "0 9 * * *"                   # exactly one of cron/every
@@ -58,7 +58,7 @@ pub struct Routine {
     pub name: String,
     pub enabled: bool,
     pub prompt: String,
-    /// Optional `--agent` id (e.g. "vibe-kanban-indie:orchestrator").
+    /// Optional `--agent` id (e.g. "hivedeck:orchestrator").
     pub agent: Option<String>,
     /// Resolved `BaseCodingAgent` SCREAMING_SNAKE_CASE string, e.g. "CLAUDE_CODE".
     pub executor_profile: String,
@@ -399,14 +399,14 @@ mod tests {
             name = "Demo interval"
             enabled = true
             prompt = "Do the thing."
-            agent = "vibe-kanban-indie:orchestrator"
+            agent = "hivedeck:orchestrator"
             executor_profile = "headed"
             max_runtime = "10m"
             every = "45m"
         "#;
         let r = parse_routine("demo2", raw).unwrap();
         assert!(r.enabled);
-        assert_eq!(r.agent.as_deref(), Some("vibe-kanban-indie:orchestrator"));
+        assert_eq!(r.agent.as_deref(), Some("hivedeck:orchestrator"));
         assert_eq!(r.executor_profile, "CLAUDE_CODE_HEADED");
         assert_eq!(r.max_runtime_secs, 600);
         assert_eq!(r.schedule.kind, "interval");

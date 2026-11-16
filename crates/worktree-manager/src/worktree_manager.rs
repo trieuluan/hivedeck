@@ -507,23 +507,23 @@ impl WorktreeManager {
         .map_err(|e| WorktreeError::TaskJoin(format!("{e}")))?
     }
 
-    /// Get the base directory for vibe-kanban worktrees
+    /// Get the base directory for hivedeck worktrees
     pub fn get_worktree_base_dir() -> std::path::PathBuf {
         if let Some(override_path) = WORKSPACE_DIR_OVERRIDE.get() {
             // Always use app-owned subdirectory within custom path for safety.
             // This ensures orphan cleanup never touches user's existing folders.
-            return override_path.join(".vibe-kanban-workspaces");
+            return override_path.join(".hivedeck-workspaces");
         }
         Self::get_default_worktree_base_dir()
     }
 
     /// Get the default base directory (ignoring any override).
     ///
-    /// Worktrees live under the persistent `~/.vibe-kanban/worktrees` home
+    /// Worktrees live under the persistent `~/.hivedeck/worktrees` home
     /// directory so they survive temp-dir cleanup. Override via the
     /// `workspace_dir` config option (see [`Self::get_worktree_base_dir`]).
     pub fn get_default_worktree_base_dir() -> std::path::PathBuf {
-        utils::path::get_vibe_kanban_home_dir().join("worktrees")
+        utils::path::get_hivedeck_home_dir().join("worktrees")
     }
 
     pub async fn cleanup_suspected_worktree(path: &Path) -> Result<bool, WorktreeError> {

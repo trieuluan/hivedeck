@@ -10,7 +10,7 @@ export const PIPELINE_END = '<!-- vk:pipeline:end -->';
 
 /**
  * Instruction line that leads the stage list. Pipelines are now authored by
- * vibe-kanban (from a pipeline file) and delivered pre-ordered, so the execution
+ * hivedeck (from a pipeline file) and delivered pre-ordered, so the execution
  * agent runs them top-to-bottom rather than choosing which apply.
  *
  * Also instructs the agent to emit a `VK-PIPELINE-STAGE: N` marker as it

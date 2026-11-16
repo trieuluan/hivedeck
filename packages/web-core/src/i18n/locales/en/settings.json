@@ -97,7 +97,7 @@
           "host": {
             "label": "Remote SSH Host (Optional)",
             "placeholder": "e.g., hostname or IP address",
-            "helper": "Set this if Vibe Kanban is running on a remote server. When set, clicking \"Open in Editor\" will generate a URL to open your editor via SSH instead of spawning a local command."
+            "helper": "Set this if HiveDeck is running on a remote server. When set, clicking \"Open in Editor\" will generate a URL to open your editor via SSH instead of spawning a local command."
           },
           "user": {
             "label": "Remote SSH User (Optional)",
@@ -179,10 +179,10 @@
         "workspaceDir": {
           "label": "Workspace Directory",
           "placeholder": "~/",
-          "helper": "Workspaces will be created in a .vibe-kanban-workspaces subdirectory within this path. Leave empty to use the system default. Changes require an app restart.",
+          "helper": "Workspaces will be created in a .hivedeck-workspaces subdirectory within this path. Leave empty to use the system default. Changes require an app restart.",
           "browse": "Browse",
           "dialogTitle": "Select Workspace Directory",
-          "dialogDescription": "Choose a directory. Workspaces will be created in a .vibe-kanban-workspaces subdirectory within it."
+          "dialogDescription": "Choose a directory. Workspaces will be created in a .hivedeck-workspaces subdirectory within it."
         }
       },
       "network": {
@@ -342,7 +342,7 @@
       },
       "files": {
         "title": "Pipeline files",
-        "description": "Pipelines are TOML files in ~/.vibe-kanban/pipelines/. Pick one per card on the New Issue dialog. Edit a file's raw TOML below, or reset to the bundled defaults."
+        "description": "Pipelines are TOML files in ~/.hivedeck/pipelines/. Pick one per card on the New Issue dialog. Edit a file's raw TOML below, or reset to the bundled defaults."
       },
       "resetAll": "Reset all to defaults",
       "empty": "No pipeline files found.",
@@ -362,7 +362,7 @@
       "loadError": "Failed to load routines",
       "list": {
         "title": "Routines",
-        "description": "Routines are TOML files in ~/.vibe-kanban/recurrent/. Toggle a routine on to let it run on schedule, or run it now. Edit a routine's raw TOML below."
+        "description": "Routines are TOML files in ~/.hivedeck/recurrent/. Toggle a routine on to let it run on schedule, or run it now. Edit a routine's raw TOML below."
       },
       "empty": "No routines found.",
       "neverRun": "Never run",
@@ -386,7 +386,7 @@
       },
       "page": {
         "title": "Common Tasks",
-        "description": "Reusable task prompts that run on a schedule or on demand. Routines are TOML files in ~/.vibe-kanban/recurrent/."
+        "description": "Reusable task prompts that run on a schedule or on demand. Routines are TOML files in ~/.hivedeck/recurrent/."
       },
       "reload": "Reload",
       "create": {
@@ -620,11 +620,11 @@
       },
       "remove": {
         "title": "Remove Repository",
-        "description": "Unlink this repository from Vibe Kanban. Files on disk will not be deleted.",
+        "description": "Unlink this repository from HiveDeck. Files on disk will not be deleted.",
         "button": "Remove",
         "confirm": "Remove Repository",
         "dialogTitle": "Remove \"{{name}}\"?",
-        "dialogDescription": "This will unlink the repository from Vibe Kanban. Your files on disk will not be affected. You can re-add it later.",
+        "dialogDescription": "This will unlink the repository from HiveDeck. Your files on disk will not be affected. You can re-add it later.",
         "success": "Repository removed successfully.",
         "error": "Failed to remove repository."
       },
@@ -639,7 +639,7 @@
     },
     "telegram": {
       "title": "Telegram",
-      "description": "Send agent approval escalations to a Telegram supergroup. Configure this by hand-editing the TOML file below; the vibe-telegram-bridge daemon delivers the messages.",
+      "description": "Send agent approval escalations to a Telegram supergroup. Configure this by hand-editing the TOML file below; the hivedeck-telegram-bridge daemon delivers the messages.",
       "status": {
         "title": "Status",
         "enabled": "Enabled",

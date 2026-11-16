@@ -65,7 +65,7 @@ pub fn render(f: &mut Frame, app: &App) {
 fn render_help(f: &mut Frame, area: Rect) {
     use ratatui::widgets::Clear;
     let lines = vec![
-        Line::from(" vibe-tui — keys ".bold()),
+        Line::from(" hivedeck-tui — keys ".bold()),
         Line::from(""),
         Line::from("  global    a  approvals inbox   ?  help   q  quit"),
         Line::from(
@@ -115,7 +115,7 @@ fn render_title(f: &mut Frame, app: &App, area: Rect) {
         Health::Err(e) => (format!("● disconnected ({e})"), Color::Red),
     };
     let mut spans = vec![
-        Span::raw("vibe-tui  "),
+        Span::raw("hivedeck-tui  "),
         Span::raw(app.client.base().to_string()).fg(Color::Cyan),
         Span::raw("  "),
         Span::raw(status_text).fg(status_color),
@@ -134,7 +134,7 @@ fn render_title(f: &mut Frame, app: &App, area: Rect) {
     let title = Paragraph::new(Line::from(spans)).block(
         Block::default()
             .borders(Borders::ALL)
-            .title(" vibe-kanban "),
+            .title(" hivedeck "),
     );
     f.render_widget(title, area);
 }

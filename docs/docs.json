@@ -1,8 +1,8 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Vibe Kanban Indie",
-  "description": "The independent, self-hosted fork of Vibe Kanban for a single-developer process — no team, no cloud, no auth.",
+  "name": "HiveDeck",
+  "description": "The independent, self-hosted fork of HiveDeck for a single-developer process — no team, no cloud, no auth.",
   "appearance": {
     "default": "light"
   },
@@ -21,7 +21,7 @@
   "navigation": {
     "groups": [
       {
-        "group": "Vibe Kanban Indie",
+        "group": "HiveDeck",
         "pages": [
           "index",
           "indie/philosophy",
@@ -126,7 +126,7 @@
           "integrations/github-integration",
           "integrations/vscode-extension",
           "integrations/mcp-server-configuration",
-          "integrations/vibe-kanban-mcp-server"
+          "integrations/hivedeck-mcp-server"
         ]
       },
       {
@@ -146,7 +146,7 @@
     "links": [
       {
         "label": "GitHub",
-        "href": "https://github.com/dexloom/vibe-kanban-indie"
+        "href": "https://github.com/trieuluan/hivedeck"
       }
     ],
     "primary": {
@@ -179,7 +179,7 @@
   ],
   "footer": {
     "socials": {
-      "github": "https://github.com/dexloom/vibe-kanban-indie"
+      "github": "https://github.com/trieuluan/hivedeck"
     }
   }
 }

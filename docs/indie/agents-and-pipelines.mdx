@@ -81,10 +81,10 @@ model does that subagent work, trading cost for thoroughness:
 
 | Stage | Async Opus | Async Sonnet | Async Fable |
 |---|---|---|---|
-| Spec | Opus subagent (`vibe-kanban-indie:product`) | Sonnet subagent (`vibe-kanban-indie:product`) | Fable subagent (`vibe-kanban-indie:product`) — **heavy**, on by default |
-| Plan | Opus subagent (`vibe-kanban-indie:planner`) | Sonnet subagent (`vibe-kanban-indie:planner`) | Fable subagent (`vibe-kanban-indie:planner`) — **heavy**, on by default |
+| Spec | Opus subagent (`hivedeck:product`) | Sonnet subagent (`hivedeck:product`) | Fable subagent (`hivedeck:product`) — **heavy**, on by default |
+| Plan | Opus subagent (`hivedeck:planner`) | Sonnet subagent (`hivedeck:planner`) | Fable subagent (`hivedeck:planner`) — **heavy**, on by default |
 | Codex plan review | On by default | On by default | On by default |
-| Code | Sonnet subagent (`vibe-kanban-indie:coder`) | Sonnet subagent (`vibe-kanban-indie:coder`) | Opus subagent (`vibe-kanban-indie:coder`) |
+| Code | Sonnet subagent (`hivedeck:coder`) | Sonnet subagent (`hivedeck:coder`) | Opus subagent (`hivedeck:coder`) |
 | Review via Codex | Off by default | Off by default | Off by default |
 | Merge to base | On by default | On by default | On by default |
 
@@ -107,7 +107,7 @@ it a second time.
 
 <Note>
 Bundled pipeline files are seeded once per filename and tracked in a
-`.seed-manifest.json` file inside `~/.vibe-kanban/pipelines/` (invisible to
+`.seed-manifest.json` file inside `~/.hivedeck/pipelines/` (invisible to
 the Settings pipeline list). When a bundled pipeline gains a new stage, or a
 new pipeline ships, an existing pipelines directory picks up exactly the new
 file or stage automatically on the next backend start — you no longer need to
@@ -148,14 +148,14 @@ honest.
 </CardGroup>
 
 <Note>
-The crew is delivered as the `vibe-kanban-indie` Claude Code plugin, which links to
+The crew is delivered as the `hivedeck` Claude Code plugin, which links to
 the `sombrax-codex` plugin for the review stages and the `sombrax-telegram` plugin
 for fan-out. See [Claude Code plugins & skills](/integrations/claude-code-plugins).
 </Note>
 
 The Product agent can also attach a pipeline when it files a card — say "create
 a card and put it through Async Fable" and it reads the pipelines directly from
-`~/.vibe-kanban/pipelines/*.toml` and composes the same `## Pipeline` block into
+`~/.hivedeck/pipelines/*.toml` and composes the same `## Pipeline` block into
 the card description that the New Issue dialog would, defaulting to each
 pipeline's `default_enabled` stages unless you name specific ones. It only adds
 the Orchestrate stage when you explicitly ask for the card to be executed or

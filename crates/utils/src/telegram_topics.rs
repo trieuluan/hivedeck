@@ -1,6 +1,6 @@
 //! Per-worktree Telegram "channels" for spawned Claude Code agents.
 //!
-//! vibe-kanban holds no bot token and makes no Telegram calls. It only decides
+//! hivedeck holds no bot token and makes no Telegram calls. It only decides
 //! whether per-worktree channels are on and names the channel (the git branch),
 //! injected as `TELEGRAM_TOPIC`, plus `TELEGRAM_DEV=1` marking the session as
 //! that channel's dev agent (kind=dev, role=owner) in sombrax-telegram's role

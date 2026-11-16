@@ -58,7 +58,7 @@ If `kanban.sh` is running it binds to `127.0.0.1`. To test from a phone you want
 ### Step 2 — Start the server on all interfaces with a fixed port
 
 ```bash
-HOST=0.0.0.0 BACKEND_PORT=55763 ~/.vibe-kanban/bin/v0.2.23/macos-arm64/vibe-kanban
+HOST=0.0.0.0 BACKEND_PORT=55763 ~/.hivedeck/bin/v0.2.23/macos-arm64/hivedeck
 ```
 
 - `HOST=0.0.0.0` makes the server listen on all interfaces (default is `127.0.0.1`).
@@ -118,6 +118,6 @@ Plain `http://` over Tailscale works for most testing. If you need a trusted HTT
 |---|---|
 | Phone can't reach the URL | Open Tailscale app on phone → toggle ON. Run `tailscale status` on Mac to verify both devices are connected |
 | Phone shows certificate warning | Re-run `tailscale cert $TS_HOSTNAME` — certs may have expired (90-day lifetime) |
-| Server says port already in use | Another instance is running. `pkill -f vibe-kanban`, then retry Step 2 |
+| Server says port already in use | Another instance is running. `pkill -f hivedeck`, then retry Step 2 |
 | `ping <hostname>` doesn't resolve | Enable MagicDNS in Tailscale admin: https://login.tailscale.com/admin/dns |
 | Back to local dev | Stop the manual server (`Ctrl+C`), then `~/yt/kanban.sh start` |

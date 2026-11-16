@@ -1,6 +1,6 @@
-# Vibe Kanban Indie — Documentation
+# HiveDeck — Documentation
 
-The documentation site for [Vibe Kanban Indie](https://github.com/dexloom/vibe-kanban-indie),
+The documentation site for [HiveDeck](https://github.com/trieuluan/hivedeck),
 built with [Mintlify](https://mintlify.com). Source lives in this `docs/` folder;
 `docs.json` defines navigation, theme, and settings.
 

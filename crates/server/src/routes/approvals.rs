@@ -168,7 +168,7 @@ async fn headed_approval_request(
             );
             return ResponseJson(hook_decision(
                 "ask",
-                Some("vibe-kanban approval unavailable"),
+                Some("hivedeck approval unavailable"),
             ));
         }
     };
@@ -179,7 +179,7 @@ async fn headed_approval_request(
         ApprovalOutcome::Approved => hook_allow_with_input(tool_input.clone()),
         ApprovalOutcome::Denied { reason } => hook_decision(
             "deny",
-            Some(reason.as_deref().unwrap_or("Denied in vibe-kanban")),
+            Some(reason.as_deref().unwrap_or("Denied in hivedeck")),
         ),
         // Fail-open to the in-TUI prompt rather than hard-denying on timeout.
         ApprovalOutcome::TimedOut => hook_decision("ask", Some("Approval request timed out")),

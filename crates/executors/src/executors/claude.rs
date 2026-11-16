@@ -214,7 +214,7 @@ impl ClaudeCode {
     ///   headless-only; the user interacts with the TUI directly);
     /// - no stdio permission-prompt tool (approvals are handled in the TUI);
     /// - the forced session id is bound via `--session-id <uuid>` (or resumed
-    ///   via `--resume <uuid>`), so vibe-kanban can track and later resume it;
+    ///   via `--resume <uuid>`), so hivedeck can track and later resume it;
     /// - the task prompt is delivered as the positional query argument
     ///   (`claude [flags] "<prompt>"`), which is the only way to seed the
     ///   conversation in interactive mode.
@@ -727,7 +727,7 @@ impl StandardCodingAgentExecutor for ClaudeCode {
 
 /// Claude Code in **headed** mode: rather than the headless `-p` stream-json
 /// protocol, the agent runs in a real terminal (its interactive TUI) inside a
-/// detached tmux session, and vibe-kanban mirrors the session transcript
+/// detached tmux session, and hivedeck mirrors the session transcript
 /// read-only into the normalized-log timeline. It does NOT interact with the
 /// agent — it only spawns it, attaches a terminal emulator as a viewer, and
 /// tracks/resumes the session.
@@ -789,7 +789,7 @@ pub struct ClaudeCodeHeaded {
     pub inner: ClaudeCode,
 
     /// Load the Sombrax Telegram channel into the headed session. When enabled,
-    /// vibe-kanban appends [`TELEGRAM_CHANNEL_FLAG`] to the interactive command
+    /// hivedeck appends [`TELEGRAM_CHANNEL_FLAG`] to the interactive command
     /// and auto-confirms the startup prompts (folder-trust + the dev-channel
     /// warning) by pressing Enter in the tmux session.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -855,13 +855,13 @@ impl ClaudeCodeHeaded {
 
 /// Build the `--settings` JSON that wires a `PreToolUse` **command** hook into a
 /// headed session, routing tool approvals through `hook_command` (e.g. a `curl`
-/// to vibe-kanban's headed-approval endpoint).
+/// to hivedeck's headed-approval endpoint).
 ///
 /// The matcher mirrors the corresponding headless [`ClaudeCode::get_hooks`] mode:
 /// - **plan** (`plan == true`): only `ExitPlanMode`/`AskUserQuestion` are gated —
 ///   everything else auto-runs (and `--permission-mode=plan` already blocks
 ///   mutations), so the operator answers plan questions / plan approval through
-///   vibe-kanban instead of the in-TUI prompt.
+///   hivedeck instead of the in-TUI prompt.
 /// - **approvals** (Supervised, `plan == false`): the deny-list gates everything
 ///   except safe read-only tools, matching the headless "approvals" set.
 ///

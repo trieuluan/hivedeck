@@ -12,10 +12,10 @@
 //
 // The artifacts-dir should contain Tauri bundle outputs with .sig files:
 //   tauri-artifacts/
-//     darwin-aarch64/  -> vibe-kanban.app.tar.gz, vibe-kanban.app.tar.gz.sig
-//     darwin-x86_64/   -> vibe-kanban.app.tar.gz, vibe-kanban.app.tar.gz.sig
-//     linux-x86_64/    -> vibe-kanban.AppImage.tar.gz, vibe-kanban.AppImage.tar.gz.sig
-//     windows-x86_64/  -> vibe-kanban-setup.exe, vibe-kanban-setup.exe.sig (NSIS)
+//     darwin-aarch64/  -> hivedeck.app.tar.gz, hivedeck.app.tar.gz.sig
+//     darwin-x86_64/   -> hivedeck.app.tar.gz, hivedeck.app.tar.gz.sig
+//     linux-x86_64/    -> hivedeck.AppImage.tar.gz, hivedeck.AppImage.tar.gz.sig
+//     windows-x86_64/  -> hivedeck-setup.exe, hivedeck-setup.exe.sig (NSIS)
 //
 
 const fs = require('fs');

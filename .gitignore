@@ -76,8 +76,8 @@ build-npm-package-codesign.sh
 
 npx-cli/bin/
 npx-cli/dist
-npx-cli/vibe-kanban-*
-vibe-kanban-*.tgz
+npx-cli/hivedeck-*
+hivedeck-*.tgz
 
 # Development ports file
 .dev-ports.json
@@ -86,7 +86,7 @@ dev_assets
 /packages/web/.env.sentry-build-plugin
 .ssh
 
-vibe-kanban-cloud/
+hivedeck-cloud/
 
 .jj
 .sisyphus/

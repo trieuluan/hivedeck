@@ -1,7 +1,7 @@
 import { cn } from '../lib/cn';
 
 /**
- * Feather Caret — the Vibe Kanban Indie brand mark.
+ * Feather Caret — the HiveDeck brand mark.
  *
  * Stacked chevron barbs read as a feather and also as a terminal
  * fast-forward `>>>` caret. Strokes use `currentColor` so the mark
@@ -39,7 +39,7 @@ export function FeatherCaret({
 }
 
 /**
- * The VIBE KANBAN wordmark with the bordered INDIE tag, on a single line.
+ * The HiveDeck wordmark with the bordered INDIE tag, on a single line.
  * Sizes are fixed in px (matching the original design lockup) so the
  * wordmark keeps its size even when the app's root font scale changes.
  */
