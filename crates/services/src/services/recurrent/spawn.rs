@@ -267,7 +267,7 @@ mod tests {
             name: "Demo".to_string(),
             enabled: true,
             prompt: "do the thing".to_string(),
-            agent: Some("hivedeck:orchestrator".to_string()),
+            agent: Some("vibe-kanban-indie:orchestrator".to_string()),
             executor_profile: "CLAUDE_CODE_HEADED".to_string(),
             max_runtime_secs: 1800,
             schedule: crate::services::recurrent::schedule::RoutineScheduleView {
@@ -278,7 +278,7 @@ mod tests {
         };
         let cfg = build_executor_config(&routine);
         assert_eq!(cfg.executor, BaseCodingAgent::ClaudeCodeHeaded);
-        assert_eq!(cfg.agent_id.as_deref(), Some("hivedeck:orchestrator"));
+        assert_eq!(cfg.agent_id.as_deref(), Some("vibe-kanban-indie:orchestrator"));
         assert!(cfg.variant.is_none());
     }
 

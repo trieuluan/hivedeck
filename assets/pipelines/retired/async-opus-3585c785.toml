@@ -11,13 +11,13 @@ prompt = "Have the orchestrator agent pick this card up and drive it to done aut
 id = "spec"
 label = "Spec via Opus subagent"
 default_enabled = true
-prompt = "Do NOT write the spec yourself. Spawn the `hivedeck:product` subagent on the Opus model (Agent tool with model: 'opus'; fall back to a generic Agent with model: 'opus' if the plugin agent is unavailable) to write the technical spec for this card to `SPEC.md` at the workspace root — pass the workspace-root path plus the card description in the subagent prompt. When it returns, verify `SPEC.md` exists and covers the card's outcome, scope, and acceptance criteria; if it is missing or thin, re-spawn the subagent with the concrete gaps rather than writing the spec in the main loop."
+prompt = "Do NOT write the spec yourself. Spawn the `vibe-kanban-indie:product` subagent on the Opus model (Agent tool with model: 'opus'; fall back to a generic Agent with model: 'opus' if the plugin agent is unavailable) to write the technical spec for this card to `SPEC.md` at the workspace root — pass the workspace-root path plus the card description in the subagent prompt. When it returns, verify `SPEC.md` exists and covers the card's outcome, scope, and acceptance criteria; if it is missing or thin, re-spawn the subagent with the concrete gaps rather than writing the spec in the main loop."
 
 [[stage]]
 id = "plan"
 label = "Plan via Opus subagent"
 default_enabled = true
-prompt = "Do NOT write the plan yourself. Spawn the `hivedeck:planner` subagent on the Opus model (Agent tool with model: 'opus'; fall back to a generic Agent with model: 'opus' if the plugin agent is unavailable) to turn `SPEC.md` into a step-by-step `IMPLEMENTATION_PLAN.md` at the workspace root — pass the workspace-root path plus the card description in the subagent prompt. When it returns, verify the plan's steps are grounded in real repo files; if not, re-spawn the subagent with the concrete gaps rather than writing the plan in the main loop."
+prompt = "Do NOT write the plan yourself. Spawn the `vibe-kanban-indie:planner` subagent on the Opus model (Agent tool with model: 'opus'; fall back to a generic Agent with model: 'opus' if the plugin agent is unavailable) to turn `SPEC.md` into a step-by-step `IMPLEMENTATION_PLAN.md` at the workspace root — pass the workspace-root path plus the card description in the subagent prompt. When it returns, verify the plan's steps are grounded in real repo files; if not, re-spawn the subagent with the concrete gaps rather than writing the plan in the main loop."
 
 [[stage]]
 id = "plan-review-codex"
@@ -29,7 +29,7 @@ prompt = "Before any code is written, have Codex independently review `IMPLEMENT
 id = "code-subagent"
 label = "Code via Sonnet subagent"
 default_enabled = true
-prompt = "Do NOT write the implementation yourself. Spawn the `hivedeck:coder` subagent (Sonnet model; fall back to a generic Agent with model: 'sonnet' if the plugin agent is unavailable) to implement the card strictly from `SPEC.md` and `IMPLEMENTATION_PLAN.md` — pass the workspace-root path plus the card description in the subagent prompt, and instruct it to follow the plan step by step and report what it changed. When it returns, verify the result compiles and passes checks (`pnpm run check` / `cargo test` as applicable); if the subagent's work is incomplete or broken, spawn a follow-up coder subagent with the concrete gaps rather than fixing the code in the main loop."
+prompt = "Do NOT write the implementation yourself. Spawn the `vibe-kanban-indie:coder` subagent (Sonnet model; fall back to a generic Agent with model: 'sonnet' if the plugin agent is unavailable) to implement the card strictly from `SPEC.md` and `IMPLEMENTATION_PLAN.md` — pass the workspace-root path plus the card description in the subagent prompt, and instruct it to follow the plan step by step and report what it changed. When it returns, verify the result compiles and passes checks (`pnpm run check` / `cargo test` as applicable); if the subagent's work is incomplete or broken, spawn a follow-up coder subagent with the concrete gaps rather than fixing the code in the main loop."
 
 [[stage]]
 id = "code-review"

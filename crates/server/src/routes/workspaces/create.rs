@@ -243,12 +243,12 @@ pub async fn create_and_start_workspace(
 
 /// Build the executor config for the orchestrator: a headed coding-agent session
 /// (its default profile skips permission prompts), launched as the plugin's own
-/// session agent (`--agent hivedeck:orchestrator`).
+/// session agent (`--agent vibe-kanban-indie:orchestrator`).
 ///
 /// The plugin's SINGLE-LOOP orchestrator owns the whole tick itself (monitor-first
 /// two-mode loop) — the retired `sweeper` subagent no longer exists, so the old
 /// default-agent workaround (which existed only so a loop-manager brief could spawn
-/// `hivedeck:sweeper` as a sibling subagent) is gone with it. The agent's
+/// `vibe-kanban-indie:sweeper` as a sibling subagent) is gone with it. The agent's
 /// full behavior lives in the plugin's `agents/orchestrator.md`; the `/loop` body
 /// the caller composes (see `composeOrchestratorPrompt`) is only the short per-tick
 /// pointer, matching the plugin's own launcher (`scripts/orchestrator.sh`).
@@ -263,7 +263,7 @@ fn orchestrator_executor_config(executor: BaseCodingAgent) -> ExecutorConfig {
         executor,
         variant: None,
         model_id: None,
-        agent_id: Some("hivedeck:orchestrator".to_string()),
+        agent_id: Some("vibe-kanban-indie:orchestrator".to_string()),
         reasoning_id: None,
         permission_policy: None,
     }

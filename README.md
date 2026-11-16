@@ -139,7 +139,7 @@ Add the marketplace once, then install the plugins you want — from inside Clau
 /plugin marketplace add dexloom/sombrax_plugins
 
 # Install the plugins
-/plugin install hivedeck@sombrax-plugins
+/plugin install vibe-kanban-indie@sombrax-plugins
 /plugin install sombrax-telegram@sombrax-plugins
 /plugin install sombrax-codex@sombrax-plugins
 ```

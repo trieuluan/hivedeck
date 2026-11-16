@@ -883,7 +883,7 @@ export type Routine = {
  */
 id: string, name: string, enabled: boolean, prompt: string, 
 /**
- * Optional `--agent` id (e.g. "hivedeck:orchestrator").
+ * Optional `--agent` id (e.g. "vibe-kanban-indie:orchestrator").
  */
 agent: string | null, 
 /**

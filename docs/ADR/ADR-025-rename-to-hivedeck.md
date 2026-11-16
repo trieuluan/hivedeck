@@ -29,6 +29,7 @@ Rename the product to **HiveDeck** (display name) / **`hivedeck`** (identifiers)
 
 Deliberately **not** renamed:
 
+- The external Claude Code plugin `vibe-kanban-indie` (sombrax-plugins): its agent ids (`vibe-kanban-indie:orchestrator`, `:planner`, `:coder`, …), its install command and its repo path. The first rename pass changed these to `hivedeck:*` by mistake, which broke the orchestrator and the Async pipelines; they were restored afterwards.
 - Links to real external resources: `vibekanban.com` docs/terms/privacy, `api.vibekanban.com` (review service), the VS Code extension id `bloop.vibe-kanban`, and credits to `BloopAI/vibe-kanban` / `dexloom` / `dendroman`.
 - History: `CHANGELOG.md`, `CONTEXT.md`, earlier ADRs.
 - Internal workspace packages `@vibe/*`, the `VK_*` env vars and the `.vibe-attachments` folder (internal, not user-facing branding).

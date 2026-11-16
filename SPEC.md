@@ -18,7 +18,7 @@ Today a "pipeline" is **not a first-class entity**. It is:
 3. **Agent-side interpretation**: the execution agent reads that whole block and
    *decides for itself* which bullets to run, "matching by intent", because the
    real pipeline logic lives in plugin prose
-   (`sombrax_plugins/external_plugins/hivedeck/prompts/pipeline.md`,
+   (`sombrax_plugins/external_plugins/vibe-kanban-indie/prompts/pipeline.md`,
    `.../CLAUDE.md`). Nothing enforces order or completion.
 
 Consequences we want to fix:
@@ -207,7 +207,7 @@ and *how it is ordered/enforced* changes.
 Move pipeline knowledge out of prompts into the files, and make the agent obey
 the ordered block instead of choosing:
 
-- `sombrax_plugins/external_plugins/hivedeck/prompts/pipeline.md`:
+- `sombrax_plugins/external_plugins/vibe-kanban-indie/prompts/pipeline.md`:
   replace "the block lists *optional* stages; you decide which apply / match by
   intent" with "**Execute the numbered stages in the card's `## Pipeline` block
   in the exact order given; do not add, skip, or reorder them.**" Keep the

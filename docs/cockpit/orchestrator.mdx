@@ -27,7 +27,7 @@ end; the orchestrator only dispatches and reflects status.
 Spawn the orchestrator from the app. Spawning is **idempotent**: if an
 orchestrator is already running, the action returns the existing session instead
 of creating a new one. The app launches it as the plugin's own session agent
-(`claude --agent hivedeck:orchestrator`) on a `/loop` timer. Each tick
+(`claude --agent vibe-kanban-indie:orchestrator`) on a `/loop` timer. Each tick
 runs in one of two modes: a cheap **monitor** pass over the currently active cards
 (the default), or a full board **sweep** (find ready cards, dispatch one coding
 agent per card) that runs only when a dispatch trigger fires — nothing is active,

@@ -1,5 +1,5 @@
 // The orchestrator is launched as the plugin's own session agent
-// (`claude --agent hivedeck:orchestrator` — see
+// (`claude --agent vibe-kanban-indie:orchestrator` — see
 // `orchestrator_executor_config` in crates/server/src/routes/workspaces/create.rs).
 // The plugin's SINGLE-LOOP orchestrator owns the whole tick itself (monitor-first
 // two-mode loop; the retired `sweeper` subagent is gone), so its behavior lives in
@@ -71,7 +71,7 @@ export const ORCHESTRATOR_LOOP_INTERVAL = '5m';
 
 /**
  * Compose the `/loop`-wrapped spawn prompt for the orchestrator session
- * (`claude --agent hivedeck:orchestrator`). It arms the timer at
+ * (`claude --agent vibe-kanban-indie:orchestrator`). It arms the timer at
  * {@link ORCHESTRATOR_LOOP_INTERVAL} with the SHORT per-tick pointer — the agent's
  * full behavior (monitor-first two-mode tick, dispatch, status reflection, adaptive
  * cadence) lives in the plugin's `agents/orchestrator.md`, so the pointer stays tiny
@@ -88,7 +88,7 @@ export function composeOrchestratorPrompt(
 ): string {
   const base =
     `/loop ${ORCHESTRATOR_LOOP_INTERVAL} Run one tick of the board loop per your ` +
-    `agent definition (hivedeck:orchestrator): pick the mode from retained ` +
+    `agent definition (vibe-kanban-indie:orchestrator): pick the mode from retained ` +
     `context — MONITOR the active cards by default; run a full SWEEP only when a ` +
     `sweep trigger fires (nothing active, a lane freed, an operator instruction, or ` +
     `the periodic backstop). Triage any operator instruction first (intake / ` +

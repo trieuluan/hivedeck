@@ -43,7 +43,7 @@ describe('composeOrchestratorPrompt — single-loop per-tick pointer', () => {
     const prompt = composeOrchestratorPrompt(new Set());
     // The session runs AS the plugin's orchestrator agent; the pointer defers to
     // its agent definition and names the two-mode tick it should run.
-    expect(prompt).toContain('hivedeck:orchestrator');
+    expect(prompt).toContain('vibe-kanban-indie:orchestrator');
     expect(prompt).toContain('MONITOR');
     expect(prompt).toContain('SWEEP');
   });
