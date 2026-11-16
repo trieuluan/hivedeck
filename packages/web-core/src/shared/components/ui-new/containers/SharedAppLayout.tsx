@@ -29,6 +29,7 @@ import {
   type CreateProjectResult,
 } from '@/shared/dialogs/CreateProjectDialog';
 import { CreateProjectButton } from './CreateProjectButton';
+import { DeleteRemoteProjectDialog } from '@/shared/dialogs/org/DeleteRemoteProjectDialog';
 import { useCommandBarShortcut } from '@/shared/hooks/useCommandBarShortcut';
 import { useShape } from '@/shared/integrations/electric/hooks';
 import { useProjects } from '@/shared/hooks/useProjects';
@@ -98,7 +99,11 @@ export function SharedAppLayout() {
   }, [isMobile, mobileFontScale]);
 
   // Sidebar state - projects (ADR-018: tenant-less, no org selection)
-  const { data: projects = [], isLoading } = useProjects();
+  const {
+    data: projects = [],
+    isLoading,
+    remove: removeProject,
+  } = useProjects();
   const sortedProjects = useMemo(
     () => sortProjectsByOrder(projects),
     [projects]
@@ -216,6 +221,35 @@ export function SharedAppLayout() {
       // Dialog cancelled — no-op.
     }
   }, [appNavigation]);
+
+  // Delete a project (and its cards, statuses and repo links) after
+  // confirmation. Refused while it still has child boards. Leaves the
+  // project's board if it was open.
+  const handleDeleteProject = useCallback(
+    async (projectId: string) => {
+      const project = projects.find((p) => p.id === projectId);
+      if (!project) return;
+      const childBoardCount = projects.filter(
+        (p) => p.parent_id === projectId
+      ).length;
+      const result = await DeleteRemoteProjectDialog.show({
+        projectName: project.name,
+        childBoardCount,
+        onConfirm: async () => {
+          await removeProject(projectId).persisted;
+        },
+      });
+      if (
+        result === 'deleted' &&
+        currentDestination &&
+        'projectId' in currentDestination &&
+        currentDestination.projectId === projectId
+      ) {
+        appNavigation.goToWorkspaces();
+      }
+    },
+    [projects, removeProject, currentDestination, appNavigation]
+  );
 
   // ADR-015: open the project-create dialog with `parentId` set so the new
   // project is created as a child board of the supplied project id. The
@@ -615,6 +649,7 @@ export function SharedAppLayout() {
                         handleSelectOrchestratorPrompt
                       }
                       onCreateChildBoard={handleCreateChildBoard}
+                      onDeleteProject={handleDeleteProject}
                       isMultiSelectActive={isMultiSelectActive}
                       headerActions={
                         <CreateProjectButton onClick={handleCreateProject} />
@@ -703,6 +738,7 @@ export function SharedAppLayout() {
                           setIsDrawerOpen(false);
                         }}
                         onCreateChildBoard={handleCreateChildBoard}
+                        onDeleteProject={handleDeleteProject}
                         isMultiSelectActive={isMultiSelectActive}
                         headerActions={
                           <CreateProjectButton onClick={handleCreateProject} />

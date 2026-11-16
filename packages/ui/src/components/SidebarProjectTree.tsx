@@ -59,6 +59,7 @@ interface SidebarProjectTreeProps {
   /** ADR-015: opens `CreateRemoteProjectDialog` with `parentId` set so the
    *  new project is created as a child board of the supplied project id. */
   onCreateChildBoard?: (parentId: string) => void;
+  onDeleteProject?: (projectId: string) => void;
   /** ADR-016: opens the orchestrator-prompt editor for the supplied
    *  project id. The `+` menu's "Orchestrator prompt" item and the
    *  prompt row's click both route through this. */
@@ -95,6 +96,7 @@ export function SidebarProjectTree({
   onOpenWorkspacesPage,
   onOpenLastWorkspace,
   onCreateChildBoard,
+  onDeleteProject,
   onSelectOrchestratorPrompt,
   activeProjectPromptId = null,
   isMultiSelectActive = false,
@@ -534,6 +536,7 @@ export function SidebarProjectTree({
                 <TreeNodeRouter
                   {...props}
                   onCreateChildBoard={onCreateChildBoard}
+                  onDeleteProject={onDeleteProject}
                   onSelectOrchestratorPrompt={onSelectOrchestratorPrompt}
                   onOpenProjectPage={onOpenProjectPage}
                   onOpenWorkspacesPage={onOpenWorkspacesPage}

@@ -2,6 +2,7 @@ import type { NodeApi, NodeRendererProps } from 'react-arborist';
 import {
   ArrowSquareOutIcon,
   LightningIcon,
+  TrashIcon,
   NotePencilIcon,
   PlusIcon,
 } from '@phosphor-icons/react';
@@ -55,6 +56,7 @@ function getProjectInitials(name: string): string {
 function ProjectTreeNode(
   props: TreeNodeRenderProps<ProjectNode> & {
     onCreateChildBoard?: (parentId: string) => void;
+    onDeleteProject?: (projectId: string) => void;
     onSelectOrchestratorPrompt?: (projectId: string) => void;
     onOpenProjectPage?: (projectId: string) => void;
     /** Opens the most-recent workspace under the Orchestrator (Unassigned)
@@ -70,6 +72,7 @@ function ProjectTreeNode(
     style,
     dragHandle,
     onCreateChildBoard,
+    onDeleteProject,
     onSelectOrchestratorPrompt,
     onOpenProjectPage,
     onOpenLastWorkspace,
@@ -113,7 +116,8 @@ function ProjectTreeNode(
   // item label is "Orchestrator prompt" (NOT "Add …") — the column
   // always exists, "Add" would lie.
   const showAddMenu =
-    !isUnassigned && (onCreateChildBoard || onSelectOrchestratorPrompt);
+    !isUnassigned &&
+    (onCreateChildBoard || onSelectOrchestratorPrompt || onDeleteProject);
   // Collapse-by-default (2026-08-07): row click toggles expand/collapse;
   // the open-page icon navigates to the project's kanban board. The
   // Unassigned pseudo-project has no board, so no icon.
@@ -272,6 +276,15 @@ function ProjectTreeNode(
                   )}
                 </DropdownMenuItem>
               )}
+              {onDeleteProject && (
+                <DropdownMenuItem
+                  className="text-error"
+                  onSelect={() => onDeleteProject(project.id)}
+                >
+                  <TrashIcon className="size-4" weight="regular" aria-hidden />
+                  {t('sidebar.deleteProject', 'Delete project…')}
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -400,6 +413,7 @@ function OrchestratorPromptTreeNode(
 export function TreeNodeRouter(
   props: NodeRendererProps<SidebarTreeNode> & {
     onCreateChildBoard?: (parentId: string) => void;
+    onDeleteProject?: (projectId: string) => void;
     onSelectOrchestratorPrompt?: (projectId: string) => void;
     onOpenProjectPage?: (projectId: string) => void;
     onOpenWorkspacesPage?: (projectId: string) => void;
@@ -423,6 +437,7 @@ export function TreeNodeRouter(
     style,
     dragHandle,
     onCreateChildBoard,
+    onDeleteProject,
     onSelectOrchestratorPrompt,
     onOpenProjectPage,
     onOpenWorkspacesPage,
@@ -452,6 +467,7 @@ export function TreeNodeRouter(
           style={style}
           dragHandle={dragHandle}
           onCreateChildBoard={onCreateChildBoard}
+          onDeleteProject={onDeleteProject}
           onSelectOrchestratorPrompt={onSelectOrchestratorPrompt}
           onOpenProjectPage={onOpenProjectPage}
           onOpenLastWorkspace={onOpenLastWorkspace}

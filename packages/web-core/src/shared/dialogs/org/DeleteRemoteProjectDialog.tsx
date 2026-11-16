@@ -16,12 +16,16 @@ import { defineModal } from '@/shared/lib/modals';
 
 export interface DeleteRemoteProjectDialogProps {
   projectName: string;
+  /** Number of child boards; deletion is refused while any exist. */
+  childBoardCount?: number;
+  /** Performs the deletion; a rejection is shown in the dialog. */
+  onConfirm?: () => Promise<void>;
 }
 
 export type DeleteRemoteProjectResult = 'deleted' | 'canceled';
 
 const DeleteRemoteProjectDialogImpl = create<DeleteRemoteProjectDialogProps>(
-  ({ projectName }) => {
+  ({ projectName, childBoardCount = 0, onConfirm }) => {
     const modal = useModal();
     const { t } = useTranslation(['projects', 'common']);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -32,15 +36,17 @@ const DeleteRemoteProjectDialogImpl = create<DeleteRemoteProjectDialogProps>(
       setError(null);
 
       try {
-        // Resolve with 'deleted' to let parent handle the deletion
+        await onConfirm?.();
         modal.resolve('deleted' as DeleteRemoteProjectResult);
         modal.hide();
-      } catch {
+      } catch (e) {
         setError(
-          t(
-            'deleteProjectDialog.error',
-            'Failed to delete project. Please try again.'
-          )
+          e instanceof Error && e.message
+            ? e.message
+            : t(
+                'deleteProjectDialog.error',
+                'Failed to delete project. Please try again.'
+              )
         );
       } finally {
         setIsDeleting(false);
@@ -74,6 +80,18 @@ const DeleteRemoteProjectDialogImpl = create<DeleteRemoteProjectDialogProps>(
             </DialogDescription>
           </DialogHeader>
 
+          {childBoardCount > 0 && (
+            <Alert variant="destructive">
+              <AlertDescription>
+                {t(
+                  'deleteProjectDialog.hasChildren',
+                  'This project has {{count}} board(s). Delete those first.',
+                  { count: childBoardCount }
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
           {error && (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
@@ -91,7 +109,7 @@ const DeleteRemoteProjectDialogImpl = create<DeleteRemoteProjectDialogProps>(
             <Button
               variant="destructive"
               onClick={handleDelete}
-              disabled={isDeleting}
+              disabled={isDeleting || childBoardCount > 0}
             >
               {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {t('common:buttons.delete', 'Delete')}
