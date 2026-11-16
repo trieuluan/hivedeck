@@ -54,6 +54,13 @@ import {
 } from '@vibe/ui/components/PierreConversationDiff';
 import { inIframe, openFileInVSCode } from '@/integrations/vscode/bridge';
 import { useDiffViewMode } from '@/shared/stores/useDiffViewStore';
+import {
+  PIPELINE_END,
+  PIPELINE_START,
+  extractPipelineBlock,
+  stripPipelineBlock,
+  summarizePipelineBlock,
+} from '@/shared/lib/pipeline/cardPipeline';
 import type {
   AggregatedPatchGroup,
   AggregatedDiffGroup,
@@ -61,6 +68,7 @@ import type {
 } from '@/shared/hooks/useConversationHistory/types';
 import {
   CaretDownIcon,
+  FlowArrowIcon,
   FileTextIcon,
   ListMagnifyingGlassIcon,
   GlobeIcon,
@@ -661,6 +669,50 @@ function PlanEntry({
   );
 }
 
+/** Collapsed view of a pipeline block appended to a user prompt. */
+function PipelineChip({
+  block,
+  workspaceId,
+  sessionId,
+}: {
+  block: string;
+  workspaceId: string | undefined;
+  sessionId: string | undefined;
+}) {
+  const { t } = useTranslation('common');
+  const { name, stageCount } = summarizePipelineBlock(block);
+  const label = name
+    ? t('cardPipeline.chatChip', { name, count: stageCount })
+    : t('cardPipeline.chatChipUnnamed', { count: stageCount });
+  return (
+    <details className="group mt-2">
+      <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-sm border border-border bg-secondary/60 px-2 py-0.5 text-xs text-low hover:text-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+        <FlowArrowIcon className="size-icon-xs" />
+        {label}
+        <span className="text-low/80 group-open:hidden">
+          · {t('cardPipeline.chatShow')}
+        </span>
+        <span className="hidden text-low/80 group-open:inline">
+          · {t('cardPipeline.chatHide')}
+        </span>
+      </summary>
+      <div className="mt-2 border-l border-border pl-3 text-low">
+        <AppChatMarkdown
+          content={stripPipelineMarkers(block)}
+          workspaceId={workspaceId}
+          sessionId={sessionId}
+          className={undefined}
+          maxWidth={undefined}
+        />
+      </div>
+    </details>
+  );
+}
+
+function stripPipelineMarkers(block: string): string {
+  return block.replace(PIPELINE_START, '').replace(PIPELINE_END, '').trim();
+}
+
 /**
  * Generic tool approval entry - renders with plan-style card when pending approval
  */
@@ -760,15 +812,32 @@ function UserMessageEntry({
       onEdit={canEdit ? handleEdit : undefined}
       onReset={canReset ? handleReset : undefined}
       isGreyed={isGreyed}
-      renderMarkdown={({ content, workspaceId }) => (
-        <AppChatMarkdown
-          content={content}
-          workspaceId={workspaceId}
-          sessionId={sessionId}
-          className={undefined}
-          maxWidth={undefined}
-        />
-      )}
+      renderMarkdown={({ content, workspaceId }) => {
+        // A card's pipeline block rides along in the prompt for the agent;
+        // show it as a collapsed chip so the user's own request stays readable.
+        const block = extractPipelineBlock(content);
+        const body = block ? stripPipelineBlock(content) : content;
+        return (
+          <>
+            {body.trim() && (
+              <AppChatMarkdown
+                content={body}
+                workspaceId={workspaceId}
+                sessionId={sessionId}
+                className={undefined}
+                maxWidth={undefined}
+              />
+            )}
+            {block && (
+              <PipelineChip
+                block={block}
+                workspaceId={workspaceId}
+                sessionId={sessionId}
+              />
+            )}
+          </>
+        );
+      }}
     />
   );
 }

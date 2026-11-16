@@ -293,6 +293,22 @@ export function stripPipelineBlock(description: string): string {
 }
 
 /**
+ * Summary of a delimited pipeline block for compact display: the pipeline
+ * name(s) from its `## Pipeline: …` heading and the number of numbered stages.
+ */
+export function summarizePipelineBlock(block: string): {
+  name: string | null;
+  stageCount: number;
+} {
+  const inner = block.replace(PIPELINE_START, '').replace(PIPELINE_END, '');
+  const heading = inner.match(/^##\s*Pipeline(?::\s*(.+))?\s*$/m);
+  const stageCount = inner
+    .split('\n')
+    .filter((line) => /^\s*\d+\.\s+\S/.test(line)).length;
+  return { name: heading?.[1]?.trim() || null, stageCount };
+}
+
+/**
  * Extract the delimited `## Pipeline` block (including delimiters) from a
  * card description, for seeding the edit-mode `PipelineSection`. Returns an
  * empty string when the description has no pipeline block.

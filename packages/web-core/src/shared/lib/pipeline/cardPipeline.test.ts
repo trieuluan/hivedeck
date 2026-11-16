@@ -9,6 +9,7 @@ import {
   extractPipelineBlock,
   orderedEnabledStages,
   parsePipelineStages,
+  summarizePipelineBlock,
 } from './cardPipeline';
 
 const pipeline: Pipeline = {
@@ -614,5 +615,31 @@ describe('parsePipelineStages', () => {
       { index: 1, label: 'First stage' },
       { index: 2, label: 'Second stage' },
     ]);
+  });
+});
+
+describe('summarizePipelineBlock', () => {
+  it('reads the pipeline name and counts numbered stages', () => {
+    const block = `${PIPELINE_START}
+## Pipeline: Basic
+
+Run the stages in order.
+
+1. Write SPEC.md
+2. Write IMPLEMENTATION_PLAN.md
+3. Review with Codex
+${PIPELINE_END}`;
+    expect(summarizePipelineBlock(block)).toEqual({
+      name: 'Basic',
+      stageCount: 3,
+    });
+  });
+
+  it('handles an unnamed block with only custom text', () => {
+    const block = `${PIPELINE_START}\n## Pipeline\n\nJust be careful.\n${PIPELINE_END}`;
+    expect(summarizePipelineBlock(block)).toEqual({
+      name: null,
+      stageCount: 0,
+    });
   });
 });

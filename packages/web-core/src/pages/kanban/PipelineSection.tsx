@@ -14,7 +14,6 @@ import {
   extractManualLines,
   type PipelineStage,
 } from '@/shared/lib/pipeline/cardPipeline';
-import { useDefaultPipelineId } from '@/shared/stores/useUiPreferencesStore';
 import {
   Select,
   SelectContent,
@@ -71,12 +70,16 @@ interface PipelineSectionProps {
  * file-based pipelines; the chosen pipeline's stages are listed as
  * checkboxes so the operator can tick exactly which apply, and those ticked
  * stages are composed into a `## Pipeline` block (editable in the textbox).
- * The last pipeline choice is remembered (localStorage) as the default for
- * the next issue. Because there is only ever one pipeline selected, the
+ * New issues start with no pipeline: a plain request is sent as typed, and
+ * a pipeline is applied only when picked for that card. Because there is
+ * only ever one pipeline selected, the
  * block reflects the current ticks 1:1 — no cross-pipeline merging, and a
  * pipeline change fully replaces the block (manual edits persist only until
  * the next pipeline change; stage/executor tweaks preserve them).
  */
+/** Select value for "no pipeline" (Radix Select disallows an empty value). */
+const NO_PIPELINE = '__none__';
+
 export function PipelineSection({
   profiles,
   disabled,
@@ -85,7 +88,6 @@ export function PipelineSection({
   onChange,
 }: PipelineSectionProps) {
   const { t } = useTranslation('common');
-  const [rememberedDefaultId, setRememberedDefaultId] = useDefaultPipelineId();
   const agents = useMemo(
     () => (profiles ? Object.keys(profiles).sort() : []),
     [profiles]
@@ -109,8 +111,6 @@ export function PipelineSection({
   );
   const [text, setText] = useState(initialSelection?.block ?? '');
 
-  // Create-mode default applied once pipelines load.
-  const appliedCreateDefaultRef = useRef(hasInitialSelection);
   // Skip the very first recompose in edit mode so opening a card never
   // rewrites its existing block before interaction.
   const skipFirstRecomposeRef = useRef(hasInitialSelection);
@@ -142,9 +142,8 @@ export function PipelineSection({
     []
   );
 
-  // Fetch pipelines once. In create mode, default the dropdown to the
-  // remembered default (else 'basic', else first) and tick its default stages;
-  // the recompose effect builds the block from that selection.
+  // Fetch pipelines once. Create mode starts with no pipeline selected, so
+  // a quick question is never wrapped in a multi-stage workflow by accident.
   useEffect(() => {
     let cancelled = false;
     pipelinesApi
@@ -152,17 +151,6 @@ export function PipelineSection({
       .then((list) => {
         if (cancelled) return;
         setPipelines(list);
-        if (appliedCreateDefaultRef.current) return;
-        appliedCreateDefaultRef.current = true;
-        const remembered = rememberedDefaultId
-          ? list.find((p) => p.id === rememberedDefaultId)
-          : null;
-        const def =
-          remembered ?? list.find((p) => p.id === 'basic') ?? list[0] ?? null;
-        if (!def) return;
-        setSelectedId(def.id);
-        setEnabledIds(defaultStageIds(def));
-        fullReplaceRef.current = true;
       })
       .catch(() => {
         if (!cancelled) setPipelines([]);
@@ -217,13 +205,15 @@ export function PipelineSection({
   const handleSelectPipeline = useCallback(
     (id: string) => {
       interactedRef.current = true;
-      setSelectedId(id);
-      setRememberedDefaultId(id);
-      const p = pipelines.find((x) => x.id === id) ?? null;
+      const p =
+        id === NO_PIPELINE
+          ? null
+          : (pipelines.find((x) => x.id === id) ?? null);
+      setSelectedId(p ? id : null);
       setEnabledIds(defaultStageIds(p));
       fullReplaceRef.current = true;
     },
-    [pipelines, defaultStageIds, setRememberedDefaultId]
+    [pipelines, defaultStageIds]
   );
 
   const handleToggleStep = useCallback((id: string) => {
@@ -270,7 +260,7 @@ export function PipelineSection({
               {t('cardPipeline.pipelineLabel')}
             </label>
             <Select
-              value={selectedId ?? ''}
+              value={selectedId ?? NO_PIPELINE}
               onValueChange={handleSelectPipeline}
               disabled={disabled || pipelines.length === 0}
             >
@@ -280,6 +270,14 @@ export function PipelineSection({
                 />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={NO_PIPELINE}>
+                  <span className="flex flex-col">
+                    <span>{t('cardPipeline.none')}</span>
+                    <span className="text-xs text-low">
+                      {t('cardPipeline.noneDescription')}
+                    </span>
+                  </span>
+                </SelectItem>
                 {selectedId && !selectedPipeline ? (
                   <SelectItem value={selectedId}>
                     {t('cardPipeline.noPipeline')}

@@ -466,9 +466,11 @@
   },
   "cardPipeline": {
     "title": "Pipeline",
-    "description": "Pick the pipeline this card should go through. Its stages are appended to the card description for the agent to follow. Your last choice is remembered for the next issue.",
+    "description": "Pick a pipeline only when this card should follow a multi-stage workflow. Its stages are appended to the card description for the agent to follow; leave it on None for a plain request.",
     "pipelineLabel": "Pipeline",
     "pipelinePlaceholder": "Select a pipeline",
+    "none": "None",
+    "noneDescription": "Send the request as written, no workflow stages.",
     "noPipeline": "No pipeline",
     "noSteps": "This pipeline has no default stages. Add some in Settings → Pipeline.",
     "agentLabel": "Execution agent",
@@ -480,7 +482,11 @@
     "progressTitle": "Pipeline progress",
     "progressHeader": "Stage {{n}} of {{total}} — {{label}}",
     "progressNotStarted": "{{total}} stages, not started yet",
-    "heavyBadge": "heavy"
+    "heavyBadge": "heavy",
+    "chatChip": "Pipeline: {{name}} · {{count}} stages",
+    "chatChipUnnamed": "Pipeline instructions · {{count}} stages",
+    "chatShow": "show",
+    "chatHide": "hide"
   },
   "createIssueDialog": {
     "title": "Create Issue",
