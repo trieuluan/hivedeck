@@ -15,6 +15,7 @@ import { Button } from '@vibe/ui/components/Button';
 import { nineRouterApi } from '@/shared/lib/api';
 import { useUserSystem } from '@/shared/hooks/useUserSystem';
 import { cn } from '@/shared/lib/utils';
+import { CombosView } from './CombosView';
 import { SettingsCheckbox } from '@/shared/dialogs/settings/settings/SettingsComponents';
 
 type RouterAction =
@@ -24,7 +25,7 @@ type RouterAction =
   | 'restart'
   | 'update'
   | 'rollback';
-type Tab = 'dashboard' | 'logs';
+type Tab = 'dashboard' | 'combos' | 'logs';
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 
@@ -315,6 +316,20 @@ export function RouterPage() {
   const main = (() => {
     if (!status) return null;
     if (tab === 'logs') return <LogsView />;
+    if (tab === 'combos' && settings) {
+      const setAllowed = (allow: boolean) =>
+        void updateAndSaveConfig({
+          nine_router: { ...settings, allow_management: allow },
+        });
+      return (
+        <CombosView
+          allowed={settings.allow_management}
+          routerUp={isUp(status.state)}
+          onAllow={() => setAllowed(true)}
+          onRevoke={() => setAllowed(false)}
+        />
+      );
+    }
     if (isUp(status.state)) {
       if (!iframeSrc) {
         return (
@@ -374,6 +389,12 @@ export function RouterPage() {
       </EmptyState>
     );
   })();
+
+  const TAB_LABELS: Record<Tab, string> = {
+    dashboard: t('settings.router.tabs.dashboard'),
+    combos: t('settings.router.tabs.combos'),
+    logs: t('settings.router.tabs.logs'),
+  };
 
   return (
     <div className="flex h-full flex-col bg-primary">
@@ -456,7 +477,9 @@ export function RouterPage() {
             )}
             {isUp(status.state) && (
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-low">{t('settings.router.combos')}</span>
+                <span className="text-low">
+                  {t('settings.router.combosLabel')}
+                </span>
                 {status.combos.length === 0 ? (
                   <span className="text-xs text-low">
                     {t('settings.router.noCombos')}
@@ -524,7 +547,7 @@ export function RouterPage() {
         )}
 
         <nav className="flex gap-1">
-          {(['dashboard', 'logs'] as const).map((id) => (
+          {(['dashboard', 'combos', 'logs'] as const).map((id) => (
             <button
               key={id}
               type="button"
@@ -536,9 +559,7 @@ export function RouterPage() {
                   : 'text-low hover:text-normal'
               )}
             >
-              {id === 'dashboard'
-                ? t('settings.router.tabs.dashboard')
-                : t('settings.router.tabs.logs')}
+              {TAB_LABELS[id]}
             </button>
           ))}
         </nav>

@@ -15,7 +15,15 @@
 //! (smoke test), and only then switch to it; the old version is kept for
 //! rollback.
 
+mod advisor;
+mod aliases;
+pub mod api;
 mod versions;
+
+pub use advisor::{
+    ComboRole, ComboSuggestions, ProviderHealth, ProviderHealthStatus, RoleSuggestion,
+    SuggestedModel,
+};
 
 use std::{
     ffi::OsString,
@@ -55,6 +63,10 @@ pub struct NineRouterSettings {
     /// Loopback port 9router listens on.
     #[serde(default = "default_port")]
     pub port: u16,
+    /// User opted in to HiveDeck reading quotas and managing combos through
+    /// 9router's local CLI token (ADR-027).
+    #[serde(default)]
+    pub allow_management: bool,
 }
 
 impl Default for NineRouterSettings {
@@ -62,6 +74,7 @@ impl Default for NineRouterSettings {
         Self {
             auto_start: false,
             port: DEFAULT_PORT,
+            allow_management: false,
         }
     }
 }
@@ -151,6 +164,14 @@ pub enum NineRouterError {
     NoPrevious,
     #[error("{0}")]
     UpdateFailed(String),
+    #[error("allow HiveDeck to manage 9router first (Router page)")]
+    ManagementDisabled,
+    #[error("9router is not running on port {0}")]
+    NotRunning(u16),
+    #[error("invalid combo: {0}")]
+    InvalidCombo(String),
+    #[error(transparent)]
+    Api(#[from] api::ApiError),
     #[error("9router is already running on port {0}")]
     AlreadyRunning(u16),
     #[error("9router on port {0} was not started by HiveDeck; stop it from where it was started")]
@@ -761,6 +782,172 @@ pub async fn logs(limit: usize) -> NineRouterLogs {
     }
 }
 
+/// Full `/v1/models` listing with capabilities.
+async fn fetch_models(port: u16) -> Option<Vec<advisor::ModelInfo>> {
+    #[derive(Deserialize, Default)]
+    #[serde(rename_all = "camelCase")]
+    struct Caps {
+        #[serde(default)]
+        tools: bool,
+        #[serde(default)]
+        reasoning: bool,
+        context_window: Option<u64>,
+    }
+    #[derive(Deserialize)]
+    struct Model {
+        id: String,
+        #[serde(default)]
+        owned_by: String,
+        #[serde(default)]
+        capabilities: Option<Caps>,
+        context_length: Option<u64>,
+    }
+    #[derive(Deserialize)]
+    struct Models {
+        data: Vec<Model>,
+    }
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .ok()?;
+    let models: Models = client
+        .get(format!("{}/models", base_url(port)))
+        .send()
+        .await
+        .ok()?
+        .error_for_status()
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+    Some(
+        models
+            .data
+            .into_iter()
+            .map(|m| {
+                let caps = m.capabilities.unwrap_or_default();
+                advisor::ModelInfo {
+                    id: m.id,
+                    owned_by: m.owned_by,
+                    tools: caps.tools,
+                    reasoning: caps.reasoning,
+                    context_window: caps.context_window.or(m.context_length),
+                }
+            })
+            .collect(),
+    )
+}
+
+fn management_client(settings: &NineRouterSettings) -> Result<api::Client, NineRouterError> {
+    if !settings.allow_management {
+        return Err(NineRouterError::ManagementDisabled);
+    }
+    Ok(api::Client::new(settings.port)?)
+}
+
+/// Suggest a combo per agent role from the models, provider health and quota
+/// 9router reports right now.
+pub async fn suggestions(
+    settings: &NineRouterSettings,
+) -> Result<ComboSuggestions, NineRouterError> {
+    let client = management_client(settings)?;
+    let models = fetch_models(settings.port)
+        .await
+        .ok_or(NineRouterError::NotRunning(settings.port))?;
+    let connections = client.connections().await?;
+    let existing = client.combos().await?;
+
+    // Usage per active, error-free connection, in parallel.
+    let usages = futures::future::join_all(connections.iter().map(|c| {
+        let client = &client;
+        async move {
+            if c.is_active && c.error.is_none() {
+                client.usage(&c.id).await.ok()
+            } else {
+                None
+            }
+        }
+    }))
+    .await;
+    let entries: Vec<_> = connections.into_iter().zip(usages).collect();
+    let mut health = advisor::provider_health(&entries);
+
+    // Fill alias and model counts; list providers that have models but no
+    // connection record (e.g. local/no-auth providers) as unknown.
+    for m in models.iter().filter(|m| m.owned_by != "combo") {
+        let provider = advisor::provider_for_alias(&m.owned_by);
+        let h = health
+            .entry(provider.clone())
+            .or_insert_with(|| ProviderHealth {
+                provider: provider.clone(),
+                alias: String::new(),
+                status: ProviderHealthStatus::Unknown,
+                remaining_percent: None,
+                quota_name: None,
+                reset_at: None,
+                message: None,
+                model_count: 0,
+            });
+        h.alias = m.owned_by.clone();
+        h.model_count += 1;
+    }
+
+    let roles = advisor::suggest(&models, &health, &existing);
+    let mut providers: Vec<ProviderHealth> = health.into_values().collect();
+    providers.sort_by(|a, b| a.provider.cmp(&b.provider));
+    Ok(ComboSuggestions {
+        roles,
+        providers,
+        generated_at: chrono::Utc::now().to_rfc3339(),
+    })
+}
+
+fn valid_combo_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 64
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+/// Create the combo `name`, or replace its models if it already exists.
+/// Every model must be one 9router currently lists.
+pub async fn apply_combo(
+    settings: &NineRouterSettings,
+    name: &str,
+    models: &[String],
+) -> Result<(), NineRouterError> {
+    if !valid_combo_name(name) {
+        return Err(NineRouterError::InvalidCombo(
+            "name may only contain letters, digits, - and _".into(),
+        ));
+    }
+    if models.is_empty() {
+        return Err(NineRouterError::InvalidCombo(
+            "pick at least one model".into(),
+        ));
+    }
+    let client = management_client(settings)?;
+    let available = fetch_models(settings.port)
+        .await
+        .ok_or(NineRouterError::NotRunning(settings.port))?;
+    if let Some(unknown) = models.iter().find(|id| {
+        !available
+            .iter()
+            .any(|m| &m.id == *id && m.owned_by != "combo")
+    }) {
+        return Err(NineRouterError::InvalidCombo(format!(
+            "unknown model {unknown}"
+        )));
+    }
+    match client.combos().await?.into_iter().find(|c| c.name == name) {
+        Some(existing) => client.update_combo(&existing.id, models).await?,
+        None => client.create_combo(name, models).await?,
+    }
+    log_line(&format!("combo {name} set to [{}]", models.join(", "))).await;
+    Ok(())
+}
+
 /// Boot hook: start the router in the background when `auto_start` is on and
 /// nothing is listening yet. Never blocks server startup.
 pub fn spawn_autostart(settings: NineRouterSettings) {
@@ -810,6 +997,15 @@ mod tests {
     }
 
     #[test]
+    fn validates_combo_names() {
+        assert!(valid_combo_name("coder"));
+        assert!(valid_combo_name("fast_2-b"));
+        assert!(!valid_combo_name(""));
+        assert!(!valid_combo_name("bad name"));
+        assert!(!valid_combo_name("../x"));
+    }
+
+    #[test]
     fn launcher_is_embedded() {
         assert!(LAUNCHER_SOURCE.contains("custom-server.js"));
         assert!(LAUNCHER_SOURCE.contains("server.js"));
@@ -826,8 +1022,8 @@ mod tests {
         // SAFETY: test-only, runs alone (ignored by default).
         unsafe { std::env::set_var("HOME", home.path()) };
         let settings = NineRouterSettings {
-            auto_start: false,
             port: 20199,
+            ..Default::default()
         };
 
         let before = status(&settings, false).await;
@@ -864,8 +1060,8 @@ mod tests {
         // SAFETY: test-only, runs alone (ignored by default).
         unsafe { std::env::set_var("HOME", home.path()) };
         let settings = NineRouterSettings {
-            auto_start: false,
             port: 20198,
+            ..Default::default()
         };
         let wait_idle = || async {
             for _ in 0..600 {

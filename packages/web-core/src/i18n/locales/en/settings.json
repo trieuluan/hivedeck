@@ -692,7 +692,49 @@
       },
       "autoStart": "Start with HiveDeck",
       "baseUrl": "Base URL",
-      "combos": "Combos",
+      "combosLabel": "Combos",
+      "combos": {
+        "intro": "Suggested fallback chains per agent role, from the models, provider health and quota 9router reports right now. Nothing changes until you apply a combo.",
+        "refresh": "Refresh",
+        "providers": "Providers",
+        "create": "Create combo",
+        "update": "Update combo",
+        "upToDate": "Up to date",
+        "current": "Current:",
+        "noCandidates": "No usable model for this role. Connect a provider or wait for quota to reset.",
+        "notRunning": "Start 9router to get combo suggestions.",
+        "resetsIn": "resets in {{time}}",
+        "revoke": "Stop letting HiveDeck manage 9router",
+        "roles": {
+          "planner": "Planning and orchestration: strongest reasoning, large context.",
+          "coder": "Writing code: tool use, coding models, most quota.",
+          "reviewer": "Reviewing diffs: strong reasoning, a different model family than the coder.",
+          "fast": "Titles, commit messages, summaries: fast and cheap."
+        },
+        "health": {
+          "ok": "OK",
+          "low": "Low",
+          "exhausted": "Exhausted",
+          "error": "Needs attention",
+          "inactive": "Disabled",
+          "unknown": "No quota data"
+        },
+        "columns": {
+          "provider": "Provider",
+          "status": "Status",
+          "quota": "Tightest quota",
+          "models": "Models",
+          "note": "Note"
+        },
+        "consent": {
+          "title": "Let HiveDeck manage 9router",
+          "body": "To suggest combos from live quota and create them for you, HiveDeck uses 9router's local CLI token — the same mechanism 9router's own CLI uses.",
+          "reads": "Reads ~/.9router/machine-id and ~/.9router/auth/cli-secret to derive the token, then reads provider status and quota.",
+          "writes": "Creates or updates combos only when you click Create/Update.",
+          "local": "Talks to 127.0.0.1 only; the token is never stored or sent anywhere else. You can turn this off at any time.",
+          "allow": "Allow"
+        }
+      },
       "noCombos": "No combos yet. Create one in the dashboard.",
       "version": "Version",
       "pinned": "HiveDeck installs v{{version}}",
@@ -704,6 +746,7 @@
       "globalLeftover": "A global 9router v{{version}} is still installed. It can take over the port or run against newer ~/.9router data — remove it:",
       "tabs": {
         "dashboard": "Dashboard",
+        "combos": "Combos",
         "logs": "Logs"
       },
       "noLogs": "No log output yet.",

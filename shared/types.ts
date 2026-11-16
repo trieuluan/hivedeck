@@ -306,7 +306,12 @@ auto_start: boolean,
 /**
  * Loopback port 9router listens on.
  */
-port: number, };
+port: number, 
+/**
+ * User opted in to HiveDeck reading quotas and managing combos through
+ * 9router's local CLI token (ADR-027).
+ */
+allow_management: boolean, };
 
 export type NineRouterInstallSource = "managed" | "global";
 
@@ -352,6 +357,40 @@ pid: number | null, node_available: boolean, npm_available: boolean,
 combos: Array<string>, model_count: number, auto_start: boolean, last_error: string | null, log_path: string, };
 
 export type NineRouterLogs = { lines: Array<string>, log_path: string, };
+
+export type ComboRole = "planner" | "coder" | "reviewer" | "fast";
+
+export type ProviderHealthStatus = "ok" | "low" | "exhausted" | "error" | "inactive" | "unknown";
+
+export type ProviderHealth = { 
+/**
+ * Provider id, e.g. `claude`.
+ */
+provider: string, 
+/**
+ * Model-id prefix, e.g. `cc`.
+ */
+alias: string, status: ProviderHealthStatus, remaining_percent: number | null, 
+/**
+ * Name of the tightest quota window, e.g. `session (5h)`.
+ */
+quota_name: string | null, reset_at: string | null, message: string | null, model_count: number, };
+
+export type SuggestedModel = { id: string, provider: string, reason: string, };
+
+export type RoleSuggestion = { role: ComboRole, combo_name: string, models: Array<SuggestedModel>, 
+/**
+ * Models of an existing combo with the same name, if any.
+ */
+existing_models: Array<string> | null, 
+/**
+ * The existing combo already matches the suggestion.
+ */
+up_to_date: boolean, };
+
+export type ComboSuggestions = { roles: Array<RoleSuggestion>, providers: Array<ProviderHealth>, generated_at: string, };
+
+export type ApplyComboRequest = { name: string, models: Array<string>, };
 
 export type TelegramTestResponse = { ok: boolean, error: string | null, };
 

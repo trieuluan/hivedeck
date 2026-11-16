@@ -10,8 +10,9 @@ use axum::{
 use deployment::Deployment;
 use serde::Deserialize;
 use services::services::nine_router::{
-    self, NineRouterError, NineRouterLogs, NineRouterSettings, NineRouterStatus,
+    self, ComboSuggestions, NineRouterError, NineRouterLogs, NineRouterSettings, NineRouterStatus,
 };
+use ts_rs::TS;
 use utils::response::ApiResponse;
 
 use crate::{DeploymentImpl, error::ApiError};
@@ -95,6 +96,35 @@ async fn rollback(State(deployment): State<DeploymentImpl>) -> StatusResponse {
     status_response(&deployment).await
 }
 
+async fn get_suggestions(
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<ComboSuggestions>>, ApiError> {
+    let suggestions = nine_router::suggestions(&settings(&deployment).await)
+        .await
+        .map_err(to_api_error)?;
+    Ok(ResponseJson(ApiResponse::success(suggestions)))
+}
+
+#[derive(Debug, Deserialize, TS)]
+pub struct ApplyComboRequest {
+    pub name: String,
+    pub models: Vec<String>,
+}
+
+async fn apply_combo(
+    State(deployment): State<DeploymentImpl>,
+    axum::Json(body): axum::Json<ApplyComboRequest>,
+) -> Result<ResponseJson<ApiResponse<ComboSuggestions>>, ApiError> {
+    let settings = settings(&deployment).await;
+    nine_router::apply_combo(&settings, &body.name, &body.models)
+        .await
+        .map_err(to_api_error)?;
+    let suggestions = nine_router::suggestions(&settings)
+        .await
+        .map_err(to_api_error)?;
+    Ok(ResponseJson(ApiResponse::success(suggestions)))
+}
+
 #[derive(Deserialize)]
 struct LogsQuery {
     limit: Option<usize>,
@@ -117,4 +147,6 @@ pub(super) fn router() -> Router<DeploymentImpl> {
         .route("/router/restart", post(restart))
         .route("/router/update", post(update))
         .route("/router/rollback", post(rollback))
+        .route("/router/suggestions", get(get_suggestions))
+        .route("/router/combos", post(apply_combo))
 }
