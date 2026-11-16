@@ -701,6 +701,7 @@
         "global": "global install"
       },
       "externalNote": "This 9router was not started by HiveDeck, so it can't be stopped from here.",
+      "globalLeftover": "A global 9router v{{version}} is still installed. It can take over the port or run against newer ~/.9router data — remove it:",
       "tabs": {
         "dashboard": "Dashboard",
         "logs": "Logs"

@@ -336,7 +336,12 @@ can_update: boolean,
 /**
  * Managed version kept for rollback.
  */
-previous_version: string | null, package_dir: string | null, 
+previous_version: string | null, 
+/**
+ * Version of a global `9router` still installed while a managed copy is
+ * in use (`None` otherwise).
+ */
+global_version: string | null, package_dir: string | null, 
 /**
  * PID of the HiveDeck-started process, if any.
  */

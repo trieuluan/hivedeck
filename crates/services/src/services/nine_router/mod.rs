@@ -109,6 +109,9 @@ pub struct NineRouterStatus {
     pub can_update: bool,
     /// Managed version kept for rollback.
     pub previous_version: Option<String>,
+    /// Version of a global `9router` still installed while a managed copy is
+    /// in use (`None` otherwise).
+    pub global_version: Option<String>,
     pub package_dir: Option<String>,
     /// PID of the HiveDeck-started process, if any.
     pub pid: Option<u32>,
@@ -225,8 +228,12 @@ async fn find_install() -> Option<Install> {
             version,
         });
     }
+    find_global().await
+}
 
-    // Global: the `9router` bin is a symlink to `<pkg>/cli.js`.
+/// A global `9router` on PATH, if any.
+async fn find_global() -> Option<Install> {
+    // The `9router` bin is a symlink to `<pkg>/cli.js`.
     let bin = resolve_executable_path(PACKAGE_NAME).await?;
     let real = std::fs::canonicalize(&bin).unwrap_or(bin);
     let mut candidates = Vec::new();
@@ -357,6 +364,13 @@ pub async fn status(settings: &NineRouterSettings, check_updates: bool) -> NineR
         update_available,
         can_update: managed,
         previous_version: if managed { versions::previous() } else { None },
+        // A leftover global install next to a managed one can fight over the
+        // port and the shared ~/.9router data; the UI suggests removing it.
+        global_version: if managed {
+            find_global().await.map(|g| g.version)
+        } else {
+            None
+        },
         package_dir: install
             .as_ref()
             .map(|i| i.dir.to_string_lossy().to_string()),
@@ -871,6 +885,9 @@ mod tests {
             Some(NineRouterInstallSource::Managed)
         );
         assert_eq!(installed.installed_version.as_deref(), Some(PINNED_VERSION));
+        // The machine's global 9router (used by the lifecycle test) is still
+        // on PATH, so it must be reported as a leftover.
+        assert!(installed.global_version.is_some(), "{installed:?}");
         let latest = installed.latest_version.clone().expect("npm latest");
 
         start(&settings).await.expect("start");

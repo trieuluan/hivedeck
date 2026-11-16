@@ -507,6 +507,16 @@ export function RouterPage() {
             {t('settings.router.externalNote')}
           </p>
         )}
+        {status?.global_version && (
+          <div className="flex flex-wrap items-center gap-2 rounded-sm border border-warning/40 bg-warning/10 px-base py-2 text-sm text-normal">
+            <span>
+              {t('settings.router.globalLeftover', {
+                version: status.global_version,
+              })}
+            </span>
+            <CopyField value="npm uninstall -g 9router" />
+          </div>
+        )}
         {(error || status?.last_error) && (
           <div className="rounded-sm border border-error/50 bg-error/10 px-base py-2 text-sm text-error">
             {error ?? status?.last_error}
