@@ -1616,9 +1616,7 @@ pub fn normalize_logs(
                     let (entry, index, is_new) = state.assistant_message_append(delta);
                     upsert_normalized_entry(&msg_store, index, entry, is_new);
                 }
-                EventMsg::ReasoningContentDelta(ReasoningContentDeltaEvent {
-                    delta, ..
-                }) => {
+                EventMsg::ReasoningContentDelta(ReasoningContentDeltaEvent { delta, .. }) => {
                     state.assistant = None;
                     let (entry, index, is_new) = state.thinking_append(delta);
                     upsert_normalized_entry(&msg_store, index, entry, is_new);
@@ -1684,7 +1682,9 @@ pub fn normalize_logs(
                     }
                 }
                 EventMsg::ApplyPatchApprovalRequest(ApplyPatchApprovalRequestEvent {
-                    call_id, changes, ..
+                    call_id,
+                    changes,
+                    ..
                 }) => {
                     state.assistant = None;
                     state.thinking = None;

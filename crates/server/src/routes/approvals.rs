@@ -166,10 +166,7 @@ async fn headed_approval_request(
                 "headed approval bridge failed for exec={execution_process_id}: {e}; \
                  falling back to in-TUI prompt"
             );
-            return ResponseJson(hook_decision(
-                "ask",
-                Some("hivedeck approval unavailable"),
-            ));
+            return ResponseJson(hook_decision("ask", Some("hivedeck approval unavailable")));
         }
     };
 

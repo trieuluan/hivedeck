@@ -278,10 +278,7 @@ mod tests {
         };
         let cfg = build_executor_config(&routine);
         assert_eq!(cfg.executor, BaseCodingAgent::ClaudeCodeHeaded);
-        assert_eq!(
-            cfg.agent_id.as_deref(),
-            Some("hivedeck:orchestrator")
-        );
+        assert_eq!(cfg.agent_id.as_deref(), Some("hivedeck:orchestrator"));
         assert!(cfg.variant.is_none());
     }
 

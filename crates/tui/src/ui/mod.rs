@@ -131,11 +131,8 @@ fn render_title(f: &mut Frame, app: &App, area: Rect) {
                 .bold(),
         );
     }
-    let title = Paragraph::new(Line::from(spans)).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(" hivedeck "),
-    );
+    let title = Paragraph::new(Line::from(spans))
+        .block(Block::default().borders(Borders::ALL).title(" hivedeck "));
     f.render_widget(title, area);
 }
 
