@@ -24,7 +24,7 @@ html {
     --_muted-foreground: 0 0% 56%;
     --_accent: 0 0% 92%;
     --_accent-foreground: 0 0% 5%;
-    --_destructive: 0 59% 57%;
+    --_destructive: 0 62% 47%;
     --_destructive-foreground: 0 0% 100%;
     --_border: 0 0% 85%;
     --_input: 0 0% 96%;
@@ -79,12 +79,14 @@ html {
     --brand-hover: 25 75% 62%;
     --brand-active: var(--brand-secondary);
     --brand-secondary: 25 82% 37%;
-    --error: 0 59% 57%;
+    /* 47% L keeps error text >= 4.5:1 on light surfaces. */
+    --error: 0 62% 47%;
     --success: 117 38% 50%;
     --merged: 271 81% 46%;
 
     /* Text on accent */
-    --text-on-brand: 0 0% 100%;
+    /* Dark ink on the orange brand fill: white measured 2.9:1. */
+    --text-on-brand: 25 40% 8%;
   }
 
   /* Dark mode */
@@ -102,7 +104,7 @@ html {
     --_muted-foreground: 0 0% 64%;
     --_accent: 0 0% 20%;
     --_accent-foreground: 0 0% 96%;
-    --_destructive: 0 59% 57%;
+    --_destructive: 0 72% 68%;
     --_destructive-foreground: 0 0% 96%;
     --_border: 0 0% 20%;
     --_input: 0 0% 20%;
@@ -121,7 +123,8 @@ html {
     /* Text (dark) */
     --text-high: 0 0% 96%;
     --text-normal: 0 0% 77%;
-    --text-low: 0 0% 56%;
+    /* 62% L keeps secondary text >= 4.5:1 on panel surfaces. */
+    --text-low: 0 0% 62%;
 
     /* Background (dark) - with VS Code overrides */
     --_bg-primary-default: 0 0% 13%;
@@ -139,12 +142,13 @@ html {
     --brand-hover: 25 75% 62%;
     --brand-active: var(--brand-secondary);
     --brand-secondary: 25 82% 37%;
-    --error: 0 59% 57%;
+    /* Lighter red for >= 4.5:1 on dark and error-tinted surfaces. */
+    --error: 0 72% 68%;
     --success: 117 38% 50%;
     --merged: 271 81% 66%;
 
     /* Text on accent */
-    --text-on-brand: 0 0% 100%;
+    --text-on-brand: 25 40% 8%;
     /* Console (dark) */
     --_console-background: 0 0% 0%;
     --_console-foreground: 210 40% 98%;

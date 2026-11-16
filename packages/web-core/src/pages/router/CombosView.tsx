@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  ArrowCounterClockwiseIcon,
   ArrowsClockwiseIcon,
   CheckIcon,
   ShieldCheckIcon,
@@ -16,23 +17,59 @@ import { Button } from '@vibe/ui/components/Button';
 import { nineRouterApi } from '@/shared/lib/api';
 import { cn } from '@/shared/lib/utils';
 
-const HEALTH_STYLES: Record<ProviderHealthStatus, string> = {
-  ok: 'bg-success/15 text-success',
-  low: 'bg-warning/15 text-warning',
-  exhausted: 'bg-error/15 text-error',
-  error: 'bg-error/15 text-error',
-  inactive: 'bg-low/15 text-low',
-  unknown: 'bg-low/15 text-low',
+/** Replacing a combo that drops this many models asks for confirmation. */
+const CONFIRM_REMOVALS = 3;
+
+const HEALTH_TEXT: Record<ProviderHealthStatus, string> = {
+  ok: 'text-success',
+  low: 'text-warning',
+  exhausted: 'text-error',
+  error: 'text-error',
+  inactive: 'text-low',
+  unknown: 'text-low',
 };
 
-function formatReset(iso: string | null): string | null {
+const HEALTH_BAR: Record<ProviderHealthStatus, string> = {
+  ok: 'bg-success',
+  low: 'bg-warning',
+  exhausted: 'bg-error',
+  error: 'bg-error',
+  inactive: 'bg-low',
+  unknown: 'bg-low',
+};
+
+function relativeTime(iso: string | null, future: boolean): string | null {
   if (!iso) return null;
-  const ms = new Date(iso).getTime() - Date.now();
-  if (!Number.isFinite(ms) || ms <= 0) return null;
-  const hours = Math.floor(ms / 3_600_000);
-  if (hours >= 24) return `${Math.round(hours / 24)}d`;
-  if (hours >= 1) return `${hours}h`;
-  return `${Math.max(1, Math.round(ms / 60_000))}m`;
+  const diff = new Date(iso).getTime() - Date.now();
+  const ms = future ? diff : -diff;
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 1) return '<1m';
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours}h`;
+  return `${Math.round(hours / 24)}d`;
+}
+
+type ComboDiff = {
+  isNew: boolean;
+  added: Set<string>;
+  removed: string[];
+};
+
+function diffCombo(role: RoleSuggestion): ComboDiff {
+  const current = role.existing_models;
+  const next = role.models.map((m) => m.id);
+  if (!current) {
+    return { isNew: true, added: new Set(next), removed: [] };
+  }
+  const currentSet = new Set(current);
+  const nextSet = new Set(next);
+  return {
+    isNew: false,
+    added: new Set(next.filter((id) => !currentSet.has(id))),
+    removed: current.filter((id) => !nextSet.has(id)),
+  };
 }
 
 function Consent({ onAllow }: { onAllow: () => void }) {
@@ -62,7 +99,39 @@ function Consent({ onAllow }: { onAllow: () => void }) {
   );
 }
 
-function ProviderRow({ p }: { p: ProviderHealth }) {
+function QuotaBar({ p }: { p: ProviderHealth }) {
+  const pct = p.remaining_percent;
+  return (
+    <div className="flex items-center gap-2">
+      <div
+        className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-panel"
+        role="meter"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={pct ?? undefined}
+        aria-label="Quota remaining"
+      >
+        {pct !== null && (
+          <div
+            className={cn('h-full rounded-full', HEALTH_BAR[p.status])}
+            style={{ width: `${Math.max(pct, 2)}%` }}
+          />
+        )}
+      </div>
+      <span className="w-9 shrink-0 text-right text-xs tabular-nums text-normal">
+        {pct !== null ? `${pct}%` : '—'}
+      </span>
+    </div>
+  );
+}
+
+function ProviderRow({
+  p,
+  onOpenDashboard,
+}: {
+  p: ProviderHealth;
+  onOpenDashboard: () => void;
+}) {
   const { t } = useTranslation('settings');
   const labels: Record<ProviderHealthStatus, string> = {
     ok: t('settings.router.combos.health.ok'),
@@ -72,46 +141,73 @@ function ProviderRow({ p }: { p: ProviderHealth }) {
     inactive: t('settings.router.combos.health.inactive'),
     unknown: t('settings.router.combos.health.unknown'),
   };
-  const reset = formatReset(p.reset_at);
-  return (
-    <tr className="border-t border-border/50 align-top">
-      <td className="py-1.5 pr-base">
-        <span className="font-medium text-high">{p.provider}</span>
-        {p.alias && p.alias !== p.provider && (
-          <span className="ml-1.5 font-mono text-xs text-low">{p.alias}/</span>
-        )}
-      </td>
-      <td className="py-1.5 pr-base">
-        <span
-          className={cn(
-            'rounded-sm px-1.5 py-0.5 text-xs font-medium',
-            HEALTH_STYLES[p.status]
-          )}
-        >
-          {labels[p.status]}
+  const reset = relativeTime(p.reset_at, true);
+  const broken = p.status === 'error' || p.status === 'inactive';
+
+  let detail: React.ReactNode = null;
+  if (broken) {
+    detail = (
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="truncate text-error" title={p.message ?? undefined}>
+          {p.summary ?? labels[p.status]}
         </span>
-      </td>
-      <td className="py-1.5 pr-base text-xs text-normal">
-        {p.remaining_percent !== null ? (
-          <>
-            {p.remaining_percent}%
-            {p.quota_name && (
-              <span className="text-low"> · {p.quota_name}</span>
-            )}
-            {reset && (
-              <span className="text-low">
-                {' '}
-                · {t('settings.router.combos.resetsIn', { time: reset })}
-              </span>
-            )}
-          </>
-        ) : (
-          <span className="text-low">—</span>
+        <button
+          type="button"
+          onClick={onOpenDashboard}
+          className="shrink-0 text-xs text-brand underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          {t('settings.router.combos.fixInDashboard')}
+        </button>
+      </span>
+    );
+  } else if (p.quota_name || reset) {
+    detail = (
+      <span className="truncate text-low">
+        {[
+          p.quota_name,
+          reset && t('settings.router.combos.resetsIn', { time: reset }),
+        ]
+          .filter(Boolean)
+          .join(' · ')}
+      </span>
+    );
+  } else if (p.status === 'unknown') {
+    detail = (
+      <span className="truncate text-low">
+        {t('settings.router.combos.noQuotaApi')}
+      </span>
+    );
+  }
+
+  return (
+    <li className="grid grid-cols-[minmax(0,10rem)_7rem_6.5rem_minmax(0,1fr)] items-center gap-x-base px-base py-2 text-sm max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-y-1">
+      <span className="flex min-w-0 items-baseline gap-1.5 whitespace-nowrap">
+        <span className="truncate font-medium text-high">{p.provider}</span>
+        {p.alias && p.alias !== p.provider && (
+          <span className="font-mono text-xs text-low">{p.alias}/</span>
         )}
-      </td>
-      <td className="py-1.5 pr-base text-xs text-low">{p.model_count}</td>
-      <td className="py-1.5 text-xs text-low">{p.message}</td>
-    </tr>
+      </span>
+      <span
+        className={cn(
+          'whitespace-nowrap text-xs font-medium',
+          HEALTH_TEXT[p.status]
+        )}
+      >
+        {labels[p.status]}
+      </span>
+      <span className="max-md:hidden">
+        <QuotaBar p={p} />
+      </span>
+      <span className="flex min-w-0 items-center gap-2 text-xs max-md:col-span-2">
+        <span className="md:hidden">
+          <QuotaBar p={p} />
+        </span>
+        {detail}
+        <span className="ml-auto shrink-0 tabular-nums text-low">
+          {t('settings.router.combos.modelCount', { count: p.model_count })}
+        </span>
+      </span>
+    </li>
   );
 }
 
@@ -119,42 +215,83 @@ function RoleCard({
   role,
   busy,
   onApply,
+  onUndo,
 }: {
   role: RoleSuggestion;
   busy: boolean;
   onApply: () => void;
+  onUndo: () => void;
 }) {
   const { t } = useTranslation('settings');
+  const [confirming, setConfirming] = useState(false);
   const descriptions: Record<ComboRole, string> = {
     planner: t('settings.router.combos.roles.planner'),
     coder: t('settings.router.combos.roles.coder'),
     reviewer: t('settings.router.combos.roles.reviewer'),
     fast: t('settings.router.combos.roles.fast'),
   };
-  const action = role.up_to_date
+  const diff = diffCombo(role);
+  const needsConfirm = diff.removed.length >= CONFIRM_REMOVALS;
+
+  const primaryLabel = role.up_to_date
     ? t('settings.router.combos.upToDate')
-    : role.existing_models
-      ? t('settings.router.combos.update')
-      : t('settings.router.combos.create');
+    : diff.isNew
+      ? t('settings.router.combos.create')
+      : t('settings.router.combos.replace');
+
+  const handlePrimary = () => {
+    if (needsConfirm && !confirming) {
+      setConfirming(true);
+      return;
+    }
+    setConfirming(false);
+    onApply();
+  };
 
   return (
-    <section className="flex flex-col gap-2 rounded-sm border border-border bg-secondary/40 p-base">
-      <header className="flex items-start justify-between gap-2">
-        <div>
-          <h3 className="font-mono text-sm font-semibold text-high">
-            {role.combo_name}
-          </h3>
+    <section
+      aria-labelledby={`combo-${role.combo_name}`}
+      className="flex flex-col gap-3 rounded-sm border border-border bg-secondary/40 p-base"
+    >
+      <header className="flex items-start justify-between gap-base">
+        <div className="min-w-0">
+          <div className="flex items-baseline gap-2">
+            <h3
+              id={`combo-${role.combo_name}`}
+              className="font-mono text-sm font-semibold text-high"
+            >
+              {role.combo_name}
+            </h3>
+            <span className="text-xs text-low">
+              {diff.isNew
+                ? t('settings.router.combos.newCombo')
+                : role.up_to_date
+                  ? t('settings.router.combos.matches')
+                  : t('settings.router.combos.changes', {
+                      added: diff.added.size,
+                      removed: diff.removed.length,
+                    })}
+            </span>
+          </div>
           <p className="text-xs text-low">{descriptions[role.role]}</p>
         </div>
-        <Button
-          size="xs"
-          variant={role.up_to_date ? 'ghost' : 'default'}
-          disabled={busy || role.up_to_date || role.models.length === 0}
-          onClick={onApply}
-        >
-          {role.up_to_date && <CheckIcon className="mr-1 size-icon-xs" />}
-          {action}
-        </Button>
+        <div className="flex shrink-0 items-center gap-1">
+          {role.undo_available && (
+            <Button size="xs" variant="ghost" disabled={busy} onClick={onUndo}>
+              <ArrowCounterClockwiseIcon className="mr-1 size-icon-xs" />
+              {t('settings.router.combos.undo')}
+            </Button>
+          )}
+          <Button
+            size="xs"
+            variant={role.up_to_date ? 'ghost' : 'default'}
+            disabled={busy || role.up_to_date || role.models.length === 0}
+            onClick={handlePrimary}
+          >
+            {role.up_to_date && <CheckIcon className="mr-1 size-icon-xs" />}
+            {primaryLabel}
+          </Button>
+        </div>
       </header>
 
       {role.models.length === 0 ? (
@@ -162,28 +299,80 @@ function RoleCard({
           {t('settings.router.combos.noCandidates')}
         </p>
       ) : (
-        <ol className="space-y-1.5">
-          {role.models.map((m, i) => (
-            <li key={m.id} className="flex gap-2 text-xs">
-              <span className="w-4 shrink-0 text-right text-low">{i + 1}.</span>
-              <div className="min-w-0">
-                <div className="break-all font-mono text-normal">{m.id}</div>
-                <div className="text-low">{m.reason}</div>
-              </div>
-            </li>
-          ))}
+        <ol className="space-y-2">
+          {role.models.map((m, i) => {
+            const added = !diff.isNew && diff.added.has(m.id);
+            return (
+              <li key={m.id} className="flex gap-2 text-xs">
+                <span className="w-4 shrink-0 pt-px text-right tabular-nums text-low">
+                  {i + 1}
+                </span>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-baseline gap-x-2">
+                    <span className="break-all font-mono text-normal">
+                      {m.id}
+                    </span>
+                    {added && (
+                      <span className="text-[11px] font-medium text-success">
+                        {t('settings.router.combos.added')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-low">{m.reason}</div>
+                </div>
+              </li>
+            );
+          })}
         </ol>
       )}
 
-      {role.existing_models && !role.up_to_date && (
-        <p className="text-xs text-low">
-          {t('settings.router.combos.current')}{' '}
-          <span className="font-mono">
-            {role.existing_models.length > 0
-              ? role.existing_models.join(' → ')
-              : '—'}
+      {diff.removed.length > 0 && (
+        <details className="group text-xs">
+          <summary className="cursor-pointer list-none text-low hover:text-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+            <span className="text-error">
+              {t('settings.router.combos.removes', {
+                count: diff.removed.length,
+              })}
+            </span>{' '}
+            <span className="group-open:hidden">
+              {t('settings.router.combos.show')}
+            </span>
+            <span className="hidden group-open:inline">
+              {t('settings.router.combos.hide')}
+            </span>
+          </summary>
+          <ul className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 pl-6">
+            {diff.removed.map((id) => (
+              <li key={id} className="font-mono text-low line-through">
+                {id}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {confirming && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center gap-2 rounded-sm border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-normal"
+        >
+          <span className="flex-1">
+            {t('settings.router.combos.confirm', {
+              name: role.combo_name,
+              count: diff.removed.length,
+            })}
           </span>
-        </p>
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={() => setConfirming(false)}
+          >
+            {t('settings.router.combos.cancel')}
+          </Button>
+          <Button size="xs" onClick={handlePrimary} disabled={busy}>
+            {t('settings.router.combos.replace')}
+          </Button>
+        </div>
       )}
     </section>
   );
@@ -194,17 +383,20 @@ export function CombosView({
   routerUp,
   onAllow,
   onRevoke,
+  onOpenDashboard,
 }: {
   allowed: boolean;
   routerUp: boolean;
   onAllow: () => void;
   onRevoke: () => void;
+  onOpenDashboard: () => void;
 }) {
   const { t } = useTranslation('settings');
   const [data, setData] = useState<ComboSuggestions | null>(null);
   const [loading, setLoading] = useState(false);
-  const [applying, setApplying] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -222,20 +414,17 @@ export function CombosView({
     if (allowed && routerUp) void load();
   }, [allowed, routerUp, load]);
 
-  const apply = async (role: RoleSuggestion) => {
-    setApplying(role.combo_name);
+  const act = async (run: () => Promise<ComboSuggestions>, message: string) => {
+    setBusy(true);
     setError(null);
+    setNotice(null);
     try {
-      setData(
-        await nineRouterApi.applyCombo(
-          role.combo_name,
-          role.models.map((m) => m.id)
-        )
-      );
+      setData(await run());
+      setNotice(message);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setApplying(null);
+      setBusy(false);
     }
   };
 
@@ -248,13 +437,20 @@ export function CombosView({
     );
   }
 
+  const updated = relativeTime(data?.generated_at ?? null, false);
+
   return (
     <div className="h-full overflow-auto">
       <div className="mx-auto max-w-5xl space-y-double p-base">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="flex-1 text-sm text-low">
+        <div className="flex flex-wrap items-center gap-x-base gap-y-2">
+          <p className="min-w-[16rem] flex-1 text-sm text-low">
             {t('settings.router.combos.intro')}
           </p>
+          {updated && (
+            <span className="text-xs text-low">
+              {t('settings.router.combos.updatedAgo', { time: updated })}
+            </span>
+          )}
           <Button
             size="sm"
             variant="outline"
@@ -268,58 +464,69 @@ export function CombosView({
           </Button>
         </div>
 
-        {error && (
-          <div className="rounded-sm border border-error/50 bg-error/10 px-base py-2 text-sm text-error">
-            {error}
-          </div>
-        )}
+        <div aria-live="polite">
+          {error && (
+            <div className="rounded-sm border border-error/50 bg-error/10 px-base py-2 text-sm text-error">
+              {error}
+            </div>
+          )}
+          {notice && !error && (
+            <div className="flex items-center gap-2 text-sm text-success">
+              <CheckIcon className="size-icon-xs" weight="bold" />
+              {notice}
+            </div>
+          )}
+        </div>
 
         {data && (
           <>
-            <div className="grid gap-base md:grid-cols-2">
+            <section aria-labelledby="router-providers" className="space-y-2">
+              <h3
+                id="router-providers"
+                className="text-sm font-semibold text-high"
+              >
+                {t('settings.router.combos.providers')}
+              </h3>
+              <ul className="divide-y divide-border/60 rounded-sm border border-border">
+                {data.providers.map((p) => (
+                  <ProviderRow
+                    key={p.provider}
+                    p={p}
+                    onOpenDashboard={onOpenDashboard}
+                  />
+                ))}
+              </ul>
+            </section>
+
+            <div className="grid items-start gap-base md:grid-cols-2">
               {data.roles.map((role) => (
                 <RoleCard
                   key={role.role}
                   role={role}
-                  busy={applying !== null}
-                  onApply={() => void apply(role)}
+                  busy={busy}
+                  onApply={() =>
+                    void act(
+                      () =>
+                        nineRouterApi.applyCombo(
+                          role.combo_name,
+                          role.models.map((m) => m.id)
+                        ),
+                      t('settings.router.combos.saved', {
+                        name: role.combo_name,
+                      })
+                    )
+                  }
+                  onUndo={() =>
+                    void act(
+                      () => nineRouterApi.undoCombo(role.combo_name),
+                      t('settings.router.combos.restored', {
+                        name: role.combo_name,
+                      })
+                    )
+                  }
                 />
               ))}
             </div>
-
-            <section className="space-y-2">
-              <h3 className="text-sm font-semibold text-high">
-                {t('settings.router.combos.providers')}
-              </h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="text-xs text-low">
-                    <tr>
-                      <th className="pb-1 pr-base font-normal">
-                        {t('settings.router.combos.columns.provider')}
-                      </th>
-                      <th className="pb-1 pr-base font-normal">
-                        {t('settings.router.combos.columns.status')}
-                      </th>
-                      <th className="pb-1 pr-base font-normal">
-                        {t('settings.router.combos.columns.quota')}
-                      </th>
-                      <th className="pb-1 pr-base font-normal">
-                        {t('settings.router.combos.columns.models')}
-                      </th>
-                      <th className="pb-1 font-normal">
-                        {t('settings.router.combos.columns.note')}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.providers.map((p) => (
-                      <ProviderRow key={p.provider} p={p} />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
           </>
         )}
 

@@ -374,7 +374,15 @@ alias: string, status: ProviderHealthStatus, remaining_percent: number | null,
 /**
  * Name of the tightest quota window, e.g. `session (5h)`.
  */
-quota_name: string | null, reset_at: string | null, message: string | null, model_count: number, };
+quota_name: string | null, reset_at: string | null, 
+/**
+ * Raw message from 9router or the provider (shown on demand).
+ */
+message: string | null, 
+/**
+ * One-line, human summary of `message` (e.g. "API key expired").
+ */
+summary: string | null, model_count: number, };
 
 export type SuggestedModel = { id: string, provider: string, reason: string, };
 
@@ -386,11 +394,17 @@ existing_models: Array<string> | null,
 /**
  * The existing combo already matches the suggestion.
  */
-up_to_date: boolean, };
+up_to_date: boolean, 
+/**
+ * HiveDeck changed this combo and can restore what it replaced.
+ */
+undo_available: boolean, };
 
 export type ComboSuggestions = { roles: Array<RoleSuggestion>, providers: Array<ProviderHealth>, generated_at: string, };
 
 export type ApplyComboRequest = { name: string, models: Array<string>, };
+
+export type UndoComboRequest = { name: string, };
 
 export type TelegramTestResponse = { ok: boolean, error: string | null, };
 

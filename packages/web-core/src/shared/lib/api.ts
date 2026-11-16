@@ -1355,6 +1355,14 @@ export const nineRouterApi = {
     });
     return handleApiResponse<ComboSuggestions>(response);
   },
+
+  undoCombo: async (name: string): Promise<ComboSuggestions> => {
+    const response = await makeRequest('/api/router/combos/undo', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+    return handleApiResponse<ComboSuggestions>(response);
+  },
 };
 
 export const tagsApi = {

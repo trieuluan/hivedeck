@@ -125,6 +125,25 @@ async fn apply_combo(
     Ok(ResponseJson(ApiResponse::success(suggestions)))
 }
 
+#[derive(Debug, Deserialize, TS)]
+pub struct UndoComboRequest {
+    pub name: String,
+}
+
+async fn undo_combo(
+    State(deployment): State<DeploymentImpl>,
+    axum::Json(body): axum::Json<UndoComboRequest>,
+) -> Result<ResponseJson<ApiResponse<ComboSuggestions>>, ApiError> {
+    let settings = settings(&deployment).await;
+    nine_router::undo_combo(&settings, &body.name)
+        .await
+        .map_err(to_api_error)?;
+    let suggestions = nine_router::suggestions(&settings)
+        .await
+        .map_err(to_api_error)?;
+    Ok(ResponseJson(ApiResponse::success(suggestions)))
+}
+
 #[derive(Deserialize)]
 struct LogsQuery {
     limit: Option<usize>,
@@ -149,4 +168,5 @@ pub(super) fn router() -> Router<DeploymentImpl> {
         .route("/router/rollback", post(rollback))
         .route("/router/suggestions", get(get_suggestions))
         .route("/router/combos", post(apply_combo))
+        .route("/router/combos/undo", post(undo_combo))
 }

@@ -83,7 +83,10 @@ pub struct ProviderHealth {
     /// Name of the tightest quota window, e.g. `session (5h)`.
     pub quota_name: Option<String>,
     pub reset_at: Option<String>,
+    /// Raw message from 9router or the provider (shown on demand).
     pub message: Option<String>,
+    /// One-line, human summary of `message` (e.g. "API key expired").
+    pub summary: Option<String>,
     pub model_count: usize,
 }
 
@@ -103,6 +106,8 @@ pub struct RoleSuggestion {
     pub existing_models: Option<Vec<String>>,
     /// The existing combo already matches the suggestion.
     pub up_to_date: bool,
+    /// HiveDeck changed this combo and can restore what it replaced.
+    pub undo_available: bool,
 }
 
 #[derive(Clone, Debug, Serialize, TS)]
@@ -161,6 +166,7 @@ fn connection_health(conn: &Connection, usage: Option<&Usage>) -> ProviderHealth
         quota_name: None,
         reset_at: None,
         message: None,
+        summary: None,
         model_count: 0,
     };
     if !conn.is_active {
@@ -169,6 +175,7 @@ fn connection_health(conn: &Connection, usage: Option<&Usage>) -> ProviderHealth
     }
     if let Some(err) = &conn.error {
         h.status = ProviderHealthStatus::Error;
+        h.summary = Some(summarize_message(err));
         h.message = Some(err.clone());
         return h;
     }
@@ -203,9 +210,68 @@ fn connection_health(conn: &Connection, usage: Option<&Usage>) -> ProviderHealth
         if failing {
             h.status = ProviderHealthStatus::Error;
         }
+        h.summary = Some(summarize_message(msg));
         h.message = Some(msg.clone());
     }
     h
+}
+
+/// Turn a raw provider/9router error into one short line.
+pub fn summarize_message(raw: &str) -> String {
+    let lower = raw.to_lowercase();
+    let known = [
+        (
+            &["api_key_expired", "key has expired", "key expired"][..],
+            "API key expired",
+        ),
+        (
+            &["invalid_grant", "refresh token"][..],
+            "Sign-in expired — reconnect",
+        ),
+        (
+            &["credential", "unauthorized", "401", "403", "forbidden"][..],
+            "Credentials rejected",
+        ),
+        (
+            &["rate limit", "rate_limit", "429", "too many requests"][..],
+            "Rate limited",
+        ),
+        (
+            &["quota", "exceeded", "insufficient", "allowance"][..],
+            "Quota exhausted",
+        ),
+        (
+            &["usage not available", "unable to fetch usage", "no usage"][..],
+            "Usage not reported",
+        ),
+        (
+            &["timeout", "timed out", "econn", "network"][..],
+            "Provider unreachable",
+        ),
+    ];
+    if let Some((_, label)) = known
+        .iter()
+        .find(|(needles, _)| needles.iter().any(|n| lower.contains(n)))
+    {
+        return (*label).to_string();
+    }
+    // Prefer a "message" field from an embedded JSON body.
+    let text = raw
+        .find('{')
+        .and_then(|i| serde_json::from_str::<serde_json::Value>(&raw[i..]).ok())
+        .and_then(|v| {
+            v.pointer("/error/message")
+                .or_else(|| v.get("message"))
+                .and_then(|m| m.as_str())
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| raw.to_string());
+    let first = text.split(['.', '\n']).next().unwrap_or(&text).trim();
+    if first.chars().count() > 60 {
+        format!("{}…", first.chars().take(57).collect::<String>())
+    } else {
+        first.to_string()
+    }
 }
 
 fn rank(status: ProviderHealthStatus) -> u8 {
@@ -241,6 +307,7 @@ fn best_connection_health(
             quota_name: None,
             reset_at: None,
             message: None,
+            summary: None,
             model_count: 0,
         })
 }
@@ -627,8 +694,19 @@ impl Candidate<'_> {
         if self.name.has(CODING_TOKENS) {
             parts.push("coding".into());
         }
-        if self.model.reasoning {
-            parts.push("reasoning".into());
+        let effort = if self.name.thinking {
+            Some(Effort::High)
+        } else {
+            self.name.effort
+        };
+        match (self.model.reasoning, effort) {
+            (true, Some(Effort::Low)) => parts.push("light reasoning".into()),
+            (true, Some(Effort::High)) => parts.push("deep reasoning".into()),
+            (true, _) => parts.push("reasoning".into()),
+            (false, _) => {}
+        }
+        if self.name.review {
+            parts.push("review mode".into());
         }
         if self.name.long_context {
             parts.push("1M ctx".into());
@@ -637,7 +715,7 @@ impl Candidate<'_> {
         }
         match self.health.and_then(|h| h.remaining_percent) {
             Some(p) => parts.push(format!("quota {p}%")),
-            None => parts.push("quota n/a".into()),
+            None => parts.push("no quota data".into()),
         }
         parts.join(" · ")
     }
@@ -748,6 +826,7 @@ pub fn suggest(
             models,
             existing_models,
             up_to_date,
+            undo_available: false,
         });
     }
     out.sort_by_key(|r| ComboRole::ALL.iter().position(|x| *x == r.role));
@@ -807,6 +886,20 @@ mod tests {
             model("ollama/nomic-embed-text", "ollama", false, false, 8_000),
             model("planner", "combo", true, true, 200_000),
         ]
+    }
+
+    #[test]
+    fn summarizes_provider_errors() {
+        let raw = r#"[401]: {"error":{"type":"authentication_error","code":"api_key_expired","message":"This API key has expired. Create a new one."}}"#;
+        assert_eq!(summarize_message(raw), "API key expired");
+        assert_eq!(
+            summarize_message("Refresh token not found or invalid"),
+            "Sign-in expired — reconnect"
+        );
+        assert_eq!(
+            summarize_message(r#"{"error":{"message":"Model is warming up. Try later"}}"#),
+            "Model is warming up"
+        );
     }
 
     #[test]

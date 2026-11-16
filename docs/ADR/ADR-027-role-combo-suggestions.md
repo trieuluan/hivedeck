@@ -20,9 +20,9 @@ ADR-026 embedded 9router. Before mapping HiveDeck agent roles to 9router combos 
    - `reviewer`: strength and reasoning; `-review` variants; penalized when from the coder's top model family.
    - `fast`: speed, quota, recency; low-effort variants.
    Each role gets a chain of up to 4 models, first spread across distinct providers (max 2 per provider, one variant per model) so one exhausted provider never takes a role down.
-5. **Apply.** `POST /api/router/combos {name, models}` creates the combo or replaces an existing one's models, after validating the name and that every model is currently listed. Nothing is written without a click; existing combos are shown next to the suggestion with an "Up to date" state.
+5. **Apply and undo.** `POST /api/router/combos {name, models}` creates the combo or replaces an existing one's models, after validating the name and that every model is currently listed. Nothing is written without a click. Each card shows the change as a diff against the current combo (new models tagged, removed models listed); replacing one that drops 3+ models asks for inline confirmation. Before every write HiveDeck stores what it replaced in `runtime/9router/combo-history.json`, and `POST /api/router/combos/undo {name}` restores it (or deletes a combo HiveDeck created). One level of undo per combo.
 
-API: `GET /api/router/suggestions`, `POST /api/router/combos`.
+API: `GET /api/router/suggestions`, `POST /api/router/combos`, `POST /api/router/combos/undo`.
 
 ## Consequences
 

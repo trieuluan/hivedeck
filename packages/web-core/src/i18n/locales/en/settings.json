@@ -692,15 +692,12 @@
       },
       "autoStart": "Start with HiveDeck",
       "baseUrl": "Base URL",
-      "combosLabel": "Combos",
       "combos": {
         "intro": "Suggested fallback chains per agent role, from the models, provider health and quota 9router reports right now. Nothing changes until you apply a combo.",
         "refresh": "Refresh",
         "providers": "Providers",
         "create": "Create combo",
-        "update": "Update combo",
         "upToDate": "Up to date",
-        "current": "Current:",
         "noCandidates": "No usable model for this role. Connect a provider or wait for quota to reset.",
         "notRunning": "Start 9router to get combo suggestions.",
         "resetsIn": "resets in {{time}}",
@@ -719,13 +716,6 @@
           "inactive": "Disabled",
           "unknown": "No quota data"
         },
-        "columns": {
-          "provider": "Provider",
-          "status": "Status",
-          "quota": "Tightest quota",
-          "models": "Models",
-          "note": "Note"
-        },
         "consent": {
           "title": "Let HiveDeck manage 9router",
           "body": "To suggest combos from live quota and create them for you, HiveDeck uses 9router's local CLI token — the same mechanism 9router's own CLI uses.",
@@ -733,9 +723,25 @@
           "writes": "Creates or updates combos only when you click Create/Update.",
           "local": "Talks to 127.0.0.1 only; the token is never stored or sent anywhere else. You can turn this off at any time.",
           "allow": "Allow"
-        }
+        },
+        "updatedAgo": "Updated {{time}} ago",
+        "newCombo": "New combo",
+        "matches": "Matches suggestion",
+        "changes": "+{{added}} · −{{removed}}",
+        "replace": "Replace combo",
+        "added": "new",
+        "removes": "Removes {{count}} current models",
+        "show": "Show",
+        "hide": "Hide",
+        "confirm": "Replace {{name}}? This removes {{count}} of its current models. You can undo it afterwards.",
+        "cancel": "Cancel",
+        "undo": "Undo",
+        "saved": "Saved {{name}}. Undo is available on its card.",
+        "restored": "Restored {{name}}.",
+        "fixInDashboard": "Fix in dashboard",
+        "noQuotaApi": "Provider doesn't report quota",
+        "modelCount": "{{count}} models"
       },
-      "noCombos": "No combos yet. Create one in the dashboard.",
       "version": "Version",
       "pinned": "HiveDeck installs v{{version}}",
       "source": {
@@ -763,11 +769,12 @@
       "update": {
         "available": "v{{version}} available",
         "action": "Update to v{{version}}",
-        "globalHint": "Global install — update it with npm, or let HiveDeck manage it:",
         "check": "Check for updates",
         "upToDate": "Up to date",
         "rollback": "Roll back to v{{version}}",
-        "takeOver": "Let HiveDeck manage it"
+        "takeOver": "Let HiveDeck manage updates",
+        "copyNpm": "Copy npm update command",
+        "checking": "Checking…"
       }
     }
   },

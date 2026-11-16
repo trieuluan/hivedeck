@@ -5,6 +5,7 @@ import {
   ArrowCounterClockwiseIcon,
   ArrowSquareOutIcon,
   ArrowsClockwiseIcon,
+  CaretDownIcon,
   CopyIcon,
   DownloadSimpleIcon,
   PlayIcon,
@@ -15,6 +16,13 @@ import { Button } from '@vibe/ui/components/Button';
 import { nineRouterApi } from '@/shared/lib/api';
 import { useUserSystem } from '@/shared/hooks/useUserSystem';
 import { cn } from '@/shared/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@vibe/ui/components/Dropdown';
 import { CombosView } from './CombosView';
 import { SettingsCheckbox } from '@/shared/dialogs/settings/settings/SettingsComponents';
 
@@ -109,7 +117,12 @@ function CopyField({ value }: { value: string }) {
   );
 }
 
-function UpdateControls({
+/**
+ * Version label that opens a menu with the rarely used maintenance actions
+ * (check, update, roll back, hand over to HiveDeck), so they stay out of the
+ * header until needed.
+ */
+function VersionMenu({
   status,
   busy,
   checking,
@@ -130,58 +143,90 @@ function UpdateControls({
 }) {
   const { t } = useTranslation('settings');
   const latest = status.latest_version;
+  const source =
+    status.install_source === 'managed'
+      ? t('settings.router.source.managed')
+      : t('settings.router.source.global');
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {status.update_available && latest ? (
-        <>
-          <span className="rounded-sm bg-warning/15 px-1.5 py-0.5 text-xs font-medium text-warning">
-            {t('settings.router.update.available', { version: latest })}
-          </span>
-          {status.can_update ? (
-            <Button size="xs" onClick={onUpdate} disabled={busy}>
-              <ArrowCircleUpIcon className="mr-1 size-icon-xs" />
+    <div className="flex items-center gap-2">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-sm hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          >
+            <span className="text-low">{t('settings.router.version')}</span>
+            <span className="font-mono text-xs text-normal">
+              v{status.installed_version}
+            </span>
+            <span className="text-xs text-low">· {source}</span>
+            <CaretDownIcon className="size-icon-2xs text-low" weight="bold" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          {status.update_available && latest && status.can_update && (
+            <DropdownMenuItem
+              icon={ArrowCircleUpIcon}
+              disabled={busy}
+              onSelect={onUpdate}
+            >
               {t('settings.router.update.action', { version: latest })}
-            </Button>
-          ) : (
+            </DropdownMenuItem>
+          )}
+          {status.update_available && latest && !status.can_update && (
             <>
-              <span className="text-xs text-low">
-                {t('settings.router.update.globalHint')}
-              </span>
-              <CopyField value="npm i -g 9router@latest" />
-              <Button
-                size="xs"
-                variant="outline"
-                onClick={onTakeOver}
+              <DropdownMenuItem
+                icon={CopyIcon}
+                onSelect={() =>
+                  void navigator.clipboard?.writeText('npm i -g 9router@latest')
+                }
+              >
+                {t('settings.router.update.copyNpm')}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                icon={DownloadSimpleIcon}
                 disabled={busy}
+                onSelect={onTakeOver}
               >
                 {t('settings.router.update.takeOver')}
-              </Button>
+              </DropdownMenuItem>
             </>
           )}
-        </>
-      ) : (
-        <Button
-          size="xs"
-          variant="ghost"
-          onClick={onCheck}
-          disabled={checking || busy}
-        >
-          <ArrowsClockwiseIcon
-            className={cn('mr-1 size-icon-xs', checking && 'animate-spin')}
-          />
-          {checkedNoUpdate
-            ? t('settings.router.update.upToDate')
-            : t('settings.router.update.check')}
-        </Button>
-      )}
-      {status.can_update && status.previous_version && (
-        <Button size="xs" variant="ghost" onClick={onRollback} disabled={busy}>
-          <ArrowCounterClockwiseIcon className="mr-1 size-icon-xs" />
-          {t('settings.router.update.rollback', {
-            version: status.previous_version,
-          })}
-        </Button>
+          <DropdownMenuItem
+            icon={ArrowsClockwiseIcon}
+            disabled={checking || busy}
+            onSelect={(e) => {
+              e.preventDefault();
+              onCheck();
+            }}
+          >
+            {checking
+              ? t('settings.router.update.checking')
+              : checkedNoUpdate
+                ? t('settings.router.update.upToDate')
+                : t('settings.router.update.check')}
+          </DropdownMenuItem>
+          {status.can_update && status.previous_version && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                icon={ArrowCounterClockwiseIcon}
+                disabled={busy}
+                onSelect={onRollback}
+              >
+                {t('settings.router.update.rollback', {
+                  version: status.previous_version,
+                })}
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {status.update_available && latest && (
+        <span className="whitespace-nowrap rounded-sm bg-warning/15 px-1.5 py-0.5 text-xs font-medium text-warning">
+          {t('settings.router.update.available', { version: latest })}
+        </span>
       )}
     </div>
   );
@@ -327,6 +372,7 @@ export function RouterPage() {
           routerUp={isUp(status.state)}
           onAllow={() => setAllowed(true)}
           onRevoke={() => setAllowed(false)}
+          onOpenDashboard={() => setTab('dashboard')}
         />
       );
     }
@@ -459,45 +505,7 @@ export function RouterPage() {
               <CopyField value={status.base_url} />
             </div>
             {status.installed_version && (
-              <div className="flex items-center gap-2">
-                <span className="text-low">{t('settings.router.version')}</span>
-                <span className="font-mono text-xs text-normal">
-                  v{status.installed_version}
-                </span>
-                {status.install_source && (
-                  <span className="text-xs text-low">
-                    (
-                    {status.install_source === 'managed'
-                      ? t('settings.router.source.managed')
-                      : t('settings.router.source.global')}
-                    )
-                  </span>
-                )}
-              </div>
-            )}
-            {isUp(status.state) && (
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-low">
-                  {t('settings.router.combosLabel')}
-                </span>
-                {status.combos.length === 0 ? (
-                  <span className="text-xs text-low">
-                    {t('settings.router.noCombos')}
-                  </span>
-                ) : (
-                  status.combos.map((combo) => (
-                    <span
-                      key={combo}
-                      className="rounded-sm bg-brand/15 px-1.5 py-0.5 font-mono text-xs text-brand"
-                    >
-                      {combo}
-                    </span>
-                  ))
-                )}
-              </div>
-            )}
-            {status.installed_version && (
-              <UpdateControls
+              <VersionMenu
                 status={status}
                 busy={busy}
                 checking={checking}
@@ -560,6 +568,11 @@ export function RouterPage() {
               )}
             >
               {TAB_LABELS[id]}
+              {id === 'combos' && status && status.combos.length > 0 && (
+                <span className="ml-1.5 text-xs text-low tabular-nums">
+                  {status.combos.length}
+                </span>
+              )}
             </button>
           ))}
         </nav>

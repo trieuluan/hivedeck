@@ -272,6 +272,11 @@ impl Client {
         self.send(req).await.map(|_| ())
     }
 
+    pub async fn delete_combo(&self, id: &str) -> Result<(), ApiError> {
+        let req = self.http.delete(self.url(&format!("/api/combos/{id}")));
+        self.send(req).await.map(|_| ())
+    }
+
     pub async fn update_combo(&self, id: &str, models: &[String]) -> Result<(), ApiError> {
         let req = self
             .http

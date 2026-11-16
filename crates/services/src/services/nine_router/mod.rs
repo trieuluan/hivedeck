@@ -886,13 +886,18 @@ pub async fn suggestions(
                 quota_name: None,
                 reset_at: None,
                 message: None,
+                summary: None,
                 model_count: 0,
             });
         h.alias = m.owned_by.clone();
         h.model_count += 1;
     }
 
-    let roles = advisor::suggest(&models, &health, &existing);
+    let mut roles = advisor::suggest(&models, &health, &existing);
+    let history = read_combo_history().await;
+    for r in &mut roles {
+        r.undo_available = history.contains_key(&r.combo_name);
+    }
     let mut providers: Vec<ProviderHealth> = health.into_values().collect();
     providers.sort_by(|a, b| a.provider.cmp(&b.provider));
     Ok(ComboSuggestions {
@@ -940,11 +945,70 @@ pub async fn apply_combo(
             "unknown model {unknown}"
         )));
     }
-    match client.combos().await?.into_iter().find(|c| c.name == name) {
+    let existing = client.combos().await?.into_iter().find(|c| c.name == name);
+    // Remember what we replace so the user can undo it.
+    let mut history = read_combo_history().await;
+    history.insert(
+        name.to_string(),
+        ComboBackup {
+            previous: existing.as_ref().map(|c| c.models.clone()),
+            replaced_at: chrono::Utc::now().to_rfc3339(),
+        },
+    );
+    write_combo_history(&history).await?;
+    match existing {
         Some(existing) => client.update_combo(&existing.id, models).await?,
         None => client.create_combo(name, models).await?,
     }
     log_line(&format!("combo {name} set to [{}]", models.join(", "))).await;
+    Ok(())
+}
+
+/// What a HiveDeck write replaced: the old model list, or `None` when the
+/// combo did not exist before (undo deletes it).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct ComboBackup {
+    previous: Option<Vec<String>>,
+    replaced_at: String,
+}
+
+fn combo_history_path() -> PathBuf {
+    runtime_dir().join("combo-history.json")
+}
+
+async fn read_combo_history() -> std::collections::HashMap<String, ComboBackup> {
+    tokio::fs::read_to_string(combo_history_path())
+        .await
+        .ok()
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_default()
+}
+
+async fn write_combo_history(
+    history: &std::collections::HashMap<String, ComboBackup>,
+) -> std::io::Result<()> {
+    tokio::fs::create_dir_all(runtime_dir()).await?;
+    let raw = serde_json::to_string_pretty(history).map_err(std::io::Error::other)?;
+    tokio::fs::write(combo_history_path(), raw).await
+}
+
+/// Restore the combo HiveDeck last replaced (or delete it if HiveDeck
+/// created it). One level of undo per combo.
+pub async fn undo_combo(settings: &NineRouterSettings, name: &str) -> Result<(), NineRouterError> {
+    let client = management_client(settings)?;
+    let mut history = read_combo_history().await;
+    let backup = history
+        .remove(name)
+        .ok_or_else(|| NineRouterError::InvalidCombo(format!("nothing to undo for {name}")))?;
+    let current = client.combos().await?.into_iter().find(|c| c.name == name);
+    match (backup.previous, current) {
+        (Some(models), Some(current)) => client.update_combo(&current.id, &models).await?,
+        (Some(models), None) => client.create_combo(name, &models).await?,
+        (None, Some(current)) => client.delete_combo(&current.id).await?,
+        (None, None) => {}
+    }
+    write_combo_history(&history).await?;
+    log_line(&format!("combo {name} restored")).await;
     Ok(())
 }
 

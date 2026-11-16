@@ -84,6 +84,7 @@ fn generate_types_content() -> String {
         services::services::nine_router::RoleSuggestion::decl(),
         services::services::nine_router::ComboSuggestions::decl(),
         server::routes::nine_router::ApplyComboRequest::decl(),
+        server::routes::nine_router::UndoComboRequest::decl(),
         server::routes::telegram::TelegramTestResponse::decl(),
         server::routes::config::UserSystemInfo::decl(),
         server::routes::config::Environment::decl(),
