@@ -176,6 +176,11 @@ async fn main() -> Result<(), HiveDeckError> {
         &deployment.config().read().await.allowed_origins,
     );
 
+    // ADR-026: start the embedded 9router in the background if enabled.
+    services::services::nine_router::spawn_autostart(
+        deployment.config().read().await.nine_router.clone(),
+    );
+
     // Production only: open browser, unless suppressed (e.g. when embedded by a
     // native host like the macOS app, which provides its own UI).
     if !cfg!(debug_assertions) && std::env::var("VK_DISABLE_BROWSER_OPEN").is_err() {

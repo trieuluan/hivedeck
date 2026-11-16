@@ -667,6 +667,54 @@
         "description": "Edit this file, then restart the bridge to apply changes.",
         "example": "Example telegram.toml"
       }
+    },
+    "router": {
+      "title": "Router",
+      "subtitle": "Embedded 9router: providers, API keys and model combos for your agents.",
+      "open": "Router",
+      "state": {
+        "not_installed": "Not installed",
+        "installing": "Installing…",
+        "stopped": "Stopped",
+        "starting": "Starting…",
+        "running": "Running",
+        "external": "Running (external)"
+      },
+      "actions": {
+        "install": "Install 9router",
+        "start": "Start",
+        "stop": "Stop",
+        "restart": "Restart",
+        "openInBrowser": "Open in browser",
+        "copy": "Copy",
+        "copied": "Copied"
+      },
+      "autoStart": "Start with HiveDeck",
+      "baseUrl": "Base URL",
+      "combos": "Combos",
+      "noCombos": "No combos yet. Create one in the dashboard.",
+      "version": "Version",
+      "pinned": "HiveDeck installs v{{version}}",
+      "source": {
+        "managed": "installed by HiveDeck",
+        "global": "global install"
+      },
+      "externalNote": "This 9router was not started by HiveDeck, so it can't be stopped from here.",
+      "tabs": {
+        "dashboard": "Dashboard",
+        "logs": "Logs"
+      },
+      "noLogs": "No log output yet.",
+      "empty": {
+        "notInstalledTitle": "9router is not installed",
+        "notInstalledBody": "HiveDeck can install 9router v{{version}} for you with npm. It runs locally on 127.0.0.1 and keeps its data in ~/.9router.",
+        "stoppedTitle": "9router is stopped",
+        "stoppedBody": "Start it to manage providers, API keys and combos here.",
+        "busyTitle": "Working…",
+        "busyBody": "This can take a minute. Progress is in the Logs tab.",
+        "noNode": "Node.js and npm must be on your PATH to install and run 9router.",
+        "remoteHost": "The dashboard is only reachable from this machine. Open HiveDeck via localhost to use it here."
+      }
     }
   },
   "integrations": {

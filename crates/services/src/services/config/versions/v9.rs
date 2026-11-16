@@ -116,6 +116,9 @@ pub struct Config {
     /// like `http://192.168.1.50:3001`. Editable via Settings UI.
     #[serde(default)]
     pub allowed_origins: Vec<String>,
+    /// Embedded 9router sidecar settings (ADR-026).
+    #[serde(default)]
+    pub nine_router: crate::services::nine_router::NineRouterSettings,
     /// Deprecated and ignored. Pipelines are now file-based
     /// (`~/.hivedeck/pipelines/*.toml`, see `services::services::pipelines`);
     /// this field is retained only so pre-existing configs still deserialise. It
@@ -152,6 +155,7 @@ impl Config {
             iterm_tabs: default_iterm_tabs(),
             theme_variant: default_theme_variant(),
             allowed_origins: Vec::new(),
+            nine_router: Default::default(),
             pipeline_steps: None,
         }
     }
@@ -211,6 +215,7 @@ impl Default for Config {
             iterm_tabs: default_iterm_tabs(),
             theme_variant: default_theme_variant(),
             allowed_origins: Vec::new(),
+            nine_router: Default::default(),
             pipeline_steps: None,
         }
     }

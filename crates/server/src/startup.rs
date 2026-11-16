@@ -55,6 +55,11 @@ impl ServerHandle {
             &self.deployment.config().read().await.allowed_origins,
         );
 
+        // ADR-026: start the embedded 9router in the background if enabled.
+        services::services::nine_router::spawn_autostart(
+            self.deployment.config().read().await.nine_router.clone(),
+        );
+
         let main_shutdown = self.shutdown_token.clone();
         let proxy_shutdown = self.shutdown_token.clone();
 

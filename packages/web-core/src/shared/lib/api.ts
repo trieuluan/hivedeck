@@ -81,6 +81,8 @@ import {
   GenerateSpecRequest,
   GenerateSpecResponse,
   TelegramStatus,
+  NineRouterStatus,
+  NineRouterLogs,
   TelegramTestResponse,
   SpecKitArtifacts,
   SpecKitArtifact,
@@ -1311,6 +1313,28 @@ export const telegramApi = {
       method: 'POST',
     });
     return handleApiResponse<TelegramTestResponse>(response);
+  },
+};
+
+// Embedded 9router sidecar (ADR-026)
+export const nineRouterApi = {
+  getStatus: async (): Promise<NineRouterStatus> => {
+    const response = await makeRequest('/api/router/status');
+    return handleApiResponse<NineRouterStatus>(response);
+  },
+
+  getLogs: async (limit = 300): Promise<NineRouterLogs> => {
+    const response = await makeRequest(`/api/router/logs?limit=${limit}`);
+    return handleApiResponse<NineRouterLogs>(response);
+  },
+
+  action: async (
+    action: 'install' | 'start' | 'stop' | 'restart'
+  ): Promise<NineRouterStatus> => {
+    const response = await makeRequest(`/api/router/${action}`, {
+      method: 'POST',
+    });
+    return handleApiResponse<NineRouterStatus>(response);
   },
 };
 

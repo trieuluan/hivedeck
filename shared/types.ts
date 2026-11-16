@@ -298,6 +298,40 @@ bridge_connected: boolean, bridge_last_seen: string | null,
  */
 config_path: string, };
 
+export type NineRouterSettings = { 
+/**
+ * Start 9router when HiveDeck boots (unless it is already running).
+ */
+auto_start: boolean, 
+/**
+ * Loopback port 9router listens on.
+ */
+port: number, };
+
+export type NineRouterInstallSource = "managed" | "global";
+
+export type NineRouterState = "not_installed" | "installing" | "stopped" | "starting" | "running" | "external";
+
+export type NineRouterStatus = { state: NineRouterState, port: number, 
+/**
+ * OpenAI/Anthropic-compatible base URL agents should use.
+ */
+base_url: string, 
+/**
+ * Path of the dashboard on the router (relative to its origin).
+ */
+dashboard_path: string, install_source: NineRouterInstallSource | null, installed_version: string | null, pinned_version: string, package_dir: string | null, 
+/**
+ * PID of the HiveDeck-started process, if any.
+ */
+pid: number | null, node_available: boolean, npm_available: boolean, 
+/**
+ * Combo names reported by `GET /v1/models` (`owned_by == "combo"`).
+ */
+combos: Array<string>, model_count: number, auto_start: boolean, last_error: string | null, log_path: string, };
+
+export type NineRouterLogs = { lines: Array<string>, log_path: string, };
+
 export type TelegramTestResponse = { ok: boolean, error: string | null, };
 
 export type UserSystemInfo = { version: string, config: Config, environment: Environment, 
@@ -679,6 +713,10 @@ theme_variant: string,
  * like `http://192.168.1.50:3001`. Editable via Settings UI.
  */
 allowed_origins: Array<string>, 
+/**
+ * Embedded 9router sidecar settings (ADR-026).
+ */
+nine_router: NineRouterSettings, 
 /**
  * Deprecated and ignored. Pipelines are now file-based
  * (`~/.hivedeck/pipelines/*.toml`, see `services::services::pipelines`);
