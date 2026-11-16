@@ -28,6 +28,10 @@ struct ProjectSummary {
     created_at: String,
     #[schemars(description = "When the project was last updated")]
     updated_at: String,
+    #[schemars(
+        description = "IDs of the repositories linked to this project, in link order. Use the first one when starting a workspace for one of its cards."
+    )]
+    repo_ids: Vec<String>,
 }
 
 impl ProjectSummary {
@@ -37,6 +41,7 @@ impl ProjectSummary {
             name: project.name,
             created_at: project.created_at.to_rfc3339(),
             updated_at: project.updated_at.to_rfc3339(),
+            repo_ids: Vec::new(),
         }
     }
 }
@@ -45,6 +50,29 @@ impl ProjectSummary {
 struct McpListProjectsResponse {
     projects: Vec<ProjectSummary>,
     count: usize,
+}
+
+impl McpServer {
+    /// Repo IDs linked to a project (`GET /v1/projects/{id}/repos`, a plain
+    /// `{ "repos": [...] }` body). Best effort: an error yields an empty list.
+    async fn project_repo_ids(&self, project_id: &str) -> Vec<String> {
+        let url = self.url(&format!("/v1/projects/{project_id}/repos"));
+        let Ok(resp) = self.client.get(&url).send().await else {
+            return Vec::new();
+        };
+        let Ok(body) = resp.json::<serde_json::Value>().await else {
+            return Vec::new();
+        };
+        body.get("repos")
+            .and_then(|r| r.as_array())
+            .map(|repos| {
+                repos
+                    .iter()
+                    .filter_map(|r| r.get("id").and_then(|id| id.as_str()).map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
 }
 
 #[tool_router(router = projects_tools_router, vis = "pub")]
@@ -62,11 +90,14 @@ impl McpServer {
             Err(e) => return Ok(Self::tool_error(e)),
         };
 
-        let project_summaries: Vec<ProjectSummary> = response
+        let mut project_summaries: Vec<ProjectSummary> = response
             .projects
             .into_iter()
             .map(ProjectSummary::from_project)
             .collect();
+        for summary in &mut project_summaries {
+            summary.repo_ids = self.project_repo_ids(&summary.id).await;
+        }
 
         McpServer::success(&McpListProjectsResponse {
             count: project_summaries.len(),

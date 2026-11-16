@@ -9,7 +9,7 @@ import {
 // Tests key off this distinguishing phrase (present only when the block itself is
 // appended).
 const DIRECTIVES_BLOCK_HEADER =
-  "apply each one's behavior as defined in your agent instructions";
+  "apply each one's behavior as defined in your instructions";
 
 describe('orchestrator directives', () => {
   it('registers nudge-stuck as an opt-in directive', () => {
@@ -39,27 +39,26 @@ describe('composeOrchestratorPrompt — single-loop per-tick pointer', () => {
     );
   });
 
-  it('points at the plugin agent definition, not a loop-manager brief', () => {
+  it('points at the captain instructions, not an external plugin', () => {
     const prompt = composeOrchestratorPrompt(new Set());
-    // The session runs AS the plugin's orchestrator agent; the pointer defers to
-    // its agent definition and names the two-mode tick it should run.
-    expect(prompt).toContain('vibe-kanban-indie:orchestrator');
-    expect(prompt).toContain('MONITOR');
-    expect(prompt).toContain('SWEEP');
+    // The session runs as HiveDeck's own captain (ADR-030); the pointer defers
+    // to its instructions and names the tick order.
+    expect(prompt).toContain('HiveDeck captain');
+    expect(prompt).toContain('owner messages first');
+    expect(prompt).not.toContain('vibe-kanban-indie');
   });
 
   it('never references the retired sweeper agent', () => {
     const prompt = composeOrchestratorPrompt(new Set(['telegram-fanout']));
-    // The plugin removed `sweeper`; a brief that spawns it fails on the first
-    // tick with `Agent type 'sweeper' not found`.
+    // No sub-agent named `sweeper` exists; a brief that spawns one would fail
+    // on the first tick.
     expect(prompt.toLowerCase()).not.toContain('sweeper');
   });
 
   it('does NOT embed launcher concerns the agent resolves itself', () => {
     const prompt = composeOrchestratorPrompt(new Set(['telegram-fanout']));
-    // Plugin-root resolution and agent selection are the launcher's job
-    // (`orchestrator_executor_config` passes `--agent`); the /loop body carries
-    // neither.
+    // Agent selection is the launcher's job (`orchestrator_executor_config`
+    // + the container pass `--agent`/`--agents`); the /loop body carries none.
     expect(prompt).not.toContain('CLAUDE_PLUGIN_ROOT');
     expect(prompt).not.toContain('orchestrator.prompt.md');
     expect(prompt).not.toContain('--agent');

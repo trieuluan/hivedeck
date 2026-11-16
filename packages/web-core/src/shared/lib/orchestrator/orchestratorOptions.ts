@@ -1,26 +1,24 @@
-// The orchestrator is launched as the plugin's own session agent
-// (`claude --agent vibe-kanban-indie:orchestrator` — see
-// `orchestrator_executor_config` in crates/server/src/routes/workspaces/create.rs).
-// The plugin's SINGLE-LOOP orchestrator owns the whole tick itself (monitor-first
-// two-mode loop; the retired `sweeper` subagent is gone), so its behavior lives in
-// the plugin agent definition — the `/loop` body this file composes is only the
-// SHORT per-tick pointer, mirroring the plugin's own launcher pointer
-// (`scripts/orchestrator.prompt.md` in sombrax_plugins). Keep the two aligned when
-// the plugin's pointer changes.
+// The orchestrator is HiveDeck's own captain (ADR-030): a headed Claude Code
+// session launched with `--agent hivedeck-captain`, whose instructions ship in
+// this repo (`assets/captain/captain.md`, overridable at
+// `~/.hivedeck/captain.md`) and whose MCP tools come from this backend's
+// `/mcp` endpoint — see `orchestrator_executor_config` in
+// crates/server/src/routes/workspaces/create.rs. The `/loop` body this file
+// composes is only the SHORT per-tick pointer; the behavior lives in
+// captain.md.
 //
 // ADR-016: the per-tick prompt body (project / board orchestrator prompt) is NOT
 // embedded here — it's fetched live by the MCP tool `get_orchestrator_prompt`
 // (crates/mcp/src/task_server/tools/orchestrator_prompt.rs) on every tick. Editing
 // the prompt in the sidebar editor applies without restarting the orchestrator
 // session. See docs/ADR/ADR-016-board-orchestrator-prompts.md for the cross-repo
-// contract the sombra_plugins orchestrator must implement.
+// contract the captain implements.
 //
 // This file also owns the spawn-dialog OPTIONS: the toggleable directives the
 // operator picks for a run. Each directive is emitted as a thin FLAG (its `id`) in
 // a byte-exact "Directives enabled for this run" block appended to the end of the
-// spawn prompt; the agent's plugin instructions (`reference/directives.md`) define
-// what each flag does. The block's header text is a contract with
-// `agents/orchestrator.md` — keep it byte-identical.
+// spawn prompt; the "Directives" section of `assets/captain/captain.md` defines
+// what each flag does — keep the ids in sync.
 
 export interface OrchestratorDirective {
   /** Stable id; the localStorage key, i18n namespace, AND the flag passed to the
@@ -70,35 +68,29 @@ export const ORCHESTRATOR_DIRECTIVES: OrchestratorDirective[] = [
 export const ORCHESTRATOR_LOOP_INTERVAL = '5m';
 
 /**
- * Compose the `/loop`-wrapped spawn prompt for the orchestrator session
- * (`claude --agent vibe-kanban-indie:orchestrator`). It arms the timer at
- * {@link ORCHESTRATOR_LOOP_INTERVAL} with the SHORT per-tick pointer — the agent's
- * full behavior (monitor-first two-mode tick, dispatch, status reflection, adaptive
- * cadence) lives in the plugin's `agents/orchestrator.md`, so the pointer stays tiny
- * and `/loop` re-submits it each tick, surviving context compaction over a days-long
- * run. The pointer mirrors the plugin's own `scripts/orchestrator.prompt.md`.
+ * Compose the `/loop`-wrapped spawn prompt for the captain session
+ * (`claude --agent hivedeck-captain`). It arms the timer at
+ * {@link ORCHESTRATOR_LOOP_INTERVAL} with a SHORT per-tick pointer; the full
+ * behavior (owner first, watch, dispatch, plan, report) lives in
+ * `assets/captain/captain.md`, so `/loop` can re-submit the pointer each tick
+ * and survive context compaction over a long run.
  *
- * Enabled directive FLAGS are appended as a byte-exact "Directives enabled for this
- * run" block ENDING the prompt (the agent expects the directive list to end its spawn
- * prompt; its plugin instructions define what each flag does). Flags are emitted in
- * declaration order so the prompt is stable regardless of checkbox toggle order.
+ * Enabled directive FLAGS are appended as a "Directives enabled for this run"
+ * block ENDING the prompt, in declaration order so the prompt is stable.
  */
 export function composeOrchestratorPrompt(
   enabledIds: ReadonlySet<string>
 ): string {
   const base =
-    `/loop ${ORCHESTRATOR_LOOP_INTERVAL} Run one tick of the board loop per your ` +
-    `agent definition (vibe-kanban-indie:orchestrator): pick the mode from retained ` +
-    `context — MONITOR the active cards by default; run a full SWEEP only when a ` +
-    `sweep trigger fires (nothing active, a lane freed, an operator instruction, or ` +
-    `the periodic backstop). Triage any operator instruction first (intake / ` +
-    `decider / handle directly).`;
+    `/loop ${ORCHESTRATOR_LOOP_INTERVAL} Run one tick as the HiveDeck captain, ` +
+    `following your instructions in order: owner messages first, then watch ` +
+    `active cards, dispatch from Todo, plan new goals, and end with your report.`;
   const picked = ORCHESTRATOR_DIRECTIVES.filter((d) => enabledIds.has(d.id));
   if (picked.length === 0) return base;
   const flags = picked.map((d) => `- ${d.id}`).join('\n');
   return (
     `${base}\n\nDirectives enabled for this run — apply each one's behavior as ` +
-    `defined in your agent instructions:\n${flags}`
+    `defined in your instructions:\n${flags}`
   );
 }
 

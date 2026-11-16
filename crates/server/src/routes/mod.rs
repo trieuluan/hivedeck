@@ -38,6 +38,7 @@ pub mod frontend;
 pub mod health;
 pub mod kanban;
 pub mod local_kanban;
+pub mod mcp_http;
 pub mod nine_router;
 pub mod pipelines;
 pub mod preview;
@@ -83,6 +84,11 @@ pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
         .layer(axum::middleware::from_fn(middleware::log_server_errors))
         .with_state(deployment.clone());
 
+    // ADR-030: MCP over streamable HTTP for the captain (loopback clients).
+    let mcp_routes = mcp_http::router(&deployment).layer(ValidateRequestHeaderLayer::custom(
+        middleware::validate_origin,
+    ));
+
     // Local kanban API. Served at the root (`/v1/*`) because the frontend's
     // fallback transport hits absolute `/v1/...` paths, not `/api/...`.
     let v1_routes = local_kanban::router()
@@ -97,6 +103,7 @@ pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
         .route("/{*path}", get(frontend::serve_frontend))
         .nest("/api", api_routes)
         .merge(v1_routes)
+        .merge(mcp_routes)
         .layer(CompressionLayer::new())
         .into_make_service()
 }

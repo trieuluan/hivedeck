@@ -241,29 +241,22 @@ pub async fn create_and_start_workspace(
     )))
 }
 
-/// Build the executor config for the orchestrator: a headed coding-agent session
-/// (its default profile skips permission prompts), launched as the plugin's own
-/// session agent (`--agent vibe-kanban-indie:orchestrator`).
-///
-/// The plugin's SINGLE-LOOP orchestrator owns the whole tick itself (monitor-first
-/// two-mode loop) — the retired `sweeper` subagent no longer exists, so the old
-/// default-agent workaround (which existed only so a loop-manager brief could spawn
-/// `vibe-kanban-indie:sweeper` as a sibling subagent) is gone with it. The agent's
-/// full behavior lives in the plugin's `agents/orchestrator.md`; the `/loop` body
-/// the caller composes (see `composeOrchestratorPrompt`) is only the short per-tick
-/// pointer, matching the plugin's own launcher (`scripts/orchestrator.sh`).
+/// Build the executor config for the orchestrator: a headed Claude Code
+/// session running HiveDeck's own captain (ADR-030). The container recognises
+/// the captain's agent id and adds `--agents` (the captain's instructions from
+/// `assets/captain/captain.md` or the owner's override) and `--mcp-config`
+/// (this backend's `/mcp` endpoint), so no external plugin is required. The
+/// `/loop` body the caller composes (see `composeOrchestratorPrompt`) is only
+/// the short per-tick pointer.
 ///
 /// The headed `executor` backend is parameterized (defaulting to Claude Code
-/// Headed in the caller) so the orchestrator can later run on OpenCode Headed.
-/// Today the `agent_id` targets the Claude plugin orchestrator, so only the
-/// Claude backend is actually exercised — the OpenCode backend remains
-/// intentionally inert until its orchestrator is built.
+/// Headed in the caller); only the Claude backend has a captain today.
 fn orchestrator_executor_config(executor: BaseCodingAgent) -> ExecutorConfig {
     ExecutorConfig {
         executor,
         variant: None,
         model_id: None,
-        agent_id: Some("vibe-kanban-indie:orchestrator".to_string()),
+        agent_id: Some(services::services::captain::AGENT_ID.to_string()),
         reasoning_id: None,
         permission_policy: None,
     }

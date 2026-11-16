@@ -1,4 +1,5 @@
 pub mod approvals;
+pub mod captain;
 pub mod config;
 pub mod container;
 pub mod diff_stream;

@@ -64,6 +64,7 @@ dunce = "1.0"
 enum_dispatch = "0.3.13"
 eventsource-stream = "0.2"
 executors = { path = "crates/executors" }
+mcp = { path = "crates/mcp" }
 flate2 = "1.0"
 fst = "0.4"
 futures = "0.3.32"
@@ -99,7 +100,7 @@ rand = { version = "0.8", features = ["std"] }
 ratatui = "0.29"
 regex = "1.11.1"
 reqwest = { version = "0.13", default-features = false, features = ["json", "query", "rustls", "stream"] }
-rmcp = { version = "1.2.0", features = ["server", "transport-io"] }
+rmcp = { version = "1.2.0", features = ["server", "transport-io", "transport-streamable-http-server"] }
 rust-embed = "8.2"
 rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std", "tls12"] }
 schemars = { version = "1.0.4", features = ["chrono04", "derive", "preserve_order", "uuid1"] }

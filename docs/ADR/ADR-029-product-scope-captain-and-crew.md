@@ -36,7 +36,7 @@ Everything in the main UI serves this loop; anything else is Advanced or removed
 |---|---|---|---|
 | Board (projects, issues, statuses) | The captain's work queue | **Core** | Keep simple: one board per project; sub-boards stay but are not pushed |
 | Workspaces (worktree, chat, diff, merge, PR) | Where a crew member works | **Core** | One card → open its latest workspace directly; many attempts per card stay possible |
-| Orchestrator / captain | Headed Claude session on `/loop`, board-scoped prompts (ADR-016) | **Core — must be fixed first** | Ship the captain's instructions inside HiveDeck instead of depending on an uninstalled external plugin (see Open questions) |
+| Orchestrator / captain | Headed Claude session on `/loop`, board-scoped prompts (ADR-016) | **Core — done (ADR-030)** | Instructions now ship in this repo; MCP served by the backend at `/mcp` |
 | MCP server (`hivedeck-mcp`, card tools, ADR-023) | The captain's hands on the board | **Core** | |
 | Approvals inbox | Answer tool-permission prompts / questions | **Core** | |
 | 9router: Router page, combos, routing | Models per role | **Core** | |
@@ -72,7 +72,7 @@ One `Config.advanced_features` switch (default off) hides Advanced items from na
 
 ## Proposed order
 
-1. **Make the captain work** (blocker): decide where its instructions live; until then the core loop has no captain.
+1. ~~**Make the captain work**~~ — done in ADR-030 (in-repo captain, MCP over HTTP, trust-prompt fix).
 2. Advanced switch + hide Advanced items.
 3. Remove dead code (`review` crate, `apps/macos`, `hosts` routes) and the SpecKit UI.
 4. Quick ask, Talk to the captain, Card → chat.
@@ -80,7 +80,7 @@ One `Config.advanced_features` switch (default off) hides Advanced items from na
 
 ## Open questions for the owner
 
-1. **Captain**: install the external `vibe-kanban-indie` plugin from sombrax-plugins, or have HiveDeck ship its own captain (instructions and sub-agents as files in this repo, passed to Claude Code at launch)? *Recommendation: ship our own — the captain is the product.*
+1. ~~**Captain**~~ — decided: HiveDeck ships its own captain (ADR-030).
 2. **Agents**: which CLIs do you actually use besides Claude Code and Codex?
 3. **SpecKit**: drop from the UI, or do you use it?
 4. **Desktop app**: needed soon, or web UI only for now?

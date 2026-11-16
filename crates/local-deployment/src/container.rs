@@ -1298,8 +1298,22 @@ enum AutoConfirmAction {
     /// prompt is also expected (Telegram off) — the caller returns right after
     /// sending Enter instead of polling out the rest of the timeout.
     ConfirmTrust { stop_after: bool },
+    /// The trust prompt is up but its highlighted option is "No, exit" (the
+    /// default since Claude Code 2.1.x); move the selection down to "Yes"
+    /// before confirming, or Enter would exit the session.
+    SelectTrustYes,
     /// Confirm the dev-channel-warning prompt; always the final action.
     ConfirmChannel,
+}
+
+/// Whether the trust prompt's highlighted (`❯`) option is the "No, exit" one.
+fn trust_prompt_highlights_no(pane: &str) -> bool {
+    pane.lines()
+        .find(|line| line.contains('❯'))
+        .is_some_and(|line| {
+            let lower = line.to_lowercase();
+            lower.contains("no") && lower.contains("exit") && !lower.contains("yes")
+        })
 }
 
 /// Decide what [`LocalContainerService::auto_confirm_headed_startup`] should do
@@ -1314,6 +1328,9 @@ fn next_auto_confirm_action(
     const TRUST_PROMPT: &str = "Is this a project you";
     const CHANNEL_PROMPT: &str = "Loading development channels";
     if expect_trust_prompt && !trust_done && pane.contains(TRUST_PROMPT) {
+        if trust_prompt_highlights_no(pane) {
+            return AutoConfirmAction::SelectTrustYes;
+        }
         return AutoConfirmAction::ConfirmTrust {
             stop_after: !expect_channel_prompt,
         };
@@ -1597,6 +1614,35 @@ impl LocalContainerService {
                     pos,
                     executors::executors::claude::TELEGRAM_CHANNEL_FLAG.to_string(),
                 );
+            }
+
+            // ADR-030: the HiveDeck captain is defined inline and talks to this
+            // backend's MCP endpoint; no external plugin needed. Both flags go
+            // just before the trailing positional prompt.
+            if services::services::captain::is_captain(claude.agent.as_deref()) {
+                let port = utils::port_file::read_port_file("hivedeck")
+                    .await
+                    .map_err(|e| {
+                        ContainerError::Other(anyhow!(
+                            "cannot start the captain: backend port unknown ({e})"
+                        ))
+                    })?;
+                let pos = argv.len().saturating_sub(1);
+                for arg in [
+                    "--agents".to_string(),
+                    services::services::captain::agents_json(),
+                    // `=` form: `--mcp-config` is variadic and would
+                    // otherwise swallow the prompt.
+                    format!(
+                        "--mcp-config={}",
+                        services::services::captain::mcp_config_json(port)
+                    ),
+                ]
+                .into_iter()
+                .rev()
+                {
+                    argv.insert(pos, arg);
+                }
             }
 
             // Inject the approval hook via `--settings <json>` (two tokens before
@@ -1935,6 +1981,16 @@ impl LocalContainerService {
                 expect_channel_prompt,
             ) {
                 AutoConfirmAction::Continue => {}
+                AutoConfirmAction::SelectTrustYes => {
+                    if terminal::tmux_send_key(&tmux_session, "Down")
+                        .await
+                        .is_err()
+                    {
+                        return;
+                    }
+                    // Re-inspect: confirm only once "Yes" is highlighted.
+                    tokio::time::sleep(Duration::from_millis(300)).await;
+                }
                 AutoConfirmAction::ConfirmTrust { stop_after } => {
                     if terminal::tmux_send_enter(&tmux_session).await.is_err() {
                         return;
@@ -3279,6 +3335,24 @@ mod auto_confirm_tests {
             false, // expect_channel_prompt
         );
         assert_eq!(action, AutoConfirmAction::Continue);
+    }
+
+    // Claude Code 2.1.x defaults the trust prompt to "No, exit": move down
+    // first, then confirm once "Yes" is highlighted.
+    #[test]
+    fn trust_prompt_defaulting_to_no_selects_yes_first() {
+        let no_highlighted = " Is this a project you created or one you trust?\n \
+                              ❯ No, exit\n   Yes, I trust this folder\n";
+        assert_eq!(
+            next_auto_confirm_action(no_highlighted, false, true, false),
+            AutoConfirmAction::SelectTrustYes
+        );
+        let yes_highlighted = " Is this a project you created or one you trust?\n \
+                               No, exit\n ❯ Yes, I trust this folder\n";
+        assert_eq!(
+            next_auto_confirm_action(yes_highlighted, false, true, false),
+            AutoConfirmAction::ConfirmTrust { stop_after: true }
+        );
     }
 
     // No matching text yet → keep polling.

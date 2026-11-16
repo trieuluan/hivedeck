@@ -297,6 +297,19 @@ pub async fn tmux_send_enter(session_name: &str) -> Result<(), TerminalError> {
     Ok(())
 }
 
+/// Send one named key (tmux key name, e.g. `Down`) to `session_name`.
+pub async fn tmux_send_key(session_name: &str, key: &str) -> Result<(), TerminalError> {
+    let out = Command::new("tmux")
+        .args(["send-keys", "-t", session_name, key])
+        .output()
+        .await
+        .map_err(map_tmux_io_err)?;
+    if !out.status.success() {
+        return Err(classify_send_keys_err(session_name, &out.stderr));
+    }
+    Ok(())
+}
+
 /// Capture the visible text of `session_name`'s pane (best-effort snapshot).
 /// Used to detect which startup prompt is currently on screen before auto-
 /// confirming it. The target is the bare session name (see [`tmux_send_keys`]).
