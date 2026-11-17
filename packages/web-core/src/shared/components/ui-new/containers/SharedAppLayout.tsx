@@ -812,85 +812,91 @@ export function SharedAppLayout() {
 
               {/* Mobile project navigation drawer (rebuilt on the same Sidebar
             primitives). */}
-              <MobileDrawer
-                open={isDrawerOpen && isMobile}
-                onClose={() => setIsDrawerOpen(false)}
-              >
-                <div className="flex flex-col h-full">
-                  {/* Header: drawer close button. ADR-018 — no org name display. */}
-                  <div className="flex items-center justify-end p-4 border-b border-border">
-                    <button
-                      type="button"
-                      onClick={() => setIsDrawerOpen(false)}
-                      className="p-1 rounded-sm text-low hover:text-normal cursor-pointer"
-                      aria-label={t('common:ui.close')}
-                    >
-                      <XIcon className="h-4 w-4" weight="bold" />
-                    </button>
-                  </div>
+              {/* Mounted on mobile only: its Sidebar holds a second tree, and
+                  two trees can't each own a drag-and-drop backend. */}
+              {isMobile && (
+                <MobileDrawer
+                  open={isDrawerOpen}
+                  onClose={() => setIsDrawerOpen(false)}
+                >
+                  <div className="flex flex-col h-full">
+                    {/* Header: drawer close button. ADR-018 — no org name display. */}
+                    <div className="flex items-center justify-end p-4 border-b border-border">
+                      <button
+                        type="button"
+                        onClick={() => setIsDrawerOpen(false)}
+                        className="p-1 rounded-sm text-low hover:text-normal cursor-pointer"
+                        aria-label={t('common:ui.close')}
+                      >
+                        <XIcon className="h-4 w-4" weight="bold" />
+                      </button>
+                    </div>
 
-                  <div className="flex-1 min-h-0 overflow-y-auto">
-                    <ProjectColorTransformContext.Provider
-                      value={themedProjectColor.transform}
-                    >
-                      <Sidebar
-                        projects={sidebarProjects}
-                        activeProjectId={activeProjectId}
-                        activeProjectPromptId={activeProjectPromptId}
-                        activeWorkspaceId={workspaceId ?? null}
-                        activeIssueId={activeIssueId}
-                        tasksByProject={tasksByProject}
-                        loadingTasksProjectIds={loadingTasksProjectIds}
-                        onSelectIssue={handleSelectIssue}
-                        workspaces={outlinerWorkspaces}
-                        workspaceByIssueId={workspaceByIssueId}
-                        captainByProject={captainByProject}
-                        attentionOnlyWorkspaces={captainOutlinerWorkspaces}
-                        onMarkSeen={handleMarkSeen}
-                        archivedWorkspaces={outlinerArchivedWorkspaces}
-                        membership={membership}
-                        isLoadingProjects={isLoading}
-                        isLoadingWorkspaces={isWorkspacesListLoading}
-                        onSelectWorkspace={(id) =>
-                          appNavigation.goToWorkspace(id)
-                        }
-                        onOpenProjectPage={(id) => {
-                          handleProjectClick(id);
-                          setIsDrawerOpen(false);
-                        }}
-                        onOpenWorkspacesPage={(projectId) => {
-                          handleOpenWorkspacesPage(projectId);
-                          setIsDrawerOpen(false);
-                        }}
-                        onOpenLastWorkspace={
-                          showAdvanced
-                            ? () => {
-                                handleOrchestratorQuickAction();
-                                setIsDrawerOpen(false);
-                              }
-                            : undefined
-                        }
-                        onSelectOrchestratorPrompt={(id) => {
-                          handleSelectOrchestratorPrompt(id);
-                          setIsDrawerOpen(false);
-                        }}
-                        onCreateChildBoard={
-                          showAdvanced ? handleCreateChildBoard : undefined
-                        }
-                        onDeleteProject={handleDeleteProject}
-                        onManageRepos={handleManageRepos}
-                        onArchiveWorkspace={handleArchiveWorkspace}
-                        onDeleteWorkspace={handleDeleteWorkspace}
-                        isMultiSelectActive={isMultiSelectActive}
-                        headerActions={
-                          <CreateProjectButton onClick={handleCreateProject} />
-                        }
-                        bottomActions={<SidebarBottomActions />}
-                      />
-                    </ProjectColorTransformContext.Provider>
+                    <div className="flex-1 min-h-0 overflow-y-auto">
+                      <ProjectColorTransformContext.Provider
+                        value={themedProjectColor.transform}
+                      >
+                        <Sidebar
+                          projects={sidebarProjects}
+                          activeProjectId={activeProjectId}
+                          activeProjectPromptId={activeProjectPromptId}
+                          activeWorkspaceId={workspaceId ?? null}
+                          activeIssueId={activeIssueId}
+                          tasksByProject={tasksByProject}
+                          loadingTasksProjectIds={loadingTasksProjectIds}
+                          onSelectIssue={handleSelectIssue}
+                          workspaces={outlinerWorkspaces}
+                          workspaceByIssueId={workspaceByIssueId}
+                          captainByProject={captainByProject}
+                          attentionOnlyWorkspaces={captainOutlinerWorkspaces}
+                          onMarkSeen={handleMarkSeen}
+                          archivedWorkspaces={outlinerArchivedWorkspaces}
+                          membership={membership}
+                          isLoadingProjects={isLoading}
+                          isLoadingWorkspaces={isWorkspacesListLoading}
+                          onSelectWorkspace={(id) =>
+                            appNavigation.goToWorkspace(id)
+                          }
+                          onOpenProjectPage={(id) => {
+                            handleProjectClick(id);
+                            setIsDrawerOpen(false);
+                          }}
+                          onOpenWorkspacesPage={(projectId) => {
+                            handleOpenWorkspacesPage(projectId);
+                            setIsDrawerOpen(false);
+                          }}
+                          onOpenLastWorkspace={
+                            showAdvanced
+                              ? () => {
+                                  handleOrchestratorQuickAction();
+                                  setIsDrawerOpen(false);
+                                }
+                              : undefined
+                          }
+                          onSelectOrchestratorPrompt={(id) => {
+                            handleSelectOrchestratorPrompt(id);
+                            setIsDrawerOpen(false);
+                          }}
+                          onCreateChildBoard={
+                            showAdvanced ? handleCreateChildBoard : undefined
+                          }
+                          onDeleteProject={handleDeleteProject}
+                          onManageRepos={handleManageRepos}
+                          onArchiveWorkspace={handleArchiveWorkspace}
+                          onDeleteWorkspace={handleDeleteWorkspace}
+                          isMultiSelectActive={isMultiSelectActive}
+                          headerActions={
+                            <CreateProjectButton
+                              onClick={handleCreateProject}
+                            />
+                          }
+                          bottomActions={<SidebarBottomActions />}
+                        />
+                      </ProjectColorTransformContext.Provider>
+                    </div>
                   </div>
-                </div>
-              </MobileDrawer>
+                </MobileDrawer>
+              )}
             </div>
           </ProjectProvider>
         </KanbanDragHandlerProvider>
