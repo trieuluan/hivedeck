@@ -503,7 +503,7 @@
   },
   "spawnOrchestrator": {
     "title": "Spawn Orchestrator",
-    "description": "Launch a headed Claude Code session that drives the board on a loop — adopting and steering your agents to done. It runs from a fixed folder and reaches every project via MCP, so no repo is needed. Pick the directives this run should follow.",
+    "description": "Launch the HiveDeck captain: a headed Claude Code session that runs the board on a loop — dispatching Todo cards to agents, watching and unblocking them, and moving finished work to In Review for you. It runs from a fixed folder and reaches every project via MCP. Pick the directives this run should follow.",
     "nameLabel": "Name",
     "directivesLabel": "Directives",
     "existingRunning": "An orchestrator is already running. Open it to reuse its live session — if the session has ended, a fresh one starts automatically.",
@@ -515,19 +515,19 @@
     "options": {
       "auto-unblock": {
         "label": "Auto-unblock approvals",
-        "description": "Auto-approve routine, plan-sanctioned tool requests; escalate destructive, expensive, or off-plan ones to you."
+        "description": "Approve clearly safe, in-scope tool requests (reading files, running the tests or build, editing the workspace). Destructive or out-of-scope ones are denied and reported to you."
       },
       "auto-answer-questions": {
         "label": "Auto-answer questions",
-        "description": "When an agent's question has gone unanswered past a grace window (about two orchestrator intervals), a decider subagent reads the card, spec, and plan and answers it for you. Destructive actions still escalate as approvals."
+        "description": "Answer an agent's question itself after about 2 minutes, using the card, the board prompt and the codebase. Anything it can't answer is left for you."
       },
       "telegram-fanout": {
         "label": "Telegram fan-out",
-        "description": "Narrate status and converse with each agent over its per-workspace Telegram topic. Requires the sombrax-telegram listener."
+        "description": "Write every report so it reads on its own on your phone, and leave questions for you pending so they reach Telegram. Requires the Telegram bridge."
       },
       "nudge-stuck": {
         "label": "Nudge stuck agents",
-        "description": "When a managed agent shows no progress for two consecutive orchestrator ticks, send it \"Why are you stuck\" — the cheapest way to unstick it or surface a diagnostic message. Applies to orchestrator-managed cards only."
+        "description": "If a running agent shows no new message for about 15 minutes, ask it for a status and next step; stop it if it stays silent."
       }
     }
   },

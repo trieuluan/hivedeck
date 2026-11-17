@@ -544,7 +544,7 @@
     "openProjectPage": "Open project board",
     "openWorkspacesPage": "Open workspaces",
     "openIssuePage": "Open task",
-    "openOrchestratorWorkspace": "Open last workspace",
+    "openOrchestratorWorkspace": "Spawn or close the orchestrator",
     "deleteProject": "Delete project…",
     "manageRepos": "Repositories…"
   }

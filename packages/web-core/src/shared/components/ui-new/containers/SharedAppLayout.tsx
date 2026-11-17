@@ -31,6 +31,7 @@ import {
 import { CreateProjectButton } from './CreateProjectButton';
 import { DeleteRemoteProjectDialog } from '@/shared/dialogs/org/DeleteRemoteProjectDialog';
 import { ProjectReposDialog } from '@/shared/dialogs/ProjectReposDialog';
+import { SpawnOrchestratorDialog } from '@/shared/dialogs/orchestrator/SpawnOrchestratorDialog';
 import { useCommandBarShortcut } from '@/shared/hooks/useCommandBarShortcut';
 import { useShape } from '@/shared/integrations/electric/hooks';
 import { useProjects } from '@/shared/hooks/useProjects';
@@ -46,7 +47,6 @@ import {
 } from 'shared/remote-types';
 import { useWorkspaceProjectMembership } from '@/shared/hooks/useWorkspaceProjectMembership';
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
-import { compareWorkspaceDashboardRecency } from '@/shared/lib/workspaceStatus/workspaceStatus';
 import type { SidebarWorkspace } from '@/shared/hooks/useWorkspaces';
 import { DragProvider, type DragCompletion } from '@vibe/ui/components/dnd';
 import { resolveDragEnd } from '@/shared/lib/resolveDragEnd';
@@ -583,27 +583,13 @@ export function SharedAppLayout() {
     [archivedWorkspaces]
   );
 
-  // Orchestrator ⚡ icon: open the most-recent workspace under the
-  // Orchestrator (Unassigned) pseudo-project directly from the top-level row,
-  // skipping the expand → Workspaces → bucket drill-down. Prefers active
-  // workspaces, falls back to archived; sorts by dashboard recency.
-  const handleOpenLastOrchestratorWorkspace = useCallback(() => {
-    const isUnassignedWs = (ws: OutlinerWorkspace) =>
-      !(membership.get(ws.id)?.size ?? 0);
-    const candidates = [
-      ...outlinerWorkspaces.filter(isUnassignedWs),
-      ...outlinerArchivedWorkspaces.filter(isUnassignedWs),
-    ];
-    if (candidates.length === 0) return;
-    const sorted = [...candidates].sort(compareWorkspaceDashboardRecency);
-    const last = sorted[0];
-    if (last) appNavigation.goToWorkspace(last.id);
-  }, [
-    outlinerWorkspaces,
-    outlinerArchivedWorkspaces,
-    membership,
-    appNavigation,
-  ]);
+  // Orchestrator ⚡ icon: open the Spawn / Close orchestrator dialog (the
+  // same as the navbar robot), so the captain is started, reopened or reset
+  // from where it is listed. The orchestrator's workspaces stay reachable by
+  // expanding the row.
+  const handleOrchestratorQuickAction = useCallback(() => {
+    void SpawnOrchestratorDialog.show({});
+  }, []);
 
   // Theme-aware sidebar project colour (phosphor-duotone transform + the
   // orchestrator accent). Provided to sidebar project dots via context; the
@@ -655,7 +641,7 @@ export function SharedAppLayout() {
                       }
                       onOpenProjectPage={handleProjectClick}
                       onOpenWorkspacesPage={handleOpenWorkspacesPage}
-                      onOpenLastWorkspace={handleOpenLastOrchestratorWorkspace}
+                      onOpenLastWorkspace={handleOrchestratorQuickAction}
                       onSelectOrchestratorPrompt={
                         handleSelectOrchestratorPrompt
                       }
@@ -742,7 +728,7 @@ export function SharedAppLayout() {
                           setIsDrawerOpen(false);
                         }}
                         onOpenLastWorkspace={() => {
-                          handleOpenLastOrchestratorWorkspace();
+                          handleOrchestratorQuickAction();
                           setIsDrawerOpen(false);
                         }}
                         onSelectOrchestratorPrompt={(id) => {
