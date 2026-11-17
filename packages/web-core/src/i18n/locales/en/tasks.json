@@ -208,7 +208,8 @@
       "files_one": "{{count}} file edited",
       "files_other": "{{count}} files edited"
     },
-    "agentWorking": "Agent is working…"
+    "agentWorking": "Agent is working…",
+    "waitingForModel": "Waiting for the model to respond…"
   },
   "attempt": {
     "actions": {

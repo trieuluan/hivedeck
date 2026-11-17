@@ -69,6 +69,7 @@ export interface ConversationListHandle {
 }
 
 const ALWAYS_UNVIRTUALIZED_TAIL_ROWS = 8;
+const WAITING_FOR_MODEL_MS = 30_000;
 const STREAMING_UNVIRTUALIZED_BUFFER_ROWS = 24;
 
 /** A finished turn's steps, collapsed to one line above its answer. */
@@ -623,6 +624,19 @@ export const ConversationList = forwardRef<
   });
   scrollOnEntriesChangedRef.current = scrollExecutor.onEntriesChanged;
 
+  // Nothing new for a while during a run: usually the model (or the router
+  // retrying a rate limit) hasn't answered yet. Say so instead of "working".
+  const [isWaitingForModel, setIsWaitingForModel] = useState(false);
+  useEffect(() => {
+    setIsWaitingForModel(false);
+    if (!hasRunningProcess) return;
+    const timer = window.setTimeout(
+      () => setIsWaitingForModel(true),
+      WAITING_FOR_MODEL_MS
+    );
+    return () => window.clearTimeout(timer);
+  }, [hasRunningProcess, dataVersion]);
+
   // Determine if there are entries to show placeholders
   const hasEntries = conversationRows.length > 0;
 
@@ -973,9 +987,11 @@ export const ConversationList = forwardRef<
                     className="size-1.5 shrink-0 rounded-full bg-brand motion-safe:animate-pulse"
                   />
                   <span>
-                    {attempt.kind === 'orchestrator'
-                      ? t('tasks:captain.listening')
-                      : t('tasks:conversation.agentWorking')}
+                    {isWaitingForModel
+                      ? t('tasks:conversation.waitingForModel')
+                      : attempt.kind === 'orchestrator'
+                        ? t('tasks:captain.listening')
+                        : t('tasks:conversation.agentWorking')}
                   </span>
                 </>
               )}

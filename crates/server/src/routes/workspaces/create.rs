@@ -382,7 +382,7 @@ pub async fn spawn_orchestrator(
     let prompt = scope_prompt(&prompt, scope.as_deref());
     let (loop_interval, tick_prompt) = crate::captain_loop::split_loop_prompt(&prompt);
     let prompt = if backend_loop {
-        crate::captain_loop::tick_message(&tick_prompt)
+        crate::captain_loop::startup_message(&tick_prompt)
     } else {
         prompt
     };

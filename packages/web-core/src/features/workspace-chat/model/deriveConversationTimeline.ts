@@ -22,7 +22,10 @@ function isRenderableConversationEntry(entry: DisplayEntry): boolean {
     'entry_type' in entry.content
   ) {
     const entryType = entry.content.entry_type.type;
-    if (entryType === 'system_message' && isNoiseSystemMessage(entry.content.content)) {
+    if (
+      entryType === 'system_message' &&
+      isNoiseSystemMessage(entry.content.content)
+    ) {
       return false;
     }
     return entryType !== 'next_action' && entryType !== 'token_usage_info';
@@ -55,7 +58,10 @@ export function deriveConversationTimeline(
 ): DerivedConversationTimeline {
   const displayEntries = collapseTurnWork(
     aggregateConsecutiveEntries(entries).filter(isRenderableConversationEntry),
-    { collapseLastTurn: options.collapseLastTurn, previous: previousDisplayEntries }
+    {
+      collapseLastTurn: options.collapseLastTurn,
+      previous: previousDisplayEntries,
+    }
   );
 
   const rows = buildConversationRowsIncremental(

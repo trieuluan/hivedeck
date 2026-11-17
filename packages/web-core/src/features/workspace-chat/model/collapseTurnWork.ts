@@ -115,8 +115,7 @@ export function collapseTurnWork(
 
   const result: DisplayEntry[] = [];
   turns.forEach((turn, turnIndex) => {
-    const settled =
-      turnIndex < turns.length - 1 || options.collapseLastTurn;
+    const settled = turnIndex < turns.length - 1 || options.collapseLastTurn;
     if (!settled) {
       result.push(...turn);
       return;

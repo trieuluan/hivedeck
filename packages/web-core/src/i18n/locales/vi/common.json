@@ -758,6 +758,8 @@
   },
   "chatAutoTick": {
     "label": "Lượt tự động của thuyền trưởng",
-    "labelAt": "Lượt tự động của thuyền trưởng · {{time}}"
+    "labelAt": "Lượt tự động của thuyền trưởng · {{time}}",
+    "startup": "Thuyền trưởng khởi động · đọc bảng",
+    "startupAt": "Thuyền trưởng khởi động · đọc bảng · {{time}}"
   }
 }

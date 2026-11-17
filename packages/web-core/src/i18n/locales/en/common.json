@@ -758,6 +758,8 @@
   },
   "chatAutoTick": {
     "label": "Automatic captain tick",
-    "labelAt": "Automatic captain tick · {{time}}"
+    "labelAt": "Automatic captain tick · {{time}}",
+    "startup": "Captain started · reading the board",
+    "startupAt": "Captain started · reading the board · {{time}}"
   }
 }

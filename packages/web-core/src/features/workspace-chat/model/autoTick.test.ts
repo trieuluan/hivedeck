@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { AUTO_TICK_MARKER, autoTickBody, isAutoTickMessage } from './autoTick';
+import {
+  AUTO_TICK_MARKER,
+  STARTUP_MARKER,
+  autoTickBody,
+  isAutoTickMessage,
+  isStartupTick,
+} from './autoTick';
 
 describe('isAutoTickMessage', () => {
   it('recognises marked and legacy ticks', () => {
@@ -23,5 +29,14 @@ describe('isAutoTickMessage', () => {
     expect(autoTickBody(`${AUTO_TICK_MARKER}\nRun one tick.`)).toBe(
       'Run one tick.'
     );
+  });
+});
+
+describe('isStartupTick', () => {
+  it('tells the startup tick from regular ticks', () => {
+    const startup = `${AUTO_TICK_MARKER}\n${STARTUP_MARKER}\nRead the board.`;
+    expect(isStartupTick(startup)).toBe(true);
+    expect(isStartupTick(`${AUTO_TICK_MARKER}\nRun one tick.`)).toBe(false);
+    expect(autoTickBody(startup)).toBe('Read the board.');
   });
 });

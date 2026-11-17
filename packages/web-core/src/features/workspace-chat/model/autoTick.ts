@@ -5,6 +5,13 @@
  */
 export const AUTO_TICK_MARKER = '<!-- hivedeck:auto-tick -->';
 
+/** Marks the first tick, sent when the captain is started. */
+export const STARTUP_MARKER = '<!-- hivedeck:startup -->';
+
+export function isStartupTick(content: string): boolean {
+  return isAutoTickMessage(content) && content.includes(STARTUP_MARKER);
+}
+
 const LEGACY_TICK_OPENINGS = [
   'You are the captain of project ',
   'Run one tick as the HiveDeck captain',
@@ -20,5 +27,8 @@ export function isAutoTickMessage(content: string): boolean {
 
 /** The tick's prompt without the marker, for the expanded view. */
 export function autoTickBody(content: string): string {
-  return content.replace(AUTO_TICK_MARKER, '').trim();
+  return content
+    .replace(AUTO_TICK_MARKER, '')
+    .replace(STARTUP_MARKER, '')
+    .trim();
 }

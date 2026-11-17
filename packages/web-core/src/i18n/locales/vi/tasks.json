@@ -208,7 +208,8 @@
       "files_one": "sửa {{count}} file",
       "files_other": "sửa {{count}} file"
     },
-    "agentWorking": "Agent đang làm việc…"
+    "agentWorking": "Agent đang làm việc…",
+    "waitingForModel": "Đang chờ model phản hồi…"
   },
   "attempt": {
     "actions": {

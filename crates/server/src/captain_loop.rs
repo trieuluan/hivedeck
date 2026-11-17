@@ -33,9 +33,17 @@ use crate::{DeploymentImpl, routes::sessions::run_follow_up};
 /// model ignores it and Markdown renders nothing.
 pub const TICK_MARKER: &str = "<!-- hivedeck:auto-tick -->";
 
+/// Marks the first tick, sent when the captain is started.
+pub const STARTUP_MARKER: &str = "<!-- hivedeck:startup -->";
+
 /// The message sent for an automatic tick.
 pub fn tick_message(body: &str) -> String {
     format!("{TICK_MARKER}\n{body}")
+}
+
+/// The first tick, sent when the captain starts: it reads the board.
+pub fn startup_message(body: &str) -> String {
+    format!("{TICK_MARKER}\n{STARTUP_MARKER}\n{body}")
 }
 
 /// Safety-net tick while cards are in Todo or In Progress and nothing else
@@ -402,7 +410,9 @@ mod tests {
 
     use uuid::Uuid;
 
-    use super::{TICK_MARKER, split_loop_prompt, summarize, tick_message};
+    use super::{
+        STARTUP_MARKER, TICK_MARKER, split_loop_prompt, startup_message, summarize, tick_message,
+    };
 
     fn summarize_board(rows: Vec<(Uuid, String, String)>) -> super::BoardState {
         summarize(rows, vec![], vec![])
@@ -450,6 +460,14 @@ mod tests {
             summarize(vec![], vec![run("running", None)], vec![Uuid::from_u128(7)]).signature;
         assert_ne!(running, done);
         assert_ne!(running, waiting);
+    }
+
+    #[test]
+    fn startup_message_is_a_marked_tick() {
+        let msg = startup_message("Read the board.");
+        assert!(msg.starts_with(TICK_MARKER));
+        assert!(msg.contains(STARTUP_MARKER));
+        assert!(msg.ends_with("Read the board."));
     }
 
     #[test]

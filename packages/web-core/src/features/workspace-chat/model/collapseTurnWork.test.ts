@@ -103,7 +103,11 @@ describe('collapseTurnWork', () => {
     const out = collapseTurnWork([user(), tool(), answer()], {
       collapseLastTurn: true,
     });
-    expect(types(out)).toEqual(['user_message', 'tool_use', 'assistant_message']);
+    expect(types(out)).toEqual([
+      'user_message',
+      'tool_use',
+      'assistant_message',
+    ]);
   });
 
   it('reuses an unchanged group object', () => {

@@ -46,7 +46,11 @@ import {
   describeAgentError,
   isAgentErrorText,
 } from '../model/describeAgentError';
-import { autoTickBody, isAutoTickMessage } from '../model/autoTick';
+import {
+  autoTickBody,
+  isAutoTickMessage,
+  isStartupTick,
+} from '../model/autoTick';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { ChatScriptEntry } from '@vibe/ui/components/ChatScriptEntry';
 import { ChatSubagentEntry } from '@vibe/ui/components/ChatSubagentEntry';
@@ -837,9 +841,13 @@ function UserMessageEntry({
           minute: '2-digit',
         })
       : null;
-    const label = time
-      ? t('chatAutoTick.labelAt', { time })
-      : t('chatAutoTick.label');
+    const label = isStartupTick(content)
+      ? time
+        ? t('chatAutoTick.startupAt', { time })
+        : t('chatAutoTick.startup')
+      : time
+        ? t('chatAutoTick.labelAt', { time })
+        : t('chatAutoTick.label');
     return (
       <ChatSystemMessage
         content={tickExpanded ? `${label}\n\n${autoTickBody(content)}` : label}
