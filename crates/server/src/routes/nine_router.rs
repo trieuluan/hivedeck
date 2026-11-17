@@ -144,6 +144,23 @@ async fn set_combo_strategy(
 }
 
 #[derive(Debug, Deserialize, TS)]
+pub struct SessionRotationRequest {
+    pub enabled: bool,
+}
+
+/// Combo name → number of rotations now in 9router.
+async fn set_session_rotation(
+    State(deployment): State<DeploymentImpl>,
+    axum::Json(body): axum::Json<SessionRotationRequest>,
+) -> Result<ResponseJson<ApiResponse<std::collections::HashMap<String, usize>>>, ApiError> {
+    let settings = settings(&deployment).await;
+    let counts = nine_router::set_session_rotation(&settings, body.enabled)
+        .await
+        .map_err(to_api_error)?;
+    Ok(ResponseJson(ApiResponse::success(counts)))
+}
+
+#[derive(Debug, Deserialize, TS)]
 pub struct UndoComboRequest {
     pub name: String,
 }
@@ -222,6 +239,7 @@ pub(super) fn router() -> Router<DeploymentImpl> {
         .route("/router/combos", post(apply_combo))
         .route("/router/combos/undo", post(undo_combo))
         .route("/router/combo-strategy", post(set_combo_strategy))
+        .route("/router/session-rotation", post(set_session_rotation))
         .route("/router/models/verify", post(verify_models))
         .route("/router/models/unblock", post(unblock_model))
 }

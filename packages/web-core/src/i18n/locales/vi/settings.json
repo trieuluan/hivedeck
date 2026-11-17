@@ -816,7 +816,9 @@
           "coder": "Lượt chạy workspace và task. Cũng là alias \"sonnet\" của Claude.",
           "reviewer": "Lượt review code.",
           "fast": "Các lệnh gọi nền của Claude (tiêu đề, tóm tắt): alias \"haiku\"."
-        }
+        },
+        "rotate": "Xoay vòng combo theo phiên",
+        "rotateHint": "Mỗi phiên agent ở yên một model của combo (cache prompt luôn trúng); phiên mới bắt đầu ở model khác nên quota của mọi provider đều được dùng. Tắt: 9router đổi model sau mỗi lần gọi."
       }
     }
   },

@@ -18,6 +18,7 @@
 mod advisor;
 mod aliases;
 pub mod api;
+pub mod rotation;
 pub mod routing;
 mod versions;
 
@@ -74,6 +75,10 @@ pub struct NineRouterSettings {
     /// Combo used for each agent role.
     #[serde(default)]
     pub roles: routing::RoleCombos,
+    /// Spread agent sessions across a combo's models, one provider per
+    /// session (keeps prompt caches warm; ADR-036).
+    #[serde(default)]
+    pub rotate_per_session: bool,
 }
 
 impl Default for NineRouterSettings {
@@ -84,6 +89,7 @@ impl Default for NineRouterSettings {
             allow_management: false,
             route_agents: false,
             roles: routing::RoleCombos::default(),
+            rotate_per_session: false,
         }
     }
 }
@@ -355,6 +361,8 @@ async fn probe(port: u16) -> Option<Probe> {
         .data
         .iter()
         .filter(|m| m.owned_by.as_deref() == Some("combo"))
+        // Per-session rotations (`coder-r2`) are HiveDeck's plumbing.
+        .filter(|m| !rotation::is_rotation_name(&m.id))
         .map(|m| m.id.clone())
         .collect();
     Some(Probe {
@@ -1066,6 +1074,7 @@ pub async fn apply_combo(
         None => client.create_combo(name, models).await?,
     }
     log_line(&format!("combo {name} set to [{}]", models.join(", "))).await;
+    rotation::invalidate();
     Ok(())
 }
 
@@ -1248,6 +1257,31 @@ pub async fn set_combo_strategy(
     Ok(())
 }
 
+/// Turn per-session rotation on (rotations created now, combos walked as
+/// fallback) or off (rotations removed, 9router back to round-robin).
+/// Returns combo → rotation count.
+pub async fn set_session_rotation(
+    settings: &NineRouterSettings,
+    enabled: bool,
+) -> Result<std::collections::HashMap<String, usize>, NineRouterError> {
+    if enabled {
+        set_combo_strategy(settings, "fallback").await?;
+        // Start clean so rotations of roles no longer rotated go away.
+        rotation::remove_all(settings).await?;
+        let mut combos: Vec<String> = rotation::ROTATED_ROLES
+            .into_iter()
+            .filter_map(|role| settings.roles.get(role).map(str::to_string))
+            .collect();
+        combos.sort();
+        combos.dedup();
+        rotation::sync(settings, &combos).await
+    } else {
+        rotation::remove_all(settings).await?;
+        set_combo_strategy(settings, "round-robin").await?;
+        Ok(Default::default())
+    }
+}
+
 /// Restore the combo HiveDeck last replaced (or delete it if HiveDeck
 /// created it). One level of undo per combo.
 pub async fn undo_combo(settings: &NineRouterSettings, name: &str) -> Result<(), NineRouterError> {
@@ -1265,6 +1299,7 @@ pub async fn undo_combo(settings: &NineRouterSettings, name: &str) -> Result<(),
     }
     write_combo_history(&history).await?;
     log_line(&format!("combo {name} restored")).await;
+    rotation::invalidate();
     Ok(())
 }
 

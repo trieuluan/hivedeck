@@ -1415,6 +1415,28 @@ export const nineRouterApi = {
     });
     return handleApiResponse<ComboSuggestions>(response);
   },
+
+  /** Per-session combo rotation on/off; returns combo → rotation count. */
+  setSessionRotation: async (
+    enabled: boolean
+  ): Promise<Record<string, number>> => {
+    const response = await makeRequest('/api/router/session-rotation', {
+      method: 'POST',
+      body: JSON.stringify({ enabled }),
+    });
+    return handleApiResponse<Record<string, number>>(response);
+  },
+
+  /** How every combo walks its models: fallback or round-robin. */
+  setComboStrategy: async (
+    strategy: 'fallback' | 'round-robin'
+  ): Promise<void> => {
+    const response = await makeRequest('/api/router/combo-strategy', {
+      method: 'POST',
+      body: JSON.stringify({ strategy }),
+    });
+    return handleApiResponse<void>(response);
+  },
 };
 
 export const tagsApi = {

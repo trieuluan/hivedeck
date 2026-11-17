@@ -120,6 +120,7 @@ impl LocalContainerService {
     async fn route_through_9router(
         &self,
         workspace: &Workspace,
+        session_id: Uuid,
         executor_action: &ExecutorAction,
         env: &mut ExecutionEnv,
     ) -> Option<ExecutorAction> {
@@ -181,7 +182,16 @@ impl LocalContainerService {
             role.combo_name(),
             route.model.as_deref().unwrap_or("unchanged")
         );
-        let model = route.model?;
+        let mut model = route.model?;
+        // ADR-036: pin this session to one rotation of the combo, so it
+        // keeps one provider (warm cache) while sessions spread over all.
+        if router.rotate_per_session
+            && nine_router::rotation::ROTATED_ROLES.contains(&role)
+            && router.roles.get(role) == Some(model.as_str())
+        {
+            model = nine_router::rotation::model_for_session(&router, &model, session_id).await;
+            tracing::info!("session {session_id} pinned to {model}");
+        }
         let mut routed = executor_action.clone();
         routed.executor_config_mut()?.model_id = Some(model);
         Some(routed)
@@ -2721,7 +2731,12 @@ impl ContainerService for LocalContainerService {
 
         // ADR-028: route Claude Code through the embedded 9router by role.
         let routed_action = self
-            .route_through_9router(workspace, executor_action, &mut env)
+            .route_through_9router(
+                workspace,
+                execution_process.session_id,
+                executor_action,
+                &mut env,
+            )
             .await;
         let executor_action = routed_action.as_ref().unwrap_or(executor_action);
 

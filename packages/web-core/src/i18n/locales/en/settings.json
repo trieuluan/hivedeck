@@ -816,7 +816,9 @@
           "coder": "Workspace and task runs. Also Claude's \"sonnet\" alias.",
           "reviewer": "Code review runs.",
           "fast": "Claude's background calls (titles, summaries): the \"haiku\" alias."
-        }
+        },
+        "rotate": "Rotate combos per session",
+        "rotateHint": "Each agent session stays on one model of the combo (prompt cache stays warm); new sessions start on different models, so every provider's quota gets used. Off: 9router switches model on every request."
       }
     }
   },

@@ -319,7 +319,12 @@ route_agents: boolean,
 /**
  * Combo used for each agent role.
  */
-roles: RoleCombos, };
+roles: RoleCombos, 
+/**
+ * Spread agent sessions across a combo's models, one provider per
+ * session (keeps prompt caches warm; ADR-036).
+ */
+rotate_per_session: boolean, };
 
 export type RoleCombos = { planner: string | null, coder: string | null, reviewer: string | null, fast: string | null, };
 
@@ -421,6 +426,8 @@ export type ComboStrategyRequest = {
  * `fallback` (keeps prompt caches warm) or `round-robin`.
  */
 strategy: string, };
+
+export type SessionRotationRequest = { enabled: boolean, };
 
 export type VerifyModelsRequest = { models: Array<string>, };
 
