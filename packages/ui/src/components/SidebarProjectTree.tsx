@@ -1,8 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { Tree, type NodeApi, type TreeApi } from 'react-arborist';
-import { SpinnerIcon } from '@phosphor-icons/react';
-import { useTranslation } from 'react-i18next';
-import { cn } from '../lib/cn';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  type ComponentProps,
+} from "react";
+import {
+  Tree,
+  type NodeApi,
+  type NodeRendererProps,
+  type TreeApi,
+} from "react-arborist";
+import { SpinnerIcon } from "@phosphor-icons/react";
+import { useTranslation } from "react-i18next";
+import { cn } from "../lib/cn";
 import {
   makeTasksSectionId,
   makeWorkspacesSectionId,
@@ -11,7 +24,7 @@ import {
   type SidebarProject,
   type SidebarTreeNode,
   type WorkspaceProjectMembership,
-} from './outliner/types';
+} from "./outliner/types";
 import {
   buildSidebarTreeInitialOpenState,
   findTreeNodeById,
@@ -21,12 +34,12 @@ import {
   projectIdFromOpenStateKey,
   readSidebarTreeOpenState,
   writeSidebarTreeOpenState,
-} from './outliner/openState';
-import { buildTreeData } from './outliner/buildTreeData';
-import type { ProjectTasksData } from './outliner/types';
-import { TREE_LAYOUT } from './outliner/layout';
-import { TreeNodeRouter } from './outliner/treeNodes';
-import { useContainerHeight } from './outliner/useContainerHeight';
+} from "./outliner/openState";
+import { buildTreeData } from "./outliner/buildTreeData";
+import type { ProjectTasksData } from "./outliner/types";
+import { TREE_LAYOUT } from "./outliner/layout";
+import { TreeNodeRouter } from "./outliner/treeNodes";
+import { useContainerHeight } from "./outliner/useContainerHeight";
 
 interface SidebarProjectTreeProps {
   projects: readonly SidebarProject[];
@@ -42,7 +55,7 @@ interface SidebarProjectTreeProps {
   onSelectIssue?: (
     projectId: string,
     issueId: string,
-    parentIssueId?: string | null
+    parentIssueId?: string | null,
   ) => void;
   isLoading?: boolean;
   onSelectWorkspace: (id: string) => void;
@@ -81,6 +94,20 @@ interface SidebarProjectTreeProps {
 const EMPTY_TASKS_BY_PROJECT: ReadonlyMap<string, ProjectTasksData> = new Map();
 const EMPTY_LOADING_TASKS_PROJECT_IDS: ReadonlySet<string> = new Set();
 
+type SidebarTreeRowExtras = Omit<
+  ComponentProps<typeof TreeNodeRouter>,
+  keyof NodeRendererProps<SidebarTreeNode>
+>;
+
+const SidebarTreeRowContext = createContext<SidebarTreeRowExtras | null>(null);
+
+/** Stable row renderer for react-arborist (see `rowExtras`). */
+function SidebarTreeRow(props: NodeRendererProps<SidebarTreeNode>) {
+  const extras = useContext(SidebarTreeRowContext);
+  if (!extras) return null;
+  return <TreeNodeRouter {...props} {...extras} />;
+}
+
 export function SidebarProjectTree({
   projects,
   activeProjectId,
@@ -110,7 +137,7 @@ export function SidebarProjectTree({
   width = 256,
   className,
 }: SidebarProjectTreeProps) {
-  const { t } = useTranslation('common');
+  const { t } = useTranslation("common");
 
   // Partition workspaces into per-project buckets + an "unassigned" bucket.
   // A workspace renders under EVERY project it's linked to (M:N); one with
@@ -129,7 +156,7 @@ export function SidebarProjectTree({
     const push = (
       map: Map<string, OutlinerWorkspace[]>,
       key: string,
-      ws: OutlinerWorkspace
+      ws: OutlinerWorkspace,
     ) => {
       const arr = map.get(key);
       if (arr) {
@@ -189,17 +216,17 @@ export function SidebarProjectTree({
       tasksByProject,
       loadingTasksProjectIds,
       t,
-    ]
+    ],
   );
 
   const liveProjectIds = useMemo(
     () =>
       new Set(
         treeData
-          .filter((n): n is ProjectNode => n.type === 'project')
-          .map((n) => n.id)
+          .filter((n): n is ProjectNode => n.type === "project")
+          .map((n) => n.id),
       ),
-    [treeData]
+    [treeData],
   );
 
   // Stable key of the live project set. initialOpenState and the new-project
@@ -208,10 +235,10 @@ export function SidebarProjectTree({
   const projectKey = useMemo(
     () =>
       treeData
-        .filter((node): node is ProjectNode => node.type === 'project')
+        .filter((node): node is ProjectNode => node.type === "project")
         .map((node) => node.id)
-        .join(','),
-    [treeData]
+        .join(","),
+    [treeData],
   );
 
   // ADR-015: every node id reachable in the BUILT tree. Used by the prune
@@ -221,7 +248,7 @@ export function SidebarProjectTree({
   // short-circuit the work when the tree shape didn't change.
   const liveTreeNodeIdsSet = useMemo(
     () => liveTreeNodeIds(treeData),
-    [treeData]
+    [treeData],
   );
 
   // Seed the open-state map from persistence + defaults. Recomputed only when
@@ -232,21 +259,21 @@ export function SidebarProjectTree({
   const initialOpenState = useMemo(
     () => buildSidebarTreeInitialOpenState(treeData),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once per project-set change; treeData grows (lazily-loaded statuses/cards) but the seed never should.
-    [projectKey]
+    [projectKey],
   );
 
   // In-memory mirror of persisted open state. Kept in a ref so toggles don't
   // trigger re-renders — the Tree re-renders itself via its store
   // subscription; we only persist on the side.
   const openStateRef = useRef<Record<string, boolean>>(
-    readSidebarTreeOpenState(liveProjectIds)
+    readSidebarTreeOpenState(liveProjectIds),
   );
   // Snapshot of the PERSISTED open state used as the replay source for
   // lazily-loaded status/card ids (their ids are unknown when initialOpenState
   // was seeded). Frozen at mount, but refreshed when a new project appears
   // mid-session (auto-open effect) so its stored-open values replay too.
   const persistedOpenRef = useRef<Record<string, boolean>>(
-    openStateRef.current
+    openStateRef.current,
   );
   const appliedOpenRef = useRef<Set<string>>(new Set());
   const writeScheduled = useRef(false);
@@ -294,7 +321,7 @@ export function SidebarProjectTree({
     const api = treeRef.current;
     if (!api) return;
 
-    const currentProjectIds = new Set(projectKey ? projectKey.split(',') : []);
+    const currentProjectIds = new Set(projectKey ? projectKey.split(",") : []);
     if (seenProjectIdsRef.current === null) {
       seenProjectIdsRef.current = currentProjectIds;
       return;
@@ -347,7 +374,7 @@ export function SidebarProjectTree({
     const ids = pendingOpenStatusCardIds(
       persistedOpenRef.current,
       appliedOpenRef.current,
-      (id) => findTreeNodeById(treeData, id)
+      (id) => findTreeNodeById(treeData, id),
     );
     for (const id of ids) {
       api.open(id);
@@ -378,7 +405,7 @@ export function SidebarProjectTree({
   useEffect(() => {
     if (projectKey) seenAnyProjectRef.current = true;
     if (!seenAnyProjectRef.current) return;
-    const live = new Set(projectKey ? projectKey.split(',') : []);
+    const live = new Set(projectKey ? projectKey.split(",") : []);
     const entries = Object.entries(openStateRef.current);
     let changed = false;
     const pruned: Record<string, boolean> = {};
@@ -398,7 +425,7 @@ export function SidebarProjectTree({
       // section is OPEN (lazy loader gate) — a status the user expanded in a
       // prior session would otherwise be pruned before its Tasks data loads.
       const isWorkspaceStructuralKey =
-        key.endsWith(':workspaces') || key.includes(':bucket:');
+        key.endsWith(":workspaces") || key.includes(":bucket:");
       if (isWorkspaceStructuralKey && !liveTreeNodeIdsSet.has(key)) {
         changed = true;
         continue;
@@ -413,9 +440,9 @@ export function SidebarProjectTree({
   const handleActivate = useCallback(
     (node: NodeApi<SidebarTreeNode>) => {
       const data = node.data;
-      if (data.type === 'leaf') {
+      if (data.type === "leaf") {
         onSelectWorkspace(data.workspace.id);
-      } else if (data.type === 'card') {
+      } else if (data.type === "card") {
         // A PARENT card (has subissues) toggles open on activation so the
         // user can reveal its children by clicking the row — consistent with
         // project/Tasks/status rows. A LEAF card (no subissues) opens the
@@ -428,13 +455,13 @@ export function SidebarProjectTree({
           onSelectIssue?.(
             data.issue.projectId,
             data.issue.id,
-            data.issue.parentIssueId
+            data.issue.parentIssueId,
           );
         }
       } else if (
-        data.type === 'project' ||
-        (data.type === 'section' && data.kind === 'tasks') ||
-        data.type === 'status'
+        data.type === "project" ||
+        (data.type === "section" && data.kind === "tasks") ||
+        data.type === "status"
       ) {
         // Collapse-by-default (2026-08-07): row activation (click AND
         // keyboard Enter/Space) TOGGLES expand/collapse for projects, Tasks
@@ -444,7 +471,7 @@ export function SidebarProjectTree({
         // activate path never fires for an icon click. Card / leaf /
         // orchestrator-prompt rows keep navigating on activation.
         node.toggle();
-      } else if (data.type === 'orchestrator-prompt') {
+      } else if (data.type === "orchestrator-prompt") {
         // ADR-016: react-arborist's `onActivate` fires for BOTH
         // pointer activation (row click) and keyboard activation
         // (Enter / Space on the focused row). We intentionally rely on
@@ -455,7 +482,7 @@ export function SidebarProjectTree({
         onSelectOrchestratorPrompt?.(data.projectId);
       }
     },
-    [onSelectWorkspace, onSelectIssue, onSelectOrchestratorPrompt]
+    [onSelectWorkspace, onSelectIssue, onSelectOrchestratorPrompt],
   );
 
   const handleToggle = useCallback(
@@ -469,15 +496,57 @@ export function SidebarProjectTree({
       const node = treeRef.current?.get(id);
       if (!node) return;
       const type = node.data.type;
-      if (type !== 'leaf') {
+      if (type !== "leaf") {
         openStateRef.current = { ...openStateRef.current, [id]: node.isOpen };
         scheduleOpenStateWrite();
       }
-      if (type === 'section' && node.data.kind === 'tasks') {
+      if (type === "section" && node.data.kind === "tasks") {
         onTasksExpansionChange?.(node.data.projectId, node.isOpen);
       }
     },
-    [scheduleOpenStateWrite, onTasksExpansionChange]
+    [scheduleOpenStateWrite, onTasksExpansionChange],
+  );
+
+  // Extra row props travel through context so the row renderer handed to
+  // react-arborist stays one stable component. An inline `(props) => …`
+  // there is a new component type on every render, which remounted every
+  // row each time workspace summaries updated (menus closed by themselves,
+  // clicks landed on detached nodes).
+  const rowExtras = useMemo<SidebarTreeRowExtras>(
+    () => ({
+      onCreateChildBoard,
+      onDeleteProject,
+      onManageRepos,
+      onArchiveWorkspace,
+      onDeleteWorkspace,
+      onSelectOrchestratorPrompt,
+      onOpenProjectPage,
+      onOpenWorkspacesPage,
+      onOpenLastWorkspace,
+      activeProjectId,
+      activeProjectPromptId,
+      activeWorkspaceId,
+      activeIssueId,
+      onSelectIssue,
+      isMultiSelectActive,
+    }),
+    [
+      onCreateChildBoard,
+      onDeleteProject,
+      onManageRepos,
+      onArchiveWorkspace,
+      onDeleteWorkspace,
+      onSelectOrchestratorPrompt,
+      onOpenProjectPage,
+      onOpenWorkspacesPage,
+      onOpenLastWorkspace,
+      activeProjectId,
+      activeProjectPromptId,
+      activeWorkspaceId,
+      activeIssueId,
+      onSelectIssue,
+      isMultiSelectActive,
+    ],
   );
 
   const hasAnyContent =
@@ -488,7 +557,7 @@ export function SidebarProjectTree({
   return (
     <section
       aria-labelledby={ariaLabelledBy}
-      className={cn('flex min-h-0 flex-1 flex-col', className)}
+      className={cn("flex min-h-0 flex-1 flex-col", className)}
     >
       {isLoading ? (
         <div className="flex items-center justify-center py-2">
@@ -496,69 +565,52 @@ export function SidebarProjectTree({
         </div>
       ) : !hasAnyContent ? (
         <span className="pl-base text-sm text-low opacity-60">
-          {t('workspaces.noWorkspaces')}
+          {t("workspaces.noWorkspaces")}
         </span>
       ) : (
         <div ref={containerRef} className="min-h-0 flex-1">
           {height > 0 && (
-            <Tree<SidebarTreeNode>
-              ref={treeRef}
-              data={treeData}
-              openByDefault={false}
-              initialOpenState={initialOpenState}
-              width={containerWidth || width}
-              height={height}
-              indent={TREE_LAYOUT.indent}
-              // react-arborist applies `rowClassName` to the DefaultRow
-              // (the `[role=treeitem]` element it focuses on first click).
-              // Kill the focus ring there — the global `*:focus { ring-inset }`
-              // otherwise draws an outline around the just-clicked row on
-              // first activation after mount.
-              rowClassName="outline-none focus:outline-none focus:ring-0"
-              rowHeight={(node) => {
-                if (node.data.type === 'leaf')
-                  return TREE_LAYOUT.rowHeight.leaf;
-                if (node.data.type === 'card')
-                  return TREE_LAYOUT.rowHeight.card;
-                if (node.data.type === 'project')
-                  return TREE_LAYOUT.rowHeight.project;
-                // ADR-016: orchestrator-prompt + section nodes both fall
-                // through to the default row height — no dedicated slot
-                // needed. Collapsing the two paths keeps the call site
-                // honest.
-                return TREE_LAYOUT.rowHeight.default;
-              }}
-              overscanCount={TREE_LAYOUT.overscanCount}
-              padding={TREE_LAYOUT.padding}
-              disableEdit
-              disableMultiSelection
-              disableDrop
-              disableDrag
-              onActivate={handleActivate}
-              onToggle={handleToggle}
-              aria-labelledby={ariaLabelledBy}
-            >
-              {(props) => (
-                <TreeNodeRouter
-                  {...props}
-                  onCreateChildBoard={onCreateChildBoard}
-                  onDeleteProject={onDeleteProject}
-                  onManageRepos={onManageRepos}
-                  onArchiveWorkspace={onArchiveWorkspace}
-                  onDeleteWorkspace={onDeleteWorkspace}
-                  onSelectOrchestratorPrompt={onSelectOrchestratorPrompt}
-                  onOpenProjectPage={onOpenProjectPage}
-                  onOpenWorkspacesPage={onOpenWorkspacesPage}
-                  onOpenLastWorkspace={onOpenLastWorkspace}
-                  activeProjectId={activeProjectId}
-                  activeProjectPromptId={activeProjectPromptId}
-                  activeWorkspaceId={activeWorkspaceId}
-                  activeIssueId={activeIssueId}
-                  onSelectIssue={onSelectIssue}
-                  isMultiSelectActive={isMultiSelectActive}
-                />
-              )}
-            </Tree>
+            <SidebarTreeRowContext.Provider value={rowExtras}>
+              <Tree<SidebarTreeNode>
+                ref={treeRef}
+                data={treeData}
+                openByDefault={false}
+                initialOpenState={initialOpenState}
+                width={containerWidth || width}
+                height={height}
+                indent={TREE_LAYOUT.indent}
+                // react-arborist applies `rowClassName` to the DefaultRow
+                // (the `[role=treeitem]` element it focuses on first click).
+                // Kill the focus ring there — the global `*:focus { ring-inset }`
+                // otherwise draws an outline around the just-clicked row on
+                // first activation after mount.
+                rowClassName="outline-none focus:outline-none focus:ring-0"
+                rowHeight={(node) => {
+                  if (node.data.type === "leaf")
+                    return TREE_LAYOUT.rowHeight.leaf;
+                  if (node.data.type === "card")
+                    return TREE_LAYOUT.rowHeight.card;
+                  if (node.data.type === "project")
+                    return TREE_LAYOUT.rowHeight.project;
+                  // ADR-016: orchestrator-prompt + section nodes both fall
+                  // through to the default row height — no dedicated slot
+                  // needed. Collapsing the two paths keeps the call site
+                  // honest.
+                  return TREE_LAYOUT.rowHeight.default;
+                }}
+                overscanCount={TREE_LAYOUT.overscanCount}
+                padding={TREE_LAYOUT.padding}
+                disableEdit
+                disableMultiSelection
+                disableDrop
+                disableDrag
+                onActivate={handleActivate}
+                onToggle={handleToggle}
+                aria-labelledby={ariaLabelledBy}
+              >
+                {SidebarTreeRow}
+              </Tree>
+            </SidebarTreeRowContext.Provider>
           )}
         </div>
       )}

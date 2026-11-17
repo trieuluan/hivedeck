@@ -55,6 +55,8 @@ import {
   QueueStatus,
   PrCommentsResponse,
   MergeWorkspaceRequest,
+  ShipWorkspaceRequest,
+  ShipWorkspaceResponse,
   CommitWorkspaceRequest,
   CommitWorkspaceResponse,
   PushWorkspaceRequest,
@@ -665,6 +667,23 @@ export const workspacesApi = {
       `/api/workspaces/${workspaceId}/messages/first`
     );
     return handleApiResponse<string | null>(response);
+  },
+
+  /** One-click merge from an In Review card (commit, rebase, merge, push). */
+  ship: async (
+    workspaceId: string,
+    data: ShipWorkspaceRequest
+  ): Promise<Result<ShipWorkspaceResponse, GitOperationError>> => {
+    const response = await makeRequest(
+      `/api/workspaces/${workspaceId}/git/ship`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+    return handleApiResponseAsResult<ShipWorkspaceResponse, GitOperationError>(
+      response
+    );
   },
 
   merge: async (

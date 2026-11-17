@@ -725,5 +725,25 @@
     "withinALayerAreDoneTogether": "trong cùng một lớp được làm cùng lúc. Theo dõi hội thoại và diff trong phiên đang chạy.",
     "wouldYouLikeToApproveThis": "Bạn có muốn duyệt yêu cầu này?",
     "yourMessages": "Tin nhắn của bạn"
+  },
+  "chatErrors": {
+    "details": "Chi tiết",
+    "openRouter": "Mở Router",
+    "modelUnavailable": {
+      "title": "Model \"{{model}}\" không dùng được ở đây",
+      "hint": "Lượt chạy đã tới một provider không biết model này — thường là tên combo của 9router bị gửi thẳng tới ChatGPT/Anthropic. Kiểm tra 9router đang chạy và đã bật định tuyến."
+    },
+    "routerUnreachable": {
+      "title": "Không kết nối được 9router",
+      "hint": "Khởi động 9router ở trang Router rồi gửi lại tin nhắn."
+    },
+    "rateLimited": {
+      "title": "Bị giới hạn tốc độ hoặc hết quota",
+      "hint": "Chờ quota được làm mới, hoặc đưa model khác lên đầu combo của vai trò này."
+    },
+    "authExpired": {
+      "title": "Phiên đăng nhập của agent đã hết hạn",
+      "hint": "Đăng nhập lại trong terminal (claude /login hoặc codex login) rồi gửi lại tin nhắn."
+    }
   }
 }

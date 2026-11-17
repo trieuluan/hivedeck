@@ -725,5 +725,25 @@
     "withinALayerAreDoneTogether": "within a layer are done together. Watch the transcript and diffs in the live session.",
     "wouldYouLikeToApproveThis": "Would you like to approve this?",
     "yourMessages": "Your Messages"
+  },
+  "chatErrors": {
+    "details": "Details",
+    "openRouter": "Open Router",
+    "modelUnavailable": {
+      "title": "Model \"{{model}}\" isn't available here",
+      "hint": "The run reached a provider that doesn't know this model — usually a 9router combo name sent straight to ChatGPT/Anthropic. Check that 9router is running and routing is on."
+    },
+    "routerUnreachable": {
+      "title": "Can't reach 9router",
+      "hint": "Start 9router on the Router page, then send the message again."
+    },
+    "rateLimited": {
+      "title": "Rate limited or out of quota",
+      "hint": "Wait for the quota to reset, or put another model first in this role's combo."
+    },
+    "authExpired": {
+      "title": "The agent's login has expired",
+      "hint": "Log in again in a terminal (claude /login or codex login), then send the message again."
+    }
   }
 }

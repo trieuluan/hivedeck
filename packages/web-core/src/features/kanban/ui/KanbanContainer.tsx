@@ -47,6 +47,7 @@ import {
 } from '@vibe/ui/components/KanbanBoard';
 import { DragDropContext } from '@hello-pangea/dnd';
 import { KanbanCardContent } from '@vibe/ui/components/KanbanCardContent';
+import { ShipIssueButton } from './ShipIssueButton';
 import { KanbanWorkspaceDispatch } from '@vibe/ui/components/KanbanWorkspaceDispatch';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
 import { useQueryClient } from '@tanstack/react-query';
@@ -196,6 +197,7 @@ export function KanbanContainer() {
     getPullRequestsForIssue,
     getWorkspacesForIssue,
     getRelationshipsForIssue,
+    updateIssue,
     issuesById,
     insertIssueTag,
     removeIssueTag,
@@ -709,6 +711,40 @@ export function KanbanContainer() {
 
     return map;
   }, [pullRequests]);
+
+  // Phase 1 cockpit: an In Review card with a live workspace gets a Merge
+  // button that ships the work and moves the card to Done.
+  const reviewStatusId = useMemo(
+    () =>
+      statuses.find((s) => s.name.trim().toLowerCase() === 'in review')?.id ??
+      null,
+    [statuses]
+  );
+  const doneStatusId = useMemo(
+    () =>
+      statuses.find((s) => s.name.trim().toLowerCase() === 'done')?.id ?? null,
+    [statuses]
+  );
+  const renderShipButton = (issue: { id: string; status_id: string }) => {
+    if (!reviewStatusId || !doneStatusId) return null;
+    if (issue.status_id !== reviewStatusId) return null;
+    const live = getWorkspacesForIssue(issue.id).filter(
+      (w) =>
+        !w.archived &&
+        !!w.local_workspace_id &&
+        localWorkspacesById.has(w.local_workspace_id)
+    );
+    const workspace = live[live.length - 1];
+    const localId = workspace?.local_workspace_id;
+    if (!localId) return null;
+    return (
+      <ShipIssueButton
+        workspaceId={localId}
+        onShipped={() => updateIssue(issue.id, { status_id: doneStatusId })}
+        onOpenWorkspace={() => openIssueWorkspace(issue.id, localId)}
+      />
+    );
+  };
 
   const workspacesByIssueId = useMemo(() => {
     if (!showWorkspaces) {
@@ -1322,6 +1358,7 @@ export function KanbanContainer() {
                               onMoreActionsClick={() =>
                                 handleCardMoreActionsClick(issue.id)
                               }
+                              footer={renderShipButton(issue)}
                               tagEditProps={{
                                 allTags: tags,
                                 selectedTagIds: getTagsForIssue(issue.id).map(

@@ -573,5 +573,19 @@
     "errors": {
       "failed": "Không liên kết được PR. Vui lòng thử lại."
     }
+  },
+  "ship": {
+    "button": "Merge",
+    "merging": "Đang merge…",
+    "confirmTitle": "Merge card này?",
+    "confirmMessage": "HiveDeck sẽ commit phần còn sót, rebase lên branch đích nếu cần, merge thay đổi, push branch, lưu trữ workspace và chuyển card sang Done.",
+    "confirm": "Merge & push",
+    "conflictsTitle": "Có conflict — chưa merge gì",
+    "conflictsMessage": "Rebase lên {{branch}} bị conflict ở {{count}} file. Mở workspace để agent xử lý, rồi bấm Merge lại.",
+    "openWorkspace": "Mở workspace",
+    "rebaseInProgress": "Workspace này đang rebase dở. Hãy hoàn tất hoặc huỷ ở đó trước.",
+    "failedTitle": "Merge thất bại",
+    "pushFailedTitle": "Đã merge nhưng push lỗi",
+    "pushFailedMessage": "Thay đổi đã được merge trên máy và card đã sang Done. Hãy tự push khi có thể: {{error}}"
   }
 }

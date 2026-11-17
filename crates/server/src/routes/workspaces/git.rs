@@ -61,6 +61,28 @@ pub struct MergeWorkspaceRequest {
     pub repo_id: Uuid,
 }
 
+/// One-click "Merge" from an In Review card: commit leftovers, rebase if
+/// behind, squash-merge into the target branch, optionally push it, archive
+/// the workspace. Stops before merging on conflicts.
+#[derive(Debug, Deserialize, Serialize, TS)]
+pub struct ShipWorkspaceRequest {
+    /// Push the target branch to its remote after merging.
+    #[serde(default)]
+    pub push: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, TS)]
+pub struct ShipWorkspaceResponse {
+    /// Repos whose changes were merged.
+    pub merged_repos: Vec<String>,
+    /// Repos that had nothing to merge.
+    pub unchanged_repos: Vec<String>,
+    /// Whether the target branches were pushed (when asked to).
+    pub pushed: bool,
+    /// Why pushing failed, if it did. The merge itself stands.
+    pub push_error: Option<String>,
+}
+
 #[derive(Debug, Deserialize, Serialize, TS)]
 pub struct CommitWorkspaceRequest {
     pub repo_id: Uuid,
@@ -151,6 +173,7 @@ pub fn router() -> Router<DeploymentImpl> {
         .route("/status", get(get_workspace_branch_status))
         .route("/diff/ws", get(stream_diff_ws))
         .route("/merge", post(merge_workspace))
+        .route("/ship", post(ship_workspace))
         .route("/commit", post(commit_workspace))
         .route("/push", post(push_workspace_branch))
         .route("/push/force", post(force_push_workspace_branch))
@@ -250,6 +273,115 @@ pub async fn merge_workspace(
     }
 
     Ok(ResponseJson(ApiResponse::success(())))
+}
+
+pub async fn ship_workspace(
+    Extension(workspace): Extension<Workspace>,
+    State(deployment): State<DeploymentImpl>,
+    Json(request): Json<ShipWorkspaceRequest>,
+) -> Result<ResponseJson<ApiResponse<ShipWorkspaceResponse, GitOperationError>>, ApiError> {
+    let pool = &deployment.db().pool;
+    let git = deployment.git();
+    let container_ref = deployment
+        .container()
+        .ensure_container_exists(&workspace)
+        .await?;
+    let workspace_path = Path::new(&container_ref);
+    let workspace_label = workspace.name.as_deref().unwrap_or(&workspace.branch);
+    let vk_id = resolve_hivedeck_identifier(&deployment, workspace.id).await;
+    let commit_message = format!("{} (hivedeck {})", workspace_label, vk_id);
+
+    let mut response = ShipWorkspaceResponse {
+        merged_repos: Vec::new(),
+        unchanged_repos: Vec::new(),
+        pushed: false,
+        push_error: None,
+    };
+    // (worktree, target branch) pairs to push once everything merged.
+    let mut to_push: Vec<(PathBuf, String)> = Vec::new();
+
+    for workspace_repo in WorkspaceRepo::find_by_workspace_id(pool, workspace.id).await? {
+        let repo = Repo::find_by_id(pool, workspace_repo.repo_id)
+            .await?
+            .ok_or(RepoError::NotFound)?;
+        let target = workspace_repo.target_branch.clone();
+        if git.is_remote_branch(&repo.path, &target)? {
+            return Err(ApiError::BadRequest(format!(
+                "{}: the target '{target}' is a remote branch; create a pull request instead.",
+                repo.name
+            )));
+        }
+        let worktree_path = workspace_path.join(&repo.name);
+
+        // Work an agent left uncommitted (headed sessions don't auto-commit).
+        git.commit(&worktree_path, &commit_message)?;
+
+        let (_, behind) = git.get_branch_status(&repo.path, &workspace.branch, &target)?;
+        if behind > 0
+            && let Err(e) = git.rebase_branch(
+                &repo.path,
+                &worktree_path,
+                &target,
+                &target,
+                &workspace.branch,
+            )
+        {
+            return match e {
+                GitServiceError::MergeConflicts {
+                    message,
+                    conflicted_files,
+                } => Ok(ResponseJson(ApiResponse::error_with_data(
+                    GitOperationError::MergeConflicts {
+                        message,
+                        op: ConflictOp::Rebase,
+                        conflicted_files,
+                        target_branch: target,
+                    },
+                ))),
+                GitServiceError::RebaseInProgress => Ok(ResponseJson(
+                    ApiResponse::error_with_data(GitOperationError::RebaseInProgress),
+                )),
+                other => Err(ApiError::GitService(other)),
+            };
+        }
+
+        let (ahead, _) = git.get_branch_status(&repo.path, &workspace.branch, &target)?;
+        if ahead == 0 {
+            response.unchanged_repos.push(repo.name.clone());
+            continue;
+        }
+        let merge_commit_id = git.merge_changes(
+            &repo.path,
+            &worktree_path,
+            &workspace.branch,
+            &target,
+            &commit_message,
+        )?;
+        Merge::create_direct(pool, workspace.id, repo.id, &target, &merge_commit_id).await?;
+        response.merged_repos.push(repo.name.clone());
+        to_push.push((worktree_path, target));
+    }
+
+    if request.push && !to_push.is_empty() {
+        let mut errors = Vec::new();
+        for (worktree_path, target) in &to_push {
+            // Branch refs are shared by all worktrees of a repo, so the task
+            // worktree (clean after the commit above) can push the target.
+            if let Err(e) = git.push_to_remote(worktree_path, target, false) {
+                errors.push(format!("{target}: {e}"));
+            }
+        }
+        response.pushed = errors.is_empty();
+        response.push_error = (!errors.is_empty()).then(|| errors.join("; "));
+    }
+
+    if !workspace.pinned
+        && let Err(e) = deployment.container().archive_workspace(workspace.id).await
+    {
+        tracing::error!("Failed to archive workspace {}: {}", workspace.id, e);
+    }
+
+    Ok(ResponseJson(ApiResponse::success(response)))
 }
 
 /// Commit all currently-uncommitted changes in the selected repo's worktree to

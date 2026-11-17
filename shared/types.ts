@@ -471,6 +471,30 @@ export type AddWorkspaceRepoResponse = { workspace: Workspace, repo: RepoWithTar
 
 export type MergeWorkspaceRequest = { repo_id: string, };
 
+export type ShipWorkspaceRequest = { 
+/**
+ * Push the target branch to its remote after merging.
+ */
+push: boolean, };
+
+export type ShipWorkspaceResponse = { 
+/**
+ * Repos whose changes were merged.
+ */
+merged_repos: Array<string>, 
+/**
+ * Repos that had nothing to merge.
+ */
+unchanged_repos: Array<string>, 
+/**
+ * Whether the target branches were pushed (when asked to).
+ */
+pushed: boolean, 
+/**
+ * Why pushing failed, if it did. The merge itself stands.
+ */
+push_error: string | null, };
+
 export type CommitWorkspaceRequest = { repo_id: string, };
 
 export type CommitWorkspaceResponse = { 

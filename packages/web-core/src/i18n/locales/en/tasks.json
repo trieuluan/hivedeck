@@ -573,5 +573,19 @@
     "errors": {
       "failed": "Failed to link PR. Please try again."
     }
+  },
+  "ship": {
+    "button": "Merge",
+    "merging": "Merging…",
+    "confirmTitle": "Merge this card?",
+    "confirmMessage": "HiveDeck commits anything left over, rebases onto the target branch if needed, merges the changes, pushes the branch, archives the workspace and moves the card to Done.",
+    "confirm": "Merge & push",
+    "conflictsTitle": "Conflicts — nothing was merged",
+    "conflictsMessage": "Rebasing onto {{branch}} hit conflicts in {{count}} file(s). Open the workspace and let the agent resolve them, then press Merge again.",
+    "openWorkspace": "Open workspace",
+    "rebaseInProgress": "A rebase is already in progress in this workspace. Finish or abort it there first.",
+    "failedTitle": "Merge failed",
+    "pushFailedTitle": "Merged, but the push failed",
+    "pushFailedMessage": "The changes are merged locally and the card is Done. Push it yourself when you can: {{error}}"
   }
 }

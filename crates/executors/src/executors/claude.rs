@@ -1102,6 +1102,19 @@ pub struct ClaudeLogProcessor {
 }
 
 impl ClaudeLogProcessor {
+    /// Status values Claude Code emits around each request; not worth a chat row.
+    fn is_transient_status(status: &str) -> bool {
+        matches!(status, "requesting" | "thinking" | "responding")
+    }
+
+    /// System event subtypes that are bookkeeping, not something to show.
+    fn is_silent_system_subtype(subtype: &str) -> bool {
+        matches!(
+            subtype,
+            "thinking_tokens" | "notification" | "hook_started" | "hook_response" | "api_retry"
+        )
+    }
+
     #[cfg(test)]
     fn new() -> Self {
         Self::new_with_strategy(HistoryStrategy::Default)
@@ -1634,7 +1647,11 @@ impl ClaudeLogProcessor {
                         // We'll send system initialized message with first assistant message that has a model field.
                     }
                     Some("status") => {
-                        if let Some(status) = status {
+                        // "requesting" is a transient spinner state emitted
+                        // around every API call; it only clutters the chat.
+                        if let Some(status) =
+                            status.as_ref().filter(|s| !Self::is_transient_status(s))
+                        {
                             patches.push(add_system_message(status.clone(), entry_index_provider));
                         }
                     }
@@ -1751,6 +1768,11 @@ impl ClaudeLogProcessor {
                             patches.push(ConversationPatch::replace(info.entry_index, entry));
                         }
                     }
+                    // Other system events (thinking_tokens, notification, …)
+                    // carry nothing the owner can act on; showing them as
+                    // "System: <subtype>" lines was pure noise. The raw log
+                    // keeps them.
+                    Some(subtype) if Self::is_silent_system_subtype(subtype) => {}
                     Some(subtype) => {
                         let entry = NormalizedEntry {
                             timestamp: None,

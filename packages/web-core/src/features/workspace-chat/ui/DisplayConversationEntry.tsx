@@ -42,6 +42,8 @@ import { ChatAssistantMessage } from '@vibe/ui/components/ChatAssistantMessage';
 import { ChatSystemMessage } from '@vibe/ui/components/ChatSystemMessage';
 import { ChatThinkingMessage } from '@vibe/ui/components/ChatThinkingMessage';
 import { ChatErrorMessage } from '@vibe/ui/components/ChatErrorMessage';
+import { describeAgentError } from '../model/describeAgentError';
+import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { ChatScriptEntry } from '@vibe/ui/components/ChatScriptEntry';
 import { ChatSubagentEntry } from '@vibe/ui/components/ChatSubagentEntry';
 import { ChatAggregatedToolEntries } from '@vibe/ui/components/ChatAggregatedToolEntries';
@@ -1200,9 +1202,52 @@ function ErrorMessageEntry({
     `error:${expansionKey}`,
     false
   );
+  const { t } = useTranslation('common');
+  const appNavigation = useAppNavigation();
+  const described = useMemo(() => describeAgentError(content), [content]);
+
+  // Unknown errors without a provider message stay a plain one-line row.
+  if (described.kind === 'generic' && !described.message) {
+    return (
+      <ChatErrorMessage
+        content={content}
+        expanded={expanded}
+        onToggle={toggle}
+      />
+    );
+  }
+
+  const title =
+    described.kind === 'generic'
+      ? (described.message ?? '')
+      : t(`chatErrors.${described.kind}.title`, {
+          model: described.model ?? '?',
+        });
+  const hint =
+    described.kind === 'generic'
+      ? undefined
+      : t(`chatErrors.${described.kind}.hint`);
 
   return (
-    <ChatErrorMessage content={content} expanded={expanded} onToggle={toggle} />
+    <ChatErrorMessage
+      content={content}
+      expanded={expanded}
+      onToggle={toggle}
+      title={title}
+      hint={hint}
+      detailsLabel={t('chatErrors.details')}
+      actions={
+        described.action === 'router' ? (
+          <button
+            type="button"
+            onClick={() => appNavigation.goToRouter()}
+            className="rounded-sm border border-border px-2 py-0.5 text-xs text-normal hover:bg-secondary"
+          >
+            {t('chatErrors.openRouter')}
+          </button>
+        ) : undefined
+      }
+    />
   );
 }
 
