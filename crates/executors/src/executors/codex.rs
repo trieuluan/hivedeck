@@ -544,17 +544,23 @@ impl Codex {
     /// 9router) return an OpenAI `{ "data": [...] }` list, which fails Codex's
     /// `ModelsResponse { models }` decode and logs
     /// `failed to refresh available models` on every spawn.
+    ///
+    /// The flag goes before `app-server`, with the other root-level `-c`
+    /// overrides (9router routing, the captain's MCP server): `-c` flags
+    /// given to the subcommand replace the root-level ones, so a catalog flag
+    /// after `app-server` silently dropped `model_provider` and sent combo
+    /// names like "planner" to ChatGPT.
     fn build_command_builder(&self) -> Result<CommandBuilder, CommandBuildError> {
         let mut builder = CommandBuilder::new(Self::base_command());
-        builder = builder.extend_params(["app-server"]);
-        if self.oss.unwrap_or(false) {
-            builder = builder.extend_params(["--oss"]);
-        }
         if let Some(catalog_path) = materialize_static_model_catalog() {
             builder = builder.extend_params([
                 "-c".to_string(),
                 format!("model_catalog_json={}", catalog_path.display()),
             ]);
+        }
+        builder = builder.extend_params(["app-server"]);
+        if self.oss.unwrap_or(false) {
+            builder = builder.extend_params(["--oss"]);
         }
 
         apply_overrides(builder, &self.cmd)

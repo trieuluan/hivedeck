@@ -310,6 +310,21 @@ pub async fn is_running(port: u16) -> bool {
     probe(port).await.is_some()
 }
 
+/// `is_running` with retries, for decisions that must not flip on one slow
+/// answer (9router can be busy, e.g. while testing models). Up to three
+/// probes, half a second apart.
+pub async fn is_reachable(port: u16) -> bool {
+    for attempt in 0..3 {
+        if is_running(port).await {
+            return true;
+        }
+        if attempt < 2 {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+    }
+    false
+}
+
 /// `GET /v1/models` — unauthenticated on 9router. `None` when nothing answers.
 async fn probe(port: u16) -> Option<Probe> {
     #[derive(Deserialize)]

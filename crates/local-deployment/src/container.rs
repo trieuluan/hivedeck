@@ -139,12 +139,27 @@ impl LocalContainerService {
         if !router.route_agents {
             return None;
         }
-        if !nine_router::is_running(router.port).await {
+        if !nine_router::is_reachable(router.port).await {
+            // A Codex conversation started on a combo keeps that combo as its
+            // model; resuming it without the router sends e.g. "planner" to
+            // ChatGPT ("model is not supported"). Route it anyway so a real
+            // outage shows up as a connection error to 9router instead.
+            let codex_follow_up = base == BaseCodingAgent::Codex
+                && matches!(
+                    executor_action.typ(),
+                    ExecutorActionType::CodingAgentFollowUpRequest(_)
+                );
+            if !codex_follow_up {
+                tracing::warn!(
+                    "9router routing is on but nothing answers on port {}; running without it",
+                    router.port
+                );
+                return None;
+            }
             tracing::warn!(
-                "9router routing is on but nothing answers on port {}; running without it",
+                "9router does not answer on port {}; routing this Codex follow-up anyway",
                 router.port
             );
-            return None;
         }
         let role = match executor_action.typ() {
             ExecutorActionType::ReviewRequest(_) => ComboRole::Reviewer,
