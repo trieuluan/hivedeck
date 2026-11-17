@@ -132,7 +132,8 @@
     "showLess": "Show less",
     "composer": {
       "placeholder": "Message the captain…",
-      "sendHint": "{{shortcut}} to send · Shift+Enter for a new line"
+      "sendHint": "{{shortcut}} to send · Shift+Enter for a new line",
+      "agentPlaceholder": "Message the agent…"
     },
     "actions": {
       "cancel": "Cancel",

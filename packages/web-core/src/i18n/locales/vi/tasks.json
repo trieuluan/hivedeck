@@ -132,7 +132,8 @@
     "showLess": "Thu gọn",
     "composer": {
       "placeholder": "Nhắn thuyền trưởng…",
-      "sendHint": "{{shortcut}} để gửi · Shift+Enter xuống dòng"
+      "sendHint": "{{shortcut}} để gửi · Shift+Enter xuống dòng",
+      "agentPlaceholder": "Nhắn agent…"
     },
     "actions": {
       "cancel": "Huỷ",

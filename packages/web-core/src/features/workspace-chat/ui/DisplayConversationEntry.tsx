@@ -393,6 +393,8 @@ function DisplayConversationEntry(props: Props) {
       );
 
     case 'thinking':
+      // Some models (via 9router) emit empty thinking blocks; skip them.
+      if (!entry.content.trim()) return null;
       return (
         <ChatThinkingMessage
           content={entry.content}

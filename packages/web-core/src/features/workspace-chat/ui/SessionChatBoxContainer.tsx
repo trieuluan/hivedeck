@@ -69,6 +69,7 @@ import { getInteractiveConfig } from '@/shared/lib/interactive';
 import { RenameSessionDialog } from '@vibe/ui/components/RenameSessionDialog';
 import type { TurnNavigationItem } from '@vibe/ui/components/TurnNavigationPopup';
 import { isAutoTickMessage } from '../model/autoTick';
+import { useWorkspaces } from '@/shared/hooks/useWorkspaces';
 
 /** Compute execution status from boolean flags */
 function computeExecutionStatus(params: {
@@ -211,6 +212,11 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
     if (!workspaceId) return;
     appNavigation.goToWorkspace(workspaceId);
   }, [appNavigation, workspaceId]);
+
+  // The composer speaks to the captain only in a captain workspace.
+  const { workspaces: allWorkspaces } = useWorkspaces();
+  const isCaptain =
+    allWorkspaces.find((ws) => ws.id === workspaceId)?.kind === 'orchestrator';
 
   // Get entries early to extract pending approval for scratch key
   const { entries } = useEntries();
@@ -1043,6 +1049,7 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
   if (mode === 'placeholder') {
     return (
       <SessionChatBox<BaseCodingAgent>
+        isCaptain={isCaptain}
         status="idle"
         renderEditor={renderEditor}
         repoIds={repoIds}
@@ -1090,6 +1097,7 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
 
   return (
     <SessionChatBox<BaseCodingAgent>
+      isCaptain={isCaptain}
       status={effectiveStatus}
       animateRunningOutline={animateRunningOutline}
       disableContentInsert={!!headedLive}
