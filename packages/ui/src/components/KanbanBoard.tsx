@@ -134,7 +134,9 @@ export const KanbanCard = ({
   return (
     <Card
       className={cn(
-        'p-base outline-none flex-col rounded-md border -mt-[1px] -mx-[1px] bg-surface cursor-pointer',
+        'p-base outline-none flex-col rounded-lg border border-border/70 bg-surface cursor-pointer',
+        'transition-[box-shadow,border-color,transform] duration-150 ease-out motion-reduce:transition-none',
+        'hover:border-border hover:shadow-[0_2px_10px_rgba(0,0,0,0.25)] hover:-translate-y-px',
         (isSelected || isOpen) && 'relative z-10',
         isSelected
           ? 'ring-2 ring-accent ring-inset bg-accent/5'
@@ -309,7 +311,10 @@ export const KanbanCards = ({
   return (
     <div
       ref={columnRef}
-      className={cn('flex flex-1 flex-col transition-colors', className)}
+      className={cn(
+        'flex flex-1 flex-col gap-1.5 p-1.5 transition-colors',
+        className
+      )}
       {...dropTargetAttrs}
     >
       {displayChildren}

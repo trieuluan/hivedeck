@@ -379,7 +379,6 @@
       "all": "Tất cả"
     },
     "team": "Nhóm",
-    "personal": "Cá nhân",
     "searchPlaceholder": "Tìm issue...",
     "filters": "Bộ lọc",
     "clearFilters": "Xoá bộ lọc",
@@ -421,7 +420,9 @@
     },
     "currentWorkspace": "đang chạy ở đây",
     "hideBlockedFilterLabel": "Ẩn issue bị chặn",
-    "closeSearch": "Đóng tìm kiếm"
+    "closeSearch": "Đóng tìm kiếm",
+    "expandColumn": "Mở {{name}} ({{count}})",
+    "collapseColumn": "Thu gọn {{name}}"
   },
   "createMode": {
     "headings": {

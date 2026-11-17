@@ -29,7 +29,16 @@ import {
 } from '../model/hooks/useKanbanFilters';
 import { type BulkUpdateIssueItem } from '@/shared/lib/remoteApi';
 import { persistIssues, persistIssueSwap } from '@/shared/lib/persistIssues';
-import { ArrowLeftIcon, PlusIcon, DotsThreeIcon } from '@phosphor-icons/react';
+import {
+  ArrowLeftIcon,
+  CaretLeftIcon,
+  PlusIcon,
+  DotsThreeIcon,
+} from '@phosphor-icons/react';
+import {
+  isDoneStatus,
+  useCollapsedStatuses,
+} from '../model/useCollapsedStatuses';
 import { Actions } from '@/shared/actions';
 import {
   buildKanbanIssueComposerKey,
@@ -214,6 +223,8 @@ export function KanbanContainer() {
 
   // Get project name by finding the project matching current projectId
   const projectName = projects.find((p) => p.id === projectId)?.name ?? '';
+  const { isCollapsed: isColumnCollapsed, setCollapsed: setColumnCollapsed } =
+    useCollapsedStatuses(projectId);
 
   const selectedKanbanIssueId = routeState.issueId;
   // Sub-issue board mode (2026-08-07): when on the sub-board route, the
@@ -1289,15 +1300,59 @@ export function KanbanContainer() {
                 // Empty columns stay narrow so the ones with cards get room.
                 gridTemplateColumns: visibleStatuses
                   .map((status) =>
-                    (items[status.id]?.length ?? 0) > 0
-                      ? 'minmax(240px, 2fr)'
-                      : 'minmax(130px, 1fr)'
+                    isColumnCollapsed(status)
+                      ? '44px'
+                      : (items[status.id]?.length ?? 0) > 0
+                        ? 'minmax(240px, 2fr)'
+                        : 'minmax(130px, 1fr)'
                   )
                   .join(' '),
               }}
             >
               {visibleStatuses.map((status) => {
                 const issueIds = items[status.id] ?? [];
+                const statusIsDone = isDoneStatus(status);
+
+                if (isColumnCollapsed(status)) {
+                  // Folded column: a narrow strip that still accepts drops.
+                  return (
+                    <KanbanBoard key={status.id}>
+                      <button
+                        type="button"
+                        onClick={() => setColumnCollapsed(status.id, false)}
+                        className="sticky top-0 z-20 flex h-full min-h-40 w-full flex-col items-center gap-2 border-y bg-secondary py-base text-low hover:text-normal hover:bg-panel transition-colors"
+                        aria-expanded={false}
+                        aria-label={t('kanban.expandColumn', {
+                          name: status.name,
+                          count: issueIds.length,
+                        })}
+                        title={t('kanban.expandColumn', {
+                          name: status.name,
+                          count: issueIds.length,
+                        })}
+                      >
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full"
+                          style={{ backgroundColor: `hsl(${status.color})` }}
+                        />
+                        <span className="text-sm [writing-mode:vertical-rl]">
+                          {status.name}
+                        </span>
+                        <span className="text-xs tabular-nums">
+                          {issueIds.length}
+                        </span>
+                      </button>
+                      <KanbanCards
+                        id={status.id}
+                        activeProjectId={projectId}
+                        issueIds={[]}
+                        positionalReorderEnabled={false}
+                      >
+                        {null}
+                      </KanbanCards>
+                    </KanbanBoard>
+                  );
+                }
 
                 return (
                   <KanbanBoard key={status.id}>
@@ -1320,6 +1375,24 @@ export function KanbanContainer() {
                             </span>
                           )}
                         </div>
+                        {statusIsDone && (
+                          <button
+                            type="button"
+                            onClick={() => setColumnCollapsed(status.id, true)}
+                            className="absolute right-9 top-1/2 -translate-y-1/2 p-half rounded-sm bg-secondary text-low opacity-0 group-hover/col:opacity-100 focus-visible:opacity-100 hover:text-normal hover:bg-panel transition"
+                            aria-label={t('kanban.collapseColumn', {
+                              name: status.name,
+                            })}
+                            title={t('kanban.collapseColumn', {
+                              name: status.name,
+                            })}
+                          >
+                            <CaretLeftIcon
+                              className="size-icon-xs"
+                              weight="bold"
+                            />
+                          </button>
+                        )}
                         {!parentIssueId && (
                           <button
                             type="button"
@@ -1414,6 +1487,7 @@ export function KanbanContainer() {
                                 handleCardMoreActionsClick(issue.id)
                               }
                               footer={renderShipButton(issue)}
+                              compact={statusIsDone}
                               tagEditProps={{
                                 allTags: tags,
                                 selectedTagIds: getTagsForIssue(issue.id).map(

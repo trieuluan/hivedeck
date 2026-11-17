@@ -379,7 +379,6 @@
       "all": "All"
     },
     "team": "Team",
-    "personal": "Personal",
     "searchPlaceholder": "Search issues...",
     "filters": "Filters",
     "clearFilters": "Clear filters",
@@ -421,7 +420,9 @@
     },
     "currentWorkspace": "running here",
     "hideBlockedFilterLabel": "Hide blocked",
-    "closeSearch": "Close search"
+    "closeSearch": "Close search",
+    "expandColumn": "Show {{name}} ({{count}})",
+    "collapseColumn": "Fold {{name}}"
   },
   "createMode": {
     "headings": {

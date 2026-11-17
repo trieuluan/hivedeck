@@ -150,6 +150,8 @@ export type KanbanCardContentProps<TTag extends KanbanTag = KanbanTag> = {
   /** Extra row at the bottom of the card (e.g. the Merge button on an In
    *  Review card). */
   footer?: ReactNode;
+  /** Title-only card (e.g. in a done column): no description preview. */
+  compact?: boolean;
 };
 
 export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
@@ -172,6 +174,7 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
   tagEditProps,
   isMobile,
   footer,
+  compact = false,
 }: KanbanCardContentProps<TTag>) {
   const { t } = useTranslation('common');
   const previewDescription = useMemo(() => {
@@ -224,11 +227,40 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
               {t('kanban.subIssueIndicator')}
             </span>
           )}
+          {onPriorityClick ? (
+            <button
+              type="button"
+              onClick={onPriorityClick}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="flex shrink-0 items-center cursor-pointer hover:bg-secondary rounded-sm transition-colors"
+            >
+              <PriorityIcon priority={priority} />
+              {!priority && (
+                <CircleDashedIcon
+                  className="size-icon-xs text-low"
+                  weight="bold"
+                />
+              )}
+            </button>
+          ) : (
+            <PriorityIcon priority={priority} />
+          )}
           <span className="font-ibm-plex-mono text-sm text-low truncate">
             {displayId}
           </span>
           {isLoading && <RunningDots />}
         </div>
+        {tagEditProps && tags.length === 0 && !isMobile && (
+          <div className="ml-auto invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity">
+            {tagEditProps.renderTagEditor?.({
+              allTags: tagEditProps.allTags,
+              selectedTagIds: tagEditProps.selectedTagIds,
+              onTagToggle: tagEditProps.onTagToggle,
+              onCreateTag: tagEditProps.onCreateTag,
+              trigger: tagEditorTrigger,
+            }) ?? tagEditorTrigger}
+          </div>
+        )}
         {onMoreActionsClick && (
           <button
             type="button"
@@ -255,47 +287,19 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
       {/* Row 2: Title */}
       <span className="text-base text-normal truncate">{title}</span>
 
-      {/* Row 3: Description (optional, truncated) */}
-      {previewDescription && (
+      {/* Row 3: Description (optional, short; full text in the tooltip) */}
+      {previewDescription && !compact && (
         <p
-          className={cn(
-            'text-sm text-low m-0',
-            isMobile
-              ? 'leading-tight line-clamp-2'
-              : 'leading-relaxed line-clamp-4'
-          )}
+          className="text-sm text-low m-0 leading-snug line-clamp-2"
+          title={previewDescription}
         >
           {previewDescription}
         </p>
       )}
 
-      {/* Row 4: Priority */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-half min-w-0">
-          {onPriorityClick ? (
-            <button
-              type="button"
-              onClick={onPriorityClick}
-              onMouseDown={(e) => e.stopPropagation()}
-              className="flex items-center cursor-pointer hover:bg-secondary rounded-sm transition-colors"
-            >
-              <PriorityIcon priority={priority} />
-              {!priority && (
-                <CircleDashedIcon
-                  className="size-icon-xs text-low"
-                  weight="bold"
-                />
-              )}
-            </button>
-          ) : (
-            <PriorityIcon priority={priority} />
-          )}
-        </div>
-      </div>
-
-      {/* Row 5: Tags, PRs, Relationships (own row to prevent overflow) */}
+      {/* Row 4: Tags, PRs, Relationships. An empty tag editor only shows on
+          hover, so cards without tags stay one row shorter. */}
       {(tags.length > 0 ||
-        tagEditProps ||
         pullRequests.length > 0 ||
         relationships.length > 0) && (
         <div className="flex items-center gap-half flex-wrap min-w-0">
