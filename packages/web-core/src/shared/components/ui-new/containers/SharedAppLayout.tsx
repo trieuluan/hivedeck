@@ -7,6 +7,10 @@ import { useIsMobile } from '@/shared/hooks/useIsMobile';
 import { useUiPreferencesStore } from '@/shared/stores/useUiPreferencesStore';
 import { cn } from '@/shared/lib/utils';
 import { workspacesApi } from '@/shared/lib/api';
+import { useQueries } from '@tanstack/react-query';
+import { useWorkspacesContext } from '@/shared/hooks/useWorkspacesContext';
+import { orchestratorStatusKey } from '@/shared/dialogs/orchestrator/SpawnOrchestratorDialog';
+import type { CaptainState } from '@vibe/ui/components/outliner/types';
 import { setTitleBadge } from '@/shared/hooks/usePageTitle';
 import { isWorkspaceNeedsAttention } from '@vibe/ui/lib/workspaceStatus';
 
@@ -618,6 +622,68 @@ export function SharedAppLayout() {
     [activeWorkspaces]
   );
 
+  const outlinerArchivedWorkspaces = useMemo<OutlinerWorkspace[]>(
+    () =>
+      archivedWorkspaces
+        .filter((ws) => ws.kind !== 'orchestrator')
+        .map(toOutlinerWorkspace),
+    [archivedWorkspaces]
+  );
+
+  // Card → the workspace working on it, so the tree can show the agent's
+  // live state on the card (and not list that workspace twice).
+  const { workspaces: workspaceLinks } = useWorkspacesContext();
+  const workspaceByIssueId = useMemo(() => {
+    const byId = new Map<string, OutlinerWorkspace>();
+    for (const ws of outlinerWorkspaces) byId.set(ws.id, ws);
+    const archivedById = new Map<string, OutlinerWorkspace>();
+    for (const ws of outlinerArchivedWorkspaces) archivedById.set(ws.id, ws);
+    const map = new Map<string, OutlinerWorkspace>();
+    for (const link of workspaceLinks) {
+      if (!link.issue_id || !link.local_workspace_id) continue;
+      const active = byId.get(link.local_workspace_id);
+      const archived = archivedById.get(link.local_workspace_id);
+      // An active workspace wins over an archived one for the same card.
+      if (active) map.set(link.issue_id, active);
+      else if (archived && !map.has(link.issue_id))
+        map.set(link.issue_id, archived);
+    }
+    return map;
+  }, [workspaceLinks, outlinerWorkspaces, outlinerArchivedWorkspaces]);
+
+  // Each project's captain, for its row in the tree.
+  const captainStatuses = useQueries({
+    queries: orderedProjects.map((project) => ({
+      queryKey: orchestratorStatusKey(project.id),
+      queryFn: () => workspacesApi.orchestratorStatus(project.id),
+      refetchInterval: 10_000,
+    })),
+  });
+  const captainByProject = useMemo(() => {
+    const captains = new Map(
+      captainOutlinerWorkspaces.map((ws) => [ws.id, ws] as const)
+    );
+    const map = new Map<string, CaptainState>();
+    orderedProjects.forEach((project, index) => {
+      const status = captainStatuses[index]?.data;
+      if (!status?.workspace_id) return;
+      const ws = captains.get(status.workspace_id);
+      map.set(
+        project.id,
+        ws?.hasPendingApproval
+          ? 'waiting'
+          : ws?.latestProcessStatus === 'failed'
+            ? 'error'
+            : !status.active
+              ? 'stopped'
+              : ws?.isRunning
+                ? 'running'
+                : 'watching'
+      );
+    });
+    return map;
+  }, [orderedProjects, captainStatuses, captainOutlinerWorkspaces]);
+
   // "(3) …" in the browser tab while things wait on you.
   const attentionCount = useMemo(
     () =>
@@ -637,14 +703,6 @@ export function SharedAppLayout() {
       });
     }
   }, []);
-
-  const outlinerArchivedWorkspaces = useMemo<OutlinerWorkspace[]>(
-    () =>
-      archivedWorkspaces
-        .filter((ws) => ws.kind !== 'orchestrator')
-        .map(toOutlinerWorkspace),
-    [archivedWorkspaces]
-  );
 
   // Orchestrator ⚡ icon: open the Spawn / Close orchestrator dialog (the
   // same as the navbar robot), so the captain is started, reopened or reset
@@ -695,6 +753,8 @@ export function SharedAppLayout() {
                       loadingTasksProjectIds={loadingTasksProjectIds}
                       onSelectIssue={handleSelectIssue}
                       workspaces={outlinerWorkspaces}
+                      workspaceByIssueId={workspaceByIssueId}
+                      captainByProject={captainByProject}
                       attentionOnlyWorkspaces={captainOutlinerWorkspaces}
                       onMarkSeen={handleMarkSeen}
                       archivedWorkspaces={outlinerArchivedWorkspaces}
@@ -783,6 +843,8 @@ export function SharedAppLayout() {
                         loadingTasksProjectIds={loadingTasksProjectIds}
                         onSelectIssue={handleSelectIssue}
                         workspaces={outlinerWorkspaces}
+                        workspaceByIssueId={workspaceByIssueId}
+                        captainByProject={captainByProject}
                         attentionOnlyWorkspaces={captainOutlinerWorkspaces}
                         onMarkSeen={handleMarkSeen}
                         archivedWorkspaces={outlinerArchivedWorkspaces}

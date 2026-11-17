@@ -19,7 +19,8 @@ export function WorkspaceActivityText({
   linesRemoved,
   className,
 }: WorkspaceActivityTextProps) {
-  const hasFiles = filesChanged != null;
+  // A bare "0" is noise: show the file count only when non-zero.
+  const hasFiles = filesChanged != null && filesChanged > 0;
   const hasAdded = linesAdded != null && linesAdded > 0;
   const hasRemoved = linesRemoved != null && linesRemoved > 0;
   if (!hasFiles && !hasAdded && !hasRemoved) return null;

@@ -5,7 +5,9 @@ import {
   GitBranchIcon,
   TrashIcon,
   NotePencilIcon,
+  PencilSimpleIcon,
   PlusIcon,
+  LighthouseIcon,
 } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../../lib/cn';
@@ -30,8 +32,10 @@ import { TasksSectionNode } from './TasksSectionNode';
 import { TreeRow } from './TreeRow';
 import { nearestProjectTint } from './treeGeometry';
 import { DIM_ROW, HOVER_ROW, TINT_ROW, tintStyle } from './layout';
+import { StatusDot, captainLiveState } from './statusDot';
 import type {
   BucketNode,
+  CaptainNode,
   CardNode,
   LeafNode,
   OrchestratorPromptNode,
@@ -426,6 +430,55 @@ function OrchestratorPromptTreeNode(
   );
 }
 
+/** The project's captain: live state; click opens its board. */
+function CaptainTreeNode(
+  props: TreeNodeRenderProps<CaptainNode> & {
+    onSelectOrchestratorPrompt?: (projectId: string) => void;
+    dimmed?: boolean;
+  }
+) {
+  const { node, style, dragHandle, onSelectOrchestratorPrompt, dimmed } = props;
+  const { t } = useTranslation('common');
+  const data = node.data;
+  const stateLabel = t(`sidebar.captainState.${data.state}`);
+  return (
+    <TreeRow
+      node={node}
+      style={style}
+      dragHandle={dragHandle}
+      rowClassName={cn(
+        `group/captain rounded-md text-sm text-normal ${HOVER_ROW} hover:text-high`,
+        dimmed && DIM_ROW
+      )}
+    >
+      <div className="flex min-w-0 items-center gap-1.5">
+        <LighthouseIcon
+          className="size-3.5 shrink-0 text-low"
+          weight="fill"
+          aria-hidden
+        />
+        <span className="truncate">{data.label}</span>
+        <span className="truncate text-xs text-low">· {stateLabel}</span>
+        <StatusDot state={captainLiveState(data.state)} className="ml-auto" />
+        {onSelectOrchestratorPrompt && (
+          <button
+            type="button"
+            aria-label={t('sidebar.editCaptainPrompt')}
+            title={t('sidebar.editCaptainPrompt')}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelectOrchestratorPrompt(data.projectId);
+            }}
+            className="shrink-0 rounded-sm p-0.5 text-low opacity-0 hover:bg-tertiary hover:text-high focus-visible:opacity-100 group-hover/captain:opacity-100"
+          >
+            <PencilSimpleIcon className="size-3.5" weight="bold" />
+          </button>
+        )}
+      </div>
+    </TreeRow>
+  );
+}
+
 export function TreeNodeRouter(
   props: NodeRendererProps<SidebarTreeNode> & {
     onCreateChildBoard?: (parentId: string) => void;
@@ -475,7 +528,9 @@ export function TreeNodeRouter(
   // nearest project ancestor's color; nodes outside the active project's
   // subtree are dimmed so the working scope stands out.
   const tint = nearestProjectTint(node, activeProjectId);
-  const tintColor = tint?.color ?? null;
+  // The project's colour marks the project row only; everything under it
+  // uses normal text colours so status colours can carry meaning.
+  const tintColor = node.data.type === 'project' ? (tint?.color ?? null) : null;
   // Dim rows only when a project is actually selected AND this node is
   // outside its subtree. With no active project (workspace/settings
   // routes) nothing is dimmed — the whole tree stays readable.
@@ -516,6 +571,16 @@ export function TreeNodeRouter(
           dragHandle={dragHandle}
           onOpenWorkspacesPage={onOpenWorkspacesPage}
           tintColor={tintColor}
+          dimmed={dimmed}
+        />
+      );
+    case 'captain':
+      return (
+        <CaptainTreeNode
+          node={node as NodeApi<CaptainNode>}
+          style={style}
+          dragHandle={dragHandle}
+          onSelectOrchestratorPrompt={onSelectOrchestratorPrompt}
           dimmed={dimmed}
         />
       );

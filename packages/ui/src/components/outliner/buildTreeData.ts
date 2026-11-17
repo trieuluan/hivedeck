@@ -9,13 +9,14 @@ import {
   makeTasksSectionId,
   makeWorkspacesSectionId,
   type BucketNode,
+  type CaptainNode,
+  type CaptainState,
   type CardNode,
   type LeafNode,
   type OrchestratorPromptNode,
   type OutlinerWorkspace,
   type ProjectNode,
   type ProjectTasksData,
-  type SectionNode,
   type SidebarProject,
   type SidebarTreeNode,
   type StatusNode,
@@ -34,6 +35,14 @@ export interface BuildTreeDataInput {
   tasksByProject: ReadonlyMap<string, ProjectTasksData>;
   /** Projects whose first-open load is still in flight. */
   loadingTasksProjectIds: ReadonlySet<string>;
+  /** issue id → the workspace working on it (live status on the card; such
+   *  workspaces are not listed again under the project's workspaces). */
+  workspaceByIssueId?: ReadonlyMap<string, OutlinerWorkspace>;
+  /** project id → its captain's state (row shown only when present). */
+  captainByProject?: ReadonlyMap<string, CaptainState>;
+  /** Put status groups straight under the project instead of inside a
+   *  "Tasks" section (the sidebar does; the section shape stays available). */
+  flattenTasks?: boolean;
   t: (key: string) => string;
 }
 
@@ -101,30 +110,33 @@ function buildProjectNode(
 ): ProjectNode {
   const isRoot = project.parentId === null;
   const tasks = buildTasksSection(project.id, input, t);
-  // ADR-016: per-project orchestrator prompt leaf. Shown ONLY when the
-  // operator explicitly added a prompt via the `+` menu ("Add
-  // orchestrator prompt") — i.e. `has_orchestrator_prompt` is true. It
-  // is NOT rendered by default for every project/board (the owner
-  // rejected always-visible; the `+` menu is the only entry point for a
-  // project that has no prompt yet). When present, it sits AFTER the
-  // Tasks section and BEFORE child boards so the order is uniform at
-  // every depth (root + boards).
+  // The captain row (state + prompt pencil) replaces the separate prompt
+  // row; projects without a captain keep the prompt row when one is set.
+  const captainState = input.captainByProject?.get(project.id);
+  const captain: CaptainNode | null = captainState
+    ? {
+        id: `${project.id}:captain`,
+        type: 'captain',
+        projectId: project.id,
+        label: t('sidebar.captain', 'Captain'),
+        state: captainState,
+        hasPrompt: Boolean(project.hasOrchestratorPrompt),
+      }
+    : null;
   const orchestratorPrompt: OrchestratorPromptNode | null =
-    project.hasOrchestratorPrompt
+    !captain && project.hasOrchestratorPrompt
       ? {
           id: makeOrchestratorPromptNodeId(project.id),
           type: 'orchestrator-prompt',
           projectId: project.id,
-          // Default arg keeps the row label consistent with every other
-          // sidebar entry — if the key is missing in any locale the row
-          // would otherwise render the raw `sidebar.orchestratorPrompt`
-          // i18n key instead of an English label.
           label: t('sidebar.orchestratorPrompt', 'Orchestrator prompt'),
           hasPrompt: true,
         }
       : null;
-  const children: (SectionNode | ProjectNode | OrchestratorPromptNode)[] = [
-    tasks,
+  // Flattened (sidebar): cards sit right under the project, by status.
+  const children: ProjectNode['children'] = [
+    ...(captain ? [captain] : []),
+    ...(input.flattenTasks ? tasks.children : [tasks]),
     ...(orchestratorPrompt ? [orchestratorPrompt] : []),
   ];
   if (!seen.has(project.id)) {
@@ -156,14 +168,18 @@ function buildProjectNode(
       childrenByParent,
       realProjectIds
     );
+    // Workspaces already shown on their card aren't listed twice.
+    const onCards = new Set(
+      [...(input.workspaceByIssueId?.values() ?? [])].map((ws) => ws.id)
+    );
     const active = dedupeById(
       subtreeIds.flatMap((id) => input.workspacesByProject.get(id) ?? [])
-    );
+    ).filter((ws) => !onCards.has(ws.id));
     const archived = dedupeById(
       subtreeIds.flatMap(
         (id) => input.archivedWorkspacesByProject.get(id) ?? []
       )
-    );
+    ).filter((ws) => !onCards.has(ws.id));
     if (active.length > 0 || archived.length > 0) {
       const workspaces = buildWorkspacesSection(
         project.id,
@@ -280,7 +296,11 @@ function buildTasksSection(
       statusId: status.id,
       name: status.name,
       color: status.color,
-      children: buildCardForest(issuesByStatus.get(status.id) ?? []),
+      isDone: status.is_terminal || isDoneStatusName(status.name),
+      children: buildCardForest(
+        issuesByStatus.get(status.id) ?? [],
+        input.workspaceByIssueId
+      ),
     }));
 
   // Open-task count: total issue cards across NON-done statuses (sub-issues
@@ -358,7 +378,10 @@ function buildWorkspacesSection(
  * The `parent_issue_id` is kept on the node so the card renderer can show
  * sub-issue depth without re-deriving it.
  */
-function buildCardForest(issues: readonly Issue[]): CardNode[] {
+function buildCardForest(
+  issues: readonly Issue[],
+  workspaceByIssueId?: ReadonlyMap<string, OutlinerWorkspace>
+): CardNode[] {
   const byId = new Map(issues.map((i) => [i.id, i]));
   const childrenByParent = new Map<string, Issue[]>();
   const roots: Issue[] = [];
@@ -400,6 +423,9 @@ function buildCardForest(issues: readonly Issue[]): CardNode[] {
       id: makeCardNodeId(issue.project_id, issue.id),
       type: 'card',
       issue: toIssuePayload(issue),
+      ...(workspaceByIssueId?.get(issue.id)
+        ? { workspace: workspaceByIssueId.get(issue.id) }
+        : {}),
       children: (childrenByParent.get(issue.id) ?? [])
         .slice()
         .sort(

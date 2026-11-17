@@ -530,7 +530,7 @@
     "missingProjectId": "No project id in route."
   },
   "sidebar": {
-    "workspacesSection": "Workspaces",
+    "workspacesSection": "Other workspaces",
     "tasksSection": "Tasks",
     "tasksLoading": "Loading tasks…",
     "orchestrator": "Other workspaces",
@@ -555,7 +555,23 @@
     "workspaceActions": "Workspace actions",
     "archiveWorkspace": "Archive",
     "unarchiveWorkspace": "Unarchive",
-    "deleteWorkspace": "Delete workspace…"
+    "deleteWorkspace": "Delete workspace…",
+    "captain": "Captain",
+    "editCaptainPrompt": "Edit captain prompt",
+    "captainState": {
+      "running": "working",
+      "watching": "on watch",
+      "waiting": "needs you",
+      "error": "error",
+      "stopped": "stopped"
+    },
+    "liveState": {
+      "running": "Agent working",
+      "waiting": "Waiting on you",
+      "error": "Agent failed",
+      "done": "Done, not reviewed",
+      "idle": "Idle"
+    }
   },
   "common": {
     "loading": "Loading...",

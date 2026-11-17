@@ -530,7 +530,7 @@
     "missingProjectId": "Route không có project id."
   },
   "sidebar": {
-    "workspacesSection": "Workspace",
+    "workspacesSection": "Workspace lẻ",
     "tasksSection": "Task",
     "tasksLoading": "Đang tải task…",
     "orchestrator": "Workspace khác",
@@ -555,7 +555,23 @@
     "workspaceActions": "Thao tác workspace",
     "archiveWorkspace": "Lưu trữ",
     "unarchiveWorkspace": "Bỏ lưu trữ",
-    "deleteWorkspace": "Xoá workspace…"
+    "deleteWorkspace": "Xoá workspace…",
+    "captain": "Thuyền trưởng",
+    "editCaptainPrompt": "Sửa prompt thuyền trưởng",
+    "captainState": {
+      "running": "đang làm",
+      "watching": "đang trực",
+      "waiting": "chờ bạn",
+      "error": "lỗi",
+      "stopped": "đã dừng"
+    },
+    "liveState": {
+      "running": "Agent đang làm",
+      "waiting": "Đang chờ bạn",
+      "error": "Agent bị lỗi",
+      "done": "Xong, chưa xem",
+      "idle": "Rảnh"
+    }
   },
   "common": {
     "loading": "Đang tải...",

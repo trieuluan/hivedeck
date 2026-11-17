@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '../../lib/cn';
 import { DIM_ROW, HOVER_ROW, TINT_ROW, tintStyle } from './layout';
 import { TreeRow } from './TreeRow';
+import { StatusDot, workspaceLiveState } from './statusDot';
 import { useDraggable } from '../dnd';
 import type { CardNode, TreeNodeRenderProps } from './types';
 
@@ -80,10 +81,18 @@ export function CardNodeRow({
         ...(onPointerDown ? { onPointerDown } : {}),
       }}
     >
-      <div className="flex min-w-0 items-center gap-1">
+      <div className="flex min-w-0 items-center gap-1.5">
         <span className="flex-1 min-w-0 truncate" style={tintStyle(tintColor)}>
           {issue.title}
         </span>
+        {node.data.workspace && (
+          <StatusDot
+            state={workspaceLiveState(node.data.workspace)}
+            label={t(
+              `sidebar.liveState.${workspaceLiveState(node.data.workspace)}`
+            )}
+          />
+        )}
         {hasChildren && onSelectIssue && (
           <button
             aria-label={t('sidebar.openIssuePage', 'Open task')}

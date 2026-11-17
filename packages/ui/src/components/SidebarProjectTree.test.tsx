@@ -7,7 +7,11 @@ import {
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Issue, ProjectStatus } from 'shared/remote-types';
-import type { OutlinerWorkspace, SidebarProject } from './outliner/types';
+import type {
+  CaptainState,
+  OutlinerWorkspace,
+  SidebarProject,
+} from './outliner/types';
 import { SidebarProjectTree } from './SidebarProjectTree';
 
 vi.mock('react-i18next', () => ({
@@ -158,6 +162,8 @@ function renderTree(
     onOpenProjectPage?: (id: string) => void;
     onCreateChildBoard?: (parentId: string) => void;
     onSelectOrchestratorPrompt?: (projectId: string) => void;
+    workspaceByIssueId?: ReadonlyMap<string, OutlinerWorkspace>;
+    captainByProject?: ReadonlyMap<string, CaptainState>;
   } = {}
 ) {
   return render(
@@ -171,6 +177,8 @@ function renderTree(
       onOpenProjectPage={overrides.onOpenProjectPage}
       onCreateChildBoard={overrides.onCreateChildBoard}
       onSelectOrchestratorPrompt={overrides.onSelectOrchestratorPrompt}
+      workspaceByIssueId={overrides.workspaceByIssueId}
+      captainByProject={overrides.captainByProject}
       tasksByProject={
         overrides.tasksByProject ??
         new Map([
@@ -214,7 +222,7 @@ function caretFor(text: string): HTMLButtonElement {
 }
 
 describe('SidebarProjectTree tasks integration', () => {
-  it('renders Tasks above Workspaces within a project', () => {
+  it('renders status groups (no Tasks level) above Workspaces', () => {
     // Collapse-by-default: seed the project open so its sections render.
     seedBlob({ 'project-1': true });
     // ADR-015: roots render a Workspaces section only when the aggregate
@@ -234,7 +242,8 @@ describe('SidebarProjectTree tasks integration', () => {
       membership,
     });
 
-    const tasks = screen.getByText('Tasks');
+    expect(screen.queryByText('Tasks')).toBeNull();
+    const tasks = screen.getByText('Todo');
     const workspaces = screen.getByText('Workspaces');
     expect(
       tasks.compareDocumentPosition(workspaces) &
@@ -243,33 +252,46 @@ describe('SidebarProjectTree tasks integration', () => {
     expect(container.textContent).not.toContain('Must not render in sidebar');
   });
 
-  it('reports Tasks section open and closed state', async () => {
-    seedBlob({ 'project-1': true, 'project-1:tasks': true });
-    const onTasksExpansionChange = vi.fn();
-    renderTree({ onTasksExpansionChange });
+  it("shows the card's agent state and doesn't list its workspace twice", async () => {
+    seedBlob({ 'project-1': true });
+    const ws = {
+      id: 'ws-1',
+      name: 'ws-1',
+      createdAt: '2026-08-03T00:00:00.000Z',
+      isRunning: true,
+    };
+    renderTree({
+      workspaces: [ws],
+      membership: new Map([['ws-1', new Set(['project-1'])]]),
+      workspaceByIssueId: new Map([['issue-1', ws]]),
+    });
+    expect(
+      await screen.findByLabelText('sidebar.liveState.running')
+    ).toBeTruthy();
+    expect(screen.queryByText('Workspaces')).toBeNull();
+  });
 
-    // Tasks is seeded OPEN; the first caret click collapses it.
-    fireEvent.click(caretFor('Tasks'));
+  it('renders the captain row; clicking it opens the project board', async () => {
+    seedBlob({ 'project-1': true });
+    const onOpenProjectPage = vi.fn();
+    renderTree({
+      onOpenProjectPage,
+      captainByProject: new Map([['project-1', 'error' as const]]),
+    });
+    const row = await screen.findByText('sidebar.captain');
+    expect(screen.getByText('· sidebar.captainState.error')).toBeTruthy();
+    fireEvent.click(row);
     await waitFor(() =>
-      expect(onTasksExpansionChange).toHaveBeenLastCalledWith(
-        'project-1',
-        false
-      )
-    );
-
-    fireEvent.click(caretFor('Tasks'));
-    await waitFor(() =>
-      expect(onTasksExpansionChange).toHaveBeenLastCalledWith('project-1', true)
+      expect(onOpenProjectPage).toHaveBeenCalledWith('project-1')
     );
   });
 
   it('parent card row toggles subissues; the ↗ icon opens the task page', async () => {
-    seedBlob({ 'project-1': true, 'project-1:tasks': true });
+    seedBlob({ 'project-1': true });
     const onSelectIssue = vi.fn();
     renderTree({ onSelectIssue });
 
-    // Tasks is seeded open; the status 'Todo' has cards so its caret opens it.
-    fireEvent.click(caretFor('Todo'));
+    // Status groups that aren't done start open.
     const card = await screen.findByText('Fix auth');
 
     // Row click toggles the parent card open (reveals the sub-issue) and does
@@ -287,7 +309,7 @@ describe('SidebarProjectTree tasks integration', () => {
   });
 
   it('a leaf card (no subissues) opens the task page on row click', async () => {
-    seedBlob({ 'project-1': true, 'project-1:tasks': true });
+    seedBlob({ 'project-1': true });
     const onSelectIssue = vi.fn();
     renderTree({
       onSelectIssue,
@@ -300,7 +322,6 @@ describe('SidebarProjectTree tasks integration', () => {
       ]),
     });
 
-    fireEvent.click(caretFor('Todo'));
     fireEvent.click(await screen.findByText('Fix auth'));
 
     await waitFor(() =>
@@ -313,32 +334,32 @@ describe('SidebarProjectTree tasks integration', () => {
     const onOpenProjectPage = vi.fn();
     renderTree({ onOpenProjectPage });
 
-    await waitFor(() => expect(screen.getByText('Tasks')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Todo')).toBeTruthy());
     // Row click toggles the project closed (children vanish).
     fireEvent.click(rowForText('Project One'));
-    await waitFor(() => expect(screen.queryByText('Tasks')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('Todo')).toBeNull());
 
     // Re-open via caret, then the open-page icon navigates without toggling.
     fireEvent.click(caretFor('Project One'));
-    await waitFor(() => expect(screen.getByText('Tasks')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Todo')).toBeTruthy());
     // The project row's icon is the first open-page icon in DOM order
-    // (the Tasks section also renders one).
+    // .
     const icon = screen.getAllByLabelText('sidebar.openProjectPage')[0]!;
     fireEvent.click(icon);
     await waitFor(() =>
       expect(onOpenProjectPage).toHaveBeenCalledWith('project-1')
     );
     // Project stays open (icon did not toggle).
-    expect(screen.getByText('Tasks')).toBeTruthy();
+    expect(screen.getByText('Todo')).toBeTruthy();
   });
 
   it('the caret toggles a project row open (collapse-by-default)', async () => {
     renderTree();
 
     // Default closed: Tasks NOT visible. The caret opens the project.
-    await waitFor(() => expect(screen.queryByText('Tasks')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('Todo')).toBeNull());
     fireEvent.click(caretFor('Project One'));
-    await waitFor(() => expect(screen.getByText('Tasks')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Todo')).toBeTruthy());
   });
 
   it('renders a caret for non-empty statuses and hides empty statuses', async () => {
@@ -477,16 +498,18 @@ describe('SidebarProjectTree open-state persistence', () => {
     // Workspaces/Tasks row appears.
     await waitFor(() => expect(screen.getByText('Project Two')).toBeTruthy());
     expect(screen.getAllByText('Workspaces')).toHaveLength(1);
-    expect(screen.getAllByText('Tasks')).toHaveLength(1);
+    expect(screen.getAllByText('Todo')).toHaveLength(1);
   });
 
   it('prunes persisted keys for projects removed while the app is open', async () => {
-    seedBlob({ 'project-1': true }); // project open so Tasks is reachable
+    seedBlob({ 'project-1': true }); // project open so statuses are reachable
     const { rerender } = renderTree();
 
-    // Tasks defaults closed; open it so a project-scoped key lands in the blob.
-    fireEvent.click(caretFor('Tasks'));
-    await waitFor(() => expect(readBlob()['project-1:tasks']).toBe(true));
+    // Toggle a status so a project-scoped key lands in the blob.
+    fireEvent.click(caretFor('Todo'));
+    await waitFor(() =>
+      expect(readBlob()['project-1:status:todo']).toBe(false)
+    );
 
     // Remove the only project → prune effect drops all its keys.
     rerender(

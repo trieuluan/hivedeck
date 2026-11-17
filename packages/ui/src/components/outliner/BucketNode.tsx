@@ -25,7 +25,7 @@ export function OutlinerBucketNode({
       dragHandle={dragHandle}
       onRowClick={() => node.toggle()}
       rowClassName={cn(
-        `text-xs font-medium uppercase tracking-wide text-low ${TINT_ROW} ${HOVER_ROW}`,
+        `text-xs font-medium text-low ${TINT_ROW} ${HOVER_ROW}`,
         dimmed && DIM_ROW
       )}
     >

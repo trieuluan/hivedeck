@@ -103,7 +103,34 @@ export interface ProjectNode {
   color: string;
   parentId: string | null;
   sortOrder: number;
-  children: (SectionNode | ProjectNode | OrchestratorPromptNode)[];
+  children: (
+    | SectionNode
+    | ProjectNode
+    | OrchestratorPromptNode
+    | CaptainNode
+    | StatusNode
+  )[];
+}
+
+/** What a project's captain is doing, as the sidebar shows it. */
+export type CaptainState =
+  | 'running'
+  | 'watching'
+  | 'waiting'
+  | 'error'
+  | 'stopped';
+
+/**
+ * The project's captain: one row with its live state. Clicking opens the
+ * project board (where the captain lives); a pencil opens its prompt.
+ */
+export interface CaptainNode {
+  id: `${string}:captain`;
+  type: 'captain';
+  projectId: string;
+  label: string;
+  state: CaptainState;
+  hasPrompt: boolean;
 }
 
 /**
@@ -171,6 +198,8 @@ export interface StatusNode {
   statusId: string;
   name: string;
   color: string; // hsl triple string from ProjectStatus.color
+  /** Done-like column (terminal or named Done/Closed…): starts collapsed. */
+  isDone?: boolean;
   children: CardNode[];
 }
 
@@ -189,11 +218,14 @@ export interface CardNode {
     projectId: string;
     parentIssueId: string | null;
   };
+  /** The agent workspace working on this card, for its live status dot. */
+  workspace?: OutlinerWorkspace;
   children: CardNode[];
 }
 
 export type SidebarTreeNode =
   | ProjectNode
+  | CaptainNode
   | SectionNode
   | OrchestratorPromptNode
   | BucketNode

@@ -1,8 +1,4 @@
-import {
-  ArchiveIcon,
-  DotsThreeIcon,
-  TrashIcon,
-} from '@phosphor-icons/react';
+import { ArchiveIcon, DotsThreeIcon, TrashIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../../lib/cn';
 import {
@@ -48,7 +44,11 @@ export function OutlinerLeafNode({
   const ws = node.data.workspace;
   const hasMenu = Boolean(onArchiveWorkspace || onDeleteWorkspace);
   const isActive = ws.id === activeWorkspaceId;
-  const elapsed = formatRelativeElapsed(ws.latestProcessCompletedAt);
+  const { i18n } = useTranslation();
+  const elapsed = formatRelativeElapsed(
+    ws.latestProcessCompletedAt,
+    i18n?.resolvedLanguage ?? i18n?.language
+  );
 
   return (
     <TreeRow
@@ -65,63 +65,65 @@ export function OutlinerLeafNode({
       )}
     >
       <div className="flex w-full min-w-0 items-center gap-1 [contain:inline-size]">
-      <div className="flex min-w-0 flex-1 flex-col justify-center gap-0">
-        <span
-          className="flex min-w-0 items-baseline gap-1.5"
-          style={tintStyle(tintColor)}
-        >
-          <span className="truncate">{ws.name}</span>
-          {elapsed && (
-            <span className="shrink-0 text-xs text-low">{elapsed}</span>
-          )}
-        </span>
-        <WorkspaceActivityText
-          filesChanged={ws.filesChanged}
-          linesAdded={ws.linesAdded}
-          linesRemoved={ws.linesRemoved}
-        />
-      </div>
-      {hasMenu && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              aria-label={t('sidebar.workspaceActions', 'Workspace actions')}
-              onClick={(e) => e.stopPropagation()}
-              onPointerDown={(e) => e.stopPropagation()}
-              className={cn(
-                'shrink-0 rounded-sm p-0.5 text-low hover:bg-tertiary hover:text-high',
-                'opacity-0 focus:opacity-100 focus:outline-none group-hover/leaf:opacity-100 data-[state=open]:opacity-100'
-              )}
-            >
-              <DotsThreeIcon className="size-4" weight="bold" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            onClick={(e) => e.stopPropagation()}
+        <div className="flex min-w-0 flex-1 flex-col justify-center gap-0">
+          <span
+            className="flex min-w-0 items-baseline gap-1.5"
+            style={tintStyle(tintColor)}
           >
-            {onArchiveWorkspace && (
-              <DropdownMenuItem
-                onSelect={() => onArchiveWorkspace(ws.id)}
-              >
-                <ArchiveIcon className="size-4" weight="regular" aria-hidden />
-                {ws.isArchived
-                  ? t('sidebar.unarchiveWorkspace', 'Unarchive')
-                  : t('sidebar.archiveWorkspace', 'Archive')}
-              </DropdownMenuItem>
+            <span className="truncate">{ws.name}</span>
+            {elapsed && (
+              <span className="shrink-0 text-xs text-low">{elapsed}</span>
             )}
-            {onDeleteWorkspace && (
-              <DropdownMenuItem
-                className="text-error"
-                onSelect={() => onDeleteWorkspace(ws.id)}
+          </span>
+          <WorkspaceActivityText
+            filesChanged={ws.filesChanged}
+            linesAdded={ws.linesAdded}
+            linesRemoved={ws.linesRemoved}
+          />
+        </div>
+        {hasMenu && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                aria-label={t('sidebar.workspaceActions', 'Workspace actions')}
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                className={cn(
+                  'shrink-0 rounded-sm p-0.5 text-low hover:bg-tertiary hover:text-high',
+                  'opacity-0 focus:opacity-100 focus:outline-none group-hover/leaf:opacity-100 data-[state=open]:opacity-100'
+                )}
               >
-                <TrashIcon className="size-4" weight="regular" aria-hidden />
-                {t('sidebar.deleteWorkspace', 'Delete workspace…')}
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
+                <DotsThreeIcon className="size-4" weight="bold" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {onArchiveWorkspace && (
+                <DropdownMenuItem onSelect={() => onArchiveWorkspace(ws.id)}>
+                  <ArchiveIcon
+                    className="size-4"
+                    weight="regular"
+                    aria-hidden
+                  />
+                  {ws.isArchived
+                    ? t('sidebar.unarchiveWorkspace', 'Unarchive')
+                    : t('sidebar.archiveWorkspace', 'Archive')}
+                </DropdownMenuItem>
+              )}
+              {onDeleteWorkspace && (
+                <DropdownMenuItem
+                  className="text-error"
+                  onSelect={() => onDeleteWorkspace(ws.id)}
+                >
+                  <TrashIcon className="size-4" weight="regular" aria-hidden />
+                  {t('sidebar.deleteWorkspace', 'Delete workspace…')}
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     </TreeRow>
   );

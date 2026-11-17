@@ -42,22 +42,22 @@ export function StatusNodeRow({
         style={style}
         showCaret={status.children.length > 0}
         rowClassName={cn(
-          `text-xs font-medium uppercase tracking-wide text-low ${TINT_ROW} ${HOVER_ROW}`,
+          `text-xs font-medium text-low ${TINT_ROW} ${HOVER_ROW}`,
           dimmed && DIM_ROW,
           isDragActive && !isCandidate && 'rounded-sm bg-tertiary/40',
           isDragActive && isCandidate && 'rounded-sm bg-brand/20'
         )}
       >
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
+          <span
+            aria-hidden="true"
+            className="size-1.5 shrink-0 rounded-full"
+            style={{ backgroundColor: `hsl(${status.color})` }}
+          />
           <span className="truncate" style={tintStyle(tintColor)}>
             {status.name}
           </span>
-          <span
-            aria-hidden="true"
-            className="size-2 shrink-0 rounded-full"
-            style={{ backgroundColor: `hsl(${status.color})` }}
-          />
-          <span className="ml-auto text-2xs font-normal normal-case text-low opacity-70">
+          <span className="ml-auto text-2xs font-normal text-low opacity-70">
             {status.children.length}
           </span>
         </div>

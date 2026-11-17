@@ -1,3 +1,4 @@
+import type { ProjectNode } from './types';
 import { describe, expect, it } from 'vitest';
 import type { Issue, ProjectStatus } from 'shared/remote-types';
 import type { CardNode, SidebarProject } from './types';
@@ -1090,5 +1091,72 @@ describe('buildTreeData ADR-015 root-only Workspaces', () => {
       (c) => c.type === 'section' && c.kind === 'tasks'
     );
     expect(taskSection).toBeUndefined();
+  });
+});
+
+describe('buildTreeData (sidebar, flattened)', () => {
+  const ws = {
+    id: 'w1',
+    name: 'w1',
+    createdAt: '2026-08-01T00:00:00.000Z',
+    isRunning: true,
+  } as OutlinerWorkspace;
+  const loose = {
+    id: 'w2',
+    name: 'w2',
+    createdAt: '2026-08-01T00:00:00.000Z',
+  } as OutlinerWorkspace;
+
+  function flatInput() {
+    return baseInput({
+      flattenTasks: true,
+      tasksByProject: new Map([
+        [
+          'p1',
+          {
+            statuses: [
+              status('s1', { name: 'In Progress', sort_order: 0 }),
+              status('s2', { name: 'Done', sort_order: 1, is_terminal: true }),
+            ],
+            issues: [
+              issue({ id: 'i1', status_id: 's1' }),
+              issue({ id: 'i2', status_id: 's2' }),
+            ],
+          },
+        ],
+      ]),
+      workspacesByProject: new Map([['p1', [ws, loose]]]),
+      workspaceByIssueId: new Map([['i1', ws]]),
+      captainByProject: new Map([['p1', 'watching' as const]]),
+    });
+  }
+
+  it('puts the captain, then status groups, right under the project', () => {
+    const p1 = buildTreeData(flatInput())[0] as ProjectNode;
+    const types = p1.children.map((c) => c.type);
+    expect(types).toEqual(['captain', 'status', 'status', 'section']);
+  });
+
+  it('marks done-like groups and attaches the working workspace to its card', () => {
+    const p1 = buildTreeData(flatInput())[0] as ProjectNode;
+    const statuses = p1.children.filter((c) => c.type === 'status');
+    expect(statuses.map((s) => s.type === 'status' && s.isDone)).toEqual([
+      false,
+      true,
+    ]);
+    const first = statuses[0];
+    expect(first?.type === 'status' && first.children[0]?.workspace?.id).toBe(
+      'w1'
+    );
+  });
+
+  it("lists only workspaces that aren't on a card", () => {
+    const p1 = buildTreeData(flatInput())[0] as ProjectNode;
+    const section = p1.children.find((c) => c.type === 'section');
+    const leafIds =
+      section?.type === 'section' && section.kind === 'workspaces'
+        ? section.children.flatMap((b) => b.children.map((l) => l.id))
+        : [];
+    expect(leafIds).toEqual(['w2']);
   });
 });

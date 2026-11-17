@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { useTranslation } from "react-i18next";
+import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import {
   attentionReason,
@@ -9,16 +9,16 @@ import {
   isWorkspaceNeedsAttention,
   isWorkspaceRunning,
   type AttentionReason,
-} from "../lib/workspaceStatus";
+} from '../lib/workspaceStatus';
 import {
   BAR_BUCKETS,
   BAR_BUCKET_ORDER,
   type BarBucketId,
   type BarBucketMeta,
-} from "../lib/buckets";
-import { cn } from "../lib/cn";
-import { SidebarBar } from "./SidebarBar";
-import { SidebarBarButton } from "./SidebarBarButton";
+} from '../lib/buckets';
+import { cn } from '../lib/cn';
+import { SidebarBar } from './SidebarBar';
+import { SidebarBarButton } from './SidebarBarButton';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,10 +26,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "./DropdownMenu";
-import { WorkspaceActivityText } from "./WorkspaceActivityText";
-import { formatRelativeElapsed } from "./outliner/format";
-import type { OutlinerWorkspace } from "./outliner/types";
+} from './DropdownMenu';
+import { WorkspaceActivityText } from './WorkspaceActivityText';
+import { formatRelativeElapsed } from './outliner/format';
+import type { OutlinerWorkspace } from './outliner/types';
 
 interface SidebarBucketBarProps {
   /** All active (non-archived) workspaces. */
@@ -68,7 +68,7 @@ export function SidebarBucketBar({
   onMarkSeen,
   className,
 }: SidebarBucketBarProps) {
-  const { t } = useTranslation("common");
+  const { t } = useTranslation('common');
 
   const buckets = useMemo(() => {
     const byBucket: Record<BarBucketId, OutlinerWorkspace[]> = {
@@ -95,11 +95,11 @@ export function SidebarBucketBar({
 
   return (
     <SidebarBar
-      aria-label={t("workspaces.bucketBarLabel")}
+      aria-label={t('workspaces.bucketBarLabel')}
       className={className}
     >
       {BAR_BUCKET_ORDER.map((id) =>
-        id === "attention" ? (
+        id === 'attention' ? (
           <AttentionInboxButton
             key={id}
             meta={BAR_BUCKETS[id]}
@@ -115,9 +115,9 @@ export function SidebarBucketBar({
             items={buckets[id]}
             activeWorkspaceId={activeWorkspaceId}
             onSelectWorkspace={onSelectWorkspace}
-            emptyLabel={t("workspaces.bucketEmpty")}
+            emptyLabel={t('workspaces.bucketEmpty')}
           />
-        ),
+        )
       )}
     </SidebarBar>
   );
@@ -138,7 +138,7 @@ function BucketButton({
   onSelectWorkspace,
   emptyLabel,
 }: BucketButtonProps) {
-  const { t } = useTranslation("common");
+  const { t } = useTranslation('common');
   const count = items.length;
   const label = t(meta.labelKey);
   const showBadge = !meta.hideBadge && count > 0;
@@ -187,17 +187,21 @@ function WorkspaceBucketMenuItem({
   active: boolean;
   onSelectWorkspace: (id: string) => void;
 }) {
-  const elapsed = formatRelativeElapsed(workspace.latestProcessCompletedAt);
+  const { i18n } = useTranslation();
+  const elapsed = formatRelativeElapsed(
+    workspace.latestProcessCompletedAt,
+    i18n?.resolvedLanguage ?? i18n?.language
+  );
   return (
     <DropdownMenuItem
       // Radix closes the menu after onSelect fires by default — gives us
       // close-on-navigate for free.
       onSelect={() => onSelectWorkspace(workspace.id)}
-      aria-current={active ? "page" : undefined}
+      aria-current={active ? 'page' : undefined}
       className="flex flex-col items-stretch gap-0.5 py-1.5"
     >
       <span className="flex min-w-0 items-baseline gap-1.5">
-        <span className={cn("truncate", active && "font-semibold text-high")}>
+        <span className={cn('truncate', active && 'font-semibold text-high')}>
           {workspace.name}
         </span>
         {elapsed && (
@@ -214,9 +218,9 @@ function WorkspaceBucketMenuItem({
 }
 
 const REASON_STYLE: Record<AttentionReason, string> = {
-  approval: "bg-warning/15 text-warning",
-  failed: "bg-error/15 text-error",
-  finished: "bg-success/15 text-success",
+  approval: 'bg-warning/15 text-warning',
+  failed: 'bg-error/15 text-error',
+  finished: 'bg-success/15 text-success',
 };
 
 /**
@@ -236,12 +240,12 @@ function AttentionInboxButton({
   onSelectWorkspace: (id: string) => void;
   onMarkSeen?: (ids: string[]) => void;
 }) {
-  const { t } = useTranslation("common");
+  const { t } = useTranslation('common');
   const count = items.length;
   const label = t(meta.labelKey);
   // Approvals clear only by answering them; the rest can be dismissed.
   const dismissable = items
-    .filter((ws) => attentionReason(ws) !== "approval")
+    .filter((ws) => attentionReason(ws) !== 'approval')
     .map((ws) => ws.id);
 
   return (
@@ -261,10 +265,10 @@ function AttentionInboxButton({
         align="start"
         className="w-[320px] max-w-[calc(100vw-16px)]"
       >
-        <DropdownMenuLabel>{t("attentionInbox.title")}</DropdownMenuLabel>
+        <DropdownMenuLabel>{t('attentionInbox.title')}</DropdownMenuLabel>
         {count === 0 ? (
           <p className="px-2 pb-2 pt-0.5 text-xs text-low">
-            {t("attentionInbox.empty")}
+            {t('attentionInbox.empty')}
           </p>
         ) : (
           items.map((ws) => (
@@ -283,7 +287,7 @@ function AttentionInboxButton({
               onSelect={() => onMarkSeen(dismissable)}
               className="text-xs text-low"
             >
-              {t("attentionInbox.markAllSeen", { count: dismissable.length })}
+              {t('attentionInbox.markAllSeen', { count: dismissable.length })}
             </DropdownMenuItem>
           </>
         )}
@@ -301,32 +305,36 @@ function AttentionInboxItem({
   active: boolean;
   onSelectWorkspace: (id: string) => void;
 }) {
-  const { t } = useTranslation("common");
-  const reason = attentionReason(workspace) ?? "finished";
-  const elapsed = formatRelativeElapsed(workspace.latestProcessCompletedAt);
+  const { t } = useTranslation('common');
+  const reason = attentionReason(workspace) ?? 'finished';
+  const { i18n } = useTranslation();
+  const elapsed = formatRelativeElapsed(
+    workspace.latestProcessCompletedAt,
+    i18n?.resolvedLanguage ?? i18n?.language
+  );
   const name =
-    workspace.kind === "orchestrator"
-      ? t("attentionInbox.captain", { name: workspace.name })
+    workspace.kind === 'orchestrator'
+      ? t('attentionInbox.captain', { name: workspace.name })
       : workspace.name;
   return (
     <DropdownMenuItem
       onSelect={() => onSelectWorkspace(workspace.id)}
-      aria-current={active ? "page" : undefined}
+      aria-current={active ? 'page' : undefined}
       className="flex flex-col items-stretch gap-1 py-2"
     >
       <span className="flex min-w-0 items-center gap-1.5">
         <span
           className={cn(
-            "shrink-0 rounded-sm px-1.5 py-px text-2xs font-medium",
-            REASON_STYLE[reason],
+            'shrink-0 rounded-sm px-1.5 py-px text-2xs font-medium',
+            REASON_STYLE[reason]
           )}
         >
           {t(`attentionInbox.reason.${reason}`)}
         </span>
         <span
           className={cn(
-            "min-w-0 flex-1 truncate",
-            active && "font-semibold text-high",
+            'min-w-0 flex-1 truncate',
+            active && 'font-semibold text-high'
           )}
         >
           {name}
