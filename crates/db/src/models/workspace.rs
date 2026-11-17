@@ -475,6 +475,68 @@ impl Workspace {
         .await
     }
 
+    /// ADR-032: the captain workspace of a project (`Some(project_id)`) or the
+    /// global captain (`None`), non-archived, newest first. Runtime-checked
+    /// query: `captain_project_id` is outside the offline sqlx cache.
+    pub async fn find_captain(
+        pool: &SqlitePool,
+        project_id: Option<Uuid>,
+    ) -> Result<Option<Self>, sqlx::Error> {
+        let id: Option<Uuid> = match project_id {
+            Some(project_id) => {
+                sqlx::query_scalar(
+                    "SELECT id FROM workspaces
+                     WHERE kind = 'orchestrator' AND archived = FALSE
+                       AND captain_project_id = ?
+                     ORDER BY created_at DESC LIMIT 1",
+                )
+                .bind(project_id)
+                .fetch_optional(pool)
+                .await?
+            }
+            None => {
+                sqlx::query_scalar(
+                    "SELECT id FROM workspaces
+                     WHERE kind = 'orchestrator' AND archived = FALSE
+                       AND captain_project_id IS NULL
+                     ORDER BY created_at DESC LIMIT 1",
+                )
+                .fetch_optional(pool)
+                .await?
+            }
+        };
+        match id {
+            Some(id) => Self::find_by_id(pool, id).await,
+            None => Ok(None),
+        }
+    }
+
+    /// The project a captain workspace belongs to (`None` for the global one).
+    pub async fn captain_project_id(
+        pool: &SqlitePool,
+        workspace_id: Uuid,
+    ) -> Result<Option<Uuid>, sqlx::Error> {
+        let row: Option<Option<Uuid>> =
+            sqlx::query_scalar("SELECT captain_project_id FROM workspaces WHERE id = ?")
+                .bind(workspace_id)
+                .fetch_optional(pool)
+                .await?;
+        Ok(row.flatten())
+    }
+
+    pub async fn set_captain_project_id(
+        pool: &SqlitePool,
+        workspace_id: Uuid,
+        project_id: Uuid,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query("UPDATE workspaces SET captain_project_id = ? WHERE id = ?")
+            .bind(project_id)
+            .bind(workspace_id)
+            .execute(pool)
+            .await?;
+        Ok(())
+    }
+
     /// Find the singleton recurrent-routine workspace for a given routine id
     /// (non-archived), if any. Mirrors `find_orchestrator`, scoped by `name`
     /// since there is one persistent workspace per routine. Newest first as a

@@ -8,7 +8,11 @@
     "namePlaceholder": "Nhập tên project",
     "selectColor": "Chọn màu project",
     "creating": "Đang tạo...",
-    "createButton": "Tạo project"
+    "createButton": "Tạo project",
+    "repoLabel": "Repo",
+    "repoLater": "Chọn sau",
+    "repoHelper": "Thuyền trưởng và các card của project làm việc trong repo này. Có thể đổi sau ở menu project → Repo…",
+    "repoNone": "Chưa có repo nào — thêm trong Settings → Repo, rồi liên kết từ menu project."
   },
   "deleteProjectDialog": {
     "title": "Xoá project?",

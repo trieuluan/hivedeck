@@ -547,7 +547,9 @@
         "label": "Codex",
         "description": "Chạy nền; HiveDeck gửi cho nó một lượt mỗi 5 phút."
       }
-    }
+    },
+    "titleProject": "Thuyền trưởng · {{name}}",
+    "codexModelNote": "Codex gọi tool của HiveDeck theo định dạng riêng của OpenAI: hãy để model OpenAI (cx/…) đứng đầu combo planner, hoặc chọn Claude Code. Model khác chỉ lập kế hoạch được chứ không thao tác được board."
   },
   "linkPrToIssue": {
     "title": "Liên kết pull request",
@@ -587,5 +589,20 @@
     "failedTitle": "Merge thất bại",
     "pushFailedTitle": "Đã merge nhưng push lỗi",
     "pushFailedMessage": "Thay đổi đã được merge trên máy và card đã sang Done. Hãy tự push khi có thể: {{error}}"
+  },
+  "captain": {
+    "title": "Thuyền trưởng",
+    "show": "Hiện thuyền trưởng",
+    "hide": "Ẩn thuyền trưởng",
+    "running": "Đang chạy",
+    "runningOn": "Đang chạy trên {{agent}}",
+    "stopped": "Đã dừng",
+    "none": "Chưa khởi động",
+    "manage": "Quản lý",
+    "start": "Khởi động",
+    "noRepo": "Chưa liên kết repo — thuyền trưởng lập kế hoạch được nhưng chưa giao việc được.",
+    "linkRepo": "Liên kết repo",
+    "emptyTitle": "Project này chưa có thuyền trưởng",
+    "emptyBody": "Khởi động rồi chỉ cần chat: thuyền trưởng biến mục tiêu của bạn thành card, giao cho agent, theo dõi và chuyển card xong sang In Review. Bạn bấm Merge."
   }
 }

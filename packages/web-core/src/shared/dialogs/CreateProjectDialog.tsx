@@ -11,6 +11,15 @@ import {
   DialogTitle,
 } from '@vibe/ui/components/KeyboardDialog';
 import { Alert, AlertDescription } from '@vibe/ui/components/Alert';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@vibe/ui/components/Select';
+import { useQuery } from '@tanstack/react-query';
+import { projectsApi, repoApi } from '@/shared/lib/api';
 import { create, useModal } from '@ebay/nice-modal-react';
 import { useTranslation } from 'react-i18next';
 import { defineModal } from '@/shared/lib/modals';
@@ -42,6 +51,15 @@ const CreateProjectDialogImpl = create<CreateProjectDialogProps>(
     const [color, setColor] = useState<string>(() => getRandomPresetColor());
     const [error, setError] = useState<string | null>(null);
     const [isCreating, setIsCreating] = useState(false);
+    // ADR-032: a top-level project works in one repo; its captain dispatches
+    // there. Child boards inherit the parent's.
+    const NO_REPO = '__later__';
+    const [repoId, setRepoId] = useState<string>(NO_REPO);
+    const { data: repos = [] } = useQuery({
+      queryKey: ['repos', 'list'],
+      queryFn: () => repoApi.list(),
+      enabled: modal.visible && !parentId,
+    });
 
     // ADR-018 — projects are tenant-less; subscribe PROJECTS_SHAPE with
     // empty params (single global cache key).
@@ -58,6 +76,7 @@ const CreateProjectDialogImpl = create<CreateProjectDialogProps>(
         setColor(getRandomPresetColor());
         setError(null);
         setIsCreating(false);
+        setRepoId(NO_REPO);
       }
     }, [modal.visible]);
 
@@ -96,6 +115,10 @@ const CreateProjectDialogImpl = create<CreateProjectDialogProps>(
         });
 
         const persistedProject = await persisted;
+        const createdId = (persistedProject ?? project)?.id;
+        if (!parentId && repoId !== NO_REPO && createdId) {
+          await projectsApi.linkRepo(createdId, repoId);
+        }
 
         modal.resolve({
           action: 'created',
@@ -193,6 +216,38 @@ const CreateProjectDialogImpl = create<CreateProjectDialogProps>(
                 </ColorPicker>
               </div>
             </div>
+
+            {!parentId && (
+              <div className="space-y-2">
+                <Label htmlFor="project-repo">
+                  {t('createProjectDialog.repoLabel')}
+                </Label>
+                <Select
+                  value={repoId}
+                  onValueChange={setRepoId}
+                  disabled={isCreating}
+                >
+                  <SelectTrigger id="project-repo">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_REPO}>
+                      {t('createProjectDialog.repoLater')}
+                    </SelectItem>
+                    {repos.map((repo) => (
+                      <SelectItem key={repo.id} value={repo.id}>
+                        {repo.display_name || repo.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-low">
+                  {repos.length === 0
+                    ? t('createProjectDialog.repoNone')
+                    : t('createProjectDialog.repoHelper')}
+                </p>
+              </div>
+            )}
 
             {error && (
               <Alert variant="destructive">

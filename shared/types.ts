@@ -586,7 +586,11 @@ name?: string,
  * The captain's agent. Defaults to Claude Code Headed. Codex runs
  * headless with a backend-driven loop (ADR-031).
  */
-executor?: BaseCodingAgent, };
+executor?: BaseCodingAgent, 
+/**
+ * ADR-032: spawn this project's captain instead of the global one.
+ */
+project_id?: string, };
 
 export type SpawnOrchestratorResponse = { workspace: Workspace, 
 /**
@@ -611,7 +615,11 @@ executor: BaseCodingAgent | null,
  * Tick interval of a backend-driven loop (None for a headed captain,
  * which loops by itself).
  */
-loop_interval_secs: number | null, };
+loop_interval_secs: number | null, 
+/**
+ * The captain workspace, if one exists (running or not).
+ */
+workspace_id: string | null, };
 
 export type GenerateSpecRequest = { 
 /**

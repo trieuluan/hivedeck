@@ -36,9 +36,12 @@ import {
   useKanbanIssueComposer,
 } from '@/shared/stores/useKanbanIssueComposerStore';
 
-interface WorkspaceSessionPanelProps {
+export interface WorkspaceSessionPanelProps {
   workspaceId: string;
   onClose: () => void;
+  /** Hide the Issue / Workspace breadcrumb bar (the captain column has its
+   *  own header). */
+  hideHeader?: boolean;
 }
 
 interface WorkspaceCreatePanelProps {
@@ -136,9 +139,10 @@ function WorkspaceCreatePanel({
   );
 }
 
-function WorkspaceSessionPanel({
+export function WorkspaceSessionPanel({
   workspaceId,
   onClose,
+  hideHeader = false,
 }: WorkspaceSessionPanelProps) {
   const { t } = useTranslation();
   const appNavigation = useAppNavigation();
@@ -241,7 +245,9 @@ function WorkspaceSessionPanel({
         <EntriesProvider key={`${workspaceId}-${selectedSessionId ?? 'new'}`}>
           <MessageEditProvider>
             <div className="relative flex h-full flex-1 flex-col bg-primary">
-              <div className="flex items-center justify-between px-base py-half border-b shrink-0">
+              <div
+                className={`flex items-center justify-between px-base py-half border-b shrink-0${hideHeader ? ' hidden' : ''}`}
+              >
                 <div className="flex items-center gap-half min-w-0 font-ibm-plex-mono">
                   <button
                     type="button"

@@ -4,10 +4,11 @@
 //! a follow-up on the captain's session once the previous tick has finished
 //! and the interval has passed.
 //!
-//! There is at most one loop (the orchestrator is a singleton). It lives in
-//! memory: a backend restart stops it, and spawning again restarts it.
+//! There is at most one loop per captain workspace (the global captain and
+//! one per project, ADR-032). Loops live in memory: a backend restart stops
+//! them, and spawning again restarts them.
 
-use std::{sync::Mutex, time::Duration};
+use std::{collections::HashMap, sync::Mutex, time::Duration};
 
 use chrono::Utc;
 use db::models::{
@@ -36,7 +37,9 @@ pub struct LoopInfo {
     pub interval: Duration,
 }
 
-static ACTIVE: Mutex<Option<(LoopInfo, CancellationToken, Uuid)>> = Mutex::new(None);
+type Slot = (LoopInfo, CancellationToken, Uuid);
+/// Running loops keyed by captain workspace id.
+static ACTIVE: Mutex<Option<HashMap<Uuid, Slot>>> = Mutex::new(None);
 
 /// Split a `/loop <interval> <body>` prompt into its interval and body.
 /// Prompts without the prefix (or with an unparseable interval) are returned
@@ -70,20 +73,22 @@ fn parse_interval(s: &str) -> Option<Duration> {
     Some(Duration::from_secs(secs.max(60)))
 }
 
-/// The running loop, if any.
-pub fn active() -> Option<LoopInfo> {
-    ACTIVE
-        .lock()
-        .ok()
-        .and_then(|guard| guard.as_ref().map(|(info, _, _)| info.clone()))
+/// The running loop of a captain workspace, if any.
+pub fn active(workspace_id: Uuid) -> Option<LoopInfo> {
+    ACTIVE.lock().ok().and_then(|guard| {
+        guard
+            .as_ref()
+            .and_then(|loops| loops.get(&workspace_id))
+            .map(|(info, _, _)| info.clone())
+    })
 }
 
-/// Stop the running loop. Returns whether one was running.
-pub fn stop() -> bool {
+/// Stop a captain's loop. Returns whether one was running.
+pub fn stop(workspace_id: Uuid) -> bool {
     let Ok(mut guard) = ACTIVE.lock() else {
         return false;
     };
-    match guard.take() {
+    match guard.as_mut().and_then(|loops| loops.remove(&workspace_id)) {
         Some((_, token, _)) => {
             token.cancel();
             true
@@ -102,7 +107,9 @@ pub fn start(
     let token = CancellationToken::new();
     let loop_id = Uuid::new_v4();
     if let Ok(mut guard) = ACTIVE.lock()
-        && let Some((_, old, _)) = guard.replace((info.clone(), token.clone(), loop_id))
+        && let Some((_, old, _)) = guard
+            .get_or_insert_with(HashMap::new)
+            .insert(info.workspace_id, (info.clone(), token.clone(), loop_id))
     {
         old.cancel();
     }
@@ -171,9 +178,12 @@ async fn run(
     );
     // Clear the slot unless a newer loop already replaced this one.
     if let Ok(mut guard) = ACTIVE.lock()
-        && guard.as_ref().is_some_and(|(_, _, id)| *id == loop_id)
+        && let Some(loops) = guard.as_mut()
+        && loops
+            .get(&info.workspace_id)
+            .is_some_and(|(_, _, id)| *id == loop_id)
     {
-        guard.take();
+        loops.remove(&info.workspace_id);
     }
 }
 

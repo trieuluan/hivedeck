@@ -69,6 +69,10 @@ pub struct SpawnOrchestratorRequest {
     #[serde(default)]
     #[ts(optional)]
     pub executor: Option<executors::executors::BaseCodingAgent>,
+    /// ADR-032: spawn this project's captain instead of the global one.
+    #[serde(default)]
+    #[ts(optional)]
+    pub project_id: Option<Uuid>,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS)]
@@ -89,6 +93,8 @@ pub struct OrchestratorStatus {
     /// which loops by itself).
     #[ts(type = "number | null")]
     pub loop_interval_secs: Option<u64>,
+    /// The captain workspace, if one exists (running or not).
+    pub workspace_id: Option<Uuid>,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS)]

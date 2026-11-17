@@ -12,6 +12,7 @@ import { KanbanContainer } from '@/features/kanban/ui/KanbanContainer';
 import { useIsMobile } from '@/shared/hooks/useIsMobile';
 import { useHostId } from '@/shared/providers/HostIdProvider';
 import { ProjectRightSidebarContainer } from './ProjectRightSidebarContainer';
+import { ProjectCaptainColumn } from './ProjectCaptainColumn';
 import {
   PERSIST_KEYS,
   usePaneSize,
@@ -229,7 +230,7 @@ function ProjectKanbanBoard() {
 function ProjectKanbanLayout({ projectName }: { projectName: string }) {
   const { issueId, isPanelOpen } = useCurrentKanbanRouteState();
   const isMobile = useIsMobile();
-  const { getIssue } = useProjectContext();
+  const { getIssue, projectId } = useProjectContext();
   const issue = issueId ? getIssue(issueId) : undefined;
   usePageTitle(issue?.title, projectName);
   const [kanbanLeftPanelSize, setKanbanLeftPanelSize] = usePaneSize(
@@ -266,38 +267,48 @@ function ProjectKanbanLayout({ projectName }: { projectName: string }) {
   };
 
   return (
-    <Group
-      orientation="horizontal"
-      className="flex-1 min-w-0 h-full"
-      defaultLayout={kanbanDefaultLayout}
-      onLayoutChange={onKanbanLayoutChange}
-    >
-      <Panel
-        id="kanban-left"
-        minSize="20%"
-        className="min-w-0 h-full overflow-hidden bg-primary"
-      >
-        <ProjectKanbanBoard />
-      </Panel>
-
-      {isRightPanelOpen && (
-        <Separator
-          id="kanban-separator"
-          className="w-1 bg-panel outline-none hover:bg-brand/50 transition-colors cursor-col-resize"
+    <div className="flex h-full w-full min-w-0">
+      {/* ADR-032: the project's captain beside its board. */}
+      {projectId && (
+        <ProjectCaptainColumn
+          key={projectId}
+          projectId={projectId}
+          projectName={projectName}
         />
       )}
-
-      {isRightPanelOpen && (
+      <Group
+        orientation="horizontal"
+        className="flex-1 min-w-0 h-full"
+        defaultLayout={kanbanDefaultLayout}
+        onLayoutChange={onKanbanLayoutChange}
+      >
         <Panel
-          id="kanban-right"
-          minSize="400px"
-          maxSize="800px"
-          className="min-w-0 h-full overflow-hidden bg-secondary"
+          id="kanban-left"
+          minSize="20%"
+          className="min-w-0 h-full overflow-hidden bg-primary"
         >
-          <ProjectRightSidebarContainer />
+          <ProjectKanbanBoard />
         </Panel>
-      )}
-    </Group>
+
+        {isRightPanelOpen && (
+          <Separator
+            id="kanban-separator"
+            className="w-1 bg-panel outline-none hover:bg-brand/50 transition-colors cursor-col-resize"
+          />
+        )}
+
+        {isRightPanelOpen && (
+          <Panel
+            id="kanban-right"
+            minSize="400px"
+            maxSize="800px"
+            className="min-w-0 h-full overflow-hidden bg-secondary"
+          >
+            <ProjectRightSidebarContainer />
+          </Panel>
+        )}
+      </Group>
+    </div>
   );
 }
 

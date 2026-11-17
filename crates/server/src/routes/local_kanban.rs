@@ -36,7 +36,7 @@ use db::models::{
 use deployment::Deployment;
 use serde::Deserialize;
 use serde_json::{Value, json};
-use services::services::project_config;
+use services::services::{container::ContainerService, project_config};
 use sqlx::SqlitePool;
 use std::time::SystemTime;
 use uuid::Uuid;
@@ -535,7 +535,32 @@ async fn delete_project(
     State(deployment): State<DeploymentImpl>,
     Path(id): Path<Uuid>,
 ) -> Result<ResponseJson<DeleteResponse>, ApiError> {
-    delete_project_record(&deployment.db().pool, id).await?;
+    let pool = &deployment.db().pool;
+    // ADR-032: look the project's captain up before the project goes.
+    let captain = db::models::workspace::Workspace::find_captain(pool, Some(id)).await?;
+    delete_project_record(pool, id).await?;
+    // Retire its captain: stop the backend loop and any running tick, then
+    // archive the workspace (its history stays reachable from the archive).
+    if let Some(captain) = captain {
+        crate::captain_loop::stop(captain.id);
+        if let Ok(Some(process)) =
+            db::models::execution_process::ExecutionProcess::find_latest_running_coding_agent_for_workspace(
+                pool, captain.id,
+            )
+            .await
+        {
+            let _ = deployment
+                .container()
+                .stop_execution(
+                    &process,
+                    db::models::execution_process::ExecutionProcessStatus::Killed,
+                )
+                .await;
+        }
+        if let Err(e) = deployment.container().archive_workspace(captain.id).await {
+            tracing::warn!("failed to archive captain of deleted project {id}: {e}");
+        }
+    }
     Ok(deleted())
 }
 

@@ -1,6 +1,10 @@
 use std::collections::HashSet;
 
-use axum::{Json, extract::State, response::Json as ResponseJson};
+use axum::{
+    Json,
+    extract::{Query, State},
+    response::Json as ResponseJson,
+};
 use db::models::{
     execution_process::{ExecutionProcess, ExecutionProcessStatus},
     issue::Issue,
@@ -291,6 +295,48 @@ fn start_captain_loop(
     );
 }
 
+/// ADR-032: which captain a request is about: a project's (`project_id`) or
+/// the global one.
+#[derive(Debug, serde::Deserialize, Default)]
+pub struct CaptainScope {
+    #[serde(default)]
+    pub project_id: Option<Uuid>,
+}
+
+/// Prefix the per-tick body with the captain's project, so both a headed
+/// `/loop` and backend ticks carry it. `/loop <interval>` stays first.
+fn scope_prompt(prompt: &str, scope: Option<&str>) -> String {
+    let Some(scope) = scope else {
+        return prompt.to_string();
+    };
+    let trimmed = prompt.trim_start();
+    if let Some(rest) = trimmed.strip_prefix("/loop ") {
+        let rest = rest.trim_start();
+        if let Some((interval, body)) = rest.split_once(char::is_whitespace) {
+            return format!("/loop {interval} {scope}\n\n{}", body.trim_start());
+        }
+    }
+    format!("{scope}\n\n{}", prompt.trim())
+}
+
+/// The scope line for a project's captain: name, id and repos on disk.
+async fn project_scope_line(pool: &sqlx::SqlitePool, project_id: Uuid) -> Result<String, ApiError> {
+    let project = db::models::project::Project::find_by_id(pool, project_id)
+        .await?
+        .ok_or_else(|| ApiError::BadRequest("Project not found.".to_string()))?;
+    let repos = db::models::project_repo::ProjectRepo::list_repo_paths(pool, project_id).await?;
+    let repos = if repos.is_empty() {
+        "no repository linked yet".to_string()
+    } else {
+        repos.join(", ")
+    };
+    Ok(format!(
+        "You are the captain of project \"{}\" (project_id {}; repos: {}). \
+         Work only on this project's board and repos; ignore other projects.",
+        project.name, project_id, repos
+    ))
+}
+
 /// Spawn (or reuse) the singleton orchestrator.
 ///
 /// The orchestrator is repo-independent and runs from a fixed
@@ -319,6 +365,13 @@ pub async fn spawn_orchestrator(
     // Headed agents run the `/loop` themselves; for the others the backend
     // loops, so the agent only ever sees the per-tick body.
     let backend_loop = !executor.is_headed();
+    let pool = &deployment.db().pool;
+    let project_id = payload.project_id;
+    let scope = match project_id {
+        Some(pid) => Some(project_scope_line(pool, pid).await?),
+        None => None,
+    };
+    let prompt = scope_prompt(&prompt, scope.as_deref());
     let (loop_interval, tick_prompt) = crate::captain_loop::split_loop_prompt(&prompt);
     let prompt = if backend_loop {
         tick_prompt.clone()
@@ -326,12 +379,10 @@ pub async fn spawn_orchestrator(
         prompt
     };
 
-    let pool = &deployment.db().pool;
-
     // Singleton: at most one active orchestrator workspace.
-    if let Some(existing) = Workspace::find_orchestrator(pool).await? {
+    if let Some(existing) = Workspace::find_captain(pool, project_id).await? {
         // A backend-driven captain is "on" between ticks too.
-        if crate::captain_loop::active().is_some_and(|l| l.workspace_id == existing.id) {
+        if crate::captain_loop::active(existing.id).is_some() {
             return Ok(ResponseJson(ApiResponse::success(
                 SpawnOrchestratorResponse {
                     workspace: existing,
@@ -429,6 +480,9 @@ pub async fn spawn_orchestrator(
         Uuid::new_v4(),
     )
     .await?;
+    if let Some(pid) = project_id {
+        Workspace::set_captain_project_id(pool, workspace.id, pid).await?;
+    }
 
     deployment
         .container()
@@ -462,18 +516,16 @@ pub async fn spawn_orchestrator(
 /// running session — exists.
 pub async fn close_orchestrator(
     State(deployment): State<DeploymentImpl>,
+    Query(scope): Query<CaptainScope>,
 ) -> Result<ResponseJson<ApiResponse<CloseOrchestratorResponse>>, ApiError> {
     let pool = &deployment.db().pool;
-    // Stop a backend-driven loop first so it can't start another tick.
-    let loop_stopped = crate::captain_loop::stop();
-
-    let Some(existing) = Workspace::find_orchestrator(pool).await? else {
+    let Some(existing) = Workspace::find_captain(pool, scope.project_id).await? else {
         return Ok(ResponseJson(ApiResponse::success(
-            CloseOrchestratorResponse {
-                closed: loop_stopped,
-            },
+            CloseOrchestratorResponse { closed: false },
         )));
     };
+    // Stop a backend-driven loop first so it can't start another tick.
+    let loop_stopped = crate::captain_loop::stop(existing.id);
 
     let Some(process) =
         ExecutionProcess::find_latest_running_coding_agent_for_workspace(pool, existing.id).await?
@@ -514,21 +566,26 @@ pub async fn close_orchestrator(
 /// between ticks.
 pub async fn orchestrator_status(
     State(deployment): State<DeploymentImpl>,
+    Query(scope): Query<CaptainScope>,
 ) -> Result<ResponseJson<ApiResponse<OrchestratorStatus>>, ApiError> {
-    if let Some(info) = crate::captain_loop::active() {
-        return Ok(ResponseJson(ApiResponse::success(OrchestratorStatus {
-            active: true,
-            executor: Some(info.executor),
-            loop_interval_secs: Some(info.interval.as_secs()),
-        })));
-    }
     let pool = &deployment.db().pool;
+    let captain = Workspace::find_captain(pool, scope.project_id).await?;
     let mut status = OrchestratorStatus {
         active: false,
         executor: None,
         loop_interval_secs: None,
+        workspace_id: captain.as_ref().map(|w| w.id),
     };
-    if let Some(existing) = Workspace::find_orchestrator(pool).await?
+    if let Some(info) = captain
+        .as_ref()
+        .and_then(|w| crate::captain_loop::active(w.id))
+    {
+        status.active = true;
+        status.executor = Some(info.executor);
+        status.loop_interval_secs = Some(info.interval.as_secs());
+        return Ok(ResponseJson(ApiResponse::success(status)));
+    }
+    if let Some(existing) = captain
         && let Some(process) =
             ExecutionProcess::find_latest_running_coding_agent_for_workspace(pool, existing.id)
                 .await?
@@ -546,6 +603,25 @@ pub async fn orchestrator_status(
         };
     }
     Ok(ResponseJson(ApiResponse::success(status)))
+}
+
+#[cfg(test)]
+mod scope_prompt_tests {
+    use super::scope_prompt;
+
+    #[test]
+    fn keeps_loop_prefix_first() {
+        assert_eq!(
+            scope_prompt("/loop 5m Run one tick.", Some("SCOPE")),
+            "/loop 5m SCOPE\n\nRun one tick."
+        );
+    }
+
+    #[test]
+    fn plain_prompt_and_no_scope() {
+        assert_eq!(scope_prompt("Do it", Some("SCOPE")), "SCOPE\n\nDo it");
+        assert_eq!(scope_prompt("/loop 5m Do it", None), "/loop 5m Do it");
+    }
 }
 
 #[cfg(test)]

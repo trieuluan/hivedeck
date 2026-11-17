@@ -547,7 +547,9 @@
         "label": "Codex",
         "description": "Runs in the background; HiveDeck sends it a tick every 5 min."
       }
-    }
+    },
+    "titleProject": "Captain · {{name}}",
+    "codexModelNote": "Codex calls HiveDeck's tools in an OpenAI-only format: put an OpenAI model (cx/…) first in the planner combo, or pick Claude Code. Other models can plan but can't use the board."
   },
   "linkPrToIssue": {
     "title": "Link Pull Request",
@@ -587,5 +589,20 @@
     "failedTitle": "Merge failed",
     "pushFailedTitle": "Merged, but the push failed",
     "pushFailedMessage": "The changes are merged locally and the card is Done. Push it yourself when you can: {{error}}"
+  },
+  "captain": {
+    "title": "Captain",
+    "show": "Show the captain",
+    "hide": "Hide the captain",
+    "running": "Running",
+    "runningOn": "Running on {{agent}}",
+    "stopped": "Stopped",
+    "none": "Not started",
+    "manage": "Manage",
+    "start": "Start captain",
+    "noRepo": "No repository linked — the captain can plan but not dispatch work.",
+    "linkRepo": "Link repo",
+    "emptyTitle": "This project has no captain yet",
+    "emptyBody": "Start one and just chat with it: it turns your goals into cards, sends them to agents, watches them work and moves finished cards to In Review. You press Merge."
   }
 }

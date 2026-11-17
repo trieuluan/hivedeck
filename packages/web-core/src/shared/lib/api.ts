@@ -507,16 +507,25 @@ export const workspacesApi = {
   },
 
   /** Close the singleton orchestrator's live session (no-op if none running). */
-  closeOrchestrator: async (): Promise<CloseOrchestratorResponse> => {
-    const response = await makeRequest(`/api/workspaces/orchestrator/close`, {
-      method: 'POST',
-    });
+  closeOrchestrator: async (
+    projectId?: string | null
+  ): Promise<CloseOrchestratorResponse> => {
+    const query = projectId ? `?project_id=${projectId}` : '';
+    const response = await makeRequest(
+      `/api/workspaces/orchestrator/close${query}`,
+      { method: 'POST' }
+    );
     return handleApiResponse<CloseOrchestratorResponse>(response);
   },
 
   /** Whether the captain is on (ADR-031), including between backend ticks. */
-  orchestratorStatus: async (): Promise<OrchestratorStatus> => {
-    const response = await makeRequest(`/api/workspaces/orchestrator/status`);
+  orchestratorStatus: async (
+    projectId?: string | null
+  ): Promise<OrchestratorStatus> => {
+    const query = projectId ? `?project_id=${projectId}` : '';
+    const response = await makeRequest(
+      `/api/workspaces/orchestrator/status${query}`
+    );
     return handleApiResponse<OrchestratorStatus>(response);
   },
 

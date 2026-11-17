@@ -2477,7 +2477,20 @@ impl ContainerService for LocalContainerService {
         // from a fixed, on-demand ~/.hivedeck/... folder (never a git worktree).
         // Ensure the dir exists and point the container at it — no repos, no worktrees.
         if let Some(kind) = workspace.kind.filter(|k| k.is_no_worktree()) {
-            let dir = Self::fixed_dir_for_kind(workspace, kind);
+            // ADR-032: a project's captain gets its own folder so captains
+            // of different projects never share a working directory.
+            let project_captain = kind == WorkspaceKind::Orchestrator
+                && Workspace::captain_project_id(&self.db.pool, workspace.id)
+                    .await?
+                    .is_some();
+            let dir = if project_captain {
+                let label = workspace.name.as_deref().unwrap_or("captain");
+                Self::hivedeck_base_dir()
+                    .join("captains")
+                    .join(Self::dir_name_from_workspace(&workspace.id, label))
+            } else {
+                Self::fixed_dir_for_kind(workspace, kind)
+            };
             tokio::fs::create_dir_all(&dir).await.map_err(|e| {
                 ContainerError::Other(anyhow!(
                     "Failed to create {kind:?} directory {}: {e}",
