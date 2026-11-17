@@ -24,6 +24,32 @@ pub fn codex_home() -> Option<PathBuf> {
     dirs::home_dir().map(|home| home.join(".codex"))
 }
 
+/// Write the bundled Codex model catalog to a HiveDeck-owned runtime path and
+/// return the absolute path. Returns `None` if the file system is not writable,
+/// allowing the agent to fall back to the default behavior.
+fn materialize_static_model_catalog() -> Option<PathBuf> {
+    const CATALOG: &str = include_str!("codex/models.json");
+
+    let base = dirs::data_dir().unwrap_or_else(std::env::temp_dir);
+    let dir = base.join("hivedeck").join("runtime").join("codex");
+    let path = dir.join("models-catalog.json");
+
+    if std::fs::create_dir_all(&dir).is_err() {
+        return None;
+    }
+
+    // Idempotent write; avoid touching the file if the catalog is already in
+    // place and matches the bundled version.
+    let existing_matches = std::fs::read_to_string(&path)
+        .map(|existing| existing == CATALOG)
+        .unwrap_or(false);
+    if !existing_matches && std::fs::write(&path, CATALOG).is_err() {
+        return None;
+    }
+
+    Some(path)
+}
+
 pub(crate) fn resolve_model(model: Option<&str>) -> (Option<&str>, bool) {
     match model.and_then(|m| m.strip_suffix("-fast")) {
         Some(base) => (Some(base), true),
@@ -510,11 +536,25 @@ impl Codex {
         "npx -y @openai/codex@0.152.1"
     }
 
+    /// Static model catalog (verbatim from the pinned Codex `rust-v0.152.1`
+    /// checkout, `codex-rs/models-manager/models.json`). Passed to the
+    /// app-server via `-c model_catalog_json=<path>` so Codex uses
+    /// `StaticModelsManager` instead of fetching `/models` from the model
+    /// provider. Custom providers backed by OpenAI-compatible routers (e.g.
+    /// 9router) return an OpenAI `{ "data": [...] }` list, which fails Codex's
+    /// `ModelsResponse { models }` decode and logs
+    /// `failed to refresh available models` on every spawn.
     fn build_command_builder(&self) -> Result<CommandBuilder, CommandBuildError> {
         let mut builder = CommandBuilder::new(Self::base_command());
         builder = builder.extend_params(["app-server"]);
         if self.oss.unwrap_or(false) {
             builder = builder.extend_params(["--oss"]);
+        }
+        if let Some(catalog_path) = materialize_static_model_catalog() {
+            builder = builder.extend_params([
+                "-c".to_string(),
+                format!("model_catalog_json={}", catalog_path.display()),
+            ]);
         }
 
         apply_overrides(builder, &self.cmd)
@@ -885,7 +925,8 @@ mod tests {
         );
     }
 
-    use super::resolve_model;
+    use super::{materialize_static_model_catalog, resolve_model};
+    use codex_protocol::openai_models::ModelsResponse;
 
     #[test]
     fn resolve_model_detects_fast_suffix() {
@@ -901,5 +942,28 @@ mod tests {
             (Some("gpt-5.4-mini"), false)
         );
         assert_eq!(resolve_model(None), (None, false));
+    }
+
+    /// ponytail: strict schema test would be even stronger, but deserializing
+    /// through the exact pinned decoder is the minimal regression check that
+    /// proves the catalog we ship is valid. Add a live spawn test only after
+    /// we have a lightweight way to assert `StaticModelsManager` is selected.
+    #[test]
+    fn bundled_catalog_deserializes_through_pinned_codex_decoder() {
+        let path = materialize_static_model_catalog()
+            .expect("catalog should materialize in a writable test environment");
+        let bytes = std::fs::read_to_string(&path).unwrap();
+        let decoded: ModelsResponse = serde_json::from_str(&bytes)
+            .expect("bundled catalog must match Codex 0.152.1 ModelsResponse");
+        assert!(
+            !decoded.models.is_empty(),
+            "catalog must contain at least one model"
+        );
+        // Sanity-check that the models HiveDeck advertises are in the catalog.
+        let ids: std::collections::HashSet<&str> =
+            decoded.models.iter().map(|m| m.slug.as_str()).collect();
+        assert!(ids.contains("gpt-5.5"));
+        assert!(ids.contains("gpt-5.4-mini"));
+        assert!(ids.contains("gpt-5.2"));
     }
 }
