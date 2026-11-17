@@ -618,6 +618,11 @@
     "linkRepo": "Link repo",
     "emptyTitle": "This project has no captain yet",
     "emptyBody": "Start one and just chat with it: it turns your goals into cards, sends them to agents, watches them work and moves finished cards to In Review. You press Merge.",
-    "listening": "Captain is working…"
+    "listening": "Captain is working…",
+    "needsYou": "Needs you",
+    "waitingApproval": "The captain is waiting for your approval.",
+    "review": "Review",
+    "moreInReview_one": "+{{count}} more in review",
+    "moreInReview_other": "+{{count}} more in review"
   }
 }

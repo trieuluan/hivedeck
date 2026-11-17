@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -15,6 +15,9 @@ import {
 } from '@/shared/dialogs/orchestrator/SpawnOrchestratorDialog';
 import { ProjectReposDialog } from '@/shared/dialogs/ProjectReposDialog';
 import { WorkspaceSessionPanel } from './ProjectRightSidebarContainer';
+import { useProjectContext } from '@/shared/hooks/useProjectContext';
+import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
+import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 
 const STORAGE_PREFIX = 'hivedeck.captainColumn.';
 
@@ -39,6 +42,71 @@ const AGENT_LABEL: Partial<Record<BaseCodingAgent, string>> = {
   [BaseCodingAgent.CLAUDE_CODE_HEADED]: 'Claude Code (terminal)',
   [BaseCodingAgent.CODEX]: 'Codex',
 };
+
+/**
+ * What waits on the owner, pinned above the captain chat: cards in review
+ * (one click opens them) and a captain blocked on an approval.
+ */
+function NeedsYouStrip({
+  projectId,
+  captainWorkspaceId,
+}: {
+  projectId: string;
+  captainWorkspaceId: string | null | undefined;
+}) {
+  const { t } = useTranslation('tasks');
+  const appNavigation = useAppNavigation();
+  const { issues, statuses } = useProjectContext();
+  const { activeWorkspaces } = useWorkspaceContext();
+
+  const inReview = useMemo(() => {
+    const reviewIds = new Set(
+      statuses.filter((s) => /review/i.test(s.name)).map((s) => s.id)
+    );
+    return issues
+      .filter((issue) => reviewIds.has(issue.status_id))
+      .sort((a, b) => a.sort_order - b.sort_order);
+  }, [issues, statuses]);
+  const captainBlocked = activeWorkspaces.some(
+    (ws) => ws.id === captainWorkspaceId && ws.hasPendingApproval
+  );
+
+  if (inReview.length === 0 && !captainBlocked) return null;
+  return (
+    <section
+      aria-label={t('captain.needsYou')}
+      className="flex flex-col gap-1 border-b border-border bg-warning/5 px-base py-half animate-in fade-in-0 slide-in-from-top-1 duration-200 motion-reduce:animate-none"
+    >
+      <p className="text-xs font-medium text-warning">
+        {t('captain.needsYou')}
+      </p>
+      {captainBlocked && (
+        <p className="text-xs text-normal">{t('captain.waitingApproval')}</p>
+      )}
+      {inReview.slice(0, 3).map((issue) => (
+        <button
+          key={issue.id}
+          type="button"
+          onClick={() => appNavigation.goToProjectIssue(projectId, issue.id)}
+          className="group flex min-w-0 items-center gap-1.5 rounded-sm px-1 py-0.5 -mx-1 text-left text-xs text-normal hover:bg-secondary"
+        >
+          <span className="shrink-0 font-ibm-plex-mono text-low">
+            {issue.simple_id}
+          </span>
+          <span className="truncate">{issue.title}</span>
+          <span className="ml-auto shrink-0 text-low group-hover:text-normal">
+            {t('captain.review')} →
+          </span>
+        </button>
+      ))}
+      {inReview.length > 3 && (
+        <p className="text-xs text-low">
+          {t('captain.moreInReview', { count: inReview.length - 3 })}
+        </p>
+      )}
+    </section>
+  );
+}
 
 /**
  * ADR-032: the project's captain beside its board. Chat with the captain
@@ -135,6 +203,11 @@ export function ProjectCaptainColumn({
           <CaretDoubleLeftIcon className="size-icon-sm" weight="bold" />
         </button>
       </header>
+
+      <NeedsYouStrip
+        projectId={projectId}
+        captainWorkspaceId={status?.workspace_id}
+      />
 
       {repos && !hasRepo && (
         <div className="flex items-center gap-2 border-b border-border bg-warning/10 px-base py-half text-xs text-normal">

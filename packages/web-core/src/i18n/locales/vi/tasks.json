@@ -618,6 +618,11 @@
     "linkRepo": "Liên kết repo",
     "emptyTitle": "Project này chưa có thuyền trưởng",
     "emptyBody": "Khởi động rồi chỉ cần chat: thuyền trưởng biến mục tiêu của bạn thành card, giao cho agent, theo dõi và chuyển card xong sang In Review. Bạn bấm Merge.",
-    "listening": "Thuyền trưởng đang làm việc…"
+    "listening": "Thuyền trưởng đang làm việc…",
+    "needsYou": "Cần bạn",
+    "waitingApproval": "Thuyền trưởng đang chờ bạn duyệt.",
+    "review": "Xem",
+    "moreInReview_one": "+{{count}} card nữa đang chờ review",
+    "moreInReview_other": "+{{count}} card nữa đang chờ review"
   }
 }

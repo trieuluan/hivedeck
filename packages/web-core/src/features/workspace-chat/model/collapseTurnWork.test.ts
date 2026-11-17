@@ -119,4 +119,31 @@ describe('collapseTurnWork', () => {
     });
     expect(second[1]).toBe(first[1]);
   });
+
+  it('folds older automatic captain turns whole, keeps the newest report', () => {
+    const tick = () =>
+      entry(
+        { type: 'user_message' },
+        '<!-- hivedeck:auto-tick -->\nRun one tick.'
+      );
+    const out = collapseTurnWork(
+      [
+        tick(),
+        tool(),
+        answer('old report'),
+        tick(),
+        tool(),
+        tool(),
+        answer('new report'),
+      ],
+      { collapseLastTurn: true }
+    );
+    expect(types(out)).toEqual([
+      'user_message',
+      'AGGREGATED_WORK_GROUP',
+      'user_message',
+      'AGGREGATED_WORK_GROUP',
+      'assistant_message',
+    ]);
+  });
 });
