@@ -450,7 +450,8 @@
     "permissionPlan": "Lập kế hoạch",
     "agent": "Agent",
     "default": "Mặc định",
-    "model": "Model"
+    "model": "Model",
+    "agentLocked": "Thuyền trưởng luôn chạy với agent riêng của nó."
   },
   "crashScreen": {
     "title": "Đã có lỗi xảy ra",

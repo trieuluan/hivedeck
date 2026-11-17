@@ -1042,6 +1042,7 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
       onOverrideChange={setExecutorOverrides}
       executorConfig={executorConfig}
       presetOptions={presetOptions}
+      lockAgent={isCaptain}
     />
   ) : undefined;
 

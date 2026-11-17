@@ -6,6 +6,7 @@ import {
   GearIcon,
   HandIcon,
   ListBulletsIcon,
+  LockSimpleIcon,
   SlidersHorizontalIcon,
   type Icon,
 } from '@phosphor-icons/react';
@@ -55,6 +56,8 @@ interface ModelSelectorContainerProps {
   onOverrideChange: (partial: Partial<ExecutorConfig>) => void;
   executorConfig: ExecutorConfig | null;
   presetOptions: ExecutorConfig | null | undefined;
+  /** Show the agent as a fixed label (the captain must keep its own agent). */
+  lockAgent?: boolean;
 }
 
 export function ModelSelectorContainer({
@@ -68,6 +71,7 @@ export function ModelSelectorContainer({
   onOverrideChange,
   executorConfig,
   presetOptions,
+  lockAgent = false,
 }: ModelSelectorContainerProps) {
   const { t } = useTranslation('common');
   const { theme } = useTheme();
@@ -522,31 +526,44 @@ export function ModelSelectorContainer({
         </DropdownMenu>
       )}
 
-      {config.agents.length > 0 && (
-        <DropdownMenu>
-          <DropdownMenuTriggerButton size="sm" label={agentLabel} />
-          <DropdownMenuContent align="start">
-            <DropdownMenuLabel>{t('modelSelector.agent')}</DropdownMenuLabel>
-            <DropdownMenuItem
-              icon={selectedAgentId === null ? CheckIcon : undefined}
-              onClick={() => handleAgentSelect(null)}
-            >
-              {t('modelSelector.default')}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {config.agents.map((agentOption) => (
+      {lockAgent && selectedAgentId ? (
+        // The captain runs as its own agent; switching it would drop its
+        // board-coordination role, so it is shown but not selectable.
+        <span
+          className="inline-flex h-7 items-center gap-1 rounded-sm border border-border px-2 text-xs text-low"
+          title={t('modelSelector.agentLocked')}
+          aria-label={`${t('modelSelector.agent')}: ${agentLabel}. ${t('modelSelector.agentLocked')}`}
+        >
+          <LockSimpleIcon className="size-3" aria-hidden="true" />
+          {agentLabel}
+        </span>
+      ) : (
+        config.agents.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTriggerButton size="sm" label={agentLabel} />
+            <DropdownMenuContent align="start">
+              <DropdownMenuLabel>{t('modelSelector.agent')}</DropdownMenuLabel>
               <DropdownMenuItem
-                key={agentOption.id}
-                icon={
-                  agentOption.id === selectedAgentId ? CheckIcon : undefined
-                }
-                onClick={() => handleAgentSelect(agentOption.id)}
+                icon={selectedAgentId === null ? CheckIcon : undefined}
+                onClick={() => handleAgentSelect(null)}
               >
-                {agentOption.label}
+                {t('modelSelector.default')}
               </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <DropdownMenuSeparator />
+              {config.agents.map((agentOption) => (
+                <DropdownMenuItem
+                  key={agentOption.id}
+                  icon={
+                    agentOption.id === selectedAgentId ? CheckIcon : undefined
+                  }
+                  onClick={() => handleAgentSelect(agentOption.id)}
+                >
+                  {agentOption.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )
       )}
     </>
   );
