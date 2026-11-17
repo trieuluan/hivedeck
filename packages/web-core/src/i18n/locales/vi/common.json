@@ -755,5 +755,9 @@
     "idle": "Sao chép mã",
     "copied": "Đã sao chép",
     "error": "Không thể sao chép. Chọn mã rồi sao chép thủ công."
+  },
+  "chatAutoTick": {
+    "label": "Lượt tự động của thuyền trưởng",
+    "labelAt": "Lượt tự động của thuyền trưởng · {{time}}"
   }
 }

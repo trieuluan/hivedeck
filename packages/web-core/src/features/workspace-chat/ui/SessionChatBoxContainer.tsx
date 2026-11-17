@@ -68,6 +68,7 @@ import { sessionsApi, executionProcessesApi } from '@/shared/lib/api';
 import { getInteractiveConfig } from '@/shared/lib/interactive';
 import { RenameSessionDialog } from '@vibe/ui/components/RenameSessionDialog';
 import type { TurnNavigationItem } from '@vibe/ui/components/TurnNavigationPopup';
+import { isAutoTickMessage } from '../model/autoTick';
 
 /** Compute execution status from boolean flags */
 function computeExecutionStatus(params: {
@@ -222,7 +223,9 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
       .filter(
         (entry) =>
           entry.type === 'NORMALIZED_ENTRY' &&
-          entry.content.entry_type.type === 'user_message'
+          entry.content.entry_type.type === 'user_message' &&
+          // The captain's automatic ticks are not the owner's messages.
+          !isAutoTickMessage(entry.content.content)
       )
       .map((entry) => {
         turnNumber++;

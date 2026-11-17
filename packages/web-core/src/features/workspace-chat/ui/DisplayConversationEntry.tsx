@@ -43,6 +43,7 @@ import { ChatSystemMessage } from '@vibe/ui/components/ChatSystemMessage';
 import { ChatThinkingMessage } from '@vibe/ui/components/ChatThinkingMessage';
 import { ChatErrorMessage } from '@vibe/ui/components/ChatErrorMessage';
 import { describeAgentError } from '../model/describeAgentError';
+import { autoTickBody, isAutoTickMessage } from '../model/autoTick';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { ChatScriptEntry } from '@vibe/ui/components/ChatScriptEntry';
 import { ChatSubagentEntry } from '@vibe/ui/components/ChatSubagentEntry';
@@ -785,6 +786,11 @@ function UserMessageEntry({
 }) {
   const [expanded, toggle] = usePersistedExpanded(`user:${expansionKey}`, true);
   const { startEdit, isEntryGreyed, isInEditMode } = useMessageEditContext();
+  const { t } = useTranslation('common');
+  const [tickExpanded, toggleTick] = usePersistedExpanded(
+    `tick:${expansionKey}`,
+    false
+  );
   const { resetProcess, canResetProcess, isResetPending } = resetAction;
 
   const isGreyed = isEntryGreyed(expansionKey);
@@ -808,6 +814,26 @@ function UserMessageEntry({
   const canEdit = canShowActions && executorCanFork;
   // Only show reset if we have a process ID, not in edit mode, and not pending
   const canReset = canEdit && canResetProcess(executionProcessId);
+
+  // The captain's automatic ticks: one quiet line, not a message from you.
+  if (isAutoTickMessage(content)) {
+    const time = timestamp
+      ? new Date(timestamp).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : null;
+    const label = time
+      ? t('chatAutoTick.labelAt', { time })
+      : t('chatAutoTick.label');
+    return (
+      <ChatSystemMessage
+        content={tickExpanded ? `${label}\n\n${autoTickBody(content)}` : label}
+        expanded={tickExpanded}
+        onToggle={toggleTick}
+      />
+    );
+  }
 
   return (
     <ChatUserMessage

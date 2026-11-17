@@ -23,6 +23,16 @@ use uuid::Uuid;
 
 use crate::{DeploymentImpl, routes::sessions::run_follow_up};
 
+/// First line of every automatic tick, so the chat can show it as an
+/// automatic turn instead of a message from the owner. An HTML comment: the
+/// model ignores it and Markdown renders nothing.
+pub const TICK_MARKER: &str = "<!-- hivedeck:auto-tick -->";
+
+/// The message sent for an automatic tick.
+pub fn tick_message(body: &str) -> String {
+    format!("{TICK_MARKER}\n{body}")
+}
+
 /// Interval used when the prompt carries no `/loop <interval>` prefix.
 pub const DEFAULT_INTERVAL: Duration = Duration::from_secs(5 * 60);
 /// How often the loop checks whether a tick is due.
@@ -145,6 +155,9 @@ async fn run(
     loop_id: Uuid,
 ) {
     let mut failures = 0u32;
+    // Board state at the last tick; a tick is skipped while nothing is
+    // active and nothing changed.
+    let mut last_board: Option<u64> = None;
     let reason = loop {
         tokio::select! {
             _ = token.cancelled() => break "stopped",
@@ -156,6 +169,7 @@ async fn run(
             &executor_config,
             &tick_prompt,
             &mut failures,
+            &mut last_board,
         )
         .await
         {
@@ -193,6 +207,7 @@ async fn step(
     executor_config: &ExecutorConfig,
     tick_prompt: &str,
     failures: &mut u32,
+    last_board: &mut Option<u64>,
 ) -> anyhow::Result<Step> {
     let pool = &deployment.db().pool;
     let Some(workspace) = Workspace::find_by_id(pool, info.workspace_id).await? else {
@@ -221,6 +236,14 @@ async fn step(
     if Utc::now() < due {
         return Ok(Step::Wait);
     }
+    // Nothing to watch or dispatch and nothing changed: skip this tick (no
+    // model call). Owner messages don't wait for ticks; they run at once.
+    let project_id = Workspace::captain_project_id(pool, workspace.id).await?;
+    let board = board_state(pool, project_id).await?;
+    if !board.active && *last_board == Some(board.signature) {
+        return Ok(Step::Wait);
+    }
+
     // Consecutive failures: a failed tick, or a tick we couldn't start.
     // Only a tick that completed clears the count.
     let previous_failed = latest.status == ExecutionProcessStatus::Failed;
@@ -237,7 +260,7 @@ async fn step(
         deployment,
         session,
         workspace,
-        tick_prompt.to_string(),
+        tick_message(tick_prompt),
         executor_config.clone(),
         None,
         None,
@@ -252,14 +275,103 @@ async fn step(
     if !previous_failed {
         *failures = 0;
     }
+    *last_board = Some(board.signature);
     Ok(Step::Ticked)
+}
+
+struct BoardState {
+    /// A card the captain must act on: one to dispatch (Todo) or to watch
+    /// (In Progress).
+    active: bool,
+    /// Changes when any card is added, removed, moved or edited.
+    signature: u64,
+}
+
+/// Cards in the captain's scope (its project, or every project for the
+/// global captain).
+async fn board_state(
+    pool: &sqlx::SqlitePool,
+    project_id: Option<Uuid>,
+) -> Result<BoardState, sqlx::Error> {
+    let rows: Vec<(Uuid, String, String)> = match project_id {
+        Some(project_id) => {
+            sqlx::query_as(
+                "SELECT i.id, ps.name, i.updated_at FROM issues i
+                 JOIN project_statuses ps ON ps.id = i.status_id
+                 WHERE i.project_id = ?",
+            )
+            .bind(project_id)
+            .fetch_all(pool)
+            .await?
+        }
+        None => {
+            sqlx::query_as(
+                "SELECT i.id, ps.name, i.updated_at FROM issues i
+                 JOIN project_statuses ps ON ps.id = i.status_id",
+            )
+            .fetch_all(pool)
+            .await?
+        }
+    };
+    Ok(summarize_board(rows))
+}
+
+fn summarize_board(mut rows: Vec<(Uuid, String, String)>) -> BoardState {
+    use std::hash::{Hash, Hasher};
+    rows.sort();
+    let active = rows.iter().any(|(_, status, _)| {
+        let status = status.trim().to_ascii_lowercase();
+        status == "todo" || status == "in progress"
+    });
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    rows.hash(&mut hasher);
+    BoardState {
+        active,
+        signature: hasher.finish(),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
 
-    use super::split_loop_prompt;
+    use uuid::Uuid;
+
+    use super::{TICK_MARKER, split_loop_prompt, summarize_board, tick_message};
+
+    fn row(status: &str, updated: &str) -> (Uuid, String, String) {
+        (Uuid::from_u128(1), status.to_string(), updated.to_string())
+    }
+
+    #[test]
+    fn board_is_active_only_with_todo_or_in_progress() {
+        assert!(!summarize_board(vec![]).active);
+        assert!(!summarize_board(vec![row("In Review", "t1")]).active);
+        assert!(!summarize_board(vec![row("Done", "t1")]).active);
+        assert!(summarize_board(vec![row("Todo", "t1")]).active);
+        assert!(summarize_board(vec![row("in progress", "t1")]).active);
+    }
+
+    #[test]
+    fn signature_changes_when_a_card_moves_or_is_edited() {
+        let base = summarize_board(vec![row("In Review", "t1")]).signature;
+        assert_eq!(
+            base,
+            summarize_board(vec![row("In Review", "t1")]).signature
+        );
+        assert_ne!(base, summarize_board(vec![row("Done", "t1")]).signature);
+        assert_ne!(
+            base,
+            summarize_board(vec![row("In Review", "t2")]).signature
+        );
+    }
+
+    #[test]
+    fn tick_message_starts_with_the_marker() {
+        let msg = tick_message("Run one tick.");
+        assert!(msg.starts_with(TICK_MARKER));
+        assert!(msg.ends_with("Run one tick."));
+    }
 
     #[test]
     fn splits_loop_prefix() {

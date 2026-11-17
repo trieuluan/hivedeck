@@ -755,5 +755,9 @@
     "idle": "Copy code",
     "copied": "Copied",
     "error": "Could not copy. Select the code and copy manually."
+  },
+  "chatAutoTick": {
+    "label": "Automatic captain tick",
+    "labelAt": "Automatic captain tick · {{time}}"
   }
 }
