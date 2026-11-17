@@ -42,6 +42,7 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(() => {
 
   useEffect(() => {
     if (!modal.visible) {
+      setConfirmRemove(false);
       setName('Orchestrator');
       setEnabled(loadDirectiveState());
     }
@@ -60,6 +61,19 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(() => {
       ) ?? null,
     [workspaces]
   );
+
+  // An idle (not running) orchestrator workspace: spawning reuses it with a
+  // fresh session; it can also be removed to start over with no history.
+  const idleOrchestrator = useMemo(
+    () =>
+      runningOrchestrator
+        ? null
+        : (workspaces.find(
+            (ws) => ws.kind === 'orchestrator' && !ws.isArchived
+          ) ?? null),
+    [workspaces, runningOrchestrator]
+  );
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
   const enabledIds = useMemo(
     () => new Set(Object.keys(enabled).filter((id) => enabled[id])),
@@ -97,7 +111,19 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(() => {
     },
   });
 
-  const busy = spawnMutation.isPending || closeMutation.isPending;
+  const removeMutation = useMutation({
+    mutationFn: async (workspaceId: string) =>
+      workspacesApi.delete(workspaceId),
+    onSuccess: () => {
+      setConfirmRemove(false);
+      queryClient.invalidateQueries({ queryKey: workspaceSummaryKeys.all });
+    },
+  });
+
+  const busy =
+    spawnMutation.isPending ||
+    closeMutation.isPending ||
+    removeMutation.isPending;
 
   const handleOpenChange = (open: boolean) => {
     if (!open) modal.hide();
@@ -125,6 +151,53 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(() => {
           {runningOrchestrator && (
             <div className="rounded-md border border-border bg-secondary/50 p-3 text-sm text-normal">
               {t('spawnOrchestrator.existingRunning')}
+            </div>
+          )}
+
+          {idleOrchestrator && (
+            <div className="space-y-2 rounded-md border border-border bg-secondary/50 p-3 text-sm text-normal">
+              <p>{t('spawnOrchestrator.existingIdle')}</p>
+              {confirmRemove ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="flex-1 text-xs text-low">
+                    {t('spawnOrchestrator.removeConfirm')}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setConfirmRemove(false)}
+                    disabled={busy}
+                  >
+                    {t('common:buttons.cancel')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => removeMutation.mutate(idleOrchestrator.id)}
+                    disabled={busy}
+                  >
+                    {removeMutation.isPending
+                      ? t('spawnOrchestrator.removing')
+                      : t('spawnOrchestrator.remove')}
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setConfirmRemove(true)}
+                  disabled={busy}
+                >
+                  {t('spawnOrchestrator.removeStart')}
+                </Button>
+              )}
+              {removeMutation.error && (
+                <p className="text-xs text-destructive">
+                  {removeMutation.error instanceof Error
+                    ? removeMutation.error.message
+                    : String(removeMutation.error)}
+                </p>
+              )}
             </div>
           )}
 
