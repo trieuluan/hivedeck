@@ -6,6 +6,9 @@ import { SyncErrorProvider } from '@/shared/providers/SyncErrorProvider';
 import { useIsMobile } from '@/shared/hooks/useIsMobile';
 import { useUiPreferencesStore } from '@/shared/stores/useUiPreferencesStore';
 import { cn } from '@/shared/lib/utils';
+import { workspacesApi } from '@/shared/lib/api';
+import { setTitleBadge } from '@/shared/hooks/usePageTitle';
+import { isWorkspaceNeedsAttention } from '@vibe/ui/lib/workspaceStatus';
 
 import { NavbarContainer } from './NavbarContainer';
 import { Sidebar } from '@vibe/ui/components/Sidebar';
@@ -606,6 +609,35 @@ export function SharedAppLayout() {
     [activeWorkspaces]
   );
 
+  // Captains stay out of the tree but reach the attention inbox when blocked.
+  const captainOutlinerWorkspaces = useMemo<OutlinerWorkspace[]>(
+    () =>
+      activeWorkspaces
+        .filter((ws) => ws.kind === 'orchestrator')
+        .map(toOutlinerWorkspace),
+    [activeWorkspaces]
+  );
+
+  // "(3) …" in the browser tab while things wait on you.
+  const attentionCount = useMemo(
+    () =>
+      [...outlinerWorkspaces, ...captainOutlinerWorkspaces].filter(
+        isWorkspaceNeedsAttention
+      ).length,
+    [outlinerWorkspaces, captainOutlinerWorkspaces]
+  );
+  useEffect(() => {
+    setTitleBadge(attentionCount);
+  }, [attentionCount]);
+
+  const handleMarkSeen = useCallback((ids: string[]) => {
+    for (const id of ids) {
+      void workspacesApi.markSeen(id).catch((error: unknown) => {
+        console.error('Failed to mark workspace seen', error);
+      });
+    }
+  }, []);
+
   const outlinerArchivedWorkspaces = useMemo<OutlinerWorkspace[]>(
     () =>
       archivedWorkspaces
@@ -663,6 +695,8 @@ export function SharedAppLayout() {
                       loadingTasksProjectIds={loadingTasksProjectIds}
                       onSelectIssue={handleSelectIssue}
                       workspaces={outlinerWorkspaces}
+                      attentionOnlyWorkspaces={captainOutlinerWorkspaces}
+                      onMarkSeen={handleMarkSeen}
                       archivedWorkspaces={outlinerArchivedWorkspaces}
                       membership={membership}
                       isLoadingProjects={isLoading}
@@ -749,6 +783,8 @@ export function SharedAppLayout() {
                         loadingTasksProjectIds={loadingTasksProjectIds}
                         onSelectIssue={handleSelectIssue}
                         workspaces={outlinerWorkspaces}
+                        attentionOnlyWorkspaces={captainOutlinerWorkspaces}
+                        onMarkSeen={handleMarkSeen}
                         archivedWorkspaces={outlinerArchivedWorkspaces}
                         membership={membership}
                         isLoadingProjects={isLoading}

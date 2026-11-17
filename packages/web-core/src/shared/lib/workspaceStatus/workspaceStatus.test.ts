@@ -200,3 +200,33 @@ describe('workspace status', () => {
     });
   });
 });
+
+describe('attentionReason', () => {
+  it('puts approvals first, then failures, then finished work', async () => {
+    const { attentionReason, compareAttention } = await import(
+      '@vibe/ui/lib/workspaceStatus'
+    );
+    const approval = ws({ id: 'a', hasPendingApproval: true });
+    const failed = ws({
+      id: 'f',
+      hasUnseenActivity: true,
+      latestProcessStatus: 'failed',
+    });
+    const done = ws({ id: 'd', hasUnseenActivity: true });
+    expect(attentionReason(approval)).toBe('approval');
+    expect(attentionReason(failed)).toBe('failed');
+    expect(attentionReason(done)).toBe('finished');
+    expect(
+      [done, failed, approval].sort(compareAttention).map((w) => w.id)
+    ).toEqual(['a', 'f', 'd']);
+  });
+
+  it("ignores a captain's finished tick but not its failures", async () => {
+    const { attentionReason } = await import('@vibe/ui/lib/workspaceStatus');
+    const captain = { kind: 'orchestrator', hasUnseenActivity: true };
+    expect(attentionReason(captain)).toBeNull();
+    expect(
+      attentionReason({ ...captain, latestProcessStatus: 'failed' as const })
+    ).toBe('failed');
+  });
+});

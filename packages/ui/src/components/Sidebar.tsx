@@ -1,19 +1,19 @@
-import { useId, type ReactNode } from 'react';
-import { useTranslation } from 'react-i18next';
-import { cn } from '../lib/cn';
-import { SidebarBar } from './SidebarBar';
-import { SidebarBucketBar } from './SidebarBucketBar';
-import { SidebarSectionHeader } from './SidebarSectionHeader';
-import { SidebarSeparator } from './SidebarSeparator';
-import { SidebarProjectTree } from './SidebarProjectTree';
-import type { ProjectTasksData } from './outliner/types';
-import type { SidebarProject } from './outliner/types';
+import { useId, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import { cn } from "../lib/cn";
+import { SidebarBar } from "./SidebarBar";
+import { SidebarBucketBar } from "./SidebarBucketBar";
+import { SidebarSectionHeader } from "./SidebarSectionHeader";
+import { SidebarSeparator } from "./SidebarSeparator";
+import { SidebarProjectTree } from "./SidebarProjectTree";
+import type { ProjectTasksData } from "./outliner/types";
+import type { SidebarProject } from "./outliner/types";
 import type {
   OutlinerWorkspace,
   WorkspaceProjectMembership,
-} from './outliner/types';
+} from "./outliner/types";
 
-export type { WorkspaceProjectMembership } from './outliner/types';
+export type { WorkspaceProjectMembership } from "./outliner/types";
 
 interface SidebarProps {
   /** All projects to render at the root of the tree. */
@@ -24,6 +24,11 @@ interface SidebarProps {
   workspaces: OutlinerWorkspace[];
   /** Archived workspaces. */
   archivedWorkspaces?: OutlinerWorkspace[];
+  /** Kept out of the tree (project captains) but shown in the attention
+   *  inbox when blocked. */
+  attentionOnlyWorkspaces?: OutlinerWorkspace[];
+  /** Dismisses finished/failed items from the attention inbox. */
+  onMarkSeen?: (ids: string[]) => void;
   /** local_workspace_id → set of project ids (for tree grouping). */
   membership: WorkspaceProjectMembership;
   /** Workspace id whose destination the user is currently on, if any. */
@@ -35,7 +40,7 @@ interface SidebarProps {
   onSelectIssue?: (
     projectId: string,
     issueId: string,
-    parentIssueId?: string | null
+    parentIssueId?: string | null,
   ) => void;
   isLoadingProjects?: boolean;
   isLoadingWorkspaces?: boolean;
@@ -105,28 +110,32 @@ export function Sidebar({
   headerActions,
   bottomActions,
   className,
+  attentionOnlyWorkspaces,
+  onMarkSeen,
 }: SidebarProps) {
-  const { t } = useTranslation('common');
+  const { t } = useTranslation("common");
   const titleId = useId();
   return (
     <aside
-      aria-label={t('common:ui.primarySidebar')}
+      aria-label={t("common:ui.primarySidebar")}
       className={cn(
-        'flex h-full w-[256px] shrink-0 flex-col gap-2 overflow-hidden',
-        'border-r border-border bg-secondary px-2 pt-2 pb-2',
-        className
+        "flex h-full w-[256px] shrink-0 flex-col gap-2 overflow-hidden",
+        "border-r border-border bg-secondary px-2 pt-2 pb-2",
+        className,
       )}
     >
       <SidebarBucketBar
         workspaces={workspaces}
+        attentionOnlyWorkspaces={attentionOnlyWorkspaces}
         activeWorkspaceId={activeWorkspaceId}
         onSelectWorkspace={onSelectWorkspace}
+        onMarkSeen={onMarkSeen}
       />
 
       <SidebarSeparator />
 
       <SidebarSectionHeader
-        title={t('appBar.projects')}
+        title={t("appBar.projects")}
         titleId={titleId}
         actions={headerActions}
       />
@@ -161,7 +170,7 @@ export function Sidebar({
 
       {bottomActions && (
         <SidebarBar
-          aria-label={t('sidebar.bottomBarLabel')}
+          aria-label={t("sidebar.bottomBarLabel")}
           className="mt-auto pt-2"
         >
           {bottomActions}

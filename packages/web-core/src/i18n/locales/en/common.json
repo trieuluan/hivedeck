@@ -761,5 +761,22 @@
     "labelAt": "Automatic captain tick · {{time}}",
     "startup": "Captain started · reading the board",
     "startupAt": "Captain started · reading the board · {{time}}"
+  },
+  "attentionInbox": {
+    "title": "Waiting on you",
+    "empty": "Nothing needs you right now.",
+    "captain": "Captain · {{name}}",
+    "markAllSeen_one": "Mark {{count}} as seen",
+    "markAllSeen_other": "Mark {{count}} as seen",
+    "reason": {
+      "approval": "Needs approval",
+      "failed": "Failed",
+      "finished": "Done"
+    },
+    "action": {
+      "approval": "Answer",
+      "failed": "See error",
+      "finished": "Review"
+    }
   }
 }

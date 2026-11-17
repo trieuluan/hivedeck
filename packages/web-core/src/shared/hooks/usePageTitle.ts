@@ -2,6 +2,19 @@ import { useEffect } from 'react';
 
 const BASE_TITLE = 'HiveDeck';
 
+let currentTitle = BASE_TITLE;
+let badge = 0;
+
+function applyTitle() {
+  document.title = badge > 0 ? `(${badge}) ${currentTitle}` : currentTitle;
+}
+
+/** Number shown in front of the tab title, e.g. "(2) hivedeck | HiveDeck". */
+export function setTitleBadge(count: number) {
+  badge = count;
+  applyTitle();
+}
+
 /**
  * Sets the document title based on the given parts.
  * Multiple callers can coexist — the most specific (deepest) component wins
@@ -19,6 +32,7 @@ export function usePageTitle(...parts: (string | null | undefined)[]) {
       : BASE_TITLE;
 
   useEffect(() => {
-    document.title = title;
+    currentTitle = title;
+    applyTitle();
   }, [title]);
 }

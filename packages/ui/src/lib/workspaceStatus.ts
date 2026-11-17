@@ -9,6 +9,33 @@ export interface WorkspaceAttentionItem {
   isRunning?: boolean;
   hasPendingApproval?: boolean;
   hasUnseenActivity?: boolean;
+  latestProcessStatus?: "running" | "completed" | "failed" | "killed";
+  kind?: string | null;
+}
+
+/** Why a workspace is waiting on you, most urgent first. */
+export type AttentionReason = "approval" | "failed" | "finished";
+
+export const ATTENTION_REASON_ORDER: readonly AttentionReason[] = [
+  "approval",
+  "failed",
+  "finished",
+];
+
+/**
+ * - approval: an agent waits for you to approve a tool call or answer it.
+ * - failed: its last run failed and you haven't looked.
+ * - finished: it finished and you haven't looked. A captain finishing one of
+ *   its automatic turns isn't news, so captains only count when blocked.
+ */
+export function attentionReason(
+  w: WorkspaceAttentionItem,
+): AttentionReason | null {
+  if (w.hasPendingApproval) return "approval";
+  if (!w.hasUnseenActivity || w.isRunning) return null;
+  if (w.latestProcessStatus === "failed") return "failed";
+  if (w.kind === "orchestrator") return null;
+  return "finished";
 }
 
 /** Structural subset shared by SidebarWorkspace / sidebar local types. */
@@ -19,7 +46,17 @@ export interface WorkspaceStatusItem extends WorkspaceAttentionItem {
 }
 
 export function isWorkspaceNeedsAttention(w: WorkspaceAttentionItem): boolean {
-  return Boolean(w.hasPendingApproval || (w.hasUnseenActivity && !w.isRunning));
+  return attentionReason(w) !== null;
+}
+
+/** Most urgent first, then most recent. */
+export function compareAttention<T extends WorkspaceStatusItem>(
+  a: T,
+  b: T,
+): number {
+  const rank = (w: T) =>
+    ATTENTION_REASON_ORDER.indexOf(attentionReason(w) ?? "finished");
+  return rank(a) - rank(b) || compareWorkspaceDashboardRecency(a, b);
 }
 
 export function isWorkspaceRunning(w: WorkspaceAttentionItem): boolean {
@@ -41,14 +78,14 @@ function compareDesc(a: string | undefined, b: string | undefined): number {
 
 function compareCreated(
   a: WorkspaceStatusItem,
-  b: WorkspaceStatusItem
+  b: WorkspaceStatusItem,
 ): number {
   return compareDesc(a.createdAt, b.createdAt) || b.id.localeCompare(a.id);
 }
 
 export function compareWorkspaceDashboardRecency(
   a: WorkspaceStatusItem,
-  b: WorkspaceStatusItem
+  b: WorkspaceStatusItem,
 ): number {
   return (
     compareDesc(a.latestProcessCompletedAt, b.latestProcessCompletedAt) ||
@@ -68,7 +105,7 @@ export interface CategorizedWorkspaces<T extends WorkspaceStatusItem> {
 }
 
 export function categorizeWorkspacesForDashboard<T extends WorkspaceStatusItem>(
-  active: readonly T[]
+  active: readonly T[],
 ): CategorizedWorkspaces<T> {
   const needsAttention = active
     .filter(isWorkspaceNeedsAttention)
@@ -96,7 +133,7 @@ export interface CategorizedOutlinerWorkspaces<T extends WorkspaceStatusItem> {
 
 export function categorizeWorkspacesForOutliner<T extends WorkspaceStatusItem>(
   active: readonly T[],
-  archived: readonly T[]
+  archived: readonly T[],
 ): CategorizedOutlinerWorkspaces<T> {
   return {
     attention: active.filter(isWorkspaceNeedsAttention),
@@ -112,7 +149,7 @@ export interface WorkspaceBadgeCounts {
 }
 
 export function computeWorkspaceBadgeCounts(
-  active: readonly WorkspaceStatusItem[]
+  active: readonly WorkspaceStatusItem[],
 ): WorkspaceBadgeCounts {
   return {
     runningCount: active.filter(isWorkspaceRunning).length,

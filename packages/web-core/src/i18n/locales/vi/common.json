@@ -761,5 +761,22 @@
     "labelAt": "Lượt tự động của thuyền trưởng · {{time}}",
     "startup": "Thuyền trưởng khởi động · đọc bảng",
     "startupAt": "Thuyền trưởng khởi động · đọc bảng · {{time}}"
+  },
+  "attentionInbox": {
+    "title": "Đang chờ bạn",
+    "empty": "Hiện không có gì cần bạn xử lý.",
+    "captain": "Thuyền trưởng · {{name}}",
+    "markAllSeen_one": "Đánh dấu {{count}} mục đã xem",
+    "markAllSeen_other": "Đánh dấu {{count}} mục đã xem",
+    "reason": {
+      "approval": "Chờ duyệt",
+      "failed": "Lỗi",
+      "finished": "Đã xong"
+    },
+    "action": {
+      "approval": "Trả lời",
+      "failed": "Xem lỗi",
+      "finished": "Xem kết quả"
+    }
   }
 }
