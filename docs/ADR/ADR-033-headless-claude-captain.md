@@ -13,7 +13,7 @@ ADR-032 also found that a Codex captain can't call HiveDeck's tools through non-
 ## Decision
 
 - The dialog's **Claude Code** option now starts **headless Claude Code** (`CLAUDE_CODE`) with the backend loop, like Codex. Headed Claude (`CLAUDE_CODE_HEADED`) remains accepted by the API for existing setups.
-- The container hands a headless Claude captain its definition and the MCP endpoint through env vars (`HIVEDECK_CLAUDE_CAPTAIN_AGENTS`, `HIVEDECK_CLAUDE_CAPTAIN_MCP_CONFIG`); the executor turns them into `--agents`, `--mcp-config=…` and `--allowedTools=mcp__hivedeck`, and strips them from the child's environment. The ExecutorConfig carries `--agent hivedeck-captain`.
+- The container hands a headless Claude captain its definition and the MCP endpoint through env vars (`HIVEDECK_CLAUDE_CAPTAIN_AGENTS`, `HIVEDECK_CLAUDE_CAPTAIN_MCP_CONFIG`); the executor turns them into `--agents`, `--mcp-config=…` and `--allowedTools=mcp__hivedeck,Read,Glob,Grep` (HiveDeck tools plus read-only file tools, so it can see attached screenshots and the project code; edits and shell stay refused), and strips them from the child's environment. The ExecutorConfig carries `--agent hivedeck-captain`.
 - **Permissions:** in `-p` mode only HiveDeck's MCP tools are pre-approved; edits and shell commands that need permission are refused. A profile-level `--dangerously-skip-permissions` is dropped for captain runs so it can't override that.
 
 ## Verified

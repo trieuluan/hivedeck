@@ -856,11 +856,15 @@ pub struct ClaudeCodeHeaded {
 pub const CAPTAIN_AGENTS_ENV: &str = "HIVEDECK_CLAUDE_CAPTAIN_AGENTS";
 pub const CAPTAIN_MCP_CONFIG_ENV: &str = "HIVEDECK_CLAUDE_CAPTAIN_MCP_CONFIG";
 
+/// Tools a captain may use without asking: HiveDeck's MCP tools plus
+/// read-only file tools, so it can look at screenshots you attach and at the
+/// project's code. In `-p` mode anything else that needs permission (edits,
+/// shell) is refused, which is what a captain wants.
+pub const CAPTAIN_ALLOWED_TOOLS: &str = "mcp__hivedeck,Read,Glob,Grep";
+
 /// Extra flags for a captain run. Headless runs take the prompt on stdin, so
 /// nothing positional can be swallowed; `--mcp-config` still uses the `=`
-/// form. Only HiveDeck's MCP tools are pre-approved: in `-p` mode anything
-/// else that needs permission (edits, shell) is refused, which is what a
-/// captain wants.
+/// form.
 fn captain_args(env: &ExecutionEnv) -> Vec<String> {
     let mut args = Vec::new();
     if let Some(agents) = env.vars.get(CAPTAIN_AGENTS_ENV) {
@@ -869,7 +873,7 @@ fn captain_args(env: &ExecutionEnv) -> Vec<String> {
     }
     if let Some(mcp) = env.vars.get(CAPTAIN_MCP_CONFIG_ENV) {
         args.push(format!("--mcp-config={mcp}"));
-        args.push("--allowedTools=mcp__hivedeck".to_string());
+        args.push(format!("--allowedTools={CAPTAIN_ALLOWED_TOOLS}"));
     }
     args
 }
@@ -4101,7 +4105,7 @@ mod captain_args_tests {
                 "--agents".to_string(),
                 "{\"a\":1}".to_string(),
                 "--mcp-config={\"m\":1}".to_string(),
-                "--allowedTools=mcp__hivedeck".to_string(),
+                "--allowedTools=mcp__hivedeck,Read,Glob,Grep".to_string(),
             ]
         );
     }
