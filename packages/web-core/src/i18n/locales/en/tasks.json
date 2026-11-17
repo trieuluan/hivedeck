@@ -542,15 +542,15 @@
     "removing": "Removing...",
     "agentLabel": "Captain agent",
     "runningOn": "Running on {{agent}}.",
-    "runningOnLoop": "Running on {{agent}}: HiveDeck sends it a tick every {{minutes}} min.",
+    "runningOnLoop": "Running on {{agent}}: HiveDeck wakes it when a card or an agent changes, and every {{minutes}} min while there is work.",
     "agents": {
       "claude": {
         "label": "Claude Code",
-        "description": "Runs in the background; HiveDeck sends it a tick every 5 min. Works with any model in the planner combo."
+        "description": "Runs in the background; HiveDeck wakes it when a card or an agent changes. Works with any model in the planner combo."
       },
       "codex": {
         "label": "Codex",
-        "description": "Runs in the background; HiveDeck sends it a tick every 5 min."
+        "description": "Runs in the background; HiveDeck wakes it when a card or an agent changes."
       }
     },
     "titleProject": "Captain · {{name}}",

@@ -1,8 +1,13 @@
 //! ADR-031: the backend drives the captain's loop for agents that have no
 //! `/loop` of their own (Codex). A headed Claude captain keeps using its
 //! built-in `/loop`; for everything else HiveDeck sends the per-tick prompt as
-//! a follow-up on the captain's session once the previous tick has finished
-//! and the interval has passed.
+//! a follow-up on the captain's session.
+//!
+//! Ticks are event-driven: the loop polls a cheap fingerprint of what the
+//! captain watches (its cards, the agent runs on those cards, agents waiting
+//! for approval or an answer) and wakes the captain when it changes. While
+//! cards are in Todo or In Progress a slow heartbeat also wakes it, as a
+//! safety net. An idle board costs nothing.
 //!
 //! There is at most one loop per captain workspace (the global captain and
 //! one per project, ADR-032). Loops live in memory: a backend restart stops
@@ -33,9 +38,13 @@ pub fn tick_message(body: &str) -> String {
     format!("{TICK_MARKER}\n{body}")
 }
 
-/// Interval used when the prompt carries no `/loop <interval>` prefix.
-pub const DEFAULT_INTERVAL: Duration = Duration::from_secs(5 * 60);
-/// How often the loop checks whether a tick is due.
+/// Safety-net tick while cards are in Todo or In Progress and nothing else
+/// woke the captain.
+pub const HEARTBEAT: Duration = Duration::from_secs(30 * 60);
+/// Wait this long after the previous tick finished, so a burst of changes
+/// (and the captain's own moves) wakes it once.
+const DEBOUNCE: Duration = Duration::from_secs(20);
+/// How often the loop checks the fingerprint.
 const POLL: Duration = Duration::from_secs(15);
 /// Consecutive failed ticks after which the loop gives up.
 const MAX_FAILURES: u32 = 3;
@@ -155,9 +164,19 @@ async fn run(
     loop_id: Uuid,
 ) {
     let mut failures = 0u32;
-    // Board state at the last tick; a tick is skipped while nothing is
-    // active and nothing changed.
-    let mut last_board: Option<u64> = None;
+    // Fingerprint at the last tick. The spawn's first prompt was a tick, so
+    // start from the current state rather than ticking again right away.
+    let mut last_board: Option<u64> = {
+        let pool = &deployment.db().pool;
+        let project = Workspace::captain_project_id(pool, info.workspace_id)
+            .await
+            .ok()
+            .flatten();
+        watch_state(&deployment, project)
+            .await
+            .ok()
+            .map(|state| state.signature)
+    };
     let reason = loop {
         tokio::select! {
             _ = token.cancelled() => break "stopped",
@@ -232,15 +251,17 @@ async fn step(
         ExecutionProcessStatus::Completed => {}
     }
     let finished = latest.completed_at.unwrap_or(latest.started_at);
-    let due = finished + chrono::Duration::from_std(info.interval)?;
-    if Utc::now() < due {
+    let since = Utc::now() - finished;
+    if since < chrono::Duration::from_std(DEBOUNCE)? {
         return Ok(Step::Wait);
     }
-    // Nothing to watch or dispatch and nothing changed: skip this tick (no
-    // model call). Owner messages don't wait for ticks; they run at once.
+    // Wake on a change, or on the heartbeat while there is work in flight.
+    // Owner messages don't wait for ticks; they run at once.
     let project_id = Workspace::captain_project_id(pool, workspace.id).await?;
-    let board = board_state(pool, project_id).await?;
-    if !board.active && *last_board == Some(board.signature) {
+    let board = watch_state(deployment, project_id).await?;
+    let changed = *last_board != Some(board.signature);
+    let heartbeat = board.active && since >= chrono::Duration::from_std(HEARTBEAT)?;
+    if !changed && !heartbeat {
         return Ok(Step::Wait);
     }
 
@@ -287,12 +308,14 @@ struct BoardState {
     signature: u64,
 }
 
-/// Cards in the captain's scope (its project, or every project for the
-/// global captain).
-async fn board_state(
-    pool: &sqlx::SqlitePool,
+/// What the captain watches, in its scope (its project, or every project
+/// for the global captain): the cards, the agent runs on those cards, and
+/// which of those runs wait for approval or an answer.
+async fn watch_state(
+    deployment: &DeploymentImpl,
     project_id: Option<Uuid>,
 ) -> Result<BoardState, sqlx::Error> {
+    let pool = &deployment.db().pool;
     let rows: Vec<(Uuid, String, String)> = match project_id {
         Some(project_id) => {
             sqlx::query_as(
@@ -313,18 +336,60 @@ async fn board_state(
             .await?
         }
     };
-    Ok(summarize_board(rows))
+    let runs: Vec<(Uuid, String, Option<String>)> = match project_id {
+        Some(project_id) => {
+            sqlx::query_as(
+                "SELECT ep.id, ep.status, ep.completed_at FROM execution_processes ep
+                 JOIN sessions s ON s.id = ep.session_id
+                 JOIN issue_workspaces iw ON iw.workspace_id = s.workspace_id
+                 JOIN issues i ON i.id = iw.issue_id
+                 WHERE i.project_id = ? AND ep.run_reason = 'codingagent'",
+            )
+            .bind(project_id)
+            .fetch_all(pool)
+            .await?
+        }
+        None => {
+            sqlx::query_as(
+                "SELECT ep.id, ep.status, ep.completed_at FROM execution_processes ep
+                 JOIN sessions s ON s.id = ep.session_id
+                 JOIN issue_workspaces iw ON iw.workspace_id = s.workspace_id
+                 WHERE ep.run_reason = 'codingagent'",
+            )
+            .fetch_all(pool)
+            .await?
+        }
+    };
+    let running: Vec<Uuid> = runs
+        .iter()
+        .filter(|(_, status, _)| status == "running")
+        .map(|(id, _, _)| *id)
+        .collect();
+    let mut waiting: Vec<Uuid> = deployment
+        .approvals()
+        .get_pending_execution_process_ids(&running)
+        .into_iter()
+        .collect();
+    waiting.sort();
+    Ok(summarize(rows, runs, waiting))
 }
 
-fn summarize_board(mut rows: Vec<(Uuid, String, String)>) -> BoardState {
+fn summarize(
+    mut rows: Vec<(Uuid, String, String)>,
+    mut runs: Vec<(Uuid, String, Option<String>)>,
+    waiting: Vec<Uuid>,
+) -> BoardState {
     use std::hash::{Hash, Hasher};
     rows.sort();
+    runs.sort();
     let active = rows.iter().any(|(_, status, _)| {
         let status = status.trim().to_ascii_lowercase();
         status == "todo" || status == "in progress"
     });
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     rows.hash(&mut hasher);
+    runs.hash(&mut hasher);
+    waiting.hash(&mut hasher);
     BoardState {
         active,
         signature: hasher.finish(),
@@ -337,7 +402,11 @@ mod tests {
 
     use uuid::Uuid;
 
-    use super::{TICK_MARKER, split_loop_prompt, summarize_board, tick_message};
+    use super::{TICK_MARKER, split_loop_prompt, summarize, tick_message};
+
+    fn summarize_board(rows: Vec<(Uuid, String, String)>) -> super::BoardState {
+        summarize(rows, vec![], vec![])
+    }
 
     fn row(status: &str, updated: &str) -> (Uuid, String, String) {
         (Uuid::from_u128(1), status.to_string(), updated.to_string())
@@ -364,6 +433,23 @@ mod tests {
             base,
             summarize_board(vec![row("In Review", "t2")]).signature
         );
+    }
+
+    #[test]
+    fn signature_changes_when_an_agent_finishes_or_waits() {
+        let run = |status: &str, done: Option<&str>| {
+            (
+                Uuid::from_u128(7),
+                status.to_string(),
+                done.map(str::to_string),
+            )
+        };
+        let running = summarize(vec![], vec![run("running", None)], vec![]).signature;
+        let done = summarize(vec![], vec![run("completed", Some("t9"))], vec![]).signature;
+        let waiting =
+            summarize(vec![], vec![run("running", None)], vec![Uuid::from_u128(7)]).signature;
+        assert_ne!(running, done);
+        assert_ne!(running, waiting);
     }
 
     #[test]

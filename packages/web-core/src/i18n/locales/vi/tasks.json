@@ -542,15 +542,15 @@
     "removing": "Đang xoá...",
     "agentLabel": "Agent làm thuyền trưởng",
     "runningOn": "Đang chạy trên {{agent}}.",
-    "runningOnLoop": "Đang chạy trên {{agent}}: HiveDeck gửi một lượt mỗi {{minutes}} phút.",
+    "runningOnLoop": "Đang chạy trên {{agent}}: HiveDeck đánh thức khi thẻ hoặc agent thay đổi, và mỗi {{minutes}} phút khi còn việc.",
     "agents": {
       "claude": {
         "label": "Claude Code",
-        "description": "Chạy nền; HiveDeck gửi cho nó một lượt mỗi 5 phút. Dùng được với mọi model trong combo planner."
+        "description": "Chạy nền; HiveDeck đánh thức nó khi thẻ hoặc agent thay đổi. Dùng được với mọi model trong combo planner."
       },
       "codex": {
         "label": "Codex",
-        "description": "Chạy nền; HiveDeck gửi cho nó một lượt mỗi 5 phút."
+        "description": "Chạy nền; HiveDeck đánh thức nó khi thẻ hoặc agent thay đổi."
       }
     },
     "titleProject": "Thuyền trưởng · {{name}}",

@@ -287,7 +287,7 @@ fn start_captain_loop(
     deployment: &DeploymentImpl,
     workspace_id: Uuid,
     executor_config: &ExecutorConfig,
-    interval: Option<std::time::Duration>,
+    _interval: Option<std::time::Duration>,
     tick_prompt: String,
 ) {
     crate::captain_loop::start(
@@ -295,7 +295,8 @@ fn start_captain_loop(
         crate::captain_loop::LoopInfo {
             workspace_id,
             executor: executor_config.executor,
-            interval: interval.unwrap_or(crate::captain_loop::DEFAULT_INTERVAL),
+            // Event-driven (ADR-035); the `/loop` interval is not used.
+            interval: crate::captain_loop::HEARTBEAT,
         },
         executor_config.clone(),
         tick_prompt,
