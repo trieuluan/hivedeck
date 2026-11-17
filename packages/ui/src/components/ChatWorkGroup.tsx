@@ -47,7 +47,7 @@ export function ChatWorkGroup({
       {expanded && (
         <div
           id={bodyId}
-          className="mt-1 flex flex-col gap-2 border-l border-border pl-3"
+          className="mt-1 flex flex-col gap-2 border-l border-border pl-3 animate-in fade-in-0 slide-in-from-top-1 duration-150 motion-reduce:animate-none"
         >
           {children}
         </div>

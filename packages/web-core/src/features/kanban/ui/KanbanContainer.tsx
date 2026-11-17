@@ -39,6 +39,7 @@ import {
   isDoneStatus,
   useCollapsedStatuses,
 } from '../model/useCollapsedStatuses';
+import { useFlipCards } from '../model/useFlipCards';
 import { Actions } from '@/shared/actions';
 import {
   buildKanbanIssueComposerKey,
@@ -225,6 +226,9 @@ export function KanbanContainer() {
   const projectName = projects.find((p) => p.id === projectId)?.name ?? '';
   const { isCollapsed: isColumnCollapsed, setCollapsed: setColumnCollapsed } =
     useCollapsedStatuses(projectId);
+  // Cards slide to their new place when they change column or order.
+  const boardRef = useRef<HTMLDivElement>(null);
+  useFlipCards(boardRef);
 
   const selectedKanbanIssueId = routeState.issueId;
   // Sub-issue board mode (2026-08-07): when on the sub-board route, the
@@ -1175,6 +1179,49 @@ export function KanbanContainer() {
     [projects, projectId]
   );
 
+  // Keyboard: j / k move between cards (top to bottom, left to right
+  // across unfolded columns), Enter opens the highlighted card.
+  const [keyboardIssueId, setKeyboardIssueId] = useState<string | null>(null);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (!['j', 'k', 'Enter'].includes(event.key)) return;
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.closest(
+          'input, textarea, select, [contenteditable="true"], [role="dialog"], [role="menu"]'
+        )
+      ) {
+        return;
+      }
+      const order = visibleStatuses
+        .filter((status) => !isColumnCollapsed(status))
+        .flatMap((status) => items[status.id] ?? []);
+      if (order.length === 0) return;
+      if (event.key === 'Enter') {
+        if (!keyboardIssueId) return;
+        event.preventDefault();
+        openIssue(keyboardIssueId);
+        return;
+      }
+      event.preventDefault();
+      const current = keyboardIssueId ? order.indexOf(keyboardIssueId) : -1;
+      const nextIndex =
+        event.key === 'j'
+          ? Math.min(order.length - 1, current + 1)
+          : Math.max(0, current - 1);
+      const nextId = order[nextIndex] ?? null;
+      setKeyboardIssueId(nextId);
+      if (nextId) {
+        document
+          .querySelector(`[data-dnd-card-issue-id="${nextId}"]`)
+          ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [visibleStatuses, isColumnCollapsed, items, keyboardIssueId, openIssue]);
+
   if (isLoading) {
     return <LoadingState />;
   }
@@ -1293,7 +1340,7 @@ export function KanbanContainer() {
             <p className="text-low">{t('kanban.noVisibleStatuses')}</p>
           </div>
         ) : (
-          <div className="flex-1 overflow-x-auto px-double">
+          <div ref={boardRef} className="flex-1 overflow-x-auto px-double">
             <KanbanProvider
               className="min-w-full"
               style={{
@@ -1447,7 +1494,11 @@ export function KanbanContainer() {
                               statusId: issue.status_id,
                             }}
                             name={issue.title}
-                            className="group"
+                            className={cn(
+                              'group',
+                              keyboardIssueId === issue.id &&
+                                'ring-2 ring-brand/60 ring-offset-1 ring-offset-primary'
+                            )}
                             onClick={(e) => handleCardClick(issue.id, e)}
                             isOpen={selectedKanbanIssueId === issue.id}
                             isMobile={isMobile}
