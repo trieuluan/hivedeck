@@ -60,6 +60,7 @@ interface SidebarProjectTreeProps {
    *  new project is created as a child board of the supplied project id. */
   onCreateChildBoard?: (parentId: string) => void;
   onDeleteProject?: (projectId: string) => void;
+  onManageRepos?: (projectId: string) => void;
   /** ADR-016: opens the orchestrator-prompt editor for the supplied
    *  project id. The `+` menu's "Orchestrator prompt" item and the
    *  prompt row's click both route through this. */
@@ -97,6 +98,7 @@ export function SidebarProjectTree({
   onOpenLastWorkspace,
   onCreateChildBoard,
   onDeleteProject,
+  onManageRepos,
   onSelectOrchestratorPrompt,
   activeProjectPromptId = null,
   isMultiSelectActive = false,
@@ -537,6 +539,7 @@ export function SidebarProjectTree({
                   {...props}
                   onCreateChildBoard={onCreateChildBoard}
                   onDeleteProject={onDeleteProject}
+                  onManageRepos={onManageRepos}
                   onSelectOrchestratorPrompt={onSelectOrchestratorPrompt}
                   onOpenProjectPage={onOpenProjectPage}
                   onOpenWorkspacesPage={onOpenWorkspacesPage}

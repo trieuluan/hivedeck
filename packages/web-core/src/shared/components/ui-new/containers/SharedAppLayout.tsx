@@ -30,6 +30,7 @@ import {
 } from '@/shared/dialogs/CreateProjectDialog';
 import { CreateProjectButton } from './CreateProjectButton';
 import { DeleteRemoteProjectDialog } from '@/shared/dialogs/org/DeleteRemoteProjectDialog';
+import { ProjectReposDialog } from '@/shared/dialogs/ProjectReposDialog';
 import { useCommandBarShortcut } from '@/shared/hooks/useCommandBarShortcut';
 import { useShape } from '@/shared/integrations/electric/hooks';
 import { useProjects } from '@/shared/hooks/useProjects';
@@ -221,6 +222,16 @@ export function SharedAppLayout() {
       // Dialog cancelled — no-op.
     }
   }, [appNavigation]);
+
+  // Link repositories to a project (the captain dispatches into the first).
+  const handleManageRepos = useCallback(
+    (projectId: string) => {
+      const project = projects.find((p) => p.id === projectId);
+      if (!project) return;
+      void ProjectReposDialog.show({ projectId, projectName: project.name });
+    },
+    [projects]
+  );
 
   // Delete a project (and its cards, statuses and repo links) after
   // confirmation. Refused while it still has child boards. Leaves the
@@ -650,6 +661,7 @@ export function SharedAppLayout() {
                       }
                       onCreateChildBoard={handleCreateChildBoard}
                       onDeleteProject={handleDeleteProject}
+                      onManageRepos={handleManageRepos}
                       isMultiSelectActive={isMultiSelectActive}
                       headerActions={
                         <CreateProjectButton onClick={handleCreateProject} />
@@ -739,6 +751,7 @@ export function SharedAppLayout() {
                         }}
                         onCreateChildBoard={handleCreateChildBoard}
                         onDeleteProject={handleDeleteProject}
+                        onManageRepos={handleManageRepos}
                         isMultiSelectActive={isMultiSelectActive}
                         headerActions={
                           <CreateProjectButton onClick={handleCreateProject} />

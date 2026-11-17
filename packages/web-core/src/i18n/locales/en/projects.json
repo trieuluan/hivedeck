@@ -15,5 +15,14 @@
     "description": "This permanently deletes \"{{name}}\" with all its cards, statuses and repo links. Repositories on disk and existing workspaces are kept. This cannot be undone.",
     "error": "Failed to delete project. Please try again.",
     "hasChildren": "This project has {{count}} board(s). Delete those first."
+  },
+  "projectRepos": {
+    "title": "Repositories for {{name}}",
+    "description": "The captain and card-launched workspaces start work in the project's first linked repository.",
+    "loading": "Loading…",
+    "none": "No repositories are registered yet.",
+    "openSettings": "Add one in Settings",
+    "primary": "primary",
+    "done": "Done"
   }
 }

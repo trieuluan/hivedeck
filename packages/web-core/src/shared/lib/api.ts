@@ -1727,6 +1727,36 @@ export const searchApi = {
 // returns bare shapes and would trip this immediately. The MCP
 // `get_orchestrator_prompt` tool shares the same wire contract.
 export const projectsApi = {
+  /** Repos linked to a project (`GET /v1/projects/{id}/repos`). */
+  listRepos: async (projectId: string): Promise<Repo[]> => {
+    const response = await makeRequest(`/v1/projects/${projectId}/repos`);
+    if (!response.ok) {
+      throw new Error(`Failed to load project repos (${response.status})`);
+    }
+    const body = (await response.json()) as { repos?: Repo[] };
+    return body.repos ?? [];
+  },
+
+  linkRepo: async (projectId: string, repoId: string): Promise<void> => {
+    const response = await makeRequest(`/v1/projects/${projectId}/repos`, {
+      method: 'POST',
+      body: JSON.stringify({ repo_id: repoId }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to link repo (${response.status})`);
+    }
+  },
+
+  unlinkRepo: async (projectId: string, repoId: string): Promise<void> => {
+    const response = await makeRequest(
+      `/v1/projects/${projectId}/repos/${repoId}`,
+      { method: 'DELETE' }
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to unlink repo (${response.status})`);
+    }
+  },
+
   getOrchestratorPrompt: async (
     projectId: string
   ): Promise<OrchestratorPromptResponse> => {
