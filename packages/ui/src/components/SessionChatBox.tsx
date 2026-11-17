@@ -15,6 +15,7 @@ import {
   GithubLogoIcon,
   PencilSimpleIcon,
   SquareIcon,
+  DotsThreeIcon,
 } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
 import type { SendMessageShortcut } from "shared/types";
@@ -24,9 +25,12 @@ import { PulsingDot } from "./PulsingDot";
 import { type EditorProps, type ExecutorProps } from "./CreateChatBox";
 import type { AskUserQuestionItem, QuestionAnswer } from "shared/types";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuTriggerButton,
 } from "./Dropdown";
 import { PrimaryButton } from "./PrimaryButton";
 import type { LocalAttachmentMetadata } from "./WorkspaceContext";
@@ -41,6 +45,7 @@ import {
   TurnNavigationPopup,
   type TurnNavigationItem,
 } from "./TurnNavigationPopup";
+import { ChatSettingsPopover } from "./ChatSettingsPopover";
 
 // Status enum - single source of truth for execution state
 export type ExecutionStatus =
@@ -737,35 +742,8 @@ export function SessionChatBox<TExecutor extends string = string>({
       visualVariant={getVisualVariant()}
       isRunning={showRunningOutline}
       dropzone={disableContentInsert ? undefined : dropzone}
-      modelSelector={modelSelector}
       headerLeft={
         <>
-          {/* New session mode: agent icon + executor dropdown */}
-          {isNewSessionMode && executor && (
-            <>
-              {renderAgentIcon?.(agent, "size-icon-xl")}
-              <ToolbarDropdown
-                label={
-                  executor.selected
-                    ? formatExecutorLabel(executor.selected)
-                    : emptyExecutorLabel
-                }
-              >
-                <DropdownMenuLabel>
-                  {t("conversation.executors")}
-                </DropdownMenuLabel>
-                {executor.options.map((exec) => (
-                  <DropdownMenuItem
-                    key={exec}
-                    icon={executor.selected === exec ? CheckIcon : undefined}
-                    onClick={() => executor.onChange(exec)}
-                  >
-                    {formatExecutorLabel(exec)}
-                  </DropdownMenuItem>
-                ))}
-              </ToolbarDropdown>
-            </>
-          )}
           {/* Existing session mode: show in-progress todo when running, otherwise file stats */}
           {!isNewSessionMode && (
             <>
@@ -953,6 +931,33 @@ export function SessionChatBox<TExecutor extends string = string>({
       footerLeft={
         <>
           {showRunningAnimation && <PulsingDot className="self-center" />}
+          <ChatSettingsPopover disabled={isComposerDisabled || isRunning}>
+            {isNewSessionMode && renderAgentIcon?.(agent, "size-icon-xl")}
+            {isNewSessionMode && executor && (
+              <ToolbarDropdown
+                label={
+                  executor.selected
+                    ? formatExecutorLabel(executor.selected)
+                    : emptyExecutorLabel
+                }
+                disabled={isComposerDisabled || isRunning}
+              >
+                <DropdownMenuLabel>
+                  {t("conversation.executors")}
+                </DropdownMenuLabel>
+                {executor.options.map((exec) => (
+                  <DropdownMenuItem
+                    key={exec}
+                    icon={executor.selected === exec ? CheckIcon : undefined}
+                    onClick={() => executor.onChange(exec)}
+                  >
+                    {formatExecutorLabel(exec)}
+                  </DropdownMenuItem>
+                ))}
+              </ToolbarDropdown>
+            )}
+            {modelSelector}
+          </ChatSettingsPopover>
           <ToolbarIconButton
             icon={PaperclipIcon}
             aria-label={t("tasks:taskFormDialog.attachFile")}
@@ -967,27 +972,41 @@ export function SessionChatBox<TExecutor extends string = string>({
             className="hidden"
             onChange={handleFileInputChange}
           />
-          {onPrCommentClick && (
-            <ToolbarIconButton
-              icon={GithubLogoIcon}
-              aria-label={t("common:ui.addPrComments")}
-              title={t("common:ui.insertPrCommentsIntoMessage")}
-              onClick={onPrCommentClick}
-              disabled={areContentInsertActionsDisabled}
-            />
+          {(onPrCommentClick || toolbarActions?.items.length) && (
+            <DropdownMenu>
+              <DropdownMenuTriggerButton
+                size="sm"
+                icon={DotsThreeIcon}
+                aria-label={t("common:ui.moreActions")}
+                title={t("common:ui.moreActions")}
+                showCaret={false}
+                className="size-8 justify-center px-0"
+              />
+              <DropdownMenuContent align="start">
+                {onPrCommentClick && (
+                  <DropdownMenuItem
+                    icon={GithubLogoIcon}
+                    disabled={areContentInsertActionsDisabled}
+                    onClick={onPrCommentClick}
+                  >
+                    {t("common:ui.addPrComments")}
+                  </DropdownMenuItem>
+                )}
+                {toolbarActions?.items.map((item) => (
+                  <DropdownMenuItem
+                    key={item.id}
+                    icon={item.icon}
+                    disabled={
+                      isComposerDisabled || isRunning || Boolean(item.disabled)
+                    }
+                    onClick={item.onClick}
+                  >
+                    {item.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
-          {toolbarActions?.items.map((item) => (
-            <ToolbarIconButton
-              key={item.id}
-              icon={item.icon}
-              aria-label={item.label}
-              title={item.tooltip}
-              onClick={item.onClick}
-              disabled={
-                isComposerDisabled || isRunning || Boolean(item.disabled)
-              }
-            />
-          ))}
         </>
       }
       footerRight={renderActionButtons()}

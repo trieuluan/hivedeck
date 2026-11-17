@@ -7,6 +7,7 @@ import { DropdownMenuItem, DropdownMenuLabel } from './Dropdown';
 import { PrimaryButton } from './PrimaryButton';
 import type { LocalAttachmentMetadata } from './WorkspaceContext';
 import { ToolbarDropdown, ToolbarIconButton } from './Toolbar';
+import { ChatSettingsPopover } from './ChatSettingsPopover';
 
 export interface EditorProps {
   value: string;
@@ -156,24 +157,8 @@ export function CreateChatBox<TExecutor extends string = string>({
       error={error}
       visualVariant={VisualVariant.NORMAL}
       dropzone={dropzone}
-      modelSelector={modelSelector}
       headerLeft={
         <>
-          {agentIcon}
-          <ToolbarDropdown label={executorLabel} disabled={isDisabled}>
-            <DropdownMenuLabel>
-              {t('tasks:conversation.executors')}
-            </DropdownMenuLabel>
-            {executor.options.map((exec) => (
-              <DropdownMenuItem
-                key={exec}
-                icon={executor.selected === exec ? CheckIcon : undefined}
-                onClick={() => executor.onChange(exec)}
-              >
-                {formatExecutorLabel(exec)}
-              </DropdownMenuItem>
-            ))}
-          </ToolbarDropdown>
           {saveAsDefault?.visible && (
             <label className="flex items-center gap-1.5 text-sm text-low cursor-pointer ml-2">
               <Checkbox
@@ -189,6 +174,24 @@ export function CreateChatBox<TExecutor extends string = string>({
       }
       footerLeft={
         <>
+          <ChatSettingsPopover disabled={isDisabled}>
+            {agentIcon}
+            <ToolbarDropdown label={executorLabel} disabled={isDisabled}>
+              <DropdownMenuLabel>
+                {t('tasks:conversation.executors')}
+              </DropdownMenuLabel>
+              {executor.options.map((exec) => (
+                <DropdownMenuItem
+                  key={exec}
+                  icon={executor.selected === exec ? CheckIcon : undefined}
+                  onClick={() => executor.onChange(exec)}
+                >
+                  {formatExecutorLabel(exec)}
+                </DropdownMenuItem>
+              ))}
+            </ToolbarDropdown>
+            {modelSelector}
+          </ChatSettingsPopover>
           <ToolbarIconButton
             icon={PaperclipIcon}
             aria-label={t('tasks:taskFormDialog.attachFile')}

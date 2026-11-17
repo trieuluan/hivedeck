@@ -437,6 +437,7 @@
     }
   },
   "modelSelector": {
+    "agentModelThinking": "Agent, model và mức suy nghĩ",
     "preset": "Preset",
     "custom": "Tuỳ chỉnh",
     "permissions": "Quyền",

@@ -437,6 +437,7 @@
     }
   },
   "modelSelector": {
+    "agentModelThinking": "Agent, model, and thinking",
     "preset": "Preset",
     "custom": "Custom",
     "permissions": "Permissions",
