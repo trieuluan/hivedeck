@@ -11,6 +11,8 @@ import { Sidebar } from '@vibe/ui/components/Sidebar';
 import { MobileDrawer } from '@vibe/ui/components/MobileDrawer';
 import { ProjectColorTransformContext } from '@vibe/ui/lib/projectColor';
 import { SidebarBottomActions } from './SidebarBottomActions';
+import { useActions } from '@/shared/hooks/useActions';
+import { Actions } from '@/shared/actions';
 import { SidebarProjectTasksRegistry } from '@/shared/components/sidebar/SidebarProjectTasksRegistry';
 
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
@@ -222,6 +224,20 @@ export function SharedAppLayout() {
       // Dialog cancelled — no-op.
     }
   }, [appNavigation]);
+
+  // Workspace row menu in the sidebar: reuse the W A / W X actions (archive
+  // toggles; delete asks for confirmation and navigates away if needed).
+  const { executeAction } = useActions();
+  const handleArchiveWorkspace = useCallback(
+    (workspaceId: string) =>
+      void executeAction(Actions.ArchiveWorkspace, workspaceId),
+    [executeAction]
+  );
+  const handleDeleteWorkspace = useCallback(
+    (workspaceId: string) =>
+      void executeAction(Actions.DeleteWorkspace, workspaceId),
+    [executeAction]
+  );
 
   // Link repositories to a project (the captain dispatches into the first).
   const handleManageRepos = useCallback(
@@ -564,6 +580,7 @@ export function SharedAppLayout() {
     linesRemoved: ws.linesRemoved,
     isRunning: ws.isRunning,
     isPinned: ws.isPinned,
+    isArchived: ws.isArchived,
     kind: ws.kind,
     hasPendingApproval: ws.hasPendingApproval,
     hasRunningDevServer: ws.hasRunningDevServer,
@@ -648,6 +665,8 @@ export function SharedAppLayout() {
                       onCreateChildBoard={handleCreateChildBoard}
                       onDeleteProject={handleDeleteProject}
                       onManageRepos={handleManageRepos}
+                      onArchiveWorkspace={handleArchiveWorkspace}
+                      onDeleteWorkspace={handleDeleteWorkspace}
                       isMultiSelectActive={isMultiSelectActive}
                       headerActions={
                         <CreateProjectButton onClick={handleCreateProject} />
@@ -738,6 +757,8 @@ export function SharedAppLayout() {
                         onCreateChildBoard={handleCreateChildBoard}
                         onDeleteProject={handleDeleteProject}
                         onManageRepos={handleManageRepos}
+                        onArchiveWorkspace={handleArchiveWorkspace}
+                        onDeleteWorkspace={handleDeleteWorkspace}
                         isMultiSelectActive={isMultiSelectActive}
                         headerActions={
                           <CreateProjectButton onClick={handleCreateProject} />

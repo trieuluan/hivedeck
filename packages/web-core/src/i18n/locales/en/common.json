@@ -546,6 +546,10 @@
     "openIssuePage": "Open task",
     "openOrchestratorWorkspace": "Spawn or close the orchestrator",
     "deleteProject": "Delete project…",
-    "manageRepos": "Repositories…"
+    "manageRepos": "Repositories…",
+    "workspaceActions": "Workspace actions",
+    "archiveWorkspace": "Archive",
+    "unarchiveWorkspace": "Unarchive",
+    "deleteWorkspace": "Delete workspace…"
   }
 }

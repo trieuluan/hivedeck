@@ -55,6 +55,8 @@ interface SidebarProps {
   onCreateChildBoard?: (parentId: string) => void;
   onDeleteProject?: (projectId: string) => void;
   onManageRepos?: (projectId: string) => void;
+  onArchiveWorkspace?: (workspaceId: string) => void;
+  onDeleteWorkspace?: (workspaceId: string) => void;
   /** ADR-016: opens the per-project orchestrator-prompt editor pane.
    *  Triggered by the tree's `+` menu item and the prompt row's click. */
   onSelectOrchestratorPrompt?: (projectId: string) => void;
@@ -96,6 +98,8 @@ export function Sidebar({
   onCreateChildBoard,
   onDeleteProject,
   onManageRepos,
+  onArchiveWorkspace,
+  onDeleteWorkspace,
   onSelectOrchestratorPrompt,
   isMultiSelectActive,
   headerActions,
@@ -148,6 +152,8 @@ export function Sidebar({
         onCreateChildBoard={onCreateChildBoard}
         onDeleteProject={onDeleteProject}
         onManageRepos={onManageRepos}
+        onArchiveWorkspace={onArchiveWorkspace}
+        onDeleteWorkspace={onDeleteWorkspace}
         onSelectOrchestratorPrompt={onSelectOrchestratorPrompt}
         isMultiSelectActive={isMultiSelectActive}
         ariaLabelledBy={titleId}

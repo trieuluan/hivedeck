@@ -30,6 +30,7 @@ export interface OutlinerWorkspace extends WorkspaceStatusItem {
   linesRemoved?: number;
   isRunning?: boolean;
   isPinned?: boolean;
+  isArchived?: boolean;
   kind?: WorkspaceKind | null;
   hasPendingApproval?: boolean;
   hasRunningDevServer?: boolean;

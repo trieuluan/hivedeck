@@ -431,6 +431,8 @@ export function TreeNodeRouter(
     onCreateChildBoard?: (parentId: string) => void;
     onDeleteProject?: (projectId: string) => void;
     onManageRepos?: (projectId: string) => void;
+    onArchiveWorkspace?: (workspaceId: string) => void;
+    onDeleteWorkspace?: (workspaceId: string) => void;
     onSelectOrchestratorPrompt?: (projectId: string) => void;
     onOpenProjectPage?: (projectId: string) => void;
     onOpenWorkspacesPage?: (projectId: string) => void;
@@ -456,6 +458,8 @@ export function TreeNodeRouter(
     onCreateChildBoard,
     onDeleteProject,
     onManageRepos,
+    onArchiveWorkspace,
+    onDeleteWorkspace,
     onSelectOrchestratorPrompt,
     onOpenProjectPage,
     onOpenWorkspacesPage,
@@ -544,6 +548,8 @@ export function TreeNodeRouter(
           style={style}
           dragHandle={dragHandle}
           activeWorkspaceId={activeWorkspaceId}
+          onArchiveWorkspace={onArchiveWorkspace}
+          onDeleteWorkspace={onDeleteWorkspace}
           tintColor={tintColor}
           dimmed={dimmed}
         />

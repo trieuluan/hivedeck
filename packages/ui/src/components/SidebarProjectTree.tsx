@@ -61,6 +61,8 @@ interface SidebarProjectTreeProps {
   onCreateChildBoard?: (parentId: string) => void;
   onDeleteProject?: (projectId: string) => void;
   onManageRepos?: (projectId: string) => void;
+  onArchiveWorkspace?: (workspaceId: string) => void;
+  onDeleteWorkspace?: (workspaceId: string) => void;
   /** ADR-016: opens the orchestrator-prompt editor for the supplied
    *  project id. The `+` menu's "Orchestrator prompt" item and the
    *  prompt row's click both route through this. */
@@ -99,6 +101,8 @@ export function SidebarProjectTree({
   onCreateChildBoard,
   onDeleteProject,
   onManageRepos,
+  onArchiveWorkspace,
+  onDeleteWorkspace,
   onSelectOrchestratorPrompt,
   activeProjectPromptId = null,
   isMultiSelectActive = false,
@@ -540,6 +544,8 @@ export function SidebarProjectTree({
                   onCreateChildBoard={onCreateChildBoard}
                   onDeleteProject={onDeleteProject}
                   onManageRepos={onManageRepos}
+                  onArchiveWorkspace={onArchiveWorkspace}
+                  onDeleteWorkspace={onDeleteWorkspace}
                   onSelectOrchestratorPrompt={onSelectOrchestratorPrompt}
                   onOpenProjectPage={onOpenProjectPage}
                   onOpenWorkspacesPage={onOpenWorkspacesPage}
