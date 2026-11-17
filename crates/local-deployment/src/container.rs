@@ -2547,6 +2547,13 @@ impl ContainerService for LocalContainerService {
         workspace: &Workspace,
     ) -> Result<ContainerRef, ContainerError> {
         self.touch(workspace).await?;
+        // No-worktree kinds have no repos to check out: make sure their fixed
+        // folder exists (as `create` does). Without this every follow-up to
+        // the orchestrator — the owner's messages and the captain's backend
+        // ticks — failed with "Workspace has no repositories configured".
+        if workspace.kind.is_some_and(|k| k.is_no_worktree()) {
+            return self.create(workspace).await;
+        }
         let (repositories, workspace_inputs) = self.workspace_repo_inputs(workspace.id).await?;
 
         let workspace_dir = if let Some(container_ref) = &workspace.container_ref {
@@ -2689,6 +2696,33 @@ impl ContainerService for LocalContainerService {
             .route_through_9router(workspace, executor_action, &mut env)
             .await;
         let executor_action = routed_action.as_ref().unwrap_or(executor_action);
+
+        // ADR-031: a headless Codex captain gets the captain's manual as
+        // developer instructions and this backend's MCP endpoint. (The headed
+        // Claude captain is wired through its argv instead.)
+        if workspace.kind == Some(WorkspaceKind::Orchestrator)
+            && executor_action.base_executor() == Some(BaseCodingAgent::Codex)
+        {
+            use executors::executors::codex;
+            let port = utils::port_file::read_port_file("hivedeck")
+                .await
+                .map_err(|e| {
+                    ContainerError::Other(anyhow!(
+                        "cannot start the captain: backend port unknown ({e})"
+                    ))
+                })?;
+            env.insert(
+                codex::CAPTAIN_MCP_URL_ENV,
+                format!(
+                    "http://127.0.0.1:{port}{}",
+                    services::services::captain::MCP_PATH
+                ),
+            );
+            env.insert(
+                codex::CAPTAIN_INSTRUCTIONS_ENV,
+                services::services::captain::prompt(),
+            );
+        }
 
         // Interactive (detached tmux) path: run the agent's TUI in a tmux
         // session instead of a headless child. The shared `start_execution`

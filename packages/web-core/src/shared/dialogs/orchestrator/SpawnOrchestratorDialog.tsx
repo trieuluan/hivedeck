@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { BaseCodingAgent } from 'shared/types';
 import { RobotIcon } from '@phosphor-icons/react';
 import {
   Dialog,
@@ -29,6 +30,28 @@ import {
 
 export interface SpawnOrchestratorDialogProps {}
 
+// ADR-031: agents that can be the captain. Claude Code runs headed with its
+// own /loop; Codex runs headless and HiveDeck sends it each tick.
+const CAPTAIN_AGENTS: { id: BaseCodingAgent; key: string }[] = [
+  { id: BaseCodingAgent.CLAUDE_CODE_HEADED, key: 'claude' },
+  { id: BaseCodingAgent.CODEX, key: 'codex' },
+];
+const CAPTAIN_AGENT_STORAGE = 'hivedeck.captainAgent';
+
+function loadCaptainAgent(): BaseCodingAgent {
+  try {
+    const saved = localStorage.getItem(CAPTAIN_AGENT_STORAGE);
+    if (CAPTAIN_AGENTS.some((a) => a.id === saved)) {
+      return saved as BaseCodingAgent;
+    }
+  } catch {
+    // storage unavailable: use the default
+  }
+  return BaseCodingAgent.CLAUDE_CODE_HEADED;
+}
+
+const ORCHESTRATOR_STATUS_KEY = ['orchestrator', 'status'] as const;
+
 const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(() => {
   const modal = useModal();
   const appNavigation = useAppNavigation();
@@ -36,6 +59,15 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(() => {
   const queryClient = useQueryClient();
 
   const [name, setName] = useState('Orchestrator');
+  const [agent, setAgent] = useState<BaseCodingAgent>(loadCaptainAgent);
+  const chooseAgent = (id: BaseCodingAgent) => {
+    setAgent(id);
+    try {
+      localStorage.setItem(CAPTAIN_AGENT_STORAGE, id);
+    } catch {
+      // not persisted; fine
+    }
+  };
   const [enabled, setEnabled] = useState<Record<string, boolean>>(() =>
     loadDirectiveState()
   );
@@ -50,17 +82,28 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(() => {
 
   // The orchestrator is a singleton; detect a live one so we can offer to open
   // it instead of spawning. The backend enforces the singleton regardless.
+  // A Codex captain is idle between ticks but still on, so ask the backend.
   const { workspaces } = useWorkspaces();
+  const { data: status } = useQuery({
+    queryKey: ORCHESTRATOR_STATUS_KEY,
+    queryFn: () => workspacesApi.orchestratorStatus(),
+    enabled: modal.visible,
+    refetchInterval: modal.visible ? 5000 : false,
+  });
   const runningOrchestrator = useMemo(
     () =>
       workspaces.find(
         (ws) =>
           ws.kind === 'orchestrator' &&
           !ws.isArchived &&
-          (ws.isRunning || ws.latestProcessStatus === 'running')
+          (status?.active ||
+            ws.isRunning ||
+            ws.latestProcessStatus === 'running')
       ) ?? null,
-    [workspaces]
+    [workspaces, status?.active]
   );
+  const runningAgentKey =
+    CAPTAIN_AGENTS.find((a) => a.id === status?.executor)?.key ?? null;
 
   // An idle (not running) orchestrator workspace: spawning reuses it with a
   // fresh session; it can also be removed to start over with no history.
@@ -93,10 +136,12 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(() => {
       return workspacesApi.spawnOrchestrator({
         prompt: composeOrchestratorPrompt(enabledIds),
         name: name.trim() || 'Orchestrator',
+        executor: agent,
       });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: workspaceSummaryKeys.all });
+      queryClient.invalidateQueries({ queryKey: ORCHESTRATOR_STATUS_KEY });
       modal.hide();
       if (data.workspace) appNavigation.goToWorkspace(data.workspace.id);
     },
@@ -108,6 +153,7 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(() => {
       // Refetching flips the dialog back to the spawn form once the now-closed
       // orchestrator stops reporting as running.
       queryClient.invalidateQueries({ queryKey: workspaceSummaryKeys.all });
+      queryClient.invalidateQueries({ queryKey: ORCHESTRATOR_STATUS_KEY });
     },
   });
 
@@ -149,8 +195,24 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(() => {
 
         <div className="space-y-4 py-4">
           {runningOrchestrator && (
-            <div className="rounded-md border border-border bg-secondary/50 p-3 text-sm text-normal">
-              {t('spawnOrchestrator.existingRunning')}
+            <div className="space-y-1 rounded-md border border-border bg-secondary/50 p-3 text-sm text-normal">
+              <p>{t('spawnOrchestrator.existingRunning')}</p>
+              {runningAgentKey && (
+                <p className="text-xs text-low">
+                  {status?.loop_interval_secs
+                    ? t('spawnOrchestrator.runningOnLoop', {
+                        agent: t(
+                          `spawnOrchestrator.agents.${runningAgentKey}.label`
+                        ),
+                        minutes: Math.round(status.loop_interval_secs / 60),
+                      })
+                    : t('spawnOrchestrator.runningOn', {
+                        agent: t(
+                          `spawnOrchestrator.agents.${runningAgentKey}.label`
+                        ),
+                      })}
+                </p>
+              )}
             </div>
           )}
 
@@ -212,6 +274,43 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(() => {
               disabled={!!runningOrchestrator}
             />
           </div>
+
+          {!runningOrchestrator && (
+            <div className="space-y-2">
+              <Label>{t('spawnOrchestrator.agentLabel')}</Label>
+              <div
+                role="radiogroup"
+                aria-label={t('spawnOrchestrator.agentLabel')}
+                className="grid grid-cols-2 gap-2"
+              >
+                {CAPTAIN_AGENTS.map((a) => {
+                  const selected = agent === a.id;
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => chooseAgent(a.id)}
+                      disabled={busy}
+                      className={`rounded-md border p-2 text-left transition-colors ${
+                        selected
+                          ? 'border-brand bg-brand/10'
+                          : 'border-border hover:bg-secondary/50'
+                      }`}
+                    >
+                      <span className="block text-sm font-medium text-high">
+                        {t(`spawnOrchestrator.agents.${a.key}.label`)}
+                      </span>
+                      <span className="block text-xs text-low">
+                        {t(`spawnOrchestrator.agents.${a.key}.description`)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="space-y-3">
             <Label>{t('spawnOrchestrator.directivesLabel')}</Label>

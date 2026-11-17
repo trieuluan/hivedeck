@@ -78,6 +78,7 @@ import {
   SpawnOrchestratorRequest,
   SpawnOrchestratorResponse,
   CloseOrchestratorResponse,
+  OrchestratorStatus,
   GenerateSpecRequest,
   GenerateSpecResponse,
   TelegramStatus,
@@ -509,6 +510,12 @@ export const workspacesApi = {
       method: 'POST',
     });
     return handleApiResponse<CloseOrchestratorResponse>(response);
+  },
+
+  /** Whether the captain is on (ADR-031), including between backend ticks. */
+  orchestratorStatus: async (): Promise<OrchestratorStatus> => {
+    const response = await makeRequest(`/api/workspaces/orchestrator/status`);
+    return handleApiResponse<OrchestratorStatus>(response);
   },
 
   getAll: async (taskId: string): Promise<Workspace[]> => {

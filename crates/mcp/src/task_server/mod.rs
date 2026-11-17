@@ -89,6 +89,13 @@ impl McpServer {
         }
     }
 
+    /// Drop `get_context` for servers that never load a workspace context
+    /// (the global HTTP endpoint built without `init`).
+    pub fn without_context_tool(mut self) -> Self {
+        self.tool_router.map.remove("get_context");
+        self
+    }
+
     fn url(&self, path: &str) -> String {
         format!(
             "{}/{}",

@@ -503,7 +503,7 @@
   },
   "spawnOrchestrator": {
     "title": "Khởi động thuyền trưởng",
-    "description": "Khởi động thuyền trưởng của HiveDeck: một phiên Claude Code chạy trong tmux, điều hành board theo vòng lặp — giao card Todo cho agent, theo dõi và gỡ vướng cho chúng, rồi chuyển việc đã xong sang In Review cho bạn. Nó chạy từ một thư mục cố định và làm việc với mọi project qua MCP. Chọn các chỉ thị cho lần chạy này.",
+    "description": "Khởi động thuyền trưởng của HiveDeck: một agent điều hành board theo vòng lặp — giao card Todo cho agent, theo dõi và gỡ vướng cho chúng, rồi chuyển việc đã xong sang In Review cho bạn. Nó chạy từ một thư mục cố định và làm việc với mọi project qua MCP. Chọn agent và các chỉ thị cho lần chạy này.",
     "nameLabel": "Tên",
     "directivesLabel": "Chỉ thị",
     "existingRunning": "Thuyền trưởng đang chạy. Mở để dùng tiếp phiên đang chạy — nếu phiên đã kết thúc, một phiên mới sẽ tự khởi động.",
@@ -534,7 +534,20 @@
     "removeStart": "Xoá và làm lại từ đầu",
     "removeConfirm": "Xoá workspace thuyền trưởng cùng toàn bộ lịch sử phiên? Lần khởi động sau sẽ tạo workspace mới.",
     "remove": "Xoá",
-    "removing": "Đang xoá..."
+    "removing": "Đang xoá...",
+    "agentLabel": "Agent làm thuyền trưởng",
+    "runningOn": "Đang chạy trên {{agent}}.",
+    "runningOnLoop": "Đang chạy trên {{agent}}: HiveDeck gửi một lượt mỗi {{minutes}} phút.",
+    "agents": {
+      "claude": {
+        "label": "Claude Code",
+        "description": "Chạy trong terminal (tmux) và tự lặp bằng /loop."
+      },
+      "codex": {
+        "label": "Codex",
+        "description": "Chạy nền; HiveDeck gửi cho nó một lượt mỗi 5 phút."
+      }
+    }
   },
   "linkPrToIssue": {
     "title": "Liên kết pull request",

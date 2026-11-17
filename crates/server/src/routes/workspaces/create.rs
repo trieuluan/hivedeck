@@ -8,8 +8,8 @@ use db::models::{
     repo::Repo,
     requests::{
         CloseOrchestratorResponse, CreateAndStartWorkspaceRequest, CreateAndStartWorkspaceResponse,
-        CreateWorkspaceApiRequest, SpawnOrchestratorRequest, SpawnOrchestratorResponse,
-        WorkspaceRepoInput,
+        CreateWorkspaceApiRequest, OrchestratorStatus, SpawnOrchestratorRequest,
+        SpawnOrchestratorResponse, WorkspaceRepoInput,
     },
     scratch::{DraftWorkspaceRepo, Scratch, ScratchPayload, ScratchType},
     workspace::{CreateWorkspace, Workspace, WorkspaceKind},
@@ -249,17 +249,46 @@ pub async fn create_and_start_workspace(
 /// `/loop` body the caller composes (see `composeOrchestratorPrompt`) is only
 /// the short per-tick pointer.
 ///
-/// The headed `executor` backend is parameterized (defaulting to Claude Code
-/// Headed in the caller); only the Claude backend has a captain today.
+/// ADR-031: Codex can be the captain too. It runs headless with the captain's
+/// manual as developer instructions and the MCP endpoint wired by the
+/// container; it never asks for approval (it only calls HiveDeck's MCP tools)
+/// and the backend drives its loop (`captain_loop`).
 fn orchestrator_executor_config(executor: BaseCodingAgent) -> ExecutorConfig {
+    let is_codex = executor == BaseCodingAgent::Codex;
     ExecutorConfig {
         executor,
         variant: None,
         model_id: None,
-        agent_id: Some(services::services::captain::AGENT_ID.to_string()),
+        agent_id: (!is_codex).then(|| services::services::captain::AGENT_ID.to_string()),
         reasoning_id: None,
-        permission_policy: None,
+        permission_policy: is_codex.then_some(executors::model_selector::PermissionPolicy::Auto),
     }
+}
+
+/// Agents that can be the captain: the headed ones (own `/loop`) and Codex
+/// (backend-driven loop).
+fn is_captain_executor(executor: &BaseCodingAgent) -> bool {
+    executor.is_headed() || *executor == BaseCodingAgent::Codex
+}
+
+/// Start the backend loop for a captain without its own `/loop`.
+fn start_captain_loop(
+    deployment: &DeploymentImpl,
+    workspace_id: Uuid,
+    executor_config: &ExecutorConfig,
+    interval: Option<std::time::Duration>,
+    tick_prompt: String,
+) {
+    crate::captain_loop::start(
+        deployment.clone(),
+        crate::captain_loop::LoopInfo {
+            workspace_id,
+            executor: executor_config.executor,
+            interval: interval.unwrap_or(crate::captain_loop::DEFAULT_INTERVAL),
+        },
+        executor_config.clone(),
+        tick_prompt,
+    );
 }
 
 /// Spawn (or reuse) the singleton orchestrator.
@@ -280,18 +309,36 @@ pub async fn spawn_orchestrator(
         .name
         .filter(|n| !n.trim().is_empty())
         .unwrap_or_else(|| "Orchestrator".to_string());
-    // Resolve the headed backend: default to Claude Code Headed; any non-headed
-    // value (or omission) falls back to it so the orchestrator always runs headed.
+    // Resolve the captain's agent: Claude Code Headed by default; any agent
+    // that can't be the captain falls back to it.
     let executor = payload
         .executor
-        .filter(|e| e.is_headed())
+        .filter(is_captain_executor)
         .unwrap_or(BaseCodingAgent::ClaudeCodeHeaded);
     let executor_config = orchestrator_executor_config(executor);
+    // Headed agents run the `/loop` themselves; for the others the backend
+    // loops, so the agent only ever sees the per-tick body.
+    let backend_loop = !executor.is_headed();
+    let (loop_interval, tick_prompt) = crate::captain_loop::split_loop_prompt(&prompt);
+    let prompt = if backend_loop {
+        tick_prompt.clone()
+    } else {
+        prompt
+    };
 
     let pool = &deployment.db().pool;
 
     // Singleton: at most one active orchestrator workspace.
     if let Some(existing) = Workspace::find_orchestrator(pool).await? {
+        // A backend-driven captain is "on" between ticks too.
+        if crate::captain_loop::active().is_some_and(|l| l.workspace_id == existing.id) {
+            return Ok(ResponseJson(ApiResponse::success(
+                SpawnOrchestratorResponse {
+                    workspace: existing,
+                    reused: true,
+                },
+            )));
+        }
         // Reuse only when a headed coding-agent session is *genuinely* live.
         // The DB `running` status lags behind a tmux session that ended
         // out-of-band (Claude exited, the `/loop` finished, or it crashed), so
@@ -301,6 +348,14 @@ pub async fn spawn_orchestrator(
             ExecutionProcess::find_latest_running_coding_agent_for_workspace(pool, existing.id)
                 .await?;
         let live = match &candidate {
+            Some(proc)
+                if proc
+                    .executor_action()
+                    .is_ok_and(|a| a.interactive_config().is_none()) =>
+            {
+                // A headless run is live while the DB says it's running.
+                true
+            }
             Some(proc) => {
                 deployment
                     .container()
@@ -342,6 +397,15 @@ pub async fn spawn_orchestrator(
             .container()
             .start_workspace(&existing, executor_config.clone(), prompt)
             .await?;
+        if backend_loop {
+            start_captain_loop(
+                &deployment,
+                existing.id,
+                &executor_config,
+                loop_interval,
+                tick_prompt,
+            );
+        }
         let workspace = Workspace::find_by_id(pool, existing.id)
             .await?
             .unwrap_or(existing);
@@ -368,8 +432,17 @@ pub async fn spawn_orchestrator(
 
     deployment
         .container()
-        .start_workspace(&workspace, executor_config, prompt)
+        .start_workspace(&workspace, executor_config.clone(), prompt)
         .await?;
+    if backend_loop {
+        start_captain_loop(
+            &deployment,
+            workspace.id,
+            &executor_config,
+            loop_interval,
+            tick_prompt,
+        );
+    }
 
     let workspace = Workspace::find_by_id(pool, workspace.id)
         .await?
@@ -391,10 +464,14 @@ pub async fn close_orchestrator(
     State(deployment): State<DeploymentImpl>,
 ) -> Result<ResponseJson<ApiResponse<CloseOrchestratorResponse>>, ApiError> {
     let pool = &deployment.db().pool;
+    // Stop a backend-driven loop first so it can't start another tick.
+    let loop_stopped = crate::captain_loop::stop();
 
     let Some(existing) = Workspace::find_orchestrator(pool).await? else {
         return Ok(ResponseJson(ApiResponse::success(
-            CloseOrchestratorResponse { closed: false },
+            CloseOrchestratorResponse {
+                closed: loop_stopped,
+            },
         )));
     };
 
@@ -402,7 +479,9 @@ pub async fn close_orchestrator(
         ExecutionProcess::find_latest_running_coding_agent_for_workspace(pool, existing.id).await?
     else {
         return Ok(ResponseJson(ApiResponse::success(
-            CloseOrchestratorResponse { closed: false },
+            CloseOrchestratorResponse {
+                closed: loop_stopped,
+            },
         )));
     };
 
@@ -427,6 +506,46 @@ pub async fn close_orchestrator(
     Ok(ResponseJson(ApiResponse::success(
         CloseOrchestratorResponse { closed: true },
     )))
+}
+
+/// Whether the captain is on, on which agent, and (for a backend-driven
+/// loop) how often it ticks. A headed captain counts as on while its tmux
+/// session is alive; a backend-driven one while its loop runs, including
+/// between ticks.
+pub async fn orchestrator_status(
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<OrchestratorStatus>>, ApiError> {
+    if let Some(info) = crate::captain_loop::active() {
+        return Ok(ResponseJson(ApiResponse::success(OrchestratorStatus {
+            active: true,
+            executor: Some(info.executor),
+            loop_interval_secs: Some(info.interval.as_secs()),
+        })));
+    }
+    let pool = &deployment.db().pool;
+    let mut status = OrchestratorStatus {
+        active: false,
+        executor: None,
+        loop_interval_secs: None,
+    };
+    if let Some(existing) = Workspace::find_orchestrator(pool).await?
+        && let Some(process) =
+            ExecutionProcess::find_latest_running_coding_agent_for_workspace(pool, existing.id)
+                .await?
+    {
+        let action = process.executor_action().ok();
+        status.executor = action.and_then(|a| a.base_executor());
+        status.active = match action {
+            Some(a) if a.interactive_config().is_some() => {
+                deployment
+                    .container()
+                    .is_interactive_session_live(&process)
+                    .await
+            }
+            _ => true,
+        };
+    }
+    Ok(ResponseJson(ApiResponse::success(status)))
 }
 
 #[cfg(test)]

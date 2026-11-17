@@ -503,7 +503,7 @@
   },
   "spawnOrchestrator": {
     "title": "Spawn Orchestrator",
-    "description": "Launch the HiveDeck captain: a headed Claude Code session that runs the board on a loop — dispatching Todo cards to agents, watching and unblocking them, and moving finished work to In Review for you. It runs from a fixed folder and reaches every project via MCP. Pick the directives this run should follow.",
+    "description": "Launch the HiveDeck captain: an agent that runs the board on a loop — dispatching Todo cards to agents, watching and unblocking them, and moving finished work to In Review for you. It runs from a fixed folder and reaches every project via MCP. Pick its agent and the directives this run should follow.",
     "nameLabel": "Name",
     "directivesLabel": "Directives",
     "existingRunning": "An orchestrator is already running. Open it to reuse its live session — if the session has ended, a fresh one starts automatically.",
@@ -534,7 +534,20 @@
     "removeStart": "Remove it and start over",
     "removeConfirm": "Delete the orchestrator workspace and all its session history? The next spawn creates a new one.",
     "remove": "Remove",
-    "removing": "Removing..."
+    "removing": "Removing...",
+    "agentLabel": "Captain agent",
+    "runningOn": "Running on {{agent}}.",
+    "runningOnLoop": "Running on {{agent}}: HiveDeck sends it a tick every {{minutes}} min.",
+    "agents": {
+      "claude": {
+        "label": "Claude Code",
+        "description": "Runs in a terminal (tmux) and loops by itself with /loop."
+      },
+      "codex": {
+        "label": "Codex",
+        "description": "Runs in the background; HiveDeck sends it a tick every 5 min."
+      }
+    }
   },
   "linkPrToIssue": {
     "title": "Link Pull Request",

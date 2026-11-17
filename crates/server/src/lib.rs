@@ -1,3 +1,4 @@
+pub mod captain_loop;
 pub mod error;
 pub mod middleware;
 pub mod routes;

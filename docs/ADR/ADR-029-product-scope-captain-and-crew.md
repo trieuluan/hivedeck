@@ -36,7 +36,7 @@ Everything in the main UI serves this loop; anything else is Advanced or removed
 |---|---|---|---|
 | Board (projects, issues, statuses) | The captain's work queue | **Core** | Keep simple: one board per project; sub-boards stay but are not pushed |
 | Workspaces (worktree, chat, diff, merge, PR) | Where a crew member works | **Core** | One card → open its latest workspace directly; many attempts per card stay possible |
-| Orchestrator / captain | Headed Claude session on `/loop`, board-scoped prompts (ADR-016) | **Core — done (ADR-030)** | Instructions now ship in this repo; MCP served by the backend at `/mcp` |
+| Orchestrator / captain | Headed Claude Code on `/loop`, or Codex with a backend-driven loop; board-scoped prompts (ADR-016) | **Core — done (ADR-030, ADR-031)** | Instructions ship in this repo; MCP served by the backend at `/mcp` |
 | MCP server (`hivedeck-mcp`, card tools, ADR-023) | The captain's hands on the board | **Core** | |
 | Approvals inbox | Answer tool-permission prompts / questions | **Core** | |
 | 9router: Router page, combos, routing | Models per role | **Core** | |

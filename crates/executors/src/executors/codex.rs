@@ -451,6 +451,31 @@ pub const ROUTER_BASE_URL_ENV: &str = "HIVEDECK_CODEX_ROUTER_BASE_URL";
 /// Provider id HiveDeck declares for the router.
 pub const ROUTER_PROVIDER_ID: &str = "hivedeck_9router";
 
+/// ADR-031: a Codex run acting as the HiveDeck captain. The container sets
+/// these; Codex turns them into an MCP server entry and developer
+/// instructions, and strips them from the child's environment.
+pub const CAPTAIN_MCP_URL_ENV: &str = "HIVEDECK_CODEX_CAPTAIN_MCP_URL";
+pub const CAPTAIN_INSTRUCTIONS_ENV: &str = "HIVEDECK_CODEX_CAPTAIN_INSTRUCTIONS";
+/// Name of the MCP server entry the captain's tools are served under.
+pub const CAPTAIN_MCP_SERVER: &str = "hivedeck";
+
+/// `-c` override that registers HiveDeck's streamable-HTTP MCP endpoint.
+pub fn captain_mcp_args(url: &str) -> Vec<String> {
+    let url = url.replace(['"', '\\'], "");
+    vec![
+        "-c".to_string(),
+        format!("mcp_servers.{CAPTAIN_MCP_SERVER}.url=\"{url}\""),
+    ]
+}
+
+/// Prepend the captain's manual to any profile-level developer instructions.
+fn with_captain_instructions(existing: Option<String>, captain: &str) -> String {
+    match existing.filter(|d| !d.trim().is_empty()) {
+        Some(d) => format!("{captain}\n\n{d}"),
+        None => captain.to_string(),
+    }
+}
+
 /// `-c` overrides that point Codex at the router at `base_url`.
 pub fn router_config_args(base_url: &str) -> Vec<String> {
     let url = base_url.replace(['"', '\\'], "");
@@ -607,7 +632,13 @@ impl Codex {
         resume_session: Option<&str>,
         env: &ExecutionEnv,
     ) -> Result<SpawnedChild, ExecutorError> {
-        let params = self.build_thread_start_params(current_dir);
+        let mut params = self.build_thread_start_params(current_dir);
+        if let Some(captain) = env.vars.get(CAPTAIN_INSTRUCTIONS_ENV) {
+            params.developer_instructions = Some(with_captain_instructions(
+                params.developer_instructions.take(),
+                captain,
+            ));
+        }
         let resume_session = resume_session.map(|s| s.to_string());
 
         self.spawn_app_server(
@@ -695,6 +726,13 @@ impl Codex {
                 .unwrap_or(args.len());
             args.splice(at..at, router_config_args(base_url));
         }
+        if let Some(url) = env.vars.get(CAPTAIN_MCP_URL_ENV) {
+            let at = args
+                .iter()
+                .position(|a| a == "app-server")
+                .unwrap_or(args.len());
+            args.splice(at..at, captain_mcp_args(url));
+        }
 
         let mut process = Command::new(program_path);
         process
@@ -713,6 +751,8 @@ impl Codex {
             .with_profile(&self.cmd)
             .apply_to_command(&mut process);
         process.env_remove(ROUTER_BASE_URL_ENV);
+        process.env_remove(CAPTAIN_MCP_URL_ENV);
+        process.env_remove(CAPTAIN_INSTRUCTIONS_ENV);
 
         let mut child = process.group_spawn_no_window()?;
 
@@ -818,6 +858,31 @@ mod tests {
         assert!(args[3].starts_with("model_providers.hivedeck_9router={"));
         assert!(args[3].contains("base_url=\"http://127.0.0.1:20128/v1\""));
         assert!(args[3].contains("wire_api=\"responses\""));
+    }
+
+    #[test]
+    fn captain_mcp_args_register_streamable_http_server() {
+        let args = super::captain_mcp_args("http://127.0.0.1:3002/mcp");
+        assert_eq!(
+            args,
+            vec![
+                "-c".to_string(),
+                "mcp_servers.hivedeck.url=\"http://127.0.0.1:3002/mcp\"".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn captain_instructions_come_first() {
+        assert_eq!(super::with_captain_instructions(None, "CAPTAIN"), "CAPTAIN");
+        assert_eq!(
+            super::with_captain_instructions(Some("profile".into()), "CAPTAIN"),
+            "CAPTAIN\n\nprofile"
+        );
+        assert_eq!(
+            super::with_captain_instructions(Some("  ".into()), "CAPTAIN"),
+            "CAPTAIN"
+        );
     }
 
     use super::resolve_model;

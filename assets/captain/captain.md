@@ -28,7 +28,7 @@ Board columns are `Todo`, `In Progress`, `In Review`, `Done` (some boards add mo
 
 ## Each tick
 
-You run on a `/loop`. Every tick, do these steps in order and stop early when there is nothing to do.
+You run in ticks: each tick arrives as a short prompt (from your own `/loop`, or sent by HiveDeck every few minutes). Every tick, do these steps in order and stop early when there is nothing to do. Earlier ticks are in your context; the board is still the source of truth, so re-read it rather than trusting memory.
 
 1. **Owner first.** If the owner wrote to you since the last tick, handle that before anything else: plan new work, answer, change course.
 2. **Watch active work.** For every card `In Progress`, find its workspace and latest execution (`list_workspaces`, `get_execution`):

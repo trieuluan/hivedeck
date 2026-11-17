@@ -559,9 +559,8 @@ prompt: string,
  */
 name?: string, 
 /**
- * The headed executor backend for the orchestrator session. Defaults to
- * Claude Code Headed when omitted or non-headed. OpenCode Headed is the
- * alternative backend (useful when Claude Code is unavailable).
+ * The captain's agent. Defaults to Claude Code Headed. Codex runs
+ * headless with a backend-driven loop (ADR-031).
  */
 executor?: BaseCodingAgent, };
 
@@ -578,6 +577,17 @@ export type CloseOrchestratorResponse = {
  * was no orchestrator (or no live session) to close.
  */
 closed: boolean, };
+
+export type OrchestratorStatus = { active: boolean, 
+/**
+ * The captain's agent, when known.
+ */
+executor: BaseCodingAgent | null, 
+/**
+ * Tick interval of a backend-driven loop (None for a headed captain,
+ * which loops by itself).
+ */
+loop_interval_secs: number | null, };
 
 export type GenerateSpecRequest = { 
 /**

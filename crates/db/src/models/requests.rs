@@ -64,9 +64,8 @@ pub struct SpawnOrchestratorRequest {
     #[serde(default)]
     #[ts(optional)]
     pub name: Option<String>,
-    /// The headed executor backend for the orchestrator session. Defaults to
-    /// Claude Code Headed when omitted or non-headed. OpenCode Headed is the
-    /// alternative backend (useful when Claude Code is unavailable).
+    /// The captain's agent. Defaults to Claude Code Headed. Codex runs
+    /// headless with a backend-driven loop (ADR-031).
     #[serde(default)]
     #[ts(optional)]
     pub executor: Option<executors::executors::BaseCodingAgent>,
@@ -78,6 +77,18 @@ pub struct SpawnOrchestratorResponse {
     /// True when an already-running orchestrator was returned instead of
     /// starting a new session (its live tmux session is reused).
     pub reused: bool,
+}
+
+/// ADR-031: whether the captain is on.
+#[derive(Debug, Serialize, Deserialize, TS)]
+pub struct OrchestratorStatus {
+    pub active: bool,
+    /// The captain's agent, when known.
+    pub executor: Option<executors::executors::BaseCodingAgent>,
+    /// Tick interval of a backend-driven loop (None for a headed captain,
+    /// which loops by itself).
+    #[ts(type = "number | null")]
+    pub loop_interval_secs: Option<u64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS)]

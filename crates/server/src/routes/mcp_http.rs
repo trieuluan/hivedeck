@@ -28,10 +28,10 @@ pub(super) fn router(deployment: &DeploymentImpl) -> Router {
                 .ok_or_else(|| std::io::Error::other("server address not known yet"))?;
             // Headed local control: the captain drives headed sessions, so it
             // gets their tmux/session identifiers.
-            Ok(McpServer::new_global(
-                &format!("http://127.0.0.1:{port}"),
-                true,
-            ))
+            Ok(
+                McpServer::new_global(&format!("http://127.0.0.1:{port}"), true)
+                    .without_context_tool(),
+            )
         },
         Arc::new(LocalSessionManager::default()),
         StreamableHttpServerConfig::default()

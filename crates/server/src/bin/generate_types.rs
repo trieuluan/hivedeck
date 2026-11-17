@@ -143,6 +143,7 @@ fn generate_types_content() -> String {
         db::models::requests::SpawnOrchestratorRequest::decl(),
         db::models::requests::SpawnOrchestratorResponse::decl(),
         db::models::requests::CloseOrchestratorResponse::decl(),
+        db::models::requests::OrchestratorStatus::decl(),
         db::models::requests::GenerateSpecRequest::decl(),
         db::models::requests::GenerateSpecResponse::decl(),
         api_types::SpecKitStage::decl(),
