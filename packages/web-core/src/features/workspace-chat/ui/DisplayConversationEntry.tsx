@@ -978,16 +978,8 @@ function UserAnsweredQuestionsEntry({
  * Loading placeholder entry
  */
 function LoadingEntry() {
-  return (
-    <div className="px-4 py-2 text-sm">
-      <div className="flex animate-pulse space-x-2 items-center">
-        <div className="size-3 bg-foreground/10" />
-        <div className="flex-1 h-3 bg-foreground/10" />
-        <div className="flex-1 h-3" />
-        <div className="flex-1 h-3" />
-      </div>
-    </div>
-  );
+  // The list footer shows a single "working…" line instead.
+  return null;
 }
 
 /**

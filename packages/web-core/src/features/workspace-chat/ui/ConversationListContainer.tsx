@@ -626,10 +626,13 @@ export const ConversationList = forwardRef<
   // Determine if there are entries to show placeholders
   const hasEntries = conversationRows.length > 0;
 
-  // Show placeholders only if script not configured AND not already run AND first turn
+  // Show placeholders only if script not configured AND not already run AND
+  // first turn. A captain has no repo checkout, so scripts don't apply.
+  const isCaptain = attempt.kind === 'orchestrator';
   const showSetupPlaceholder =
-    !hasSetupScript && !hasSetupScriptRun && hasEntries;
+    !isCaptain && !hasSetupScript && !hasSetupScriptRun && hasEntries;
   const showCleanupPlaceholder =
+    !isCaptain &&
     !hasCleanupScript &&
     !hasCleanupScriptRun &&
     !hasRunningProcess &&
@@ -960,7 +963,7 @@ export const ConversationList = forwardRef<
 
           {(hasEntries || hasRunningProcess) && (
             <div
-              className="flex h-10 items-center gap-half px-double text-base text-low"
+              className="flex h-10 items-center gap-1.5 px-double text-sm text-low"
               role="status"
             >
               {hasRunningProcess && (
@@ -970,9 +973,9 @@ export const ConversationList = forwardRef<
                     className="size-1.5 shrink-0 rounded-full bg-brand motion-safe:animate-pulse"
                   />
                   <span>
-                    {t('tasks:captain.listening', {
-                      defaultValue: 'Thuyền trưởng đang lắng nghe…',
-                    })}
+                    {attempt.kind === 'orchestrator'
+                      ? t('tasks:captain.listening')
+                      : t('tasks:conversation.agentWorking')}
                   </span>
                 </>
               )}

@@ -587,14 +587,24 @@ export function SessionChatBox<TExecutor extends string = string>({
         );
 
       case "running":
+        // While the agent works, typed text is queued for its next turn.
         return (
           <>
-            <PrimaryButton
-              onClick={actions.onQueue}
-              disabled={!canSend}
-              value={t("conversation.actions.queue")}
-              className="h-10 rounded-md"
-            />
+            {canSend && (
+              <button
+                type="button"
+                onClick={actions.onQueue}
+                aria-label={t("conversation.actions.queue")}
+                title={t("conversation.actions.queue")}
+                className="flex size-8 items-center justify-center rounded-full bg-brand text-on-brand hover:bg-brand-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+              >
+                <ClockIcon
+                  aria-hidden="true"
+                  className="size-4"
+                  weight="bold"
+                />
+              </button>
+            )}
             {stopButton}
           </>
         );
@@ -606,7 +616,7 @@ export function SessionChatBox<TExecutor extends string = string>({
               onClick={actions.onCancelQueue}
               value={t("conversation.actions.cancelQueue")}
               actionIcon={XIcon}
-              className="h-10 rounded-md"
+              className="h-8 rounded-full text-xs"
             />
             {stopButton}
           </>

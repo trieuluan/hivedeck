@@ -1,14 +1,14 @@
-import { type ReactNode } from 'react';
-import { ImageIcon } from '@phosphor-icons/react';
-import { useTranslation } from 'react-i18next';
-import { cn } from '../lib/cn';
-import { Toolbar } from './Toolbar';
+import { type ReactNode } from "react";
+import { ImageIcon } from "@phosphor-icons/react";
+import { useTranslation } from "react-i18next";
+import { cn } from "../lib/cn";
+import { Toolbar } from "./Toolbar";
 
 export enum VisualVariant {
-  NORMAL = 'NORMAL',
-  FEEDBACK = 'FEEDBACK',
-  EDIT = 'EDIT',
-  PLAN = 'PLAN',
+  NORMAL = "NORMAL",
+  FEEDBACK = "FEEDBACK",
+  EDIT = "EDIT",
+  PLAN = "PLAN",
 }
 
 export interface DropzoneProps {
@@ -72,31 +72,32 @@ export function ChatBoxBase({
   dropzone,
   className,
 }: ChatBoxBaseProps) {
-  const { t } = useTranslation(['common', 'tasks']);
+  const { t } = useTranslation(["common", "tasks"]);
 
   const isDragActive = dropzone?.isDragActive ?? false;
 
   return (
     <div className="flex w-chat max-w-full flex-col">
       {/* Status strip above the box: changes, turns, todos, session. */}
-      {visualVariant === VisualVariant.NORMAL && (headerLeft || headerRight) && (
-        <div className="flex min-h-8 items-center gap-base px-1 pb-1">
-          <div className="flex flex-1 items-center gap-base text-xs text-low min-w-0 overflow-hidden">
-            {headerLeft}
+      {visualVariant === VisualVariant.NORMAL &&
+        (headerLeft || headerRight) && (
+          <div className="flex min-h-8 items-center gap-base px-1 pb-1">
+            <div className="flex flex-1 items-center gap-base text-xs text-low min-w-0 overflow-hidden">
+              {headerLeft}
+            </div>
+            <Toolbar className="gap-[9px]">{headerRight}</Toolbar>
           </div>
-          <Toolbar className="gap-[9px]">{headerRight}</Toolbar>
-        </div>
-      )}
+        )}
       <div
         {...(dropzone?.getRootProps() ?? {})}
         className={cn(
-          'relative flex flex-col rounded-2xl border border-border bg-secondary',
+          "relative flex flex-col rounded-2xl border border-border bg-secondary",
           className,
           (visualVariant === VisualVariant.FEEDBACK ||
             visualVariant === VisualVariant.EDIT ||
             visualVariant === VisualVariant.PLAN) &&
-            'border-brand bg-brand/10',
-          isRunning && 'chat-box-running'
+            "border-brand bg-brand/10",
+          isRunning && "chat-box-running",
         )}
       >
         {dropzone && <input {...dropzone.getInputProps()} />}
@@ -108,10 +109,10 @@ export function ChatBoxBase({
                 <ImageIcon className="h-5 w-5 text-brand" />
               </div>
               <p className="text-sm font-medium text-high">
-                {t('tasks:dropzone.dropImagesHere')}
+                {t("tasks:dropzone.dropImagesHere")}
               </p>
               <p className="text-xs text-low mt-0.5">
-                {t('tasks:dropzone.supportedFormats')}
+                {t("tasks:dropzone.supportedFormats")}
               </p>
             </div>
           </div>
@@ -128,16 +129,15 @@ export function ChatBoxBase({
         <div className="flex flex-col gap-base px-base pt-base pb-half">
           {editor}
 
-          {/* One row: attach & tools on the left; model and send on the right. */}
-          <div className="flex items-center justify-between gap-base">
-            <Toolbar className="min-w-0 flex-wrap !gap-half">
+          {/* Tools and model on the left (they wrap when narrow); send
+              stays pinned bottom-right. */}
+          <div className="flex items-end justify-between gap-base">
+            <Toolbar className="min-w-0 flex-1 flex-wrap !gap-half">
               {footerLeft}
+              {modelSelector}
             </Toolbar>
-            <div className="flex min-w-0 shrink items-center justify-end gap-half">
-              <Toolbar className="min-w-0 flex-wrap justify-end !gap-half">
-                {modelSelector}
-              </Toolbar>
-              <div className="flex shrink-0 gap-half">{footerRight}</div>
+            <div className="flex shrink-0 items-center gap-half">
+              {footerRight}
             </div>
           </div>
         </div>

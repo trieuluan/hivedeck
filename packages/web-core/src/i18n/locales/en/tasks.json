@@ -207,7 +207,8 @@
       "steps_other": "{{count}} steps",
       "files_one": "{{count}} file edited",
       "files_other": "{{count}} files edited"
-    }
+    },
+    "agentWorking": "Agent is working…"
   },
   "attempt": {
     "actions": {
@@ -616,6 +617,6 @@
     "linkRepo": "Link repo",
     "emptyTitle": "This project has no captain yet",
     "emptyBody": "Start one and just chat with it: it turns your goals into cards, sends them to agents, watches them work and moves finished cards to In Review. You press Merge.",
-    "listening": "The captain is listening…"
+    "listening": "Captain is working…"
   }
 }

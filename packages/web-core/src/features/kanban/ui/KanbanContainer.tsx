@@ -1251,13 +1251,14 @@ export function KanbanContainer() {
         ) : (
           <div className="flex-1 overflow-x-auto px-double">
             <KanbanProvider
+              className="min-w-full"
               style={{
                 // Empty columns stay narrow so the ones with cards get room.
                 gridTemplateColumns: visibleStatuses
                   .map((status) =>
                     (items[status.id]?.length ?? 0) > 0
-                      ? 'minmax(240px, 340px)'
-                      : 'minmax(170px, 190px)'
+                      ? 'minmax(240px, 2fr)'
+                      : 'minmax(130px, 1fr)'
                   )
                   .join(' '),
               }}
@@ -1268,19 +1269,29 @@ export function KanbanContainer() {
                 return (
                   <KanbanBoard key={status.id}>
                     <KanbanHeader>
-                      <div className="border-t sticky border-b top-0 z-20 flex shrink-0 items-center justify-between gap-2 p-base bg-secondary">
-                        <div className="flex items-center gap-2">
+                      <div className="group/col border-t sticky border-b top-0 z-20 flex shrink-0 items-center gap-1 p-base bg-secondary">
+                        <div className="flex min-w-0 items-center gap-2">
                           <div
                             className="h-2 w-2 rounded-full shrink-0"
                             style={{ backgroundColor: `hsl(${status.color})` }}
                           />
-                          <p className="m-0 text-sm">{status.name}</p>
+                          <p
+                            className="m-0 truncate whitespace-nowrap text-sm"
+                            title={status.name}
+                          >
+                            {status.name}
+                          </p>
+                          {issueIds.length > 0 && (
+                            <span className="text-xs text-low tabular-nums">
+                              {issueIds.length}
+                            </span>
+                          )}
                         </div>
                         {!parentIssueId && (
                           <button
                             type="button"
                             onClick={() => handleAddTask(status.id)}
-                            className="p-half rounded-sm text-low hover:text-normal hover:bg-secondary transition-colors"
+                            className="absolute right-base top-1/2 -translate-y-1/2 p-half rounded-sm bg-secondary text-low opacity-0 group-hover/col:opacity-100 focus-visible:opacity-100 hover:text-normal hover:bg-panel transition"
                             aria-label={t('common:ui.addTask')}
                           >
                             <PlusIcon className="size-icon-xs" weight="bold" />

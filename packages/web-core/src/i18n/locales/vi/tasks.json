@@ -207,7 +207,8 @@
       "steps_other": "{{count}} bước",
       "files_one": "sửa {{count}} file",
       "files_other": "sửa {{count}} file"
-    }
+    },
+    "agentWorking": "Agent đang làm việc…"
   },
   "attempt": {
     "actions": {
@@ -616,6 +617,6 @@
     "linkRepo": "Liên kết repo",
     "emptyTitle": "Project này chưa có thuyền trưởng",
     "emptyBody": "Khởi động rồi chỉ cần chat: thuyền trưởng biến mục tiêu của bạn thành card, giao cho agent, theo dõi và chuyển card xong sang In Review. Bạn bấm Merge.",
-    "listening": "Thuyền trưởng đang lắng nghe…"
+    "listening": "Thuyền trưởng đang làm việc…"
   }
 }
