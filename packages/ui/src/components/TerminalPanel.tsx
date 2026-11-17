@@ -1,13 +1,13 @@
-import { useTranslation } from "react-i18next";
-import type { ReactNode } from "react";
-import { PlusIcon, XIcon } from "@phosphor-icons/react";
+import { useTranslation } from 'react-i18next';
+import type { ReactNode } from 'react';
+import { PlusIcon, XIcon } from '@phosphor-icons/react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "./DropdownMenu";
-import { cn } from "../lib/cn";
+} from './DropdownMenu';
+import { cn } from '../lib/cn';
 
 interface TerminalPanelTab {
   id: string;
@@ -57,14 +57,14 @@ export function TerminalPanel({
                 role="button"
                 tabIndex={0}
                 className={cn(
-                  "group flex items-center gap-1 pl-base pr-1 py-half text-xs cursor-pointer border-r border-border shrink-0",
+                  'group flex items-center gap-1 pl-base pr-1 py-half text-xs cursor-pointer border-r border-border shrink-0',
                   isActive
-                    ? "bg-secondary text-normal"
-                    : "text-low hover:text-normal",
+                    ? 'bg-secondary text-normal'
+                    : 'text-low hover:text-normal'
                 )}
                 onClick={() => onSelectTab?.(tab.id)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
+                  if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     onSelectTab?.(tab.id);
                   }
@@ -74,8 +74,8 @@ export function TerminalPanel({
                 {onCloseTab && (
                   <button
                     type="button"
-                    title={t("common:ui.closeTerminal")}
-                    aria-label={t("common:ui.closeTerminal")}
+                    title={t('common:ui.closeTerminal')}
+                    aria-label={t('common:ui.closeTerminal')}
                     className="opacity-50 hover:opacity-100 shrink-0"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -93,8 +93,8 @@ export function TerminalPanel({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  title={t("common:ui.newTerminalTab")}
-                  aria-label={t("common:ui.newTerminalTab")}
+                  title={t('common:ui.newTerminalTab')}
+                  aria-label={t('common:ui.newTerminalTab')}
                   className="flex shrink-0 items-center px-base text-low hover:text-high"
                 >
                   <PlusIcon className="size-icon-xs" weight="bold" />

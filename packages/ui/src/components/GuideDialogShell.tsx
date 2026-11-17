@@ -76,7 +76,9 @@ export function GuideDialogShell({
           >
             {/* Header with mobile close button */}
             <div className="p-3 flex items-center justify-between md:hidden">
-              <span className="text-sm font-medium text-high">{t('common:ui.topics')}</span>
+              <span className="text-sm font-medium text-high">
+                {t('common:ui.topics')}
+              </span>
               <button
                 onClick={onClose}
                 className="p-1 rounded-sm hover:bg-secondary text-low hover:text-normal"
@@ -122,7 +124,9 @@ export function GuideDialogShell({
               >
                 <CaretLeftIcon className="h-4 w-4" weight="bold" />
               </button>
-              <span className="text-sm font-medium text-high">{t('common:ui.back')}</span>
+              <span className="text-sm font-medium text-high">
+                {t('common:ui.back')}
+              </span>
               <button
                 onClick={onClose}
                 className="ml-auto p-1 rounded-sm hover:bg-secondary text-low hover:text-normal"

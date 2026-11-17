@@ -1,4 +1,4 @@
-import { cn } from "../lib/cn";
+import { cn } from '../lib/cn';
 
 /**
  * Feather Caret — the HiveDeck brand mark.
@@ -21,7 +21,7 @@ export function FeatherCaret({
       viewBox="0 0 100 124"
       fill="none"
       aria-hidden="true"
-      className={cn("flex-none", className)}
+      className={cn('flex-none', className)}
     >
       <g
         stroke="currentColor"
@@ -48,8 +48,8 @@ export function BrandWordmark({ className }: { className?: string }) {
       data-brand-wordmark
       aria-label="HiveDeck"
       className={cn(
-        "flex items-baseline gap-2 font-ibm-plex-mono select-none",
-        className,
+        'flex items-baseline gap-2 font-ibm-plex-mono select-none',
+        className
       )}
     >
       <span
@@ -74,7 +74,7 @@ export function BrandWordmark({ className }: { className?: string }) {
  */
 export function BrandLockup({ className }: { className?: string }) {
   return (
-    <span className={cn("flex items-center gap-3", className)}>
+    <span className={cn('flex items-center gap-3', className)}>
       <FeatherCaret size={32} className="text-brand" />
       <BrandWordmark />
     </span>

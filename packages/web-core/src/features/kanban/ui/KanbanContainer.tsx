@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { useProjectContext } from '@/shared/hooks/useProjectContext';
 import { useProjects } from '@/shared/hooks/useProjects';
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
+import { useWorkspacesContext } from '@/shared/hooks/useWorkspacesContext';
 import { useActions } from '@/shared/hooks/useActions';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useIsMobile } from '@/shared/hooks/useIsMobile';
@@ -209,6 +210,7 @@ export function KanbanContainer() {
   // Flat projects layer.
   const { data: projects } = useProjects();
   const { activeWorkspaces } = useWorkspaceContext();
+  const { workspaces: remoteWorkspaces } = useWorkspacesContext();
 
   // Get project name by finding the project matching current projectId
   const projectName = projects.find((p) => p.id === projectId)?.name ?? '';
@@ -650,6 +652,20 @@ export function KanbanContainer() {
     return map;
   }, [activeWorkspaces]);
 
+  // Map local workspace id -> project id so the per-card dispatch dropdown
+  // only offers workspaces linked to the current project.
+  const workspaceProjectIdByLocalId = useMemo(() => {
+    const map = new Map<string, string>();
+
+    for (const workspace of remoteWorkspaces) {
+      if (workspace.local_workspace_id) {
+        map.set(workspace.local_workspace_id, workspace.project_id);
+      }
+    }
+
+    return map;
+  }, [remoteWorkspaces]);
+
   const queryClient = useQueryClient();
 
   // Every dispatchable workspace (active, with a local id) for the per-card
@@ -664,8 +680,12 @@ export function KanbanContainer() {
             workspace.kind !== 'orchestrator' &&
             workspace.kind !== 'recurrent'
         )
-        .map((workspace) => ({ id: workspace.id, name: workspace.name })),
-    [activeWorkspaces]
+        .map((workspace) => ({
+          id: workspace.id,
+          name: workspace.name,
+          projectId: workspaceProjectIdByLocalId.get(workspace.id),
+        })),
+    [activeWorkspaces, workspaceProjectIdByLocalId]
   );
 
   const handleDispatchIssueToWorkspace = useCallback(
@@ -1486,6 +1506,11 @@ export function KanbanContainer() {
                                 <KanbanWorkspaceDispatch
                                   workspaces={dispatchWorkspaces}
                                   currentWorkspaceIds={workspaceIdsShownOnCard}
+                                  issueStatusIsDone={
+                                    statusById.get(issue.status_id)
+                                      ?.is_terminal ?? false
+                                  }
+                                  currentProjectId={projectId}
                                   onDispatch={(workspaceId) =>
                                     handleDispatchIssueToWorkspace(
                                       issue.id,

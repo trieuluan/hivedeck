@@ -34,7 +34,7 @@ export const InlineColorPicker = forwardRef<
     { value, onChange, colors = PRESET_COLORS, onKeyDown, disabled, className },
     ref
   ) => {
-  const { t } = useTranslation();
+    const { t } = useTranslation();
     const currentIndex = colors.indexOf(value);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {

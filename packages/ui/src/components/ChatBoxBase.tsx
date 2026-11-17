@@ -1,14 +1,14 @@
-import { type ReactNode } from "react";
-import { ImageIcon } from "@phosphor-icons/react";
-import { useTranslation } from "react-i18next";
-import { cn } from "../lib/cn";
-import { Toolbar } from "./Toolbar";
+import { type ReactNode } from 'react';
+import { ImageIcon } from '@phosphor-icons/react';
+import { useTranslation } from 'react-i18next';
+import { cn } from '../lib/cn';
+import { Toolbar } from './Toolbar';
 
 export enum VisualVariant {
-  NORMAL = "NORMAL",
-  FEEDBACK = "FEEDBACK",
-  EDIT = "EDIT",
-  PLAN = "PLAN",
+  NORMAL = 'NORMAL',
+  FEEDBACK = 'FEEDBACK',
+  EDIT = 'EDIT',
+  PLAN = 'PLAN',
 }
 
 export interface DropzoneProps {
@@ -72,7 +72,7 @@ export function ChatBoxBase({
   dropzone,
   className,
 }: ChatBoxBaseProps) {
-  const { t } = useTranslation(["common", "tasks"]);
+  const { t } = useTranslation(['common', 'tasks']);
 
   const isDragActive = dropzone?.isDragActive ?? false;
 
@@ -91,13 +91,13 @@ export function ChatBoxBase({
       <div
         {...(dropzone?.getRootProps() ?? {})}
         className={cn(
-          "relative flex flex-col rounded-2xl border border-border bg-secondary",
+          'relative flex flex-col rounded-2xl border border-border bg-secondary',
           className,
           (visualVariant === VisualVariant.FEEDBACK ||
             visualVariant === VisualVariant.EDIT ||
             visualVariant === VisualVariant.PLAN) &&
-            "border-brand bg-brand/10",
-          isRunning && "chat-box-running",
+            'border-brand bg-brand/10',
+          isRunning && 'chat-box-running'
         )}
       >
         {dropzone && <input {...dropzone.getInputProps()} />}
@@ -109,10 +109,10 @@ export function ChatBoxBase({
                 <ImageIcon className="h-5 w-5 text-brand" />
               </div>
               <p className="text-sm font-medium text-high">
-                {t("tasks:dropzone.dropImagesHere")}
+                {t('tasks:dropzone.dropImagesHere')}
               </p>
               <p className="text-xs text-low mt-0.5">
-                {t("tasks:dropzone.supportedFormats")}
+                {t('tasks:dropzone.supportedFormats')}
               </p>
             </div>
           </div>

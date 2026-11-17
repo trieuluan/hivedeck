@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
-import { WarningCircleIcon } from "@phosphor-icons/react";
-import { cn } from "../lib/cn";
+import type { ReactNode } from 'react';
+import { WarningCircleIcon } from '@phosphor-icons/react';
+import { cn } from '../lib/cn';
 
 interface ChatErrorMessageProps {
   content: string;
@@ -31,8 +31,8 @@ export function ChatErrorMessage({
     return (
       <div
         className={cn(
-          "flex items-start gap-base text-sm text-error cursor-pointer",
-          className,
+          'flex items-start gap-base text-sm text-error cursor-pointer',
+          className
         )}
         onClick={onToggle}
         role="button"
@@ -40,8 +40,8 @@ export function ChatErrorMessage({
         <WarningCircleIcon className="shrink-0 size-icon-base pt-0.5" />
         <span
           className={cn(
-            !expanded && "truncate",
-            expanded && "whitespace-pre-wrap break-all",
+            !expanded && 'truncate',
+            expanded && 'whitespace-pre-wrap break-all'
           )}
         >
           {content}
@@ -53,8 +53,8 @@ export function ChatErrorMessage({
   return (
     <div
       className={cn(
-        "flex items-start gap-base rounded-md border border-error/30 bg-error/5 p-base text-sm",
-        className,
+        'flex items-start gap-base rounded-md border border-error/30 bg-error/5 p-base text-sm',
+        className
       )}
       role="alert"
     >
@@ -68,7 +68,7 @@ export function ChatErrorMessage({
           onClick={onToggle}
           className="text-xs text-low underline-offset-2 hover:underline"
         >
-          {detailsLabel ?? "Details"} {expanded ? "▴" : "▾"}
+          {detailsLabel ?? 'Details'} {expanded ? '▴' : '▾'}
         </button>
         {expanded && (
           <pre className="whitespace-pre-wrap break-all font-mono text-xs text-low">

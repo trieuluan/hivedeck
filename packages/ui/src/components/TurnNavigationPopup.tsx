@@ -137,7 +137,9 @@ export function TurnNavigationPopup({
       >
         <div className="flex flex-col gap-base min-h-0">
           <div className="flex items-center justify-between shrink-0">
-            <h4 className="text-sm font-medium text-normal">{t('common:ui.yourMessages')}</h4>
+            <h4 className="text-sm font-medium text-normal">
+              {t('common:ui.yourMessages')}
+            </h4>
             <span className="text-xs text-low">
               {turns.length} turn{turns.length === 1 ? '' : 's'}
             </span>

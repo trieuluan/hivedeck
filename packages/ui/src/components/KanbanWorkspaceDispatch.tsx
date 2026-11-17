@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LinkIcon, PlayIcon } from '@phosphor-icons/react';
 import {
@@ -14,6 +14,9 @@ import { ConfirmDialog } from './ConfirmDialog';
 export interface DispatchWorkspaceOption {
   id: string;
   name: string | null;
+  /** Project the workspace is linked to. Used to scope the dropdown to the
+   *  current card's project. */
+  projectId?: string;
 }
 
 export interface KanbanWorkspaceDispatchProps {
@@ -24,6 +27,12 @@ export interface KanbanWorkspaceDispatchProps {
   className?: string;
   /** Workspaces already linked to this card — shown with a "(running here)" hint. */
   currentWorkspaceIds?: ReadonlySet<string>;
+  /** Hide the selector when the linked card has reached a terminal (Done) status.
+   *  Workspace history remains reachable through the card's workspace list. */
+  issueStatusIsDone?: boolean;
+  /** Current card's project id. When provided, only workspaces linked to this
+   *  project are listed. */
+  currentProjectId?: string;
 }
 
 /**
@@ -31,6 +40,9 @@ export interface KanbanWorkspaceDispatchProps {
  * a dropdown and press play to run this issue in that workspace's session
  * (dispatches via `POST /api/issues/{id}/dispatch-to-workspace`). Disabled
  * when there are no workspaces to choose from.
+ *
+ * The selector is hidden entirely when the card is Done, but the rest of the
+ * workspace UI (history, linked workspace cards) stays visible.
  */
 export function KanbanWorkspaceDispatch({
   workspaces,
@@ -39,12 +51,23 @@ export function KanbanWorkspaceDispatch({
   onLink,
   className,
   currentWorkspaceIds,
+  issueStatusIsDone,
+  currentProjectId,
 }: KanbanWorkspaceDispatchProps) {
   const { t } = useTranslation('common');
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
 
-  const value = selectedId ?? workspaces[0]?.id;
-  const empty = workspaces.length === 0;
+  const availableWorkspaces = useMemo(() => {
+    if (!currentProjectId) return workspaces;
+    return workspaces.filter((w) => w.projectId === currentProjectId);
+  }, [workspaces, currentProjectId]);
+
+  if (issueStatusIsDone) {
+    return null;
+  }
+
+  const value = selectedId ?? availableWorkspaces[0]?.id;
+  const empty = availableWorkspaces.length === 0;
   const isLinked = !!value && !!currentWorkspaceIds?.has(value);
 
   const handleLink = async () => {
@@ -78,7 +101,7 @@ export function KanbanWorkspaceDispatch({
           <SelectValue placeholder={t('kanban.selectWorkspace')} />
         </SelectTrigger>
         <SelectContent>
-          {workspaces.map((workspace) => (
+          {availableWorkspaces.map((workspace) => (
             <SelectItem key={workspace.id} value={workspace.id}>
               {workspace.name ?? workspace.id}
               {currentWorkspaceIds?.has(workspace.id)

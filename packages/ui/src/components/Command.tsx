@@ -41,7 +41,9 @@ function CommandDialog({
         onOpenAutoFocus={onOpenAutoFocus}
         aria-describedby={undefined}
       >
-        <DialogTitle className="sr-only">{t('common:ui.commandBar')}</DialogTitle>
+        <DialogTitle className="sr-only">
+          {t('common:ui.commandBar')}
+        </DialogTitle>
         {children}
       </DialogContent>
     </Dialog>

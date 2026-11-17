@@ -334,7 +334,9 @@ export function Navbar({
                   onClick={onNavigateToBoard}
                 >
                   <KanbanIcon className="size-icon-sm" />
-                  <span className="hidden min-[480px]:inline">{t('common:ui.board')}</span>
+                  <span className="hidden min-[480px]:inline">
+                    {t('common:ui.board')}
+                  </span>
                 </button>
               )}
             </div>

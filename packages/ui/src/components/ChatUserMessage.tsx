@@ -49,7 +49,9 @@ export function ChatUserMessage({
         aria-label={t('conversation.you')}
         className="ship-message-human min-w-0 max-w-full rounded-2xl bg-secondary px-4 py-2.5 text-high"
       >
-        <ChatMessageBody>{renderMarkdown({ content, workspaceId })}</ChatMessageBody>
+        <ChatMessageBody>
+          {renderMarkdown({ content, workspaceId })}
+        </ChatMessageBody>
       </article>
       {!isGreyed && (onReset || onEdit || timestamp) && (
         <div className="mt-1 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/msg:opacity-100 focus-within:opacity-100 motion-reduce:transition-none">
