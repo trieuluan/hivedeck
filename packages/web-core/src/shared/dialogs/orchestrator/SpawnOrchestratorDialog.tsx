@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BaseCodingAgent } from 'shared/types';
@@ -20,6 +20,7 @@ import { defineModal } from '@/shared/lib/modals';
 import { workspacesApi } from '@/shared/lib/api';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { workspaceSummaryKeys } from '@/shared/hooks/workspaceSummaryKeys';
+import { workspaceSessionKeys } from '@/shared/hooks/workspaceSessionKeys';
 import {
   ORCHESTRATOR_DIRECTIVES,
   composeOrchestratorPrompt,
@@ -66,7 +67,11 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(
     const defaultName = projectName ?? 'Orchestrator';
     const [name, setName] = useState(defaultName);
     const [agent, setAgent] = useState<BaseCodingAgent>(loadCaptainAgent);
+    // Set once the owner picks an agent in this dialog; until then the
+    // project's existing captain decides the default (below).
+    const agentChosen = useRef(false);
     const chooseAgent = (id: BaseCodingAgent) => {
+      agentChosen.current = true;
       setAgent(id);
       try {
         localStorage.setItem(CAPTAIN_AGENT_STORAGE, id);
@@ -95,6 +100,23 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(
       enabled: modal.visible,
       refetchInterval: modal.visible ? 5000 : false,
     });
+    // Restarting a captain defaults to the agent it ran on, not to whatever
+    // this browser last picked for some other captain.
+    useEffect(() => {
+      if (!modal.visible) {
+        agentChosen.current = false;
+        return;
+      }
+      const previous = status?.executor;
+      if (
+        !agentChosen.current &&
+        previous &&
+        CAPTAIN_AGENTS.some((a) => a.id === previous)
+      ) {
+        setAgent(previous);
+      }
+    }, [modal.visible, status?.executor]);
+
     // The status endpoint knows this scope's captain (project or global).
     const runningOrchestrator =
       status?.active && status.workspace_id
@@ -138,6 +160,10 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(
         queryClient.invalidateQueries({
           queryKey: orchestratorStatusKey(projectId),
         });
+        // Each start opens a new session in the captain workspace; refresh
+        // its session list so the chat switches to it (it otherwise kept
+        // showing the previous, stopped session until a page reload).
+        queryClient.invalidateQueries({ queryKey: workspaceSessionKeys.all });
         modal.hide();
         // A project's captain is shown beside its board; stay there.
         if (data.workspace && !projectId) {
