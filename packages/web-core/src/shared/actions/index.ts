@@ -412,6 +412,8 @@ export const Actions = {
     icon: RobotIcon,
     keywords: ['orchestrator', 'loop', 'autopilot', 'board'],
     requiresTarget: ActionTargetType.NONE,
+    // ADR-034: the global captain is advanced; projects have their own.
+    isVisible: () => useUiPreferencesStore.getState().showAdvanced,
     execute: async () => {
       await SpawnOrchestratorDialog.show({});
     },

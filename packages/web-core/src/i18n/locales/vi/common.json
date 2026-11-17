@@ -531,7 +531,7 @@
     "workspacesSection": "Workspace",
     "tasksSection": "Task",
     "tasksLoading": "Đang tải task…",
-    "orchestrator": "Thuyền trưởng",
+    "orchestrator": "Workspace khác",
     "collapse": "Thu gọn",
     "expand": "Mở rộng",
     "createChildBoard": "Tạo board con",

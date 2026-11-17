@@ -26,6 +26,7 @@ import {
 } from './settings/SettingsHostContext';
 import { SettingsMachineUserSystemProvider } from './settings/SettingsMachineUserSystemProvider';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
+import { useShowAdvanced } from '@/shared/stores/useUiPreferencesStore';
 
 export interface SettingsDialogProps {
   initialSection?: SettingsSectionType;
@@ -54,8 +55,13 @@ function SettingsDialogNavigation({
     selectedHostId,
     setSelectedHostId,
   } = useSettingsHost();
+  const [showAdvanced] = useShowAdvanced();
+  // ADR-034: pipelines and routines are advanced features.
   const hostSections = SETTINGS_SECTION_DEFINITIONS.filter(
-    (section) => section.group === 'host'
+    (section) =>
+      section.group === 'host' &&
+      (showAdvanced ||
+        (section.id !== 'pipeline' && section.id !== 'recurrent'))
   );
   const hostOptions = availableHosts.map((host) => ({
     value: host.id,

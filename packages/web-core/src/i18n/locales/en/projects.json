@@ -28,5 +28,11 @@
     "openSettings": "Add one in Settings",
     "primary": "primary",
     "done": "Done"
+  },
+  "welcome": {
+    "title": "Start with a project",
+    "body": "A project is one repository plus its board. Chat with the project's captain: it turns your goals into cards, sends them to agents and moves finished work to In Review — you press Merge.",
+    "createProject": "Create project",
+    "quickChat": "Quick chat without a project"
   }
 }

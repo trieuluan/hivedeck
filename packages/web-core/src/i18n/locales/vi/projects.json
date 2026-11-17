@@ -28,5 +28,11 @@
     "openSettings": "Thêm repo trong Settings",
     "primary": "chính",
     "done": "Xong"
+  },
+  "welcome": {
+    "title": "Bắt đầu với một project",
+    "body": "Một project gồm một repo và board của nó. Chat với thuyền trưởng của project: nó biến mục tiêu của bạn thành card, giao cho agent và chuyển việc xong sang In Review — bạn bấm Merge.",
+    "createProject": "Tạo project",
+    "quickChat": "Chat nhanh không cần project"
   }
 }

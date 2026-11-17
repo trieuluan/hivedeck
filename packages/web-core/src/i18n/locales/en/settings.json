@@ -67,6 +67,10 @@
         "animateRunningOutline": {
           "label": "Animated border while working",
           "helper": "Show a shimmering border around the message box while the agent works. A subtle pulsating dot is always shown."
+        },
+        "showAdvanced": {
+          "label": "Show advanced features",
+          "helper": "Child boards, pipelines, routines, spec intake and the global captain. Off keeps HiveDeck to projects, their captain, the board and Merge."
         }
       },
       "taskExecution": {

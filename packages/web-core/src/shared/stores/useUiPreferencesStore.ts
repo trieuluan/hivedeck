@@ -63,6 +63,18 @@ const loadDefaultPipelineId = (): string | null => {
 // working. A subtle pulsating dot always shows; this toggles the border on top.
 const ANIMATE_RUNNING_OUTLINE_KEY = 'vk-animate-running-outline';
 
+// ADR-034: advanced features (child boards, pipelines, routines, spec intake,
+// the global captain) are hidden unless the owner turns this on.
+const SHOW_ADVANCED_KEY = 'hivedeck-show-advanced';
+
+const loadShowAdvanced = (): boolean => {
+  try {
+    return localStorage.getItem(SHOW_ADVANCED_KEY) === 'true';
+  } catch {
+    return false;
+  }
+};
+
 const loadAnimateRunningOutline = (): boolean => {
   try {
     const stored = localStorage.getItem(ANIMATE_RUNNING_OUTLINE_KEY);
@@ -357,6 +369,7 @@ type State = {
 
   // Animated border around the working message box (toggleable in settings)
   animateRunningOutline: boolean;
+  showAdvanced: boolean;
 
   // Last selected project (persisted via scratch store).
   // ADR-018 — `selectedOrgId` removed.
@@ -454,6 +467,7 @@ type State = {
 
   // Animated running outline actions
   setAnimateRunningOutline: (value: boolean) => void;
+  setShowAdvanced: (value: boolean) => void;
 
   // Last selected project actions
   setSelectedProjectId: (projectId: string | null) => void;
@@ -501,6 +515,7 @@ export const useUiPreferencesStore = create<State>()((set, get) => ({
 
   // Animated running outline (default on)
   animateRunningOutline: loadAnimateRunningOutline(),
+  showAdvanced: loadShowAdvanced(),
 
   // Last selected project (ADR-018 — `selectedOrgId` removed)
   selectedProjectId: null,
@@ -876,6 +891,15 @@ export const useUiPreferencesStore = create<State>()((set, get) => ({
     set({ animateRunningOutline: value });
   },
 
+  setShowAdvanced: (value) => {
+    try {
+      localStorage.setItem(SHOW_ADVANCED_KEY, value ? 'true' : 'false');
+    } catch {
+      // localStorage may be unavailable
+    }
+    set({ showAdvanced: value });
+  },
+
   // Last selected project actions
   setSelectedProjectId: (projectId) => set({ selectedProjectId: projectId }),
   setWorkspacesDashboardProjectId: (projectId) =>
@@ -999,6 +1023,13 @@ export function useDefaultPipelineId() {
   const id = useUiPreferencesStore((s) => s.defaultPipelineId);
   const set = useUiPreferencesStore((s) => s.setDefaultPipelineId);
   return [id, set] as const;
+}
+
+/** ADR-034: whether advanced features are shown. */
+export function useShowAdvanced() {
+  const value = useUiPreferencesStore((s) => s.showAdvanced);
+  const set = useUiPreferencesStore((s) => s.setShowAdvanced);
+  return [value, set] as const;
 }
 
 // Hook for the animated running outline toggle

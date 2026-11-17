@@ -67,6 +67,10 @@
         "animateRunningOutline": {
           "label": "Viền chuyển động khi đang chạy",
           "helper": "Hiện viền lấp lánh quanh ô nhập tin nhắn khi agent đang làm việc. Chấm nhấp nháy nhỏ luôn được hiện."
+        },
+        "showAdvanced": {
+          "label": "Hiện tính năng nâng cao",
+          "helper": "Board con, pipeline, tác vụ định kỳ, spec intake và thuyền trưởng chung. Tắt thì HiveDeck chỉ còn project, thuyền trưởng của project, board và nút Merge."
         }
       },
       "taskExecution": {

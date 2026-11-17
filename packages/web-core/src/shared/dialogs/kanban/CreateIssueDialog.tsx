@@ -36,6 +36,7 @@ import {
 } from '@/pages/kanban/PipelineSection';
 import { appendPipelineToDescription } from '@/shared/lib/pipeline/cardPipeline';
 import { CreateIssueLinkedSections } from './CreateIssueLinkedSections';
+import { useShowAdvanced } from '@/shared/stores/useUiPreferencesStore';
 
 export interface CreateIssueDialogPriorityOption {
   value: IssuePriority;
@@ -90,6 +91,7 @@ const CreateIssueDialogImpl = NiceModal.create<CreateIssueDialogProps>(
   }) => {
     const modal = useModal();
     const { t } = useTranslation('common');
+    const [showAdvanced] = useShowAdvanced();
     const { profiles } = useUserSystem();
 
     const titleInputRef = useRef<HTMLInputElement | null>(null);
@@ -400,12 +402,14 @@ const CreateIssueDialogImpl = NiceModal.create<CreateIssueDialogProps>(
               </div>
             </div>
 
-            <PipelineSection
-              profiles={profiles}
-              disabled={isSubmitting}
-              expanded
-              onChange={handlePipelineChange}
-            />
+            {showAdvanced && (
+              <PipelineSection
+                profiles={profiles}
+                disabled={isSubmitting}
+                expanded
+                onChange={handlePipelineChange}
+              />
+            )}
 
             <CreateIssueLinkedSections
               projectId={projectId}

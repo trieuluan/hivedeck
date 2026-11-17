@@ -531,7 +531,7 @@
     "workspacesSection": "Workspaces",
     "tasksSection": "Tasks",
     "tasksLoading": "Loading tasks…",
-    "orchestrator": "Orchestrator",
+    "orchestrator": "Other workspaces",
     "collapse": "Collapse",
     "expand": "Expand",
     "createChildBoard": "Create child board",

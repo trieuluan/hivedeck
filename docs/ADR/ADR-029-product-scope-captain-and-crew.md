@@ -73,7 +73,7 @@ One `Config.advanced_features` switch (default off) hides Advanced items from na
 ## Proposed order
 
 1. ~~**Make the captain work**~~ — done in ADR-030 (in-repo captain, MCP over HTTP, trust-prompt fix).
-2. Advanced switch + hide Advanced items.
+2. ~~Advanced switch + hide Advanced items~~ — done in ADR-034.
 3. Remove dead code (`review` crate, `apps/macos`, `hosts` routes) and the SpecKit UI.
 4. Quick ask, Talk to the captain, Card → chat.
 5. Leftovers from the rename: logo still reads "VIBE KANBAN INDIE"; onboarding terms/privacy links point at vibekanban.com.

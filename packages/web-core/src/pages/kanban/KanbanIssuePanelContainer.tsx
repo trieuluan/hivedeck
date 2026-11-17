@@ -55,7 +55,10 @@ import {
   selectDisplayData,
   selectIsCreateDraftDirty,
 } from './kanban-issue-panel-state';
-import { useUiPreferencesStore } from '@/shared/stores/useUiPreferencesStore';
+import {
+  useShowAdvanced,
+  useUiPreferencesStore,
+} from '@/shared/stores/useUiPreferencesStore';
 import { useIssueAttachments } from '@/shared/hooks/useIssueAttachments';
 import { attachmentsApi } from '@/shared/lib/api';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
@@ -152,6 +155,7 @@ export function KanbanIssuePanelContainer({
   onExpectIssueOpen,
 }: KanbanIssuePanelContainerProps) {
   const { t } = useTranslation('common');
+  const [showAdvanced] = useShowAdvanced();
   const appNavigation = useAppNavigation();
   const routeState = useCurrentKanbanRouteState();
 
@@ -1136,34 +1140,43 @@ export function KanbanIssuePanelContainer({
       renderDescriptionEditor={(props) => (
         <WYSIWYGEditor {...props} localAttachments={localAttachments} />
       )}
-      renderIntake={() => (
-        <IssueIntakeSection
-          projectId={projectId}
-          title={displayData.title}
-          description={displayData.description}
-          disabled={isSubmitting}
-          onGenerated={handleSpecGenerated}
-        />
-      )}
-      renderPipeline={() => (
-        <PipelineSection
-          // PipelineSection seeds its internal state from `initialSelection`
-          // only on mount (lazy useState initializers). The panel itself
-          // isn't remounted when the operator switches between cards, so key
-          // it on the edited issue (or the create-composer draft) to force a
-          // fresh instance instead of leaking the previous card's selection.
-          key={
-            mode === 'edit'
-              ? `edit:${selectedKanbanIssueId}`
-              : `create:${issueComposerKey}`
-          }
-          profiles={profiles}
-          disabled={isSubmitting}
-          expanded
-          initialSelection={mode === 'edit' ? editPipelineInitial : null}
-          onChange={handlePipelineChange}
-        />
-      )}
+      // ADR-034: spec intake and pipelines are advanced features.
+      renderIntake={
+        !showAdvanced
+          ? undefined
+          : () => (
+              <IssueIntakeSection
+                projectId={projectId}
+                title={displayData.title}
+                description={displayData.description}
+                disabled={isSubmitting}
+                onGenerated={handleSpecGenerated}
+              />
+            )
+      }
+      renderPipeline={
+        !showAdvanced
+          ? undefined
+          : () => (
+              <PipelineSection
+                // PipelineSection seeds its internal state from `initialSelection`
+                // only on mount (lazy useState initializers). The panel itself
+                // isn't remounted when the operator switches between cards, so key
+                // it on the edited issue (or the create-composer draft) to force a
+                // fresh instance instead of leaking the previous card's selection.
+                key={
+                  mode === 'edit'
+                    ? `edit:${selectedKanbanIssueId}`
+                    : `create:${issueComposerKey}`
+                }
+                profiles={profiles}
+                disabled={isSubmitting}
+                expanded
+                initialSelection={mode === 'edit' ? editPipelineInitial : null}
+                onChange={handlePipelineChange}
+              />
+            )
+      }
       renderPipelineProgress={
         pipelineStages.length > 0
           ? () => (

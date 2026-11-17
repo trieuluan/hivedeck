@@ -13,6 +13,7 @@ import { MobileDrawer } from '@vibe/ui/components/MobileDrawer';
 import { ProjectColorTransformContext } from '@vibe/ui/lib/projectColor';
 import { SidebarBottomActions } from './SidebarBottomActions';
 import { useActions } from '@/shared/hooks/useActions';
+import { useShowAdvanced } from '@/shared/stores/useUiPreferencesStore';
 import { Actions } from '@/shared/actions';
 import { SidebarProjectTasksRegistry } from '@/shared/components/sidebar/SidebarProjectTasksRegistry';
 
@@ -230,6 +231,8 @@ export function SharedAppLayout() {
   // Workspace row menu in the sidebar: reuse the W A / W X actions (archive
   // toggles; delete asks for confirmation and navigates away if needed).
   const { executeAction } = useActions();
+  // ADR-034: child boards and the global captain are advanced features.
+  const [showAdvanced] = useShowAdvanced();
   const handleArchiveWorkspace = useCallback(
     (workspaceId: string) =>
       void executeAction(Actions.ArchiveWorkspace, workspaceId),
@@ -660,11 +663,15 @@ export function SharedAppLayout() {
                       }
                       onOpenProjectPage={handleProjectClick}
                       onOpenWorkspacesPage={handleOpenWorkspacesPage}
-                      onOpenLastWorkspace={handleOrchestratorQuickAction}
+                      onOpenLastWorkspace={
+                        showAdvanced ? handleOrchestratorQuickAction : undefined
+                      }
                       onSelectOrchestratorPrompt={
                         handleSelectOrchestratorPrompt
                       }
-                      onCreateChildBoard={handleCreateChildBoard}
+                      onCreateChildBoard={
+                        showAdvanced ? handleCreateChildBoard : undefined
+                      }
                       onDeleteProject={handleDeleteProject}
                       onManageRepos={handleManageRepos}
                       onArchiveWorkspace={handleArchiveWorkspace}
@@ -748,15 +755,21 @@ export function SharedAppLayout() {
                           handleOpenWorkspacesPage(projectId);
                           setIsDrawerOpen(false);
                         }}
-                        onOpenLastWorkspace={() => {
-                          handleOrchestratorQuickAction();
-                          setIsDrawerOpen(false);
-                        }}
+                        onOpenLastWorkspace={
+                          showAdvanced
+                            ? () => {
+                                handleOrchestratorQuickAction();
+                                setIsDrawerOpen(false);
+                              }
+                            : undefined
+                        }
                         onSelectOrchestratorPrompt={(id) => {
                           handleSelectOrchestratorPrompt(id);
                           setIsDrawerOpen(false);
                         }}
-                        onCreateChildBoard={handleCreateChildBoard}
+                        onCreateChildBoard={
+                          showAdvanced ? handleCreateChildBoard : undefined
+                        }
                         onDeleteProject={handleDeleteProject}
                         onManageRepos={handleManageRepos}
                         onArchiveWorkspace={handleArchiveWorkspace}

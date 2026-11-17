@@ -33,6 +33,7 @@ import {
   DEFAULT_THEME_VARIANT,
   type MobileFontScale,
   useAnimateRunningOutline,
+  useShowAdvanced,
   useMobileFontScale,
   useThemeVariant,
 } from '@/shared/stores/useUiPreferencesStore';
@@ -68,6 +69,7 @@ export function GeneralSettingsSection() {
   const [themeVariant, setThemeVariant] = useThemeVariant();
   const [animateRunningOutline, setAnimateRunningOutline] =
     useAnimateRunningOutline();
+  const [showAdvanced, setShowAdvanced] = useShowAdvanced();
   const { themes: themeVariantManifest } = useThemeManifest();
   const languageOptions = getLanguageOptions(
     t('language.browserDefault', {
@@ -357,6 +359,14 @@ export function GeneralSettingsSection() {
           )}
           checked={animateRunningOutline}
           onChange={setAnimateRunningOutline}
+        />
+
+        <SettingsCheckbox
+          id="show-advanced"
+          label={t('settings.general.appearance.showAdvanced.label')}
+          description={t('settings.general.appearance.showAdvanced.helper')}
+          checked={showAdvanced}
+          onChange={setShowAdvanced}
         />
       </SettingsCard>
 
