@@ -376,6 +376,16 @@ impl Client {
             .json(&json!({ "models": models }));
         self.send(req).await.map(|_| ())
     }
+
+    /// How every combo walks its models (`fallback` or `round-robin`).
+    /// Clears per-combo overrides so the choice applies to all combos.
+    pub async fn set_combo_strategy(&self, strategy: &str) -> Result<(), ApiError> {
+        let req = self.http.patch(self.url("/api/settings")).json(&json!({
+            "comboStrategy": strategy,
+            "comboStrategies": {},
+        }));
+        self.send(req).await.map(|_| ())
+    }
 }
 
 #[cfg(test)]

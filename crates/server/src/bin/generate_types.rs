@@ -86,6 +86,7 @@ fn generate_types_content() -> String {
         services::services::nine_router::ComboSuggestions::decl(),
         server::routes::nine_router::ApplyComboRequest::decl(),
         server::routes::nine_router::UndoComboRequest::decl(),
+        server::routes::nine_router::ComboStrategyRequest::decl(),
         server::routes::nine_router::VerifyModelsRequest::decl(),
         server::routes::nine_router::UnblockModelRequest::decl(),
         services::services::nine_router::ExcludedModel::decl(),

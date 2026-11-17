@@ -127,6 +127,23 @@ async fn apply_combo(
 }
 
 #[derive(Debug, Deserialize, TS)]
+pub struct ComboStrategyRequest {
+    /// `fallback` (keeps prompt caches warm) or `round-robin`.
+    pub strategy: String,
+}
+
+async fn set_combo_strategy(
+    State(deployment): State<DeploymentImpl>,
+    axum::Json(body): axum::Json<ComboStrategyRequest>,
+) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
+    let settings = settings(&deployment).await;
+    nine_router::set_combo_strategy(&settings, &body.strategy)
+        .await
+        .map_err(to_api_error)?;
+    Ok(ResponseJson(ApiResponse::success(())))
+}
+
+#[derive(Debug, Deserialize, TS)]
 pub struct UndoComboRequest {
     pub name: String,
 }
@@ -204,6 +221,7 @@ pub(super) fn router() -> Router<DeploymentImpl> {
         .route("/router/suggestions", get(get_suggestions))
         .route("/router/combos", post(apply_combo))
         .route("/router/combos/undo", post(undo_combo))
+        .route("/router/combo-strategy", post(set_combo_strategy))
         .route("/router/models/verify", post(verify_models))
         .route("/router/models/unblock", post(unblock_model))
 }

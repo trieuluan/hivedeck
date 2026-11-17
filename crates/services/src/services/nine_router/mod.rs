@@ -1227,6 +1227,27 @@ async fn write_combo_history(
     tokio::fs::write(combo_history_path(), raw).await
 }
 
+/// How 9router walks a combo's models.
+///
+/// `fallback` keeps using the first model until it fails, so consecutive
+/// requests of a session hit the same provider and its prompt cache.
+/// `round-robin` spreads requests across the models (and their quotas) but
+/// switches provider on every request, which defeats prompt caching.
+pub async fn set_combo_strategy(
+    settings: &NineRouterSettings,
+    strategy: &str,
+) -> Result<(), NineRouterError> {
+    if !matches!(strategy, "fallback" | "round-robin") {
+        return Err(NineRouterError::InvalidCombo(
+            "strategy must be fallback or round-robin".into(),
+        ));
+    }
+    let client = management_client(settings)?;
+    client.set_combo_strategy(strategy).await?;
+    log_line(&format!("combo strategy set to {strategy}")).await;
+    Ok(())
+}
+
 /// Restore the combo HiveDeck last replaced (or delete it if HiveDeck
 /// created it). One level of undo per combo.
 pub async fn undo_combo(settings: &NineRouterSettings, name: &str) -> Result<(), NineRouterError> {

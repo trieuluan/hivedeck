@@ -416,6 +416,12 @@ export type ApplyComboRequest = { name: string, models: Array<string>, };
 
 export type UndoComboRequest = { name: string, };
 
+export type ComboStrategyRequest = { 
+/**
+ * `fallback` (keeps prompt caches warm) or `round-robin`.
+ */
+strategy: string, };
+
 export type VerifyModelsRequest = { models: Array<string>, };
 
 export type UnblockModelRequest = { id: string, };
