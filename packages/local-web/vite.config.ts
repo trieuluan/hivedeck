@@ -127,15 +127,19 @@ export default defineConfig({
   },
   server: {
     port: parseInt(process.env.FRONTEND_PORT || '3000'),
+    // 127.0.0.1, not `localhost`: Node resolves localhost to ::1 first, so any
+    // other process listening on [::1]:<port> (e.g. a dev server an agent
+    // started in a worktree) silently captured every /api and /v1 request
+    // and WebSocket, making the app take seconds per call.
     proxy: {
       '/api': {
-        target: `http://localhost:${process.env.BACKEND_PORT || '3001'}`,
+        target: `http://127.0.0.1:${process.env.BACKEND_PORT || '3001'}`,
         changeOrigin: true,
         ws: true,
       },
       // Local kanban API (projects/issues/statuses/...) served from local SQLite.
       '/v1': {
-        target: `http://localhost:${process.env.BACKEND_PORT || '3001'}`,
+        target: `http://127.0.0.1:${process.env.BACKEND_PORT || '3001'}`,
         changeOrigin: true,
       },
     },
