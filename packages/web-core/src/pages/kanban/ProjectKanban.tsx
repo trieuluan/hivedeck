@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { type IssuePriority, type Project } from 'shared/remote-types';
-import { Group, Layout, Panel, Separator } from 'react-resizable-panels';
 import { useProjects } from '@/shared/hooks/useProjects';
 import { useProjectsContext } from '@/shared/providers/ProjectProvider';
 import { ProjectProvider } from '@/shared/providers/remote/ProjectProvider';
@@ -13,10 +12,6 @@ import { useIsMobile } from '@/shared/hooks/useIsMobile';
 import { useHostId } from '@/shared/providers/HostIdProvider';
 import { ProjectRightSidebarContainer } from './ProjectRightSidebarContainer';
 import { ProjectCaptainColumn } from './ProjectCaptainColumn';
-import {
-  PERSIST_KEYS,
-  usePaneSize,
-} from '@/shared/stores/useUiPreferencesStore';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useCurrentKanbanRouteState } from '@/shared/hooks/useCurrentKanbanRouteState';
 import {
@@ -233,11 +228,6 @@ function ProjectKanbanLayout({ projectName }: { projectName: string }) {
   const { getIssue, projectId } = useProjectContext();
   const issue = issueId ? getIssue(issueId) : undefined;
   usePageTitle(issue?.title, projectName);
-  const [kanbanLeftPanelSize, setKanbanLeftPanelSize] = usePaneSize(
-    PERSIST_KEYS.kanbanLeftPanel,
-    75
-  );
-
   const isRightPanelOpen = isPanelOpen;
 
   if (isMobile) {
@@ -252,20 +242,6 @@ function ProjectKanbanLayout({ projectName }: { projectName: string }) {
     );
   }
 
-  const kanbanDefaultLayout: Layout =
-    typeof kanbanLeftPanelSize === 'number'
-      ? {
-          'kanban-left': kanbanLeftPanelSize,
-          'kanban-right': 100 - kanbanLeftPanelSize,
-        }
-      : { 'kanban-left': 75, 'kanban-right': 25 };
-
-  const onKanbanLayoutChange = (layout: Layout) => {
-    if (isRightPanelOpen) {
-      setKanbanLeftPanelSize(layout['kanban-left']);
-    }
-  };
-
   return (
     <div className="flex h-full w-full min-w-0">
       {/* ADR-032: the project's captain beside its board. */}
@@ -276,38 +252,15 @@ function ProjectKanbanLayout({ projectName }: { projectName: string }) {
           projectName={projectName}
         />
       )}
-      <Group
-        orientation="horizontal"
-        className="flex-1 min-w-0 h-full"
-        defaultLayout={kanbanDefaultLayout}
-        onLayoutChange={onKanbanLayoutChange}
-      >
-        <Panel
-          id="kanban-left"
-          minSize="20%"
-          className="min-w-0 h-full overflow-hidden bg-primary"
-        >
-          <ProjectKanbanBoard />
-        </Panel>
-
+      {/* Board takes the full width; card detail slides over it. */}
+      <div className="relative min-w-0 flex-1 h-full overflow-hidden bg-primary">
+        <ProjectKanbanBoard />
         {isRightPanelOpen && (
-          <Separator
-            id="kanban-separator"
-            className="w-1 bg-panel outline-none hover:bg-brand/50 transition-colors cursor-col-resize"
-          />
-        )}
-
-        {isRightPanelOpen && (
-          <Panel
-            id="kanban-right"
-            minSize="400px"
-            maxSize="800px"
-            className="min-w-0 h-full overflow-hidden bg-secondary"
-          >
+          <aside className="absolute inset-y-0 right-0 z-30 flex w-[min(560px,100%)] flex-col overflow-hidden border-l border-border bg-secondary shadow-[-12px_0_32px_rgba(0,0,0,0.35)] animate-in slide-in-from-right-4 fade-in-0 duration-150 motion-reduce:animate-none">
             <ProjectRightSidebarContainer />
-          </Panel>
+          </aside>
         )}
-      </Group>
+      </div>
     </div>
   );
 }

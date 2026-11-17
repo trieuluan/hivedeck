@@ -447,6 +447,22 @@ export function ProjectRightSidebarContainer() {
 
     appNavigation.goToProject(projectId);
   }, [projectId, isCreateMode, issueComposerKey, appNavigation]);
+  // Esc closes the drawer, unless you're typing or a dialog is open.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.closest('input, textarea, select, [contenteditable="true"]') ||
+        document.querySelector('[role="dialog"], [role="menu"]')
+      ) {
+        return;
+      }
+      closePanel();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [closePanel]);
   const [expectedIssueId, setExpectedIssueId] = useState<string | null>(null);
 
   const markExpectedIssue = useCallback((nextIssueId: string) => {

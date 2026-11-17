@@ -1250,7 +1250,18 @@ export function KanbanContainer() {
           </div>
         ) : (
           <div className="flex-1 overflow-x-auto px-double">
-            <KanbanProvider>
+            <KanbanProvider
+              style={{
+                // Empty columns stay narrow so the ones with cards get room.
+                gridTemplateColumns: visibleStatuses
+                  .map((status) =>
+                    (items[status.id]?.length ?? 0) > 0
+                      ? 'minmax(240px, 340px)'
+                      : 'minmax(170px, 190px)'
+                  )
+                  .join(' '),
+              }}
+            >
               {visibleStatuses.map((status) => {
                 const issueIds = items[status.id] ?? [];
 
