@@ -1,9 +1,9 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { CaretDownIcon } from '@phosphor-icons/react';
-import { useTranslation } from 'react-i18next';
-import { cn } from '../lib/cn';
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { CaretDownIcon } from "@phosphor-icons/react";
+import { useTranslation } from "react-i18next";
+import { cn } from "../lib/cn";
 
-const MAX_COLLAPSED_HEIGHT = 600;
+const MAX_COLLAPSED_HEIGHT = 320;
 
 /** Relative send time ("2 min ago"); the full date is in the tooltip. */
 export function ChatTimestamp({
@@ -13,32 +13,32 @@ export function ChatTimestamp({
   timestamp?: string | null;
   className?: string;
 }) {
-  const { i18n } = useTranslation('tasks');
+  const { i18n } = useTranslation("tasks");
   const date = timestamp ? new Date(timestamp) : null;
   const locale = i18n.resolvedLanguage ?? i18n.language;
   const seconds = date ? (date.getTime() - Date.now()) / 1000 : NaN;
   const unit =
     Math.abs(seconds) < 60
-      ? 'second'
+      ? "second"
       : Math.abs(seconds) < 3600
-        ? 'minute'
+        ? "minute"
         : Math.abs(seconds) < 86400
-          ? 'hour'
-          : 'day';
+          ? "hour"
+          : "day";
   const divisor = { second: 1, minute: 60, hour: 3600, day: 86400 }[unit];
   if (!date || !Number.isFinite(seconds)) return null;
   return (
     <time
       dateTime={date.toISOString()}
       title={new Intl.DateTimeFormat(locale, {
-        dateStyle: 'full',
-        timeStyle: 'long',
+        dateStyle: "full",
+        timeStyle: "long",
       }).format(date)}
-      className={cn('px-1 text-[11px] text-low', className)}
+      className={cn("px-1 text-[11px] text-low", className)}
     >
-      {new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(
+      {new Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(
         Math.round(seconds / divisor),
-        unit
+        unit,
       )}
     </time>
   );
@@ -47,14 +47,14 @@ export function ChatTimestamp({
 export function ChatMessageBody({
   children,
   timestamp,
-  timestampAlign = 'end',
+  timestampAlign = "end",
 }: {
   children: ReactNode;
   /** Shown under the body on hover (inside a `group/msg`). */
   timestamp?: string | null;
-  timestampAlign?: 'start' | 'end';
+  timestampAlign?: "start" | "end";
 }) {
-  const { t } = useTranslation('tasks');
+  const { t } = useTranslation("tasks");
   const bodyId = useId();
   const contentRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(false);
@@ -64,10 +64,10 @@ export function ChatMessageBody({
     const element = contentRef.current;
     if (!element) return;
 
-    // Observe the unrestricted body, not the 600px viewport, as tokens arrive.
+    // Observe the unrestricted body, not the clipped viewport, as tokens arrive.
     const measure = () =>
       setOverflows(
-        element.getBoundingClientRect().height > MAX_COLLAPSED_HEIGHT
+        element.getBoundingClientRect().height > MAX_COLLAPSED_HEIGHT,
       );
     const observer = new ResizeObserver(measure);
     observer.observe(element);
@@ -80,10 +80,10 @@ export function ChatMessageBody({
     <div className="min-w-0 max-w-full">
       <div
         id={bodyId}
-        tabIndex={collapsed ? 0 : undefined}
         className={cn(
-          'min-w-0 max-w-full overflow-x-auto rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current',
-          collapsed && 'max-h-[600px] overflow-y-auto'
+          "min-w-0 max-w-full overflow-x-auto rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current",
+          collapsed &&
+            "max-h-[320px] overflow-y-hidden [mask-image:linear-gradient(to_bottom,black_75%,transparent)]",
         )}
       >
         <div
@@ -101,18 +101,18 @@ export function ChatMessageBody({
           onClick={() => setExpanded((value) => !value)}
           className="mt-2 inline-flex min-h-8 items-center gap-1 rounded-sm text-[12px] font-medium text-current underline underline-offset-4 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
         >
-          {expanded ? t('conversation.showLess') : t('conversation.showMore')}
+          {expanded ? t("conversation.showLess") : t("conversation.showMore")}
           <CaretDownIcon
             aria-hidden="true"
-            className={cn('size-icon-xs', expanded && 'rotate-180')}
+            className={cn("size-icon-xs", expanded && "rotate-180")}
           />
         </button>
       )}
       {timestamp && (
         <div
           className={cn(
-            'mt-1 flex opacity-0 transition-opacity group-hover/msg:opacity-100 motion-reduce:transition-none',
-            timestampAlign === 'end' ? 'justify-end' : 'justify-start'
+            "mt-1 flex opacity-0 transition-opacity group-hover/msg:opacity-100 motion-reduce:transition-none",
+            timestampAlign === "end" ? "justify-end" : "justify-start",
           )}
         >
           <ChatTimestamp timestamp={timestamp} className="px-0" />
