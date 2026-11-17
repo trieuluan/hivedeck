@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { ReactNode } from 'react';
 import { XIcon } from '@phosphor-icons/react';
 import { cn } from '../lib/cn';
@@ -22,6 +23,7 @@ export function TerminalPanel({
   onSelectTab,
   onCloseTab,
 }: TerminalPanelProps) {
+  const { t } = useTranslation();
   // Render only the active terminal. Inactive ones stay alive in the provider
   // (their xterm instance and WebSocket persist), so switching back re-attaches
   // the existing element rather than spawning a new session.
@@ -56,8 +58,8 @@ export function TerminalPanel({
                 {onCloseTab && (
                   <button
                     type="button"
-                    title="Close terminal"
-                    aria-label="Close terminal"
+                    title={t('common:ui.closeTerminal')}
+                    aria-label={t('common:ui.closeTerminal')}
                     className="opacity-50 hover:opacity-100 shrink-0"
                     onClick={(e) => {
                       e.stopPropagation();

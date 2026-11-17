@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { FieldProps } from '@rjsf/utils';
 import { PlusIcon, XIcon } from '@phosphor-icons/react';
 import { useState, useCallback, useMemo } from 'react';
@@ -16,6 +17,7 @@ export function KeyValueField({
   readonly,
   registry,
 }: FieldProps<KeyValueData>) {
+  const { t } = useTranslation();
   const [newKey, setNewKey] = useState('');
   const [newValue, setNewValue] = useState('');
 
@@ -75,14 +77,14 @@ export function KeyValueField({
             value={key}
             disabled
             className={cn(inputClassName, 'opacity-70')}
-            aria-label="Environment variable key"
+            aria-label={t('common:ui.environmentVariableKey')}
           />
           <input
             value={value ?? ''}
             onChange={(e) => handleValueChange(key, e.target.value)}
             disabled={isDisabled}
             className={inputClassName}
-            placeholder="Value"
+            placeholder={t('common:ui.value')}
             aria-label={`Value for ${key}`}
           />
           <button
@@ -110,7 +112,7 @@ export function KeyValueField({
           disabled={isDisabled}
           placeholder="KEY"
           className={inputClassName}
-          aria-label="New environment variable key"
+          aria-label={t('common:ui.newEnvironmentVariableKey')}
         />
         <input
           value={newValue}
@@ -124,7 +126,7 @@ export function KeyValueField({
               handleAdd();
             }
           }}
-          aria-label="New environment variable value"
+          aria-label={t('common:ui.newEnvironmentVariableValue')}
         />
         <button
           type="button"
@@ -136,7 +138,7 @@ export function KeyValueField({
             'focus:outline-none focus:ring-1 focus:ring-brand',
             'disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
           )}
-          aria-label="Add environment variable"
+          aria-label={t('common:ui.addEnvironmentVariable')}
         >
           <PlusIcon className="size-icon-xs" weight="bold" />
         </button>

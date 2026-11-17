@@ -111,6 +111,7 @@ export const ArrayFieldTemplate = (props: ArrayFieldTemplateProps) => {
 
 // ArrayFieldItemTemplate - Individual array item with remove button
 export const ArrayFieldItemTemplate = (props: ArrayFieldItemTemplateProps) => {
+  const { t } = useTranslation();
   const { children, buttonsProps, disabled, readonly } = props;
 
   return (
@@ -128,7 +129,7 @@ export const ArrayFieldItemTemplate = (props: ArrayFieldItemTemplateProps) => {
             'focus:outline-none focus:ring-1 focus:ring-brand',
             'disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
           )}
-          title="Remove item"
+          title={t('common:ui.removeItem')}
         >
           <XIcon className="size-icon-xs" weight="bold" />
         </button>

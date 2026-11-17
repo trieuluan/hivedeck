@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useMemo, useCallback } from 'react';
 import { useParams } from '@tanstack/react-router';
 import {
@@ -29,6 +30,7 @@ export function IssueRelationshipsSectionContainer({
   issueId,
   projectId: projectIdProp,
 }: IssueRelationshipsSectionContainerProps) {
+  const { t } = useTranslation();
   const { projectId: routeProjectId } = useParams({ strict: false });
   const projectId = projectIdProp ?? routeProjectId;
   const appNavigation = useAppNavigation();
@@ -109,19 +111,19 @@ export function IssueRelationshipsSectionContainer({
           icon={ProhibitIcon}
           onSelect={() => handleSelectType('blocking', 'reverse')}
         >
-          Blocked by...
+          {t('common:ui.blockedBy')}
         </DropdownMenuItem>
         <DropdownMenuItem
           icon={ArrowsLeftRightIcon}
           onSelect={() => handleSelectType('related', 'forward')}
         >
-          Related to...
+          {t('common:ui.relatedTo')}
         </DropdownMenuItem>
         <DropdownMenuItem
           icon={CopyIcon}
           onSelect={() => handleSelectType('has_duplicate', 'forward')}
         >
-          Duplicate of...
+          {t('common:ui.duplicateOf')}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

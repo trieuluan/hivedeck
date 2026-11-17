@@ -272,7 +272,7 @@ export function CreateModeRepoPickerBar({
                       onClick={() => handleChangeBranch(repo)}
                       disabled={isBusy}
                       className={repoRowButtonClassName}
-                      title="Change branch"
+                      title={t('common:ui.changeBranch')}
                     >
                       {isChangingBranch ? (
                         <SpinnerIcon className="size-icon-xs animate-spin" />

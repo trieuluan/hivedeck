@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import {
   useState,
   useRef,
@@ -34,6 +35,7 @@ export function TurnNavigationPopup({
   getActiveTurnPatchKey,
   children,
 }: TurnNavigationPopupProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [activePatchKey, setActivePatchKey] = useState<string | null>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -135,7 +137,7 @@ export function TurnNavigationPopup({
       >
         <div className="flex flex-col gap-base min-h-0">
           <div className="flex items-center justify-between shrink-0">
-            <h4 className="text-sm font-medium text-normal">Your Messages</h4>
+            <h4 className="text-sm font-medium text-normal">{t('common:ui.yourMessages')}</h4>
             <span className="text-xs text-low">
               {turns.length} turn{turns.length === 1 ? '' : 's'}
             </span>

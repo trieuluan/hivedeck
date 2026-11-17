@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 import { Button } from '@vibe/ui/components/Button';
 import { Input } from '@vibe/ui/components/Input';
@@ -34,6 +35,7 @@ export type CreateConfigurationResult = {
 
 const CreateConfigurationDialogImpl = create<CreateConfigurationDialogProps>(
   ({ executorType, existingConfigs }) => {
+    const { t } = useTranslation();
     const modal = useModal();
     const [configName, setConfigName] = useState('');
     const [cloneFrom, setCloneFrom] = useState<string | null>(null);
@@ -92,15 +94,18 @@ const CreateConfigurationDialogImpl = create<CreateConfigurationDialogProps>(
       <Dialog open={modal.visible} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Create New Configuration</DialogTitle>
+            <DialogTitle>{t('common:ui.createNewConfiguration')}</DialogTitle>
             <DialogDescription>
-              Add a new configuration for the {executorType} executor.
+              {t('common:ui.addANewConfigurationForThe')} {executorType}{' '}
+              executor.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="config-name">Configuration Name</Label>
+              <Label htmlFor="config-name">
+                {t('common:ui.configurationName')}
+              </Label>
               <Input
                 id="config-name"
                 value={configName}
@@ -108,14 +113,16 @@ const CreateConfigurationDialogImpl = create<CreateConfigurationDialogProps>(
                   setConfigName(e.target.value);
                   setError(null);
                 }}
-                placeholder="e.g., PRODUCTION, DEVELOPMENT"
+                placeholder={t('common:ui.eGProductionDevelopment')}
                 maxLength={40}
                 autoFocus
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="clone-from">Clone from (optional)</Label>
+              <Label htmlFor="clone-from">
+                {t('common:ui.cloneFromOptional')}
+              </Label>
               <Select
                 value={cloneFrom || '__blank__'}
                 onValueChange={(value) =>
@@ -123,13 +130,17 @@ const CreateConfigurationDialogImpl = create<CreateConfigurationDialogProps>(
                 }
               >
                 <SelectTrigger id="clone-from">
-                  <SelectValue placeholder="Start blank or clone existing" />
+                  <SelectValue
+                    placeholder={t('common:ui.startBlankOrCloneExisting')}
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__blank__">Start blank</SelectItem>
+                  <SelectItem value="__blank__">
+                    {t('common:ui.startBlank')}
+                  </SelectItem>
                   {existingConfigs.map((configuration) => (
                     <SelectItem key={configuration} value={configuration}>
-                      Clone from {configuration}
+                      {t('common:ui.cloneFrom')} {configuration}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -145,10 +156,10 @@ const CreateConfigurationDialogImpl = create<CreateConfigurationDialogProps>(
 
           <DialogFooter>
             <Button variant="outline" onClick={handleCancel}>
-              Cancel
+              {t('common:ui.cancel')}
             </Button>
             <Button onClick={handleCreate} disabled={!configName.trim()}>
-              Create Configuration
+              {t('common:ui.createConfiguration')}
             </Button>
           </DialogFooter>
         </DialogContent>

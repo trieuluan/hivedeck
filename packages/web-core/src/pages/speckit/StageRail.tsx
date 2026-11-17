@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import {
   CheckCircleIcon,
   CircleIcon,
@@ -33,10 +34,11 @@ function StageIcon({ state }: { state: SpecKitStageState }) {
 }
 
 export function StageRail({ selected, onSelect, stateFor }: StageRailProps) {
+  const { t } = useTranslation();
   return (
     <nav className="flex w-56 shrink-0 flex-col gap-half border-r p-base">
       <div className="px-half pb-half text-xs font-medium uppercase tracking-wide text-low">
-        SpecKit stages
+        {t('common:ui.speckitStages')}
       </div>
       {STAGES.map((meta: StageMeta) => {
         const active = meta.stage === selected;

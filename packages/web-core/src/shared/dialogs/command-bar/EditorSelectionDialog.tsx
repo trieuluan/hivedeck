@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
 import { Button } from '@vibe/ui/components/Button';
 import {
@@ -27,6 +28,7 @@ export interface EditorSelectionDialogProps {
 
 const EditorSelectionDialogImpl = create<EditorSelectionDialogProps>(
   ({ selectedAttemptId, filePath }) => {
+    const { t } = useTranslation();
     const modal = useModal();
     const handleOpenInEditor = useOpenInEditor(selectedAttemptId, () =>
       modal.hide()
@@ -53,15 +55,16 @@ const EditorSelectionDialogImpl = create<EditorSelectionDialogProps>(
       >
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Choose Editor</DialogTitle>
+            <DialogTitle>{t('common:ui.chooseEditor')}</DialogTitle>
             <DialogDescription>
-              The default editor failed to open. Please select an alternative
-              editor to open the task worktree.
+              {t('common:ui.theDefaultEditorFailedToOpen')}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Editor</label>
+              <label className="text-sm font-medium">
+                {t('common:ui.editor')}
+              </label>
               <Select
                 value={selectedEditor}
                 onValueChange={(value) =>
@@ -83,9 +86,9 @@ const EditorSelectionDialogImpl = create<EditorSelectionDialogProps>(
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={handleCancel}>
-              Cancel
+              {t('common:ui.cancel')}
             </Button>
-            <Button onClick={handleConfirm}>Open Editor</Button>
+            <Button onClick={handleConfirm}>{t('common:ui.openEditor')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

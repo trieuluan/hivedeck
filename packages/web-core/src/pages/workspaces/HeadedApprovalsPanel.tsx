@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useMemo, useState } from 'react';
 import {
   CheckIcon,
@@ -75,6 +76,7 @@ function ToolApproval({
   approval: ApprovalInfo;
   executionProcessId: string;
 }) {
+  const { t } = useTranslation();
   const { approve, deny } = useApprovalMutation();
   return (
     <div className="flex items-center gap-2 min-w-0 text-xs">
@@ -83,7 +85,7 @@ function ToolApproval({
         weight="fill"
       />
       <span className="min-w-0 truncate text-normal">
-        Approve{' '}
+        {t('common:ui.approve')}{' '}
         <code className="font-mono text-high">{approval.tool_name}</code>?
       </span>
       <div className="ml-auto flex items-center gap-2 shrink-0">
@@ -96,7 +98,7 @@ function ToolApproval({
           }
         >
           <CheckIcon className="size-icon-sm" weight="bold" />
-          Approve
+          {t('common:ui.approve')}
         </Button>
         <Button
           variant="outline"
@@ -107,7 +109,7 @@ function ToolApproval({
           }
         >
           <XIcon className="size-icon-sm" weight="bold" />
-          Deny
+          {t('common:ui.deny')}
         </Button>
       </div>
     </div>
@@ -121,6 +123,7 @@ function PlanApproval({
   approval: ApprovalInfo;
   executionProcessId: string;
 }) {
+  const { t } = useTranslation();
   const { approve, deny } = useApprovalMutation();
   const [showPlan, setShowPlan] = useState(false);
   const plan = approval.plan_content ?? '';
@@ -133,7 +136,7 @@ function PlanApproval({
           weight="fill"
         />
         <span className="min-w-0 truncate text-normal">
-          Agent finished planning — approve the plan?
+          {t('common:ui.agentFinishedPlanningApproveThePlan')}
         </span>
         <div className="ml-auto flex items-center gap-2 shrink-0">
           {plan && (
@@ -154,7 +157,7 @@ function PlanApproval({
             }
           >
             <CheckIcon className="size-icon-sm" weight="bold" />
-            Approve
+            {t('common:ui.approve')}
           </Button>
           <Button
             variant="outline"
@@ -169,7 +172,7 @@ function PlanApproval({
             }
           >
             <XIcon className="size-icon-sm" weight="bold" />
-            Request changes
+            {t('common:ui.requestChanges')}
           </Button>
         </div>
       </div>
@@ -189,6 +192,7 @@ function QuestionApproval({
   approval: ApprovalInfo;
   executionProcessId: string;
 }) {
+  const { t } = useTranslation();
   const { answer, isAnswering } = useApprovalMutation();
   const questions: ApprovalQuestion[] = useMemo(
     () => approval.questions ?? [],
@@ -236,7 +240,7 @@ function QuestionApproval({
           weight="fill"
         />
         <span className="min-w-0 truncate text-normal">
-          The agent is waiting for your answer
+          {t('common:ui.theAgentIsWaitingForYour')}
         </span>
       </div>
       {questions.map((q, qIdx) => {
@@ -247,7 +251,10 @@ function QuestionApproval({
               {q.header ? `${q.header}: ` : ''}
               {q.question}
               {q.multiSelect && (
-                <span className="text-low"> (select all that apply)</span>
+                <span className="text-low">
+                  {' '}
+                  {t('common:ui.selectAllThatApply')}
+                </span>
               )}
             </span>
             <div className="flex flex-wrap gap-half">
@@ -282,7 +289,7 @@ function QuestionApproval({
           onClick={submit}
         >
           <CheckIcon className="size-icon-sm" weight="bold" />
-          Submit answers
+          {t('common:ui.submitAnswers')}
         </Button>
       </div>
     </div>

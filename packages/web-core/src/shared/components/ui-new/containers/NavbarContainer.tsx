@@ -1,4 +1,5 @@
 import { useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
 import { useWorkspacesContext } from '@/shared/hooks/useWorkspacesContext';
@@ -118,6 +119,7 @@ export function NavbarContainer({
   mobileMode?: boolean;
   onOpenDrawer?: () => void;
 }) {
+  const { t } = useTranslation();
   const { executeAction } = useActions();
   const { workspace: selectedWorkspace, isCreateMode } = useWorkspaceContext();
   const { workspaces } = useWorkspacesContext();
@@ -181,7 +183,7 @@ export function NavbarContainer({
   );
 
   const navbarTitle = isCreateMode
-    ? 'Create Workspace'
+    ? t('common:ui.createWorkspace')
     : isOnProjectPage
       ? (selectedWorkspace?.branch ?? '')
       : selectedWorkspace?.branch;

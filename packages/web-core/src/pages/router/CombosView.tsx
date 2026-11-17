@@ -105,6 +105,7 @@ function Consent({ onAllow }: { onAllow: () => void }) {
 }
 
 function QuotaBar({ p }: { p: ProviderHealth }) {
+  const { t } = useTranslation();
   const pct = p.remaining_percent;
   return (
     <div className="flex items-center gap-2">
@@ -114,7 +115,7 @@ function QuotaBar({ p }: { p: ProviderHealth }) {
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={pct ?? undefined}
-        aria-label="Quota remaining"
+        aria-label={t('common:ui.quotaRemaining')}
       >
         {pct !== null && (
           <div

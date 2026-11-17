@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { ArrowLeftIcon, ArrowRightIcon } from '@phosphor-icons/react';
 import { IconButtonGroup, IconButtonGroupItem } from './IconButtonGroup';
 
@@ -21,21 +22,22 @@ export function PreviewNavigation({
   disabled = false,
   className,
 }: PreviewNavigationProps) {
+  const { t } = useTranslation();
   return (
     <IconButtonGroup className={className}>
       <IconButtonGroupItem
         icon={ArrowLeftIcon}
         onClick={onBack}
         disabled={!navigation?.canGoBack || disabled}
-        aria-label="Go back"
-        title="Go back"
+        aria-label={t('common:ui.goBack')}
+        title={t('common:ui.goBack')}
       />
       <IconButtonGroupItem
         icon={ArrowRightIcon}
         onClick={onForward}
         disabled={!navigation?.canGoForward || disabled}
-        aria-label="Go forward"
-        title="Go forward"
+        aria-label={t('common:ui.goForward')}
+        title={t('common:ui.goForward')}
       />
     </IconButtonGroup>
   );

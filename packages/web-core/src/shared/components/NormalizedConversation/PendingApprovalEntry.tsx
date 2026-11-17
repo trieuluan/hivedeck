@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import {
   useCallback,
   useContext,
@@ -141,12 +142,13 @@ function DenyReasonForm({
   onCancel: () => void;
   onSubmit: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-col gap-2 p-4">
       <WYSIWYGEditor
         value={value}
         onChange={onChange}
-        placeholder="Let the agent know why this request was denied... Type @ to insert tags or search files."
+        placeholder={t('common:ui.letTheAgentKnowWhyThis')}
         disabled={isResponding}
         className="min-h-[80px]"
         onCmdEnter={onSubmit}
@@ -158,10 +160,10 @@ function DenyReasonForm({
           onClick={onCancel}
           disabled={isResponding}
         >
-          Cancel
+          {t('common:ui.cancel')}
         </Button>
         <Button size="sm" onClick={onSubmit} disabled={isResponding}>
-          Deny
+          {t('common:ui.deny')}
         </Button>
       </div>
     </div>
@@ -174,6 +176,7 @@ const PendingApprovalEntry = ({
   executionProcessId,
   children,
 }: PendingApprovalEntryProps) => {
+  const { t } = useTranslation();
   const [isResponding, setIsResponding] = useState(false);
   const [hasResponded, setHasResponded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -326,7 +329,7 @@ const PendingApprovalEntry = ({
               <div className="flex items-center gap-1.5">
                 {!isEnteringReason && (
                   <span className="text-muted-foreground">
-                    Would you like to approve this?
+                    {t('common:ui.wouldYouLikeToApproveThis')}
                   </span>
                 )}
               </div>

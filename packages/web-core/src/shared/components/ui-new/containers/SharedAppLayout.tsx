@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet } from '@tanstack/react-router';
 import { XIcon } from '@phosphor-icons/react';
@@ -68,6 +69,7 @@ import {
 } from './KanbanDragHandlerContext';
 
 export function SharedAppLayout() {
+  const { t } = useTranslation();
   const appNavigation = useAppNavigation();
   const currentDestination = useCurrentAppDestination();
   const { issueId: activeIssueId } = useCurrentKanbanRouteState();
@@ -711,7 +713,7 @@ export function SharedAppLayout() {
                       type="button"
                       onClick={() => setIsDrawerOpen(false)}
                       className="p-1 rounded-sm text-low hover:text-normal cursor-pointer"
-                      aria-label="Close"
+                      aria-label={t('common:ui.close')}
                     >
                       <XIcon className="h-4 w-4" weight="bold" />
                     </button>

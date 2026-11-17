@@ -399,7 +399,7 @@ export function RouterPage() {
         <iframe
           key={iframeSrc}
           src={iframeSrc}
-          title="9router dashboard"
+          title={t('common:ui.s9routerDashboard')}
           className="h-full w-full border-0 bg-primary"
         />
       );

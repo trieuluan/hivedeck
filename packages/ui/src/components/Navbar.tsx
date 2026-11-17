@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import type { Icon } from '@phosphor-icons/react';
 import {
@@ -209,6 +210,7 @@ export function Navbar({
   showMobileTabs,
   mobileShowBack,
 }: NavbarProps) {
+  const { t } = useTranslation();
   const renderItem = (item: NavbarSectionItem, key: string) => {
     // Render divider
     if (isDivider(item)) {
@@ -251,7 +253,7 @@ export function Navbar({
                       type="button"
                       className="flex items-center justify-center text-low hover:text-normal"
                       onClick={onNavigateBack}
-                      aria-label="Back"
+                      aria-label={t('common:ui.back')}
                     >
                       <CaretLeftIcon className="size-icon-base" />
                     </button>
@@ -261,7 +263,7 @@ export function Navbar({
                       type="button"
                       className="flex items-center justify-center text-low hover:text-normal"
                       onClick={onOpenDrawer}
-                      aria-label="Open menu"
+                      aria-label={t('common:ui.openMenu')}
                     >
                       <SidebarSimpleIcon className="size-icon-base" />
                     </button>
@@ -278,7 +280,7 @@ export function Navbar({
                     type="button"
                     className="flex items-center justify-center px-1.5 py-1 text-low hover:text-normal"
                     onClick={onNavigateBack}
-                    aria-label="Back"
+                    aria-label={t('common:ui.back')}
                   >
                     <CaretLeftIcon className="size-icon-sm" />
                   </button>
@@ -291,7 +293,7 @@ export function Navbar({
                       type="button"
                       className="flex items-center justify-center px-1.5 py-1 text-low hover:text-normal"
                       onClick={onOpenDrawer}
-                      aria-label="Projects"
+                      aria-label={t('common:ui.projects')}
                     >
                       <KanbanIcon className="size-icon-sm" />
                     </button>
@@ -332,7 +334,7 @@ export function Navbar({
                   onClick={onNavigateToBoard}
                 >
                   <KanbanIcon className="size-icon-sm" />
-                  <span className="hidden min-[480px]:inline">Board</span>
+                  <span className="hidden min-[480px]:inline">{t('common:ui.board')}</span>
                 </button>
               )}
             </div>
@@ -363,7 +365,7 @@ export function Navbar({
                 type="button"
                 className="flex items-center justify-center text-low hover:text-normal"
                 onClick={onReload}
-                aria-label="Reload"
+                aria-label={t('common:ui.reload')}
               >
                 <ArrowClockwiseIcon className="size-icon-sm" />
               </button>
@@ -373,7 +375,7 @@ export function Navbar({
                 type="button"
                 className="flex items-center justify-center text-low hover:text-normal"
                 onClick={onOpenSettings}
-                aria-label="Settings"
+                aria-label={t('common:ui.settings')}
               >
                 <GearIcon className="size-icon-sm" />
               </button>
@@ -383,7 +385,7 @@ export function Navbar({
                 type="button"
                 className="flex items-center justify-center text-low hover:text-normal"
                 onClick={onOpenCommandBar}
-                aria-label="Command bar"
+                aria-label={t('common:ui.commandBar2')}
               >
                 <ListIcon className="size-icon-sm" />
               </button>

@@ -1,3 +1,4 @@
+import { translateActionLabel } from '@/shared/types/actions';
 import { useMemo } from 'react';
 import {
   StackIcon,
@@ -49,7 +50,7 @@ function expandGroupItems(
         {
           type: 'page' as const,
           pageId: item.id,
-          label: page.title ?? item.id,
+          label: page.title ? translateActionLabel(page.title) : item.id,
           icon: PAGE_ICONS[item.id as StaticPageId],
         },
       ];
@@ -68,7 +69,9 @@ function buildPageGroups(
   return Pages[pageId].items
     .map((group) => {
       const items = expandGroupItems(group.items, ctx);
-      return items.length ? { label: group.label, items } : null;
+      return items.length
+        ? { label: translateActionLabel(group.label), items }
+        : null;
     })
     .filter((g): g is ResolvedGroup => g !== null);
 }
@@ -87,7 +90,9 @@ export function useResolvedPage(
 
     return {
       id: Pages[pageId].id,
-      title: Pages[pageId].title,
+      title: Pages[pageId].title
+        ? translateActionLabel(Pages[pageId].title)
+        : Pages[pageId].title,
       groups,
     };
   }, [pageId, search, ctx, workspace]);

@@ -337,7 +337,7 @@ export function CreateChatBoxContainer({
                     localAttachments,
                   }) => (
                     <WYSIWYGEditor
-                      placeholder="Describe the task..."
+                      placeholder={t('common:ui.describeTheTask')}
                       value={value}
                       onChange={onChange}
                       onCmdEnter={onCmdEnter}

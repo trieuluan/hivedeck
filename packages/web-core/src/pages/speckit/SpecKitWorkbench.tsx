@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from '@tanstack/react-router';
 import { CircleNotchIcon } from '@phosphor-icons/react';
@@ -23,6 +24,7 @@ import { ImplementStage } from './ImplementStage';
  * the live workspace to drive the next stage.
  */
 export function SpecKitWorkbench() {
+  const { t } = useTranslation();
   const { projectId, featureId } = useParams({ strict: false });
   const issueId = featureId;
 
@@ -81,7 +83,7 @@ export function SpecKitWorkbench() {
   if (!projectId || !issueId) {
     return (
       <div className="p-double text-sm text-error">
-        Missing project or feature id in the route.
+        {t('common:ui.missingProjectOrFeatureIdIn')}
       </div>
     );
   }
@@ -90,7 +92,7 @@ export function SpecKitWorkbench() {
     return (
       <div className="flex h-full items-center justify-center gap-half text-low">
         <CircleNotchIcon className="size-icon animate-spin" />
-        Loading SpecKit…
+        {t('common:ui.loadingSpeckit')}
       </div>
     );
   }

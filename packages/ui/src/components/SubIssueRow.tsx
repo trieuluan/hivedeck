@@ -139,8 +139,8 @@ export function SubIssueRow({
                     type="button"
                     onClick={(e) => e.stopPropagation()}
                     className="p-half rounded-sm text-low hover:text-normal hover:bg-secondary transition-colors"
-                    aria-label="Sub-issue actions"
-                    title="Sub-issue actions"
+                    aria-label={t('common:ui.subIssueActions')}
+                    title={t('common:ui.subIssueActions')}
                   >
                     <DotsThreeIcon className="size-icon-xs" weight="bold" />
                   </button>

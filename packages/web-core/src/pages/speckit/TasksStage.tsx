@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
 import { ArrowClockwiseIcon, ArrowSquareOutIcon } from '@phosphor-icons/react';
 import type { SpecKitTask, SpecKitTasks } from 'shared/types';
@@ -31,6 +32,7 @@ export function TasksStage({
   onRefresh,
   onTasksChanged,
 }: TasksStageProps) {
+  const { t } = useTranslation();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
 
@@ -53,11 +55,13 @@ export function TasksStage({
   return (
     <div className="flex h-full flex-col gap-base overflow-y-auto p-double">
       <header className="space-y-half">
-        <h2 className="text-lg font-semibold text-high">Tasks</h2>
+        <h2 className="text-lg font-semibold text-high">
+          {t('common:ui.tasks')}
+        </h2>
         <p className="text-sm text-low">
-          Dependency-ordered task list. <span className="text-brand">[P]</span>{' '}
-          tasks touch independent files and can run in parallel. Toggle a
-          checkbox to mark a task done (writes back to tasks.md).
+          {t('common:ui.dependencyOrderedTaskList')}{' '}
+          <span className="text-brand">[P]</span>{' '}
+          {t('common:ui.tasksTouchIndependentFilesAndCan')}
         </p>
       </header>
 
@@ -68,7 +72,7 @@ export function TasksStage({
           className="inline-flex items-center gap-half rounded-sm border px-base py-half text-sm text-normal"
         >
           <ArrowClockwiseIcon className="size-icon-sm" />
-          Refresh
+          {t('common:ui.refresh')}
         </button>
         {liveHref && (
           <a
@@ -78,7 +82,7 @@ export function TasksStage({
             rel="noreferrer"
           >
             <ArrowSquareOutIcon className="size-icon-sm" />
-            Open live workspace
+            {t('common:ui.openLiveWorkspace')}
           </a>
         )}
       </section>
@@ -87,8 +91,9 @@ export function TasksStage({
 
       {!tasks || tasks.total === 0 ? (
         <p className="text-sm text-low">
-          No tasks yet — run <span className="font-mono">/speckit.tasks</span>{' '}
-          in the live workspace.
+          {t('common:ui.noTasksYetRun')}{' '}
+          <span className="font-mono">/speckit.tasks</span>{' '}
+          {t('common:ui.inTheLiveWorkspace')}
         </p>
       ) : (
         <>
@@ -99,7 +104,7 @@ export function TasksStage({
           {/* Dependency / parallelism graph */}
           <section className="space-y-half rounded-sm border">
             <div className="border-b px-base py-half text-sm font-medium text-high">
-              Execution graph
+              {t('common:ui.executionGraph')}
             </div>
             <TaskDependencyGraph tasks={tasks.tasks} layers={tasks.layers} />
           </section>

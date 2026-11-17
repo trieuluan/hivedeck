@@ -945,8 +945,8 @@ export function SessionChatBox<TExecutor extends string = string>({
           {onPrCommentClick && (
             <ToolbarIconButton
               icon={GithubLogoIcon}
-              aria-label="Add PR Comments"
-              title="Insert PR comments into message"
+              aria-label={t('common:ui.addPrComments')}
+              title={t('common:ui.insertPrCommentsIntoMessage')}
               onClick={onPrCommentClick}
               disabled={areContentInsertActionsDisabled}
             />

@@ -111,7 +111,7 @@ function WorkspaceCreatePanel({
             type="button"
             onClick={handleOpenIssue}
             className={`${breadcrumbButtonClass} shrink-0`}
-            aria-label="Open linked issue"
+            aria-label={t('common:ui.openLinkedIssue')}
           >
             {linkedIssueSimpleId ?? 'Issue'}
           </button>
@@ -125,7 +125,7 @@ function WorkspaceCreatePanel({
             type="button"
             onClick={onClose}
             className="p-half rounded-sm text-low hover:text-normal hover:bg-panel transition-colors"
-            aria-label="Close create workspace view"
+            aria-label={t('common:ui.closeCreateWorkspaceView')}
           >
             <XIcon className="size-icon-sm" weight="bold" />
           </button>
@@ -140,6 +140,7 @@ function WorkspaceSessionPanel({
   workspaceId,
   onClose,
 }: WorkspaceSessionPanelProps) {
+  const { t } = useTranslation();
   const appNavigation = useAppNavigation();
   const { projectId, getIssue } = useProjectContext();
   const routeState = useCurrentKanbanRouteState();
@@ -246,7 +247,7 @@ function WorkspaceSessionPanel({
                     type="button"
                     onClick={handleOpenIssuePanel}
                     className={`${breadcrumbButtonClass} shrink-0`}
-                    aria-label="Open linked issue"
+                    aria-label={t('common:ui.openLinkedIssue')}
                   >
                     {issueSimpleId ?? 'Issue'}
                   </button>
@@ -255,7 +256,7 @@ function WorkspaceSessionPanel({
                     type="button"
                     onClick={handleOpenWorkspaceView}
                     className={breadcrumbButtonClass}
-                    aria-label="Open workspace"
+                    aria-label={t('common:ui.openWorkspace')}
                   >
                     {workspaceBranch ?? 'Workspace'}
                   </button>
@@ -266,7 +267,7 @@ function WorkspaceSessionPanel({
                     type="button"
                     onClick={handleOpenWorkspaceView}
                     className="p-half rounded-sm text-low hover:text-normal hover:bg-panel transition-colors"
-                    aria-label="Open in workspace view"
+                    aria-label={t('common:ui.openInWorkspaceView')}
                   >
                     <ArrowsOutIcon className="size-icon-sm" weight="bold" />
                   </button>
@@ -274,7 +275,7 @@ function WorkspaceSessionPanel({
                     type="button"
                     onClick={onClose}
                     className="p-half rounded-sm text-low hover:text-normal hover:bg-panel transition-colors"
-                    aria-label="Close conversation view"
+                    aria-label={t('common:ui.closeConversationView')}
                   >
                     <XIcon className="size-icon-sm" weight="bold" />
                   </button>
@@ -308,8 +309,8 @@ function WorkspaceSessionPanel({
                       type="button"
                       onClick={() => handleScrollToBottom('auto')}
                       className="absolute bottom-2 right-4 z-10 pointer-events-auto flex items-center justify-center size-10 rounded-full bg-secondary border border-border text-normal hover:text-high hover:bg-secondary shadow-lg transition-all"
-                      aria-label="Scroll to bottom"
-                      title="Scroll to bottom"
+                      aria-label={t('common:ui.scrollToBottom')}
+                      title={t('common:ui.scrollToBottom')}
                     >
                       <ArrowDownIcon className="size-icon-base" weight="bold" />
                     </button>

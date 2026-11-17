@@ -52,12 +52,12 @@ export function AppBarUserPopover({
               'bg-panel text-normal font-medium text-sm',
             (!avatarUrl || avatarError) && 'hover:bg-panel/70'
           )}
-          aria-label="Account"
+          aria-label={t('common:ui.account')}
         >
           {avatarUrl && !avatarError ? (
             <img
               src={avatarUrl}
-              alt="User avatar"
+              alt={t('common:ui.userAvatar')}
               className="w-full h-full object-cover"
               onError={onAvatarError}
             />

@@ -115,7 +115,7 @@ export function WorkspaceSummary({
             <RobotIcon
               className="size-icon-xs shrink-0 text-brand"
               weight="fill"
-              aria-label="Orchestrator"
+              aria-label={t('common:ui.orchestrator')}
             />
           )}
           <span className="truncate">{name}</span>

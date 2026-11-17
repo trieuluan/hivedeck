@@ -110,7 +110,7 @@ export function Sidebar({
   const titleId = useId();
   return (
     <aside
-      aria-label="Primary sidebar"
+      aria-label={t('common:ui.primarySidebar')}
       className={cn(
         'flex h-full w-[256px] shrink-0 flex-col gap-2 overflow-hidden',
         'border-r border-border bg-secondary px-2 pt-2 pb-2',

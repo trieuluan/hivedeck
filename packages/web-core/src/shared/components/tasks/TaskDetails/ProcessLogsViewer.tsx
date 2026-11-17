@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useEffect, useRef, useState } from 'react';
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
 import { AlertCircle } from 'lucide-react';
@@ -18,6 +19,7 @@ export function ProcessLogsViewerContent({
   logs: LogEntry[];
   error: string | null;
 }) {
+  const { t } = useTranslation();
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const didInitScroll = useRef(false);
   const prevLenRef = useRef(0);
@@ -70,7 +72,7 @@ export function ProcessLogsViewerContent({
     <div className="flex-1 min-h-0">
       {logs.length === 0 && !error ? (
         <div className="p-4 text-center text-muted-foreground text-sm">
-          No logs available
+          {t('common:ui.noLogsAvailable')}
         </div>
       ) : error ? (
         <div className="p-4 text-center text-destructive text-sm">

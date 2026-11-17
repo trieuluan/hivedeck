@@ -1,3 +1,4 @@
+import { translateActionLabel } from '@/shared/types/actions';
 import type { Workspace } from 'shared/types';
 import { Pages, getPageActions } from '@/shared/command-bar/actions/pages';
 import type { StaticPageId, ResolvedGroup } from '@/shared/types/commandBar';
@@ -38,7 +39,11 @@ export function injectSearchMatches(
       })
       .map((action) => ({ type: 'action' as const, action }));
 
-    if (items.length) groups.push({ label: page.title || id, items });
+    if (items.length)
+      groups.push({
+        label: page.title ? translateActionLabel(page.title) : id,
+        items,
+      });
     return groups;
   }, []);
 }

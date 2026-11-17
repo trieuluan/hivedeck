@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CaretDownIcon, CaretRightIcon } from '@phosphor-icons/react';
 import {
@@ -54,6 +55,7 @@ export function IssueIntakeSection({
   disabled,
   onGenerated,
 }: IssueIntakeSectionProps) {
+  const { t } = useTranslation();
   const { profiles, config } = useUserSystem();
 
   const {
@@ -204,25 +206,23 @@ export function IssueIntakeSection({
         ) : (
           <CaretRightIcon className="size-icon-sm" weight="bold" />
         )}
-        Spec
+        {t('common:ui.spec')}
       </button>
 
       {expanded && (
         <>
           <p className="text-xs text-low">
-            Uses the title and description above as the brief; an agent explores
-            the selected repos and rewrites them into a full technical task.
+            {t('common:ui.usesTheTitleAndDescriptionAbove')}
           </p>
 
           {title.trim().length === 0 && (
             <p className="text-xs text-low">
-              Add a title (and optionally a description) above to use as the
-              brief.
+              {t('common:ui.addATitleAndOptionallyA')}
             </p>
           )}
 
           <div className="flex flex-wrap items-center gap-half">
-            <label className="text-xs text-low">Agent</label>
+            <label className="text-xs text-low">{t('common:ui.agent')}</label>
             <select
               value={effectiveExecutor ?? ''}
               disabled={disabled || isGenerating}
@@ -253,11 +253,12 @@ export function IssueIntakeSection({
           </div>
 
           <div className="space-y-half">
-            <div className="text-xs text-low">Repos to explore</div>
+            <div className="text-xs text-low">
+              {t('common:ui.reposToExplore')}
+            </div>
             {candidates.length === 0 ? (
               <p className="text-xs text-low">
-                No repositories with a default branch are available for this
-                project.
+                {t('common:ui.noRepositoriesWithADefaultBranch')}
               </p>
             ) : (
               <div className="flex flex-wrap gap-base">

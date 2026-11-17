@@ -338,9 +338,9 @@ export function KanbanIssuePanel({
               value={formData.title}
               onChange={(value) => onFormChange('title', value)}
               onKeyDown={handleTitleKeyDown}
-              placeholder="Issue Title..."
+              placeholder={t('common:ui.issueTitle')}
               autoFocus={isCreateMode}
-              aria-label="Issue title"
+              aria-label={t('common:ui.issueTitle2')}
               disabled={isSubmitting}
               className={cn(
                 'px-base text-lg font-medium text-high',
@@ -523,8 +523,8 @@ export function KanbanIssuePanel({
                 icon={TrashIcon}
                 onClick={onDeleteDraft}
                 disabled={isSubmitting}
-                aria-label="Delete draft"
-                title="Delete draft"
+                aria-label={t('common:ui.deleteDraft')}
+                title={t('common:ui.deleteDraft')}
                 className="hover:text-error hover:bg-error/10"
               />
             )}

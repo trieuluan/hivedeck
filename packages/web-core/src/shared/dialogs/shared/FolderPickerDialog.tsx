@@ -189,7 +189,7 @@ const FolderPickerDialogImpl = create<FolderPickerDialogProps>(
                   <Input
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Filter folders and files..."
+                    placeholder={t('common:ui.filterFoldersAndFiles')}
                     className="pl-10"
                   />
                 </div>

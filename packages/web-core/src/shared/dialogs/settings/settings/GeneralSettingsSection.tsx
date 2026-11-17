@@ -304,8 +304,8 @@ export function GeneralSettingsSection() {
         </SettingsField>
 
         <SettingsField
-          label="Theme variant"
-          description="Optional CRT/terminal skin applied on top of the light/dark mode. Applies immediately."
+          label={t('common:ui.themeVariant')}
+          description={t('common:ui.optionalCrtTerminalSkinAppliedOn')}
         >
           <SettingsSelect
             value={themeVariant}
@@ -331,8 +331,8 @@ export function GeneralSettingsSection() {
 
         {isMobile && (
           <SettingsField
-            label="Mobile Font Size"
-            description="Scale text size on mobile for better readability"
+            label={t('common:ui.mobileFontSize')}
+            description={t('common:ui.scaleTextSizeOnMobileFor')}
           >
             <SettingsSelect
               value={mobileFontScale}
@@ -825,8 +825,8 @@ export function GeneralSettingsSection() {
               <IconButton
                 icon={SpeakerHighIcon}
                 onClick={() => previewSound(draft.notifications.sound_file)}
-                aria-label="Preview sound"
-                title="Preview sound"
+                aria-label={t('common:ui.previewSound')}
+                title={t('common:ui.previewSound')}
               />
             </div>
             <p className="text-sm text-low">

@@ -150,7 +150,7 @@ function FullCard({
                 window.open(url, '_blank', 'noopener,noreferrer');
               }}
               className="hover:text-foreground transition-colors"
-              aria-label="Open in browser"
+              aria-label={t('common:ui.openInBrowser')}
             >
               <ExternalLink className="w-3 h-3" />
             </button>

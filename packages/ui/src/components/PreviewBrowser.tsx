@@ -237,8 +237,8 @@ export function PreviewBrowser({
                   icon={GlobeIcon}
                   onClick={() => onMobileUrlExpandedChange?.(true)}
                   disabled={!isServerRunning}
-                  aria-label="Show URL"
-                  title="Show URL"
+                  aria-label={t('common:ui.showUrl')}
+                  title={t('common:ui.showUrl')}
                 />
               </IconButtonGroup>
 
@@ -313,8 +313,8 @@ export function PreviewBrowser({
                   onClick={onToggleInspectMode}
                   active={isInspectMode}
                   disabled={!isServerRunning}
-                  aria-label="Select element as context"
-                  title="Select element as context"
+                  aria-label={t('common:ui.selectElementAsContext')}
+                  title={t('common:ui.selectElementAsContext')}
                 />
                 <IconButtonGroupItem
                   icon={TerminalIcon}

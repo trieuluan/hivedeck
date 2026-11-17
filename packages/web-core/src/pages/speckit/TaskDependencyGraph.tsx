@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { CaretRightIcon } from '@phosphor-icons/react';
 import { Fragment } from 'react';
 import type { SpecKitTask, SpecKitTaskLayer } from 'shared/types';
@@ -17,10 +18,13 @@ export function TaskDependencyGraph({
   tasks,
   layers,
 }: TaskDependencyGraphProps) {
+  const { t } = useTranslation();
   const byId = new Map<string, SpecKitTask>(tasks.map((t) => [t.id, t]));
 
   if (layers.length === 0) {
-    return <p className="text-sm text-low">No tasks to graph yet.</p>;
+    return (
+      <p className="text-sm text-low">{t('common:ui.noTasksToGraphYet')}</p>
+    );
   }
 
   return (

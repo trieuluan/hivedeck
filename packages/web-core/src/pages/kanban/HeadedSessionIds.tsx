@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useState } from 'react';
 import type { Workspace } from 'shared/types';
 import { useHeadedSession } from '@/shared/hooks/useHeadedSession';
@@ -149,6 +150,7 @@ export function HeadedSessionIds({
 }: {
   workspace?: Workspace | null;
 }) {
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useCollapsed(false);
 
   const headed = useHeadedSession();
@@ -188,7 +190,7 @@ export function HeadedSessionIds({
           ▾
         </span>
         <span className="text-2xs tracking-[1.5px] uppercase font-bold text-normal">
-          Sessions
+          {t('common:ui.sessions')}
         </span>
         <span className="text-2xs text-brand">[2]</span>
         <span className="flex-1" />
@@ -213,14 +215,14 @@ export function HeadedSessionIds({
             />
             <IconButton
               glyph=">_"
-              title="Open a terminal in the workspace folder"
+              title={t('common:ui.openATerminalInTheWorkspace')}
               onAction={() =>
                 executionProcessesApi.openWorkspaceTerminal(processId)
               }
             />
             <IconButton
               glyph="◫"
-              title="Reveal the workspace folder in Finder"
+              title={t('common:ui.revealTheWorkspaceFolderInFinder')}
               onAction={() => executionProcessesApi.revealWorkspace(processId)}
             />
           </div>

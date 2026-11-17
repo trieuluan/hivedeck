@@ -13,6 +13,9 @@ import viCommon from './locales/vi/common.json';
 import viSettings from './locales/vi/settings.json';
 import viProjects from './locales/vi/projects.json';
 import viTasks from './locales/vi/tasks.json';
+// Action labels (command bar, toolbars) keyed by their English text; English
+// needs no bundle because the label itself is the default value.
+import viActions from './locales/vi/actions.json';
 
 const resources = {
   en: {
@@ -26,6 +29,7 @@ const resources = {
     settings: viSettings,
     projects: viProjects,
     tasks: viTasks,
+    actions: viActions,
   },
 };
 

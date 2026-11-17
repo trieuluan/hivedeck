@@ -145,7 +145,7 @@ export function RetryEditorInline({
     <div className="space-y-2">
       <div className="relative">
         <WYSIWYGEditor
-          placeholder="Edit and resend your message..."
+          placeholder={t('common:ui.editAndResendYourMessage')}
           value={message}
           onChange={setMessage}
           disabled={isSending}
@@ -180,8 +180,8 @@ export function RetryEditorInline({
             variant="outline"
             onClick={handleAttachClick}
             disabled={isSending}
-            title="Attach file"
-            aria-label="Attach file"
+            title={t('common:ui.attachFile')}
+            aria-label={t('common:ui.attachFile')}
           >
             <Paperclip className="h-3 w-3" />
           </Button>

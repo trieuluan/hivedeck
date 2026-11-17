@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
 import { ArrowSquareOutIcon } from '@phosphor-icons/react';
 import { MarkdownPreview } from '@/shared/components/MarkdownPreview';
@@ -18,6 +19,7 @@ export function ConstitutionStage({
   issueId,
   liveHref,
 }: ConstitutionStageProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const resolvedTheme = getResolvedTheme(theme);
   const [content, setContent] = useState('');
@@ -69,10 +71,11 @@ export function ConstitutionStage({
   return (
     <div className="flex h-full flex-col gap-base overflow-y-auto p-double">
       <header className="space-y-half">
-        <h2 className="text-lg font-semibold text-high">Constitution</h2>
+        <h2 className="text-lg font-semibold text-high">
+          {t('common:ui.constitution')}
+        </h2>
         <p className="text-sm text-low">
-          Project principles every feature must honor. The Specify, Plan, and
-          Analyze stages check work against this.
+          {t('common:ui.projectPrinciplesEveryFeatureMustHonor')}
         </p>
       </header>
 
@@ -85,7 +88,7 @@ export function ConstitutionStage({
             rel="noreferrer"
           >
             <ArrowSquareOutIcon className="size-icon-sm" />
-            Open live workspace
+            {t('common:ui.openLiveWorkspace')}
           </a>
         </section>
       )}
@@ -117,7 +120,7 @@ export function ConstitutionStage({
                   }}
                   className="rounded-sm border px-base py-px text-xs text-normal"
                 >
-                  Cancel
+                  {t('common:ui.cancel')}
                 </button>
               </span>
             ) : (
@@ -126,13 +129,13 @@ export function ConstitutionStage({
                 onClick={() => setEditing(true)}
                 className="rounded-sm border px-base py-px text-xs text-normal"
               >
-                Edit
+                {t('common:ui.edit')}
               </button>
             ))}
         </div>
         <div className="p-base">
           {loading ? (
-            <p className="text-sm text-low">Loading…</p>
+            <p className="text-sm text-low">{t('common:ui.loading')}</p>
           ) : editing ? (
             <textarea
               value={draft}
@@ -143,9 +146,9 @@ export function ConstitutionStage({
             <MarkdownPreview content={content} theme={resolvedTheme} />
           ) : (
             <p className="text-sm text-low">
-              No constitution yet — run{' '}
-              <span className="font-mono">/speckit.constitution</span> in the
-              live workspace, or edit directly.
+              {t('common:ui.noConstitutionYetRun')}{' '}
+              <span className="font-mono">/speckit.constitution</span>{' '}
+              {t('common:ui.inTheLiveWorkspaceOrEdit')}
             </p>
           )}
         </div>

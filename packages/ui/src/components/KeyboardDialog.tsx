@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import * as React from 'react';
 import { X } from 'lucide-react';
 import { useHotkeys, useHotkeysContext } from 'react-hotkeys-hook';
@@ -27,6 +28,7 @@ const Dialog = React.forwardRef<
     uncloseable?: boolean;
   }
 >(({ className, open, onOpenChange, children, uncloseable, ...props }, ref) => {
+  const { t } = useTranslation();
   const { enableScope, disableScope } = useHotkeysContext();
   const dialogRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -154,7 +156,7 @@ const Dialog = React.forwardRef<
             onClick={() => onOpenChange?.(false)}
           >
             <X className="h-4 w-4" />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{t('common:ui.close')}</span>
           </button>
         )}
         {children}

@@ -56,6 +56,7 @@ import {
   getActionTooltip,
   isActionEnabled,
   isActionVisible,
+  resolveLabel,
   type ActionDefinition,
 } from '@/shared/types/actions';
 import { SettingsDialog } from '@/shared/dialogs/settings/SettingsDialog';
@@ -848,7 +849,7 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
           return [];
         }
 
-        const label = action.label;
+        const label = resolveLabel(action);
 
         return [
           {

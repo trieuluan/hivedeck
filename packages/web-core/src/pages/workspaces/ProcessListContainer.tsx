@@ -104,7 +104,7 @@ export function ProcessListContainer() {
               onClick={onPrevMatch}
               disabled={matchCount === 0}
               className="p-1 text-low hover:text-normal disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Previous match (Shift+Enter)"
+              title={t('common:ui.previousMatchShiftEnter')}
             >
               <CaretUpIcon className="size-icon-sm" weight="bold" />
             </button>
@@ -112,7 +112,7 @@ export function ProcessListContainer() {
               onClick={onNextMatch}
               disabled={matchCount === 0}
               className="p-1 text-low hover:text-normal disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Next match (Enter)"
+              title={t('common:ui.nextMatchEnter')}
             >
               <CaretDownIcon className="size-icon-sm" weight="bold" />
             </button>

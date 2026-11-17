@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { ArrowClockwiseIcon, ArrowSquareOutIcon } from '@phosphor-icons/react';
 import type { SpecKitTasks } from 'shared/types';
 
@@ -14,6 +15,7 @@ export function ImplementStage({
   liveHref,
   onRefresh,
 }: ImplementStageProps) {
+  const { t } = useTranslation();
   const total = tasks?.total ?? 0;
   const completed = tasks?.completed ?? 0;
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
@@ -21,12 +23,15 @@ export function ImplementStage({
   return (
     <div className="flex h-full flex-col gap-base overflow-y-auto p-double">
       <header className="space-y-half">
-        <h2 className="text-lg font-semibold text-high">Implement</h2>
+        <h2 className="text-lg font-semibold text-high">
+          {t('common:ui.implement')}
+        </h2>
         <p className="text-sm text-low">
-          Runs <span className="font-mono">/speckit.implement</span> in the
-          feature worktree, executing the task list in dependency order. Tasks
-          marked <span className="text-brand">[P]</span> within a layer are done
-          together. Watch the transcript and diffs in the live session.
+          {t('common:ui.runs')}{' '}
+          <span className="font-mono">/speckit.implement</span>{' '}
+          {t('common:ui.inTheFeatureWorktreeExecutingThe')}{' '}
+          <span className="text-brand">[P]</span>{' '}
+          {t('common:ui.withinALayerAreDoneTogether')}
         </p>
       </header>
 
@@ -38,7 +43,7 @@ export function ImplementStage({
             className="inline-flex items-center gap-half rounded-sm border px-base py-half text-sm text-normal"
           >
             <ArrowClockwiseIcon className="size-icon-sm" />
-            Refresh progress
+            {t('common:ui.refreshProgress')}
           </button>
           {liveHref && (
             <a
@@ -48,7 +53,7 @@ export function ImplementStage({
               rel="noreferrer"
             >
               <ArrowSquareOutIcon className="size-icon-sm" />
-              Live session: transcript + diffs
+              {t('common:ui.liveSessionTranscriptDiffs')}
             </a>
           )}
         </div>
@@ -56,7 +61,7 @@ export function ImplementStage({
         {/* Progress */}
         <div className="space-y-half">
           <div className="flex justify-between text-xs text-low">
-            <span>Task progress</span>
+            <span>{t('common:ui.taskProgress')}</span>
             <span>
               {completed} / {total} ({pct}%)
             </span>
@@ -72,8 +77,7 @@ export function ImplementStage({
 
       {total === 0 && (
         <p className="text-sm text-low">
-          No tasks to implement yet — generate the task list in the Tasks stage
-          first.
+          {t('common:ui.noTasksToImplementYetGenerate')}
         </p>
       )}
     </div>

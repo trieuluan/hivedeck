@@ -13,6 +13,7 @@ import { RIGHT_MAIN_PANEL_MODES } from '@/shared/stores/useUiPreferencesStore';
 import type { AppNavigation } from '@/shared/lib/routes/appNavigation';
 import type { ProjectIssueCreateOptions } from '@/shared/stores/useKanbanIssueComposerStore';
 import type { AppRuntime } from '@/shared/hooks/useAppRuntime';
+import i18n from 'i18next';
 
 // Portable type aliases (avoid importing from component containers)
 export type LogEntry = Extract<
@@ -222,14 +223,35 @@ export type NavbarItem = ActionDefinition | typeof NavbarDivider;
 export const ContextBarDivider = { type: 'divider' } as const;
 export type ContextBarItem = ActionDefinition | typeof ContextBarDivider;
 
+// Action labels are written in English; other languages translate them via
+// the `actions` namespace, keyed by the English text itself. English (no
+// `actions` bundle) falls through to the label as written.
+const ACTION_T_OPTIONS = {
+  ns: 'actions',
+  keySeparator: false,
+  nsSeparator: false,
+} as const;
+
+export function translateActionLabel(label: string): string {
+  const openIn = /^Open in (.+)$/.exec(label);
+  if (openIn && !i18n.exists(label, ACTION_T_OPTIONS)) {
+    return i18n.t('Open in {{name}}', {
+      ...ACTION_T_OPTIONS,
+      name: openIn[1],
+      defaultValue: label,
+    });
+  }
+  return i18n.t(label, { ...ACTION_T_OPTIONS, defaultValue: label });
+}
+
 // Helper to resolve dynamic label
 export function resolveLabel(
   action: ActionDefinition,
   workspace?: Workspace
 ): string {
-  return typeof action.label === 'function'
-    ? action.label(workspace)
-    : action.label;
+  return translateActionLabel(
+    typeof action.label === 'function' ? action.label(workspace) : action.label
+  );
 }
 
 // Helper to check if an icon is a special type
@@ -270,7 +292,9 @@ export function getActionTooltip(
   action: ActionDefinition,
   ctx: ActionVisibilityContext
 ): string {
-  return action.getTooltip ? action.getTooltip(ctx) : resolveLabel(action);
+  return action.getTooltip
+    ? translateActionLabel(action.getTooltip(ctx))
+    : resolveLabel(action);
 }
 
 export function getActionLabel(
@@ -279,6 +303,6 @@ export function getActionLabel(
   workspace?: Workspace
 ): string {
   return action.getLabel
-    ? action.getLabel(ctx)
+    ? translateActionLabel(action.getLabel(ctx))
     : resolveLabel(action, workspace);
 }

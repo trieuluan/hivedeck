@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookOpenIcon,
@@ -110,6 +111,7 @@ function resolveTheme(theme: ThemeMode): 'light' | 'dark' {
 }
 
 export function LandingPage() {
+  const { t } = useTranslation();
   const appNavigation = useAppNavigation();
   const { theme } = useTheme();
   const { config, profiles, updateAndSaveConfig, loading } = useUserSystem();
@@ -279,17 +281,17 @@ export function LandingPage() {
                 weight="fill"
               />
               <p className="text-sm text-normal">
-                HiveDeck runs AI coding agents with{' '}
+                {t('common:ui.hivedeckRunsAiCodingAgentsWith')}{' '}
                 <code>--dangerously-skip-permissions</code> /{' '}
-                <code>--yolo</code> by default. Always review what agents are
-                doing.{' '}
+                <code>--yolo</code>{' '}
+                {t('common:ui.byDefaultAlwaysReviewWhatAgents')}{' '}
                 <a
                   href="https://www.vibekanban.com/docs/getting-started#safety-notice"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-brand hover:underline"
                 >
-                  Learn more
+                  {t('common:ui.learnMore')}
                 </a>
                 .
               </p>
@@ -302,7 +304,9 @@ export function LandingPage() {
           <div className="grid grid-cols-3 gap-double">
             {/* Column 1: Coding Agent */}
             <section className="space-y-half">
-              <h2 className="text-sm font-medium text-high">Coding Agent</h2>
+              <h2 className="text-sm font-medium text-high">
+                {t('common:ui.codingAgent')}
+              </h2>
               <div className="grid gap-1.5">
                 {executorOptions.map((agent) => {
                   const selected = selectedAgent === agent;
@@ -340,7 +344,9 @@ export function LandingPage() {
 
             {/* Column 2: Code Editor */}
             <section className="space-y-half">
-              <h2 className="text-sm font-medium text-high">Code Editor</h2>
+              <h2 className="text-sm font-medium text-high">
+                {t('common:ui.codeEditor')}
+              </h2>
               <div className="grid gap-1.5">
                 {editorOptions.map((editor) => {
                   const selected = editorType === editor;
@@ -378,7 +384,7 @@ export function LandingPage() {
               {editorType === EditorType.CUSTOM && (
                 <div className="space-y-half">
                   <label className="text-sm font-medium text-normal">
-                    Custom Command
+                    {t('common:ui.customCommand')}
                   </label>
                   <input
                     type="text"
@@ -401,7 +407,7 @@ export function LandingPage() {
             {/* Column 3: Notification Sound */}
             <section className="space-y-half">
               <h2 className="text-sm font-medium text-high">
-                Notification Sound
+                {t('common:ui.notificationSound')}
               </h2>
               <div className="grid gap-1.5">
                 {SOUND_OPTIONS.map((option) => {
@@ -456,7 +462,9 @@ export function LandingPage() {
                     )}
                     weight={!soundEnabled ? 'fill' : 'bold'}
                   />
-                  <span className="text-sm text-normal flex-1">No sound</span>
+                  <span className="text-sm text-normal flex-1">
+                    {t('common:ui.noSound')}
+                  </span>
                   {!soundEnabled && (
                     <CheckIcon
                       className="size-icon-xs text-brand shrink-0"
@@ -472,14 +480,14 @@ export function LandingPage() {
         {/* Footer */}
         <div className="shrink-0 border-t border-border p-double pt-base flex items-center justify-between gap-base">
           <p className="text-xs text-low">
-            By continuing you agree to the{' '}
+            {t('common:ui.byContinuingYouAgreeToThe')}{' '}
             <a
               href="https://www.vibekanban.com/terms"
               target="_blank"
               rel="noopener noreferrer"
               className="text-brand hover:underline"
             >
-              terms and conditions
+              {t('common:ui.termsAndConditions')}
             </a>{' '}
             and{' '}
             <a
@@ -488,7 +496,7 @@ export function LandingPage() {
               rel="noopener noreferrer"
               className="text-brand hover:underline"
             >
-              privacy policy
+              {t('common:ui.privacyPolicy')}
             </a>
             .
           </p>

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import {
   useMemo,
   useState,
@@ -278,6 +279,7 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WysiwygProps>(
     }: WysiwygProps,
     ref: React.ForwardedRef<WYSIWYGEditorRef>
   ) {
+    const { t } = useTranslation();
     // Ref to capture the Lexical editor instance for imperative methods
     const editorInstanceRef = useRef<LexicalEditor | null>(null);
 
@@ -630,8 +632,8 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WysiwygProps>(
               {onEdit && (
                 <Button
                   type="button"
-                  aria-label="Edit"
-                  title="Edit"
+                  aria-label={t('common:ui.edit')}
+                  title={t('common:ui.edit')}
                   variant="icon"
                   size="icon"
                   onClick={onEdit}
@@ -644,8 +646,8 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WysiwygProps>(
               {onDelete && (
                 <Button
                   type="button"
-                  aria-label="Delete"
-                  title="Delete"
+                  aria-label={t('common:ui.delete')}
+                  title={t('common:ui.delete')}
                   variant="icon"
                   size="icon"
                   onClick={onDelete}

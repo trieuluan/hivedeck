@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
 import { ArrowClockwiseIcon, ArrowSquareOutIcon } from '@phosphor-icons/react';
 import type { SpecKitArtifact } from 'shared/types';
@@ -27,6 +28,7 @@ export function ArtifactStage({
   liveHref,
   onRefresh,
 }: ArtifactStageProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const resolvedTheme = getResolvedTheme(theme);
   const [editing, setEditing] = useState(false);
@@ -73,7 +75,7 @@ export function ArtifactStage({
           className="inline-flex items-center gap-half rounded-sm border px-base py-half text-sm text-normal"
         >
           <ArrowClockwiseIcon className="size-icon-sm" />
-          Refresh
+          {t('common:ui.refresh')}
         </button>
         {liveHref && (
           <a
@@ -83,7 +85,7 @@ export function ArtifactStage({
             rel="noreferrer"
           >
             <ArrowSquareOutIcon className="size-icon-sm" />
-            Open live workspace
+            {t('common:ui.openLiveWorkspace')}
           </a>
         )}
       </section>
@@ -115,7 +117,7 @@ export function ArtifactStage({
                     }}
                     className="rounded-sm border px-base py-px text-xs text-normal"
                   >
-                    Cancel
+                    {t('common:ui.cancel')}
                   </button>
                 </span>
               ) : (
@@ -124,15 +126,14 @@ export function ArtifactStage({
                   onClick={() => setEditing(true)}
                   className="rounded-sm border px-base py-px text-xs text-normal"
                 >
-                  Edit
+                  {t('common:ui.edit')}
                 </button>
               ))}
           </div>
           <div className="p-base">
             {!primary.exists ? (
               <p className="text-sm text-low">
-                Not generated yet — the pipeline agent writes this artifact from
-                the live workspace.
+                {t('common:ui.notGeneratedYetThePipelineAgent')}
               </p>
             ) : editing ? (
               <textarea
@@ -150,8 +151,7 @@ export function ArtifactStage({
         </section>
       ) : (
         <p className="text-sm text-low">
-          This stage's agent reports back in the live workspace — it doesn’t
-          produce a stored file.
+          {t('common:ui.thisStageSAgentReportsBack')}
         </p>
       )}
 
@@ -159,7 +159,7 @@ export function ArtifactStage({
       {supporting.filter((a) => a.exists).length > 0 && (
         <section className="space-y-half">
           <h3 className="text-sm font-medium text-high">
-            Supporting artifacts
+            {t('common:ui.supportingArtifacts')}
           </h3>
           {supporting
             .filter((a) => a.exists)

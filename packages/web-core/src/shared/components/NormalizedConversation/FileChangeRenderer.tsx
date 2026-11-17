@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { type FileChange } from 'shared/types';
 import { useUserSystem } from '@/shared/hooks/useUserSystem';
 import { Trash2, FilePlus2, ArrowRight, FileX, FileClock } from 'lucide-react';
@@ -47,6 +48,7 @@ const FileChangeRenderer = ({
   statusAppearance = 'default',
   forceExpanded = false,
 }: Props) => {
+  const { t } = useTranslation();
   const { config } = useUserSystem();
   const [expanded, setExpanded] = useExpandable(expansionKey, defaultExpanded);
   const effectiveExpanded = forceExpanded || expanded;
@@ -101,7 +103,7 @@ const FileChangeRenderer = ({
       return {
         titleNode: (
           <>
-            Rename {path} to {change.new_path}
+            {t('common:ui.rename')} {path} to {change.new_path}
           </>
         ),
         icon: <ArrowRight className="h-3 w-3" />,

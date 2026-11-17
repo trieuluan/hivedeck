@@ -1121,7 +1121,7 @@ export function KanbanContainer() {
               <button
                 type="button"
                 className="p-half rounded-sm text-low hover:text-normal hover:bg-secondary transition-colors"
-                aria-label="Project menu"
+                aria-label={t('common:ui.projectMenu')}
               >
                 <DotsThreeIcon className="size-icon-sm" weight="bold" />
               </button>
@@ -1234,7 +1234,7 @@ export function KanbanContainer() {
                             type="button"
                             onClick={() => handleAddTask(status.id)}
                             className="p-half rounded-sm text-low hover:text-normal hover:bg-secondary transition-colors"
-                            aria-label="Add task"
+                            aria-label={t('common:ui.addTask')}
                           >
                             <PlusIcon className="size-icon-xs" weight="bold" />
                           </button>

@@ -189,7 +189,7 @@ const StartReviewDialogImpl = create<StartReviewDialogProps>(
                 id="additional-prompt"
                 value={additionalPrompt}
                 onChange={(e) => setAdditionalPrompt(e.target.value)}
-                placeholder="Add any specific instructions for the review..."
+                placeholder={t('common:ui.addAnySpecificInstructionsForThe')}
                 className="min-h-[80px] resize-none"
               />
             </div>

@@ -240,8 +240,8 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
                 : 'invisible opacity-0 group-hover:visible group-hover:opacity-100',
               'transition-[opacity,color,background-color]'
             )}
-            aria-label="More actions"
-            title="More actions"
+            aria-label={t('common:ui.moreActions')}
+            title={t('common:ui.moreActions')}
           >
             <DotsThreeIcon className="size-icon-xs" weight="bold" />
           </button>

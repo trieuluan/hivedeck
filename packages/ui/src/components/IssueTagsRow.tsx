@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { ReactNode } from 'react';
 import { PlusIcon, HashIcon, GitPullRequest } from '@phosphor-icons/react';
 import { cn } from '../lib/cn';
@@ -65,6 +66,7 @@ export function IssueTagsRow<TTag extends IssueTagBase>({
   disabled,
   className,
 }: IssueTagsRowProps<TTag>) {
+  const { t } = useTranslation();
   const selectedTags = availableTags.filter((tag) =>
     selectedTagIds.includes(tag.id)
   );
@@ -86,7 +88,7 @@ export function IssueTagsRow<TTag extends IssueTagBase>({
       type="button"
       className="flex items-center justify-center h-5 w-5 rounded-sm text-low hover:text-normal hover:bg-panel transition-colors disabled:opacity-50"
       disabled={disabled}
-      aria-label="Add tag"
+      aria-label={t('common:ui.addTag')}
     >
       <PlusIcon className="size-icon-xs" weight="bold" />
     </button>
@@ -138,7 +140,7 @@ export function IssueTagsRow<TTag extends IssueTagBase>({
           onClick={onLinkPr}
           disabled={disabled}
           className="flex items-center justify-center h-5 w-5 rounded-sm text-low hover:text-normal hover:bg-panel transition-colors disabled:opacity-50"
-          aria-label="Link pull request"
+          aria-label={t('common:ui.linkPullRequest')}
         >
           <GitPullRequest className="size-icon-xs" weight="bold" />
         </button>

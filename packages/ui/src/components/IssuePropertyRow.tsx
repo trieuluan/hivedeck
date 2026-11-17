@@ -90,8 +90,8 @@ export function IssuePropertyRow({
               icon={XIcon}
               onClick={onRemoveParentIssue}
               disabled={disabled}
-              aria-label="Remove parent issue"
-              title="Remove parent issue"
+              aria-label={t('common:ui.removeParentIssue')}
+              title={t('common:ui.removeParentIssue')}
             />
           )}
         </div>
@@ -102,8 +102,8 @@ export function IssuePropertyRow({
           icon={PlusIcon}
           onClick={onAddClick}
           disabled={disabled}
-          aria-label="Add"
-          title="Add"
+          aria-label={t('common:ui.add')}
+          title={t('common:ui.add')}
         />
       )}
     </div>
