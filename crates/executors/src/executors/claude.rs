@@ -849,6 +849,31 @@ pub struct ClaudeCodeHeaded {
     pub open_terminal: bool,
 }
 
+/// ADR-033: a headless Claude Code run acting as the HiveDeck captain. The
+/// container sets these; the executor turns them into `--agents` (the
+/// captain's definition) and `--mcp-config` (HiveDeck's MCP endpoint), and
+/// strips them from the child's environment.
+pub const CAPTAIN_AGENTS_ENV: &str = "HIVEDECK_CLAUDE_CAPTAIN_AGENTS";
+pub const CAPTAIN_MCP_CONFIG_ENV: &str = "HIVEDECK_CLAUDE_CAPTAIN_MCP_CONFIG";
+
+/// Extra flags for a captain run. Headless runs take the prompt on stdin, so
+/// nothing positional can be swallowed; `--mcp-config` still uses the `=`
+/// form. Only HiveDeck's MCP tools are pre-approved: in `-p` mode anything
+/// else that needs permission (edits, shell) is refused, which is what a
+/// captain wants.
+fn captain_args(env: &ExecutionEnv) -> Vec<String> {
+    let mut args = Vec::new();
+    if let Some(agents) = env.vars.get(CAPTAIN_AGENTS_ENV) {
+        args.push("--agents".to_string());
+        args.push(agents.clone());
+    }
+    if let Some(mcp) = env.vars.get(CAPTAIN_MCP_CONFIG_ENV) {
+        args.push(format!("--mcp-config={mcp}"));
+        args.push("--allowedTools=mcp__hivedeck".to_string());
+    }
+    args
+}
+
 /// Default for [`ClaudeCodeHeaded::open_terminal`]: headed runs open a terminal
 /// window unless the operator opts out.
 fn default_open_terminal() -> bool {
@@ -987,7 +1012,14 @@ impl ClaudeCode {
         command_parts: CommandParts,
         env: &ExecutionEnv,
     ) -> Result<SpawnedChild, ExecutorError> {
-        let (program_path, args) = command_parts.into_resolved().await?;
+        let (program_path, mut args) = command_parts.into_resolved().await?;
+        let captain = captain_args(env);
+        if !captain.is_empty() {
+            // The captain only needs HiveDeck's tools; a profile-level
+            // skip-permissions would override that allowlist.
+            args.retain(|a| a != "--dangerously-skip-permissions");
+        }
+        args.extend(captain);
         let combined_prompt = self.append_prompt.combine_prompt(prompt);
 
         let mut command = Command::new(program_path);
@@ -1003,6 +1035,8 @@ impl ClaudeCode {
         env.clone()
             .with_profile(&self.cmd)
             .apply_to_command(&mut command);
+        command.env_remove(CAPTAIN_AGENTS_ENV);
+        command.env_remove(CAPTAIN_MCP_CONFIG_ENV);
 
         // Remove ANTHROPIC_API_KEY if disable_api_key is enabled
         if self.disable_api_key.unwrap_or(false) {
@@ -4042,5 +4076,33 @@ mod tests {
         let control_request_json = r#"{"type":"control_request","request_id":"f559d907-b139-475b-addd-79c05591eb99","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{"command":"./gradlew :web:testApi","timeout":300000,"description":"Run API tests"},"permission_suggestions":[{"type":"addRules","rules":[{"toolName":"Bash","ruleContent":"./gradlew :web:testApi:"}],"behavior":"allow","destination":"localSettings"}],"tool_use_id":"toolu_014PR3WXsJfiftSCbjcjEbeM"}}"#;
         let parsed: ClaudeJson = serde_json::from_str(control_request_json).unwrap();
         assert!(matches!(parsed, ClaudeJson::ControlRequest { .. }));
+    }
+}
+
+#[cfg(test)]
+mod captain_args_tests {
+    use super::{CAPTAIN_AGENTS_ENV, CAPTAIN_MCP_CONFIG_ENV, captain_args};
+    use crate::env::{ExecutionEnv, RepoContext};
+
+    #[test]
+    fn no_captain_env_adds_nothing() {
+        let env = ExecutionEnv::new(RepoContext::default(), false, String::new());
+        assert!(captain_args(&env).is_empty());
+    }
+
+    #[test]
+    fn captain_env_adds_agents_mcp_and_allowlist() {
+        let mut env = ExecutionEnv::new(RepoContext::default(), false, String::new());
+        env.insert(CAPTAIN_AGENTS_ENV, "{\"a\":1}");
+        env.insert(CAPTAIN_MCP_CONFIG_ENV, "{\"m\":1}");
+        assert_eq!(
+            captain_args(&env),
+            vec![
+                "--agents".to_string(),
+                "{\"a\":1}".to_string(),
+                "--mcp-config={\"m\":1}".to_string(),
+                "--allowedTools=mcp__hivedeck".to_string(),
+            ]
+        );
     }
 }

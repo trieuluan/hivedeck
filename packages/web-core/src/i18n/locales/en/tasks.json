@@ -541,7 +541,7 @@
     "agents": {
       "claude": {
         "label": "Claude Code",
-        "description": "Runs in a terminal (tmux) and loops by itself with /loop."
+        "description": "Runs in the background; HiveDeck sends it a tick every 5 min. Works with any model in the planner combo."
       },
       "codex": {
         "label": "Codex",

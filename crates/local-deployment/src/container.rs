@@ -2752,6 +2752,29 @@ impl ContainerService for LocalContainerService {
             );
         }
 
+        // ADR-033: a headless Claude captain gets its definition and the MCP
+        // endpoint through the same env-to-flags hand-off as Codex.
+        if workspace.kind == Some(WorkspaceKind::Orchestrator)
+            && executor_action.base_executor() == Some(BaseCodingAgent::ClaudeCode)
+        {
+            use executors::executors::claude;
+            let port = utils::port_file::read_port_file("hivedeck")
+                .await
+                .map_err(|e| {
+                    ContainerError::Other(anyhow!(
+                        "cannot start the captain: backend port unknown ({e})"
+                    ))
+                })?;
+            env.insert(
+                claude::CAPTAIN_AGENTS_ENV,
+                services::services::captain::agents_json(),
+            );
+            env.insert(
+                claude::CAPTAIN_MCP_CONFIG_ENV,
+                services::services::captain::mcp_config_json(port),
+            );
+        }
+
         // Interactive (detached tmux) path: run the agent's TUI in a tmux
         // session instead of a headless child. The shared `start_execution`
         // wrapper still creates the MsgStore + turn and wires up `normalize_logs`

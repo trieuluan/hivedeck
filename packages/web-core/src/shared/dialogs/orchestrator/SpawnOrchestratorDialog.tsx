@@ -33,10 +33,10 @@ export interface SpawnOrchestratorDialogProps {
   projectName?: string;
 }
 
-// ADR-031: agents that can be the captain. Claude Code runs headed with its
-// own /loop; Codex runs headless and HiveDeck sends it each tick.
+// ADR-031/033: agents that can be the captain. Both run headless in the
+// background and HiveDeck sends them each tick (no terminal window).
 const CAPTAIN_AGENTS: { id: BaseCodingAgent; key: string }[] = [
-  { id: BaseCodingAgent.CLAUDE_CODE_HEADED, key: 'claude' },
+  { id: BaseCodingAgent.CLAUDE_CODE, key: 'claude' },
   { id: BaseCodingAgent.CODEX, key: 'codex' },
 ];
 const CAPTAIN_AGENT_STORAGE = 'hivedeck.captainAgent';
@@ -50,7 +50,7 @@ function loadCaptainAgent(): BaseCodingAgent {
   } catch {
     // storage unavailable: use the default
   }
-  return BaseCodingAgent.CLAUDE_CODE_HEADED;
+  return BaseCodingAgent.CLAUDE_CODE;
 }
 
 export const orchestratorStatusKey = (projectId?: string | null) =>

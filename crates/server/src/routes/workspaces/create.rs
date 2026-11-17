@@ -259,20 +259,27 @@ pub async fn create_and_start_workspace(
 /// and the backend drives its loop (`captain_loop`).
 fn orchestrator_executor_config(executor: BaseCodingAgent) -> ExecutorConfig {
     let is_codex = executor == BaseCodingAgent::Codex;
+    // Headless agents (Codex, headless Claude) never stop to ask: Codex only
+    // calls HiveDeck's tools, and headless Claude pre-approves just those.
+    let headless = !executor.is_headed();
     ExecutorConfig {
         executor,
         variant: None,
         model_id: None,
         agent_id: (!is_codex).then(|| services::services::captain::AGENT_ID.to_string()),
         reasoning_id: None,
-        permission_policy: is_codex.then_some(executors::model_selector::PermissionPolicy::Auto),
+        permission_policy: headless.then_some(executors::model_selector::PermissionPolicy::Auto),
     }
 }
 
 /// Agents that can be the captain: the headed ones (own `/loop`) and Codex
 /// (backend-driven loop).
 fn is_captain_executor(executor: &BaseCodingAgent) -> bool {
-    executor.is_headed() || *executor == BaseCodingAgent::Codex
+    executor.is_headed()
+        || matches!(
+            executor,
+            BaseCodingAgent::Codex | BaseCodingAgent::ClaudeCode
+        )
 }
 
 /// Start the backend loop for a captain without its own `/loop`.

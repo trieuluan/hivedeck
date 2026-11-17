@@ -541,7 +541,7 @@
     "agents": {
       "claude": {
         "label": "Claude Code",
-        "description": "Chạy trong terminal (tmux) và tự lặp bằng /loop."
+        "description": "Chạy nền; HiveDeck gửi cho nó một lượt mỗi 5 phút. Dùng được với mọi model trong combo planner."
       },
       "codex": {
         "label": "Codex",

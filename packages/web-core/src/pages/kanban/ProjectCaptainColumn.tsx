@@ -35,7 +35,8 @@ function saveOpen(projectId: string, open: boolean) {
 }
 
 const AGENT_LABEL: Partial<Record<BaseCodingAgent, string>> = {
-  [BaseCodingAgent.CLAUDE_CODE_HEADED]: 'Claude Code',
+  [BaseCodingAgent.CLAUDE_CODE]: 'Claude Code',
+  [BaseCodingAgent.CLAUDE_CODE_HEADED]: 'Claude Code (terminal)',
   [BaseCodingAgent.CODEX]: 'Codex',
 };
 
