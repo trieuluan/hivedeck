@@ -348,6 +348,13 @@ export function ProjectKanban() {
     }
   }, [projectId, hasInvalidWorkspaceCreateDraftId, appNavigation]);
 
+  // ProjectProvider (the flat projects layer) is already mounted by
+  // SharedAppLayout — we look up the project directly via the same hook.
+  // Called before any early return: the route can drop `projectId` for one
+  // render while navigating away, and a hook skipped on that render crashes
+  // React ("Rendered fewer hooks than expected") and strands the old page.
+  const { data: projects } = useProjects();
+
   if (!projectId) {
     return (
       <div className="flex items-center justify-center h-full w-full">
@@ -356,9 +363,6 @@ export function ProjectKanban() {
     );
   }
 
-  // ProjectProvider (the flat projects layer) is already mounted by
-  // SharedAppLayout — we look up the project directly via the same hook.
-  const { data: projects } = useProjects();
   const project = projects.find((p: Project) => p.id === projectId);
 
   if (!project) {
