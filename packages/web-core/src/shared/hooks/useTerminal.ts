@@ -8,6 +8,9 @@ export interface TerminalInstance {
   fitAddon: FitAddon;
 }
 
+/** Official agent CLIs an agent tab can start (server-side allowlist). */
+export type AgentCli = 'claude' | 'codex' | 'opencode' | 'cursor' | 'gemini';
+
 export interface TerminalTab {
   id: string;
   title: string;
@@ -15,6 +18,8 @@ export interface TerminalTab {
   cwd: string;
   /** When set, this tab is attached to the agent's tmux session (`vk-<id>`). */
   executionProcessId?: string;
+  /** When set, this tab started that agent's CLI in a fresh shell. */
+  agent?: AgentCli;
 }
 
 interface TerminalConnection {
@@ -29,7 +34,8 @@ export interface TerminalContextType {
   createTab: (
     workspaceId: string,
     cwd: string,
-    executionProcessId?: string
+    executionProcessId?: string,
+    agent?: AgentCli
   ) => void;
   /**
    * Open a terminal tab, or focus an existing one. When `executionProcessId` is

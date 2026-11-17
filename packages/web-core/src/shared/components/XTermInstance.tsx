@@ -6,7 +6,7 @@ import '@xterm/xterm/css/xterm.css';
 
 import { useTheme } from '@/shared/hooks/useTheme';
 import { getTerminalTheme } from '@/shared/lib/terminalTheme';
-import { useTerminal } from '@/shared/hooks/useTerminal';
+import { useTerminal, type AgentCli } from '@/shared/hooks/useTerminal';
 
 interface XTermInstanceProps {
   tabId: string;
@@ -17,6 +17,8 @@ interface XTermInstanceProps {
    * (`vk-<executionProcessId>`) instead of opening a plain workspace shell.
    */
   executionProcessId?: string;
+  /** Start this agent's CLI in the new shell (an agent tab). */
+  agent?: AgentCli;
   onClose?: () => void;
 }
 
@@ -25,6 +27,7 @@ export function XTermInstance({
   workspaceId,
   isActive,
   executionProcessId,
+  agent,
   onClose,
 }: XTermInstanceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -50,9 +53,11 @@ export function XTermInstance({
     });
     if (executionProcessId) {
       params.set('execution_process_id', executionProcessId);
+    } else if (agent) {
+      params.set('agent', agent);
     }
     return `${protocol}//${host}/api/terminal/ws?${params.toString()}`;
-  }, [workspaceId, executionProcessId]);
+  }, [workspaceId, executionProcessId, agent]);
 
   const fitTerminal = useCallback(() => {
     fitAddonRef.current?.fit();

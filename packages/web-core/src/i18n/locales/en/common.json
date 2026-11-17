@@ -644,6 +644,8 @@
     "moreActions": "More actions",
     "newEnvironmentVariableKey": "New environment variable key",
     "newEnvironmentVariableValue": "New environment variable value",
+    "newShellTab": "Shell",
+    "newTerminalTab": "New tab",
     "nextMatchEnter": "Next match (Enter)",
     "noAgentsAvailable": "No agents available",
     "noConstitutionYetRun": "No constitution yet — run",

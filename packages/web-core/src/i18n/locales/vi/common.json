@@ -644,6 +644,8 @@
     "moreActions": "Thêm thao tác",
     "newEnvironmentVariableKey": "Tên biến môi trường mới",
     "newEnvironmentVariableValue": "Giá trị biến môi trường mới",
+    "newShellTab": "Shell",
+    "newTerminalTab": "Tab mới",
     "nextMatchEnter": "Kết quả sau (Enter)",
     "noAgentsAvailable": "Chưa có agent nào",
     "noConstitutionYetRun": "Chưa có nguyên tắc dự án — chạy",

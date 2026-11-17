@@ -37,10 +37,63 @@ struct TerminalQuery {
     /// never supplies a shell command.
     #[serde(default)]
     pub execution_process_id: Option<Uuid>,
+    /// Open a shell and start this agent's official CLI in it (an "agent
+    /// tab"). The command comes from a server-side allowlist, never from the
+    /// client.
+    #[serde(default)]
+    pub agent: Option<AgentCli>,
     #[serde(default = "default_cols")]
     pub cols: u16,
     #[serde(default = "default_rows")]
     pub rows: u16,
+}
+
+/// Agent CLIs an agent tab can start, each run exactly as the vendor ships it
+/// with the user's own login (HiveDeck only hosts the terminal).
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentCli {
+    Claude,
+    Codex,
+    Opencode,
+    Cursor,
+    Gemini,
+}
+
+impl AgentCli {
+    /// The installed binary's name.
+    fn binary(self) -> &'static str {
+        match self {
+            AgentCli::Claude => "claude",
+            AgentCli::Codex => "codex",
+            AgentCli::Opencode => "opencode",
+            AgentCli::Cursor => "cursor-agent",
+            AgentCli::Gemini => "gemini",
+        }
+    }
+
+    /// Official npm package to run when the binary isn't installed (the same
+    /// packages HiveDeck's executors use). Cursor ships no npm package.
+    fn npx_fallback(self) -> Option<&'static str> {
+        match self {
+            AgentCli::Claude => Some("@anthropic-ai/claude-code@latest"),
+            AgentCli::Codex => Some("@openai/codex@0.152.1"),
+            AgentCli::Opencode => Some("opencode-ai@latest"),
+            AgentCli::Gemini => Some("@google/gemini-cli@latest"),
+            AgentCli::Cursor => None,
+        }
+    }
+
+    /// The line typed into the shell: the installed CLI, else its npm package.
+    fn command(self) -> String {
+        let bin = self.binary();
+        match self.npx_fallback() {
+            Some(pkg) => {
+                format!("command -v {bin} >/dev/null 2>&1 && {bin} || npx -y {pkg}")
+            }
+            None => bin.to_string(),
+        }
+    }
 }
 
 fn default_cols() -> u16 {
@@ -206,6 +259,7 @@ async fn terminal_ws(
     // treats as terminal.
     let attach_process_id = query.execution_process_id;
     let workspace_id = query.workspace_id;
+    let agent = query.agent;
     Ok(ws.on_upgrade(move |socket| {
         handle_terminal_ws(
             socket,
@@ -215,10 +269,12 @@ async fn terminal_ws(
             query.rows,
             attach_process_id,
             workspace_id,
+            agent,
         )
     }))
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn handle_terminal_ws(
     mut socket: MaybeSignedWebSocket,
     deployment: DeploymentImpl,
@@ -227,6 +283,7 @@ async fn handle_terminal_ws(
     rows: u16,
     attach_process_id: Option<Uuid>,
     workspace_id: Uuid,
+    agent: Option<AgentCli>,
 ) {
     let is_attach = attach_process_id.is_some();
 
@@ -288,6 +345,15 @@ async fn handle_terminal_ws(
 
     let pty_service = deployment.pty().clone();
     let session_id_for_input = session_id;
+
+    // Agent tab: start the CLI inside the user's interactive shell (so it
+    // sees their PATH/login), leaving that shell behind when the agent exits.
+    if !is_attach && let Some(agent) = agent {
+        let line = format!("{}\r", agent.command());
+        if let Err(e) = pty_service.write(session_id, line.as_bytes()).await {
+            tracing::warn!("Failed to start {} in terminal: {}", agent.binary(), e);
+        }
+    }
 
     loop {
         tokio::select! {
@@ -463,5 +529,26 @@ mod tests {
             ),
             Err(AttachError::WorkspaceMismatch)
         );
+    }
+}
+
+#[cfg(test)]
+mod agent_cli_tests {
+    use super::AgentCli;
+
+    #[test]
+    fn commands_fall_back_to_official_packages() {
+        assert_eq!(
+            AgentCli::Codex.command(),
+            "command -v codex >/dev/null 2>&1 && codex || npx -y @openai/codex@0.152.1"
+        );
+        assert_eq!(AgentCli::Cursor.command(), "cursor-agent");
+    }
+
+    #[test]
+    fn query_values_parse() {
+        let a: AgentCli = serde_json::from_str("\"opencode\"").unwrap();
+        assert_eq!(a, AgentCli::Opencode);
+        assert!(serde_json::from_str::<AgentCli>("\"rm -rf\"").is_err());
     }
 }

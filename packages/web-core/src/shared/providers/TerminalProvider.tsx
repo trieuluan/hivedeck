@@ -3,6 +3,7 @@ import type { Terminal } from '@xterm/xterm';
 import type { FitAddon } from '@xterm/addon-fit';
 import {
   TerminalContext,
+  type AgentCli,
   type TerminalTab,
   type TerminalInstance,
 } from '@/shared/hooks/useTerminal';
@@ -25,6 +26,7 @@ type TerminalAction =
       workspaceId: string;
       cwd: string;
       executionProcessId?: string;
+      agent?: AgentCli;
     }
   | {
       type: 'OPEN_OR_FOCUS_TAB';
@@ -59,19 +61,33 @@ function decodeBase64(base64: string): string {
 }
 
 /** Append a new tab for a workspace and make it active. */
+const AGENT_TAB_TITLES: Record<AgentCli, string> = {
+  claude: 'Claude',
+  codex: 'Codex',
+  opencode: 'OpenCode',
+  cursor: 'Cursor',
+  gemini: 'Gemini',
+};
+
 function addTab(
   state: TerminalState,
   workspaceId: string,
   cwd: string,
-  executionProcessId?: string
+  executionProcessId?: string,
+  agent?: AgentCli
 ): TerminalState {
   const existingTabs = state.tabsByWorkspace[workspaceId] || [];
   const newTab: TerminalTab = {
     id: generateTabId(),
-    title: executionProcessId ? 'Agent' : `Terminal ${existingTabs.length + 1}`,
+    title: agent
+      ? AGENT_TAB_TITLES[agent]
+      : executionProcessId
+        ? 'Agent'
+        : `Terminal ${existingTabs.length + 1}`,
     workspaceId,
     cwd,
     executionProcessId,
+    agent,
   };
   return {
     ...state,
@@ -92,8 +108,8 @@ function terminalReducer(
 ): TerminalState {
   switch (action.type) {
     case 'CREATE_TAB': {
-      const { workspaceId, cwd, executionProcessId } = action;
-      return addTab(state, workspaceId, cwd, executionProcessId);
+      const { workspaceId, cwd, executionProcessId, agent } = action;
+      return addTab(state, workspaceId, cwd, executionProcessId, agent);
     }
 
     case 'OPEN_OR_FOCUS_TAB': {
@@ -248,8 +264,19 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
   );
 
   const createTab = useCallback(
-    (workspaceId: string, cwd: string, executionProcessId?: string) => {
-      dispatch({ type: 'CREATE_TAB', workspaceId, cwd, executionProcessId });
+    (
+      workspaceId: string,
+      cwd: string,
+      executionProcessId?: string,
+      agent?: AgentCli
+    ) => {
+      dispatch({
+        type: 'CREATE_TAB',
+        workspaceId,
+        cwd,
+        executionProcessId,
+        agent,
+      });
     },
     []
   );
