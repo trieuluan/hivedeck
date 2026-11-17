@@ -595,13 +595,22 @@ export function SharedAppLayout() {
     prStatus: ws.prStatus,
   });
 
+  // Captain (orchestrator) workspaces are not listed in the tree: a project's
+  // captain lives in its board's captain column, and since it is linked to
+  // no card the tree would otherwise file it under "Other workspaces".
   const outlinerWorkspaces = useMemo<OutlinerWorkspace[]>(
-    () => activeWorkspaces.map(toOutlinerWorkspace),
+    () =>
+      activeWorkspaces
+        .filter((ws) => ws.kind !== 'orchestrator')
+        .map(toOutlinerWorkspace),
     [activeWorkspaces]
   );
 
   const outlinerArchivedWorkspaces = useMemo<OutlinerWorkspace[]>(
-    () => archivedWorkspaces.map(toOutlinerWorkspace),
+    () =>
+      archivedWorkspaces
+        .filter((ws) => ws.kind !== 'orchestrator')
+        .map(toOutlinerWorkspace),
     [archivedWorkspaces]
   );
 
