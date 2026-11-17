@@ -156,7 +156,7 @@ function getOrCreateSourceRuntime(sourceKey: string): SourceRuntime {
 
 /// Immediately re-fetch a shape's fallback source. The local build polls
 /// fallback endpoints on a fixed interval, so backend-initiated changes that
-/// only surface through a shape (e.g. an issue dispatch relinking a workspace)
+/// only surface through a shape (e.g. explicitly linking a workspace to a card)
 /// would otherwise lag behind the real-time workspace stream and render the
 /// running indicator on the wrong card.
 export function refreshShapeSource(

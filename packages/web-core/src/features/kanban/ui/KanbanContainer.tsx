@@ -672,15 +672,28 @@ export function KanbanContainer() {
     async (issueId: string, workspaceId: string) => {
       try {
         await workspacesApi.dispatchIssueToWorkspace(issueId, workspaceId);
-        // The workspace↔issue relink only surfaces through the workspaces
-        // shape, which the local build polls on a slow interval. Force a
-        // refresh so the card picks up the link (and the running indicator)
-        // immediately instead of on the next poll.
-        refreshShapeSource(PROJECT_WORKSPACES_SHAPE, { project_id: projectId });
         // A dispatch touches many disparate caches (board, workspace session,
         // execution processes, branch status, the issue's Workspaces section),
         // all keyed differently. Scoping to a subset would leave stale UI; the
         // local SQLite backing store makes a full invalidation cheap.
+        await queryClient.invalidateQueries();
+      } catch (error) {
+        ConfirmDialog.show({
+          title: t('common:error'),
+          message: error instanceof Error ? error.message : String(error),
+          confirmText: t('common:ok'),
+          showCancelButton: false,
+        });
+      }
+    },
+    [queryClient, t, projectId]
+  );
+
+  const handleLinkIssueWorkspace = useCallback(
+    async (issueId: string, workspaceId: string) => {
+      try {
+        await workspacesApi.linkToIssue(workspaceId, projectId, issueId);
+        refreshShapeSource(PROJECT_WORKSPACES_SHAPE, { project_id: projectId });
         await queryClient.invalidateQueries();
       } catch (error) {
         ConfirmDialog.show({
@@ -1475,6 +1488,12 @@ export function KanbanContainer() {
                                   currentWorkspaceIds={workspaceIdsShownOnCard}
                                   onDispatch={(workspaceId) =>
                                     handleDispatchIssueToWorkspace(
+                                      issue.id,
+                                      workspaceId
+                                    )
+                                  }
+                                  onLink={(workspaceId) =>
+                                    handleLinkIssueWorkspace(
                                       issue.id,
                                       workspaceId
                                     )

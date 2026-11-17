@@ -464,6 +464,8 @@ async fn dispatch_issue_to_workspace(
         ));
     }
 
+    let current_link = ensure_dispatch_workspace_is_linked(pool, id, workspace.id).await?;
+
     // Resolve the target session: an explicit one (must belong to this
     // workspace) or the workspace's latest. The MCP tool and the UI both
     // delegate here, so session ownership is validated in one place.
@@ -500,8 +502,6 @@ async fn dispatch_issue_to_workspace(
     // ran pipeline stages, tell the agent to continue from the next stage rather
     // than restart the whole pipeline. Only applies when this card is the
     // workspace's current linked card (the stage counter is workspace-scoped).
-    let current_link =
-        IssueWorkspace::find_issue_and_project_by_workspace(pool, workspace.id).await?;
     let resume_stage = if workspace
         .current_pipeline_stage
         .map(|s| s > 0)
@@ -565,16 +565,35 @@ async fn dispatch_issue_to_workspace(
     )
     .await?;
 
-    // Only now that the execution is guaranteed to be running: move the
-    // workspace's link to this card and (for a fresh card) clear any stale
-    // pipeline stage from the previous card so the board doesn't show old
-    // progress against the new one.
+    // A dispatch runs only the card that is already linked. Linking is a
+    // separate, explicitly confirmed operation and must never move as a side
+    // effect of starting an execution.
     if resume_stage.is_none() {
         Workspace::set_current_pipeline_stage(pool, workspace_id, None).await?;
     }
-    IssueWorkspace::link(pool, id, workspace_id).await?;
 
     Ok(response)
+}
+
+async fn ensure_dispatch_workspace_is_linked(
+    pool: &sqlx::SqlitePool,
+    issue_id: Uuid,
+    workspace_id: Uuid,
+) -> Result<Option<(Uuid, Uuid)>, ApiError> {
+    let current_link =
+        IssueWorkspace::find_issue_and_project_by_workspace(pool, workspace_id).await?;
+    let is_linked = current_link
+        .as_ref()
+        .map(|(current_issue_id, _)| *current_issue_id == issue_id)
+        .unwrap_or(false);
+
+    if !is_linked {
+        return Err(ApiError::BadRequest(
+            "workspace is not linked to this issue; link it before dispatching".to_string(),
+        ));
+    }
+
+    Ok(current_link)
 }
 
 async fn create_issue(
@@ -978,6 +997,75 @@ mod tests {
             .unwrap();
         sqlx::migrate!("../db/migrations").run(&pool).await.unwrap();
         pool
+    }
+
+    #[tokio::test]
+    async fn dispatch_requires_an_existing_link_and_does_not_relink() {
+        let pool = pool().await;
+        let project_id = Uuid::new_v4();
+        let status_id = Uuid::new_v4();
+        let issue_id = Uuid::new_v4();
+        let other_issue_id = Uuid::new_v4();
+        let workspace_id = Uuid::new_v4();
+
+        DbProject::create(
+            &pool,
+            NewProject {
+                id: project_id,
+                name: "Project",
+                key: Some("PROJ"),
+                color: "#6366f1",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: None,
+            },
+        )
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO project_statuses (id, project_id, name, color) VALUES (?, ?, 'Todo', '#888888')")
+            .bind(status_id)
+            .bind(project_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        for (id, number) in [(issue_id, 1), (other_issue_id, 2)] {
+            sqlx::query("INSERT INTO issues (id, project_id, issue_number, simple_id, status_id, title) VALUES (?, ?, ?, ?, ?, 'Issue')")
+                .bind(id)
+                .bind(project_id)
+                .bind(number)
+                .bind(format!("PROJ-{number}"))
+                .bind(status_id)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        sqlx::query("INSERT INTO workspaces (id, branch, name) VALUES (?, 'main', 'Workspace')")
+            .bind(workspace_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        db::models::issue_workspace::IssueWorkspace::link(&pool, issue_id, workspace_id)
+            .await
+            .unwrap();
+
+        super::ensure_dispatch_workspace_is_linked(&pool, issue_id, workspace_id)
+            .await
+            .unwrap();
+
+        let error = super::ensure_dispatch_workspace_is_linked(&pool, other_issue_id, workspace_id)
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(error, crate::error::ApiError::BadRequest(message) if message
+                == "workspace is not linked to this issue; link it before dispatching")
+        );
+
+        let links = db::models::issue_workspace::IssueWorkspace::list_linked_all(&pool)
+            .await
+            .unwrap();
+        assert_eq!(links.len(), 1);
+        assert_eq!(links[0].issue_id, issue_id);
+        assert_eq!(links[0].workspace_id, workspace_id);
     }
 
     #[tokio::test]

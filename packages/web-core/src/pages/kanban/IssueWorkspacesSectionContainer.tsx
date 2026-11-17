@@ -186,10 +186,10 @@ export function IssueWorkspacesSectionContainer({
     await WorkspaceSelectionDialog.show({ projectId, issueId });
   }, [projectId, issueId]);
 
-  // The workspace↔issue relink only surfaces through the workspaces shape,
-  // which the local build polls on a slow interval. Force a refresh so the
-  // section (and the kanban card) picks up the link immediately instead of
-  // on the next poll.
+  // Workspace links only surface through the workspaces shape, which the
+  // local build polls on a slow interval. Force a refresh so the section (and
+  // the kanban card) picks up link changes immediately instead of on the next
+  // poll.
   const refreshWorkspaceLinks = useCallback(() => {
     if (projectId) {
       refreshShapeSource(PROJECT_WORKSPACES_SHAPE, { project_id: projectId });
@@ -202,11 +202,6 @@ export function IssueWorkspacesSectionContainer({
     async (localWorkspaceId: string) => {
       try {
         await workspacesApi.dispatchIssueToWorkspace(issueId, localWorkspaceId);
-        // The workspace↔issue relink only surfaces through the workspaces
-        // shape, which the local build polls on a slow interval. Force a
-        // refresh so the section (and the kanban card) picks up the link
-        // immediately instead of on the next poll.
-        refreshWorkspaceLinks();
         // Full invalidation: a dispatch fans out to many caches (issue's
         // workspaces, workspace session, execution processes, branch status),
         // each keyed differently; a partial scope would leave stale UI.

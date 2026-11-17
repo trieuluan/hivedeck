@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { PlayIcon } from '@phosphor-icons/react';
+import { LinkIcon, PlayIcon } from '@phosphor-icons/react';
 import {
   Select,
   SelectContent,
@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from './Select';
 import { cn } from '../lib/cn';
+import { ConfirmDialog } from './ConfirmDialog';
 
 export interface DispatchWorkspaceOption {
   id: string;
@@ -19,6 +20,7 @@ export interface KanbanWorkspaceDispatchProps {
   workspaces: DispatchWorkspaceOption[];
   disabled?: boolean;
   onDispatch: (workspaceId: string) => void;
+  onLink?: (workspaceId: string) => void;
   className?: string;
   /** Workspaces already linked to this card — shown with a "(running here)" hint. */
   currentWorkspaceIds?: ReadonlySet<string>;
@@ -34,6 +36,7 @@ export function KanbanWorkspaceDispatch({
   workspaces,
   disabled,
   onDispatch,
+  onLink,
   className,
   currentWorkspaceIds,
 }: KanbanWorkspaceDispatchProps) {
@@ -42,6 +45,21 @@ export function KanbanWorkspaceDispatch({
 
   const value = selectedId ?? workspaces[0]?.id;
   const empty = workspaces.length === 0;
+  const isLinked = !!value && !!currentWorkspaceIds?.has(value);
+
+  const handleLink = async () => {
+    if (!value || !onLink) return;
+
+    const result = await ConfirmDialog.show({
+      title: t('kanban.linkWorkspaceConfirmTitle'),
+      message: t('kanban.linkWorkspaceConfirmMessage'),
+      confirmText: t('kanban.linkWorkspaceConfirm'),
+      cancelText: t('confirm.defaultCancel'),
+    });
+    if (result === 'confirmed') {
+      onLink(value);
+    }
+  };
 
   return (
     <div
@@ -72,13 +90,22 @@ export function KanbanWorkspaceDispatch({
       </Select>
       <button
         type="button"
-        disabled={disabled || empty || !value}
-        onClick={() => value && onDispatch(value)}
+        disabled={disabled || empty || !value || (!isLinked && !onLink)}
+        onClick={() => value && (isLinked ? onDispatch(value) : handleLink())}
         className="rounded p-half -m-half shrink-0 text-low transition-colors hover:bg-secondary hover:text-normal disabled:cursor-not-allowed disabled:opacity-40"
-        aria-label={t('kanban.dispatchIssue')}
-        title={t('kanban.dispatchIssue')}
+        aria-label={t(
+          isLinked ? 'kanban.dispatchIssue' : 'kanban.linkThisWorkspace'
+        )}
+        title={t(
+          isLinked ? 'kanban.dispatchIssue' : 'kanban.linkThisWorkspace'
+        )}
       >
-        <PlayIcon className="size-icon-xs" weight="fill" />
+        {isLinked ? (
+          <PlayIcon className="size-icon-xs" weight="fill" />
+        ) : (
+          <LinkIcon className="size-icon-xs" />
+        )}
+        <span className="sr-only">{t('kanban.linkThisWorkspace')}</span>
       </button>
     </div>
   );

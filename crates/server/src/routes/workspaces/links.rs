@@ -24,16 +24,16 @@ pub async fn link_workspace(
     State(deployment): State<DeploymentImpl>,
     Json(payload): Json<LinkWorkspaceRequest>,
 ) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
+    let issue = Issue::find_by_id(&deployment.db().pool, payload.issue_id).await?;
+    if issue.map(|i| i.project_id) != Some(payload.project_id) {
+        return Err(ApiError::BadRequest(
+            "issue does not belong to the claimed project".to_string(),
+        ));
+    }
+
     // Persist the link locally. This is what makes the kanban board show the
     // workspace under its card in local-only mode.
     IssueWorkspace::link(&deployment.db().pool, payload.issue_id, workspace.id).await?;
-
-    // Guard against linking against an issue that does not belong to the
-    // claimed project — the local link is already recorded regardless.
-    let issue = Issue::find_by_id(&deployment.db().pool, payload.issue_id).await?;
-    if issue.map(|i| i.project_id) != Some(payload.project_id) {
-        return Ok(ResponseJson(ApiResponse::success(())));
-    }
 
     Ok(ResponseJson(ApiResponse::success(())))
 }
