@@ -43,9 +43,9 @@ impl RoleCombos {
     }
 }
 
-/// What the host should do for one Claude Code run.
+/// What the host should do for one routed agent run.
 #[derive(Clone, Debug, PartialEq)]
-pub struct ClaudeRoute {
+pub struct AgentRoute {
     pub role: ComboRole,
     /// Model to run on (the role's combo), when the user did not pick one.
     pub model: Option<String>,
@@ -60,7 +60,7 @@ pub fn claude_route(
     settings: &NineRouterSettings,
     role: ComboRole,
     explicit_model: bool,
-) -> Option<ClaudeRoute> {
+) -> Option<AgentRoute> {
     if !settings.route_agents {
         return None;
     }
@@ -85,12 +85,36 @@ pub fn claude_route(
             env.push((var.to_string(), combo.to_string()));
         }
     }
-    Some(ClaudeRoute {
+    Some(AgentRoute {
         role,
         model: (!explicit_model)
             .then(|| roles.get(role).map(str::to_string))
             .flatten(),
         env,
+    })
+}
+
+/// Routing decision for a Codex run, or `None` when routing is off. Codex is
+/// pointed at 9router through a custom provider (root `-c` overrides added
+/// by the executor), so no API key or ChatGPT login is involved; the role's
+/// combo becomes the model unless the user chose one.
+pub fn codex_route(
+    settings: &NineRouterSettings,
+    role: ComboRole,
+    explicit_model: bool,
+) -> Option<AgentRoute> {
+    if !settings.route_agents {
+        return None;
+    }
+    Some(AgentRoute {
+        role,
+        model: (!explicit_model)
+            .then(|| settings.roles.get(role).map(str::to_string))
+            .flatten(),
+        env: vec![(
+            executors::executors::codex::ROUTER_BASE_URL_ENV.to_string(),
+            base_url(settings.port),
+        )],
     })
 }
 
@@ -128,6 +152,26 @@ mod tests {
 
         let kept = claude_route(&settings(true), ComboRole::Coder, true).unwrap();
         assert_eq!(kept.model, None);
+    }
+
+    #[test]
+    fn codex_route_points_at_router_and_uses_role_combo() {
+        let r = codex_route(&settings(true), ComboRole::Coder, false).unwrap();
+        assert_eq!(r.model.as_deref(), Some("coder"));
+        assert_eq!(
+            r.env,
+            vec![(
+                executors::executors::codex::ROUTER_BASE_URL_ENV.to_string(),
+                "http://127.0.0.1:20128/v1".to_string()
+            )]
+        );
+        assert!(codex_route(&settings(false), ComboRole::Coder, false).is_none());
+        assert_eq!(
+            codex_route(&settings(true), ComboRole::Coder, true)
+                .unwrap()
+                .model,
+            None
+        );
     }
 
     #[test]

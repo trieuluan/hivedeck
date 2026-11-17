@@ -442,6 +442,44 @@ impl StandardCodingAgentExecutor for Codex {
     }
 }
 
+/// Env var through which the host routes a Codex run through a local
+/// OpenAI-compatible router (the embedded 9router, ADR-028). Its value is the
+/// router's `/v1` base URL. Turned into root-level `-c` config overrides that
+/// declare a custom provider and make it the default, so the app server (and
+/// its account check) talks to the router. Not forwarded to the process.
+pub const ROUTER_BASE_URL_ENV: &str = "HIVEDECK_CODEX_ROUTER_BASE_URL";
+/// Provider id HiveDeck declares for the router.
+pub const ROUTER_PROVIDER_ID: &str = "hivedeck_9router";
+
+/// `-c` overrides that point Codex at the router at `base_url`.
+pub fn router_config_args(base_url: &str) -> Vec<String> {
+    let url = base_url.replace(['"', '\\'], "");
+    vec![
+        "-c".to_string(),
+        format!("model_provider=\"{ROUTER_PROVIDER_ID}\""),
+        "-c".to_string(),
+        format!(
+            "model_providers.{ROUTER_PROVIDER_ID}={{name=\"9router\",base_url=\"{url}\",wire_api=\"responses\"}}"
+        ),
+    ]
+}
+
+/// Whether a Codex run already has a model chosen: a per-run override or
+/// the profile's own `model`.
+pub fn has_explicit_model(config: &ExecutorConfig) -> bool {
+    if config
+        .model_id
+        .as_deref()
+        .is_some_and(|m| !m.trim().is_empty())
+    {
+        return true;
+    }
+    matches!(
+        crate::profile::ExecutorConfigs::get_cached().get_coding_agent(&config.profile_id()),
+        Some(crate::executors::CodingAgent::Codex(c)) if c.model.as_deref().is_some_and(|m| !m.trim().is_empty())
+    )
+}
+
 impl Codex {
     pub fn base_command() -> &'static str {
         "npx -y @openai/codex@0.152.1"
@@ -648,7 +686,15 @@ impl Codex {
         F: FnOnce(Arc<AppServerClient>, ExitSignalSender) -> Fut + Send + 'static,
         Fut: std::future::Future<Output = Result<(), ExecutorError>> + Send + 'static,
     {
-        let (program_path, args) = command_parts.into_resolved().await?;
+        let (program_path, mut args) = command_parts.into_resolved().await?;
+        if let Some(base_url) = env.vars.get(ROUTER_BASE_URL_ENV) {
+            // Root-level overrides go before the subcommand.
+            let at = args
+                .iter()
+                .position(|a| a == "app-server")
+                .unwrap_or(args.len());
+            args.splice(at..at, router_config_args(base_url));
+        }
 
         let mut process = Command::new(program_path);
         process
@@ -666,6 +712,7 @@ impl Codex {
         env.clone()
             .with_profile(&self.cmd)
             .apply_to_command(&mut process);
+        process.env_remove(ROUTER_BASE_URL_ENV);
 
         let mut child = process.group_spawn_no_window()?;
 
@@ -763,6 +810,16 @@ impl Codex {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn router_args_declare_and_select_provider() {
+        let args = super::router_config_args("http://127.0.0.1:20128/v1");
+        assert_eq!(args[0], "-c");
+        assert_eq!(args[1], "model_provider=\"hivedeck_9router\"");
+        assert!(args[3].starts_with("model_providers.hivedeck_9router={"));
+        assert!(args[3].contains("base_url=\"http://127.0.0.1:20128/v1\""));
+        assert!(args[3].contains("wire_api=\"responses\""));
+    }
+
     use super::resolve_model;
 
     #[test]

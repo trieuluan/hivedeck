@@ -805,7 +805,7 @@
         "agentDefault": "Agent default",
         "missingCombo": "Combo \"{{name}}\" no longer exists in 9router; this role falls back to the agent default.",
         "noCombos": "No combos in 9router yet. Create them on the Combos tab.",
-        "scope": "Applies to Claude Code (headless and headed) and Codex. Other agents run as before.",
+        "scope": "Applies to Claude Code (headless and headed) and Codex. Other agents run as before. Codex requests through a combo are not prompt-cached the way a direct ChatGPT login is, so they can use many more input tokens.",
         "precedence": "A model you pick in the model selector or set on a profile always wins over the role's combo.",
         "usedFor": {
           "planner": "Orchestrator sessions. Also Claude's \"opus\" and \"fable\" aliases.",
