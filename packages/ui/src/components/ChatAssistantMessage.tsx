@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { LighthouseIcon } from '@phosphor-icons/react';
 import { ChatMessageBody } from './ChatMessageBody';
 
 export interface ChatAssistantMessageRenderProps {
@@ -14,6 +13,7 @@ interface ChatAssistantMessageProps {
   renderMarkdown: (props: ChatAssistantMessageRenderProps) => ReactNode;
 }
 
+/** The agent's answer: plain text in the reading column, no bubble. */
 export function ChatAssistantMessage({
   content,
   workspaceId,
@@ -21,16 +21,10 @@ export function ChatAssistantMessage({
   renderMarkdown,
 }: ChatAssistantMessageProps) {
   return (
-    <article className="ship-message ship-message--assistant flex w-fit min-w-0 max-w-[min(92%,44rem)] items-start gap-2 font-ibm-plex-sans">
-      <LighthouseIcon
-        aria-hidden="true"
-        className="mt-2 size-5 shrink-0 text-[#8fccc3]"
-      />
-      <div className="ship-message-ai min-w-0 flex-1 rounded-lg rounded-tl-sm border px-4 py-3">
-        <ChatMessageBody timestamp={timestamp}>
-          {renderMarkdown({ content, workspaceId })}
-        </ChatMessageBody>
-      </div>
+    <article className="ship-message ship-message--assistant group/msg min-w-0 max-w-full text-high">
+      <ChatMessageBody timestamp={timestamp} timestampAlign="start">
+        {renderMarkdown({ content, workspaceId })}
+      </ChatMessageBody>
     </article>
   );
 }

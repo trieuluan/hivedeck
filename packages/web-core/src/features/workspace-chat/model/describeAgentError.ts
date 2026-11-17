@@ -90,3 +90,8 @@ export function describeAgentError(content: string): AgentErrorDescription {
 
   return { kind: 'generic', message };
 }
+
+/** An answer that is really a provider error ("API Error: 503 …"). */
+export function isAgentErrorText(content: string): boolean {
+  return /^\s*API Error:/.test(content);
+}

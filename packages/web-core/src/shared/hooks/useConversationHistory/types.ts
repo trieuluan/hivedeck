@@ -65,11 +65,33 @@ export type AggregatedThinkingGroup = {
   executionProcessId: string;
 };
 
+/**
+ * The work an agent did inside a finished turn (tool calls, thinking,
+ * in-between notes), collapsed into one row above the turn's final answer.
+ */
+export type AggregatedWorkGroup = {
+  type: 'AGGREGATED_WORK_GROUP';
+  /** The collapsed rows, already aggregated by the other groupings. */
+  entries: Array<
+    | PatchTypeWithKey
+    | AggregatedPatchGroup
+    | AggregatedDiffGroup
+    | AggregatedThinkingGroup
+  >;
+  /** Number of tool calls in the group. */
+  toolCount: number;
+  /** Distinct files edited in the group. */
+  editedFiles: number;
+  patchKey: string;
+  executionProcessId: string;
+};
+
 export type DisplayEntry =
   | PatchTypeWithKey
   | AggregatedPatchGroup
   | AggregatedDiffGroup
-  | AggregatedThinkingGroup;
+  | AggregatedThinkingGroup
+  | AggregatedWorkGroup;
 
 export function isAggregatedGroup(
   entry: DisplayEntry
@@ -87,6 +109,12 @@ export function isAggregatedThinkingGroup(
   entry: DisplayEntry
 ): entry is AggregatedThinkingGroup {
   return entry.type === 'AGGREGATED_THINKING_GROUP';
+}
+
+export function isAggregatedWorkGroup(
+  entry: DisplayEntry
+): entry is AggregatedWorkGroup {
+  return entry.type === 'AGGREGATED_WORK_GROUP';
 }
 
 export type AddEntryType = 'initial' | 'running' | 'historic' | 'plan';

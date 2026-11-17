@@ -200,7 +200,14 @@
     },
     "updatedTodos": "Updated Todos",
     "viewInChangesPanel": "View in changes panel",
-    "unableToRenderDiff": "Unable to render diff."
+    "unableToRenderDiff": "Unable to render diff.",
+    "work": {
+      "worked": "Worked",
+      "steps_one": "{{count}} step",
+      "steps_other": "{{count}} steps",
+      "files_one": "{{count}} file edited",
+      "files_other": "{{count}} files edited"
+    }
   },
   "attempt": {
     "actions": {

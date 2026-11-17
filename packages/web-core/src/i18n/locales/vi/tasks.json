@@ -200,7 +200,14 @@
     },
     "updatedTodos": "Đã cập nhật todo",
     "viewInChangesPanel": "Xem trong bảng Thay đổi",
-    "unableToRenderDiff": "Không hiển thị được diff."
+    "unableToRenderDiff": "Không hiển thị được diff.",
+    "work": {
+      "worked": "Đã làm việc",
+      "steps_one": "{{count}} bước",
+      "steps_other": "{{count}} bước",
+      "files_one": "sửa {{count}} file",
+      "files_other": "sửa {{count}} file"
+    }
   },
   "attempt": {
     "actions": {

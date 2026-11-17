@@ -36,7 +36,14 @@ import {
   isAggregatedGroup,
   isAggregatedDiffGroup,
   isAggregatedThinkingGroup,
+  isAggregatedWorkGroup,
+  type AggregatedWorkGroup,
 } from '@/shared/hooks/useConversationHistory/types';
+import { ChatWorkGroup } from '@vibe/ui/components/ChatWorkGroup';
+import {
+  usePersistedExpanded,
+  type PersistKey,
+} from '@/shared/stores/useUiPreferencesStore';
 import { useConversationHistory } from '../model/hooks/useConversationHistory';
 import { useSetTokenUsageInfo } from '../model/contexts/EntriesContext';
 import type { WorkspaceWithSession } from '@/shared/types/attempt';
@@ -64,12 +71,62 @@ export interface ConversationListHandle {
 const ALWAYS_UNVIRTUALIZED_TAIL_ROWS = 8;
 const STREAMING_UNVIRTUALIZED_BUFFER_ROWS = 24;
 
+/** A finished turn's steps, collapsed to one line above its answer. */
+function WorkGroupRow({
+  group,
+  attempt,
+  resetAction,
+  repos,
+}: {
+  group: AggregatedWorkGroup;
+  attempt: WorkspaceWithSession;
+  resetAction: UseResetProcessResult;
+  repos: RepoWithTargetBranch[];
+}) {
+  const { t } = useTranslation('tasks');
+  const [expanded, toggle] = usePersistedExpanded(
+    `work:${group.patchKey}` as PersistKey,
+    false
+  );
+  const parts = [t('conversation.work.worked')];
+  if (group.toolCount > 0) {
+    parts.push(t('conversation.work.steps', { count: group.toolCount }));
+  }
+  if (group.editedFiles > 0) {
+    parts.push(t('conversation.work.files', { count: group.editedFiles }));
+  }
+  return (
+    <ChatWorkGroup
+      label={parts.join(' · ')}
+      expanded={expanded}
+      onToggle={() => toggle()}
+    >
+      {group.entries.map((inner) => (
+        <div key={inner.patchKey}>
+          {renderRowContent(inner, attempt, resetAction, repos)}
+        </div>
+      ))}
+    </ChatWorkGroup>
+  );
+}
+
 function renderRowContent(
   entry: DisplayEntry,
   attempt: WorkspaceWithSession,
   resetAction: UseResetProcessResult,
   repos: RepoWithTargetBranch[]
 ): React.ReactNode {
+  if (isAggregatedWorkGroup(entry)) {
+    return (
+      <WorkGroupRow
+        group={entry}
+        attempt={attempt}
+        resetAction={resetAction}
+        repos={repos}
+      />
+    );
+  }
+
   if (isAggregatedGroup(entry)) {
     return (
       <DisplayConversationEntry
@@ -355,7 +412,8 @@ export const ConversationList = forwardRef<
     const derivedTimeline = deriveConversationTimeline(
       derivedEntries.entries,
       prevEntriesRef.current,
-      prevRowsRef.current
+      prevRowsRef.current,
+      { collapseLastTurn: !derivedEntries.hasRunningProcess }
     );
 
     // History prepends and streaming patches are not new messages.

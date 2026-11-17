@@ -5,18 +5,15 @@ import { cn } from '../lib/cn';
 
 const MAX_COLLAPSED_HEIGHT = 600;
 
-export function ChatMessageBody({
-  children,
+/** Relative send time ("2 min ago"); the full date is in the tooltip. */
+export function ChatTimestamp({
   timestamp,
+  className,
 }: {
-  children: ReactNode;
   timestamp?: string | null;
+  className?: string;
 }) {
-  const { t, i18n } = useTranslation('tasks');
-  const bodyId = useId();
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [expanded, setExpanded] = useState(false);
-  const [overflows, setOverflows] = useState(false);
+  const { i18n } = useTranslation('tasks');
   const date = timestamp ? new Date(timestamp) : null;
   const locale = i18n.resolvedLanguage ?? i18n.language;
   const seconds = date ? (date.getTime() - Date.now()) / 1000 : NaN;
@@ -29,6 +26,39 @@ export function ChatMessageBody({
           ? 'hour'
           : 'day';
   const divisor = { second: 1, minute: 60, hour: 3600, day: 86400 }[unit];
+  if (!date || !Number.isFinite(seconds)) return null;
+  return (
+    <time
+      dateTime={date.toISOString()}
+      title={new Intl.DateTimeFormat(locale, {
+        dateStyle: 'full',
+        timeStyle: 'long',
+      }).format(date)}
+      className={cn('px-1 text-[11px] text-low', className)}
+    >
+      {new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(
+        Math.round(seconds / divisor),
+        unit
+      )}
+    </time>
+  );
+}
+
+export function ChatMessageBody({
+  children,
+  timestamp,
+  timestampAlign = 'end',
+}: {
+  children: ReactNode;
+  /** Shown under the body on hover (inside a `group/msg`). */
+  timestamp?: string | null;
+  timestampAlign?: 'start' | 'end';
+}) {
+  const { t } = useTranslation('tasks');
+  const bodyId = useId();
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
 
   useEffect(() => {
     const element = contentRef.current;
@@ -78,20 +108,15 @@ export function ChatMessageBody({
           />
         </button>
       )}
-      {date && Number.isFinite(seconds) && (
-        <time
-          dateTime={date.toISOString()}
-          title={new Intl.DateTimeFormat(locale, {
-            dateStyle: 'full',
-            timeStyle: 'long',
-          }).format(date)}
-          className="mt-2 block text-right text-[11px] opacity-80"
-        >
-          {new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(
-            Math.round(seconds / divisor),
-            unit
+      {timestamp && (
+        <div
+          className={cn(
+            'mt-1 flex opacity-0 transition-opacity group-hover/msg:opacity-100 motion-reduce:transition-none',
+            timestampAlign === 'end' ? 'justify-end' : 'justify-start'
           )}
-        </time>
+        >
+          <ChatTimestamp timestamp={timestamp} className="px-0" />
+        </div>
       )}
     </div>
   );

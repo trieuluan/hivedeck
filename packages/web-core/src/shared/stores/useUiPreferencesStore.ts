@@ -316,6 +316,7 @@ export type PersistKey =
   | `todo:${string}`
   | `subagent:${string}`
   | `tick:${string}`
+  | `work:${string}`
   | `user:${string}`
   | `system:${string}`
   | `error:${string}`

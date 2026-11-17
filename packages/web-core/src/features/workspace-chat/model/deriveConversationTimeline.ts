@@ -1,4 +1,5 @@
 import { aggregateConsecutiveEntries } from '@/shared/lib/aggregateEntries';
+import { collapseTurnWork } from './collapseTurnWork';
 import type {
   DisplayEntry,
   PatchTypeWithKey,
@@ -21,6 +22,9 @@ function isRenderableConversationEntry(entry: DisplayEntry): boolean {
     'entry_type' in entry.content
   ) {
     const entryType = entry.content.entry_type.type;
+    if (entryType === 'system_message' && isNoiseSystemMessage(entry.content.content)) {
+      return false;
+    }
     return entryType !== 'next_action' && entryType !== 'token_usage_info';
   }
 
@@ -30,8 +34,14 @@ function isRenderableConversationEntry(entry: DisplayEntry): boolean {
     entry.type === 'STDERR' ||
     entry.type === 'AGGREGATED_GROUP' ||
     entry.type === 'AGGREGATED_DIFF_GROUP' ||
-    entry.type === 'AGGREGATED_THINKING_GROUP'
+    entry.type === 'AGGREGATED_THINKING_GROUP' ||
+    entry.type === 'AGGREGATED_WORK_GROUP'
   );
+}
+
+/** Session bookkeeping some agents print as system messages. */
+export function isNoiseSystemMessage(content: string): boolean {
+  return /^system initialized with model\b/i.test(content.trim());
 }
 
 // Final UI-facing timeline step: aggregate display entries and build stable rows
@@ -40,10 +50,12 @@ function isRenderableConversationEntry(entry: DisplayEntry): boolean {
 export function deriveConversationTimeline(
   entries: PatchTypeWithKey[],
   previousDisplayEntries: DisplayEntry[],
-  previousRows: ConversationRow[]
+  previousRows: ConversationRow[],
+  options: { collapseLastTurn: boolean } = { collapseLastTurn: false }
 ): DerivedConversationTimeline {
-  const displayEntries = aggregateConsecutiveEntries(entries).filter(
-    isRenderableConversationEntry
+  const displayEntries = collapseTurnWork(
+    aggregateConsecutiveEntries(entries).filter(isRenderableConversationEntry),
+    { collapseLastTurn: options.collapseLastTurn, previous: previousDisplayEntries }
   );
 
   const rows = buildConversationRowsIncremental(

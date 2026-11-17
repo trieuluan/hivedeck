@@ -14,7 +14,6 @@ import {
   ArrowsOutIcon,
   GithubLogoIcon,
   PencilSimpleIcon,
-  PaperPlaneTiltIcon,
   SquareIcon,
 } from "@phosphor-icons/react";
 import { useTranslation } from "react-i18next";
@@ -290,6 +289,12 @@ export function SessionChatBox<TExecutor extends string = string>({
   const sendIconLabel = t("conversation.actions.send");
   const sendKeys =
     sendShortcut === "Enter" ? "Enter" : `${getModifierKey()}+Enter`;
+  const sendTitle = `${sendIconLabel} · ${t("conversation.composer.sendHint", {
+    shortcut: sendKeys,
+    defaultValue: isVietnamese
+      ? "{{shortcut}} để gửi · Shift+Enter xuống dòng"
+      : "{{shortcut}} to send · Shift+Enter for a new line",
+  })}`;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const askQuestionBannerRef = useRef<AskUserQuestionBannerHandle>(null);
 
@@ -447,9 +452,9 @@ export function SessionChatBox<TExecutor extends string = string>({
       disabled={status === "stopping"}
       aria-label={t("conversation.actions.stop")}
       title={t("conversation.actions.stop")}
-      className="ship-stop flex h-10 w-10 items-center justify-center rounded-md border border-brand text-brand hover:border-error hover:bg-error/10 hover:text-error focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-50 disabled:cursor-not-allowed"
+      className="ship-stop flex size-8 items-center justify-center rounded-full border border-border bg-primary text-high hover:border-error hover:text-error focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-50 disabled:cursor-not-allowed"
     >
-      <SquareIcon aria-hidden="true" className="h-4 w-4" weight="fill" />
+      <SquareIcon aria-hidden="true" className="size-3" weight="fill" />
     </button>
   );
   const sendButton = (disabled: boolean) => (
@@ -458,14 +463,10 @@ export function SessionChatBox<TExecutor extends string = string>({
       onClick={actions.onSend}
       disabled={disabled}
       aria-label={sendIconLabel}
-      title={sendIconLabel}
-      className="ship-send flex h-10 w-10 items-center justify-center rounded-md bg-brand text-on-brand hover:bg-brand-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50"
+      title={sendTitle}
+      className="ship-send flex size-8 items-center justify-center rounded-full bg-brand text-on-brand hover:bg-brand-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40"
     >
-      <PaperPlaneTiltIcon
-        aria-hidden="true"
-        className="h-4 w-4"
-        weight="fill"
-      />
+      <ArrowUpIcon aria-hidden="true" className="size-4" weight="bold" />
     </button>
   );
 
@@ -781,13 +782,16 @@ export function SessionChatBox<TExecutor extends string = string>({
                     </button>
                   )}
                   {onOpenWorkspace ? (
-                    <PrimaryButton
-                      variant="secondary"
+                    <button
+                      type="button"
                       onClick={onOpenWorkspace}
-                      value="Open Workspace"
-                      actionIcon={ArrowsOutIcon}
-                      className="min-w-0"
-                    />
+                      className="flex min-w-0 items-center gap-1 rounded-sm text-xs text-low hover:text-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                    >
+                      <ArrowsOutIcon className="size-icon-xs shrink-0" />
+                      <span className="truncate">
+                        {t("common:ui.openWorkspace")}
+                      </span>
+                    </button>
                   ) : onViewCode ? (
                     <PrimaryButton
                       variant="tertiary"
@@ -977,19 +981,7 @@ export function SessionChatBox<TExecutor extends string = string>({
         </>
       }
       footerRight={renderActionButtons()}
-      className="ship-composer rounded-xl focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/30"
-      keyboardHint={
-        !isComposerDisabled && status === "idle" && focusKey === "normal" ? (
-          <p className="ship-composer-hint text-xs text-low text-right">
-            {t("conversation.composer.sendHint", {
-              shortcut: sendKeys,
-              defaultValue: isVietnamese
-                ? "{{shortcut}} để gửi · Shift+Enter xuống dòng"
-                : "{{shortcut}} to send · Shift+Enter for a new line",
-            })}
-          </p>
-        ) : undefined
-      }
+      className="ship-composer focus-within:border-low"
     />
   );
 }

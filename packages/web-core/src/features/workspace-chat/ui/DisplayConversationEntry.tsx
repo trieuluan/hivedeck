@@ -42,7 +42,10 @@ import { ChatAssistantMessage } from '@vibe/ui/components/ChatAssistantMessage';
 import { ChatSystemMessage } from '@vibe/ui/components/ChatSystemMessage';
 import { ChatThinkingMessage } from '@vibe/ui/components/ChatThinkingMessage';
 import { ChatErrorMessage } from '@vibe/ui/components/ChatErrorMessage';
-import { describeAgentError } from '../model/describeAgentError';
+import {
+  describeAgentError,
+  isAgentErrorText,
+} from '../model/describeAgentError';
 import { autoTickBody, isAutoTickMessage } from '../model/autoTick';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { ChatScriptEntry } from '@vibe/ui/components/ChatScriptEntry';
@@ -375,6 +378,15 @@ function DisplayConversationEntry(props: Props) {
       );
 
     case 'assistant_message':
+      // Claude Code reports provider failures as plain answer text.
+      if (isAgentErrorText(entry.content)) {
+        return (
+          <ErrorMessageEntry
+            content={entry.content}
+            expansionKey={expansionKey}
+          />
+        );
+      }
       return (
         <AssistantMessageEntry
           content={entry.content}
