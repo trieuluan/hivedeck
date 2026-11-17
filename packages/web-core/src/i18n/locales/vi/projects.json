@@ -1,0 +1,28 @@
+{
+  "createProjectDialog": {
+    "title": "Tạo project",
+    "titleChildBoard": "Tạo board con",
+    "description": "Tạo một project mới.",
+    "descriptionChildBoard": "Tạo một board con trong project này.",
+    "nameLabel": "Tên project",
+    "namePlaceholder": "Nhập tên project",
+    "selectColor": "Chọn màu project",
+    "creating": "Đang tạo...",
+    "createButton": "Tạo project"
+  },
+  "deleteProjectDialog": {
+    "title": "Xoá project?",
+    "description": "Thao tác này xoá vĩnh viễn \"{{name}}\" cùng toàn bộ card, trạng thái và liên kết repo. Repo trên đĩa và các workspace hiện có vẫn được giữ. Không thể hoàn tác.",
+    "error": "Không xoá được project. Vui lòng thử lại.",
+    "hasChildren": "Project này có {{count}} board con. Hãy xoá chúng trước."
+  },
+  "projectRepos": {
+    "title": "Repo của {{name}}",
+    "description": "Thuyền trưởng và các workspace khởi chạy từ card sẽ làm việc trong repo đầu tiên được liên kết với project.",
+    "loading": "Đang tải…",
+    "none": "Chưa có repo nào được đăng ký.",
+    "openSettings": "Thêm repo trong Settings",
+    "primary": "chính",
+    "done": "Xong"
+  }
+}

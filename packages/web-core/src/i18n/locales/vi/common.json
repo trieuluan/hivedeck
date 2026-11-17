@@ -1,0 +1,562 @@
+{
+  "editorNames": {
+    "custom": "Tuỳ chỉnh"
+  },
+  "buttons": {
+    "save": "Lưu",
+    "cancel": "Huỷ",
+    "send": "Gửi",
+    "delete": "Xoá",
+    "edit": "Sửa",
+    "create": "Tạo",
+    "continue": "Tiếp tục",
+    "reset": "Đặt lại",
+    "manage": "Quản lý",
+    "connect": "Kết nối",
+    "disconnect": "Ngắt kết nối",
+    "close": "Đóng",
+    "replay": "Chạy lại",
+    "discard": "Bỏ",
+    "addItem": "Thêm mục",
+    "reply": "Trả lời",
+    "retry": "Thử lại",
+    "add": "Thêm"
+  },
+  "form": {
+    "notSpecified": "Chưa chỉ định",
+    "selectOption": "Chọn một mục..."
+  },
+  "states": {
+    "loading": "Đang tải..."
+  },
+  "ok": "OK",
+  "error": "Lỗi",
+  "errors": {
+    "generic": "Đã xảy ra lỗi không mong muốn"
+  },
+  "language": {
+    "browserDefault": "Theo trình duyệt"
+  },
+  "conversation": {
+    "plan": "Kế hoạch",
+    "output": "Kết quả",
+    "deniedByUser": "Người dùng đã từ chối {{toolName}}",
+    "tool": "Tool",
+    "thinking": "Đang suy nghĩ",
+    "toolSummary": {
+      "read": "Đọc {{path}}",
+      "searched": "Tìm \"{{query}}\"",
+      "fetched": "Tải {{url}}",
+      "ranCommand": "Chạy lệnh",
+      "createdTask": "Tạo task: {{description}}",
+      "todoOperation": "{{operation}} todo"
+    },
+    "subagent": {
+      "defaultType": "Subagent"
+    },
+    "loadingEarlierMessages": "Đang tải tin nhắn cũ hơn"
+  },
+  "folderPicker": {
+    "legend": "Bấm tên thư mục để di chuyển • Dùng các nút để chọn",
+    "manualPathLabel": "Nhập đường dẫn:",
+    "go": "Đi",
+    "searchLabel": "Tìm trong thư mục hiện tại:",
+    "selectCurrent": "Chọn thư mục này",
+    "gitRepo": "git repo",
+    "selectPath": "Chọn đường dẫn"
+  },
+  "branchSelector": {
+    "placeholder": "Chọn branch",
+    "searchPlaceholder": "Tìm branch...",
+    "empty": "Không tìm thấy branch",
+    "badges": {
+      "current": "hiện tại",
+      "remote": "remote"
+    },
+    "currentDisabled": "Không thể chọn branch hiện tại"
+  },
+  "personal": "Cá nhân",
+  "signOut": "Đăng xuất",
+  "oauth": {},
+  "toolbar": {
+    "sortBy": "Sắp xếp theo",
+    "groupBy": "Nhóm theo"
+  },
+  "sorting": {
+    "ascending": "Tăng dần",
+    "descending": "Giảm dần"
+  },
+  "grouping": {
+    "date": "Ngày",
+    "label": "Nhãn"
+  },
+  "workspaces": {
+    "title": "Workspace",
+    "searchPlaceholder": "Tìm kiếm...",
+    "active": "Đang hoạt động",
+    "archived": "Đã lưu trữ",
+    "loading": "Đang tải...",
+    "notFound": "Không tìm thấy workspace",
+    "selectToStart": "Chọn một workspace để bắt đầu",
+    "draft": "Nháp",
+    "viewArchive": "Xem lưu trữ",
+    "backToActive": "Quay lại đang hoạt động",
+    "noArchived": "Không có workspace lưu trữ",
+    "noWorkspaces": "Chưa có workspace",
+    "newWorkspace": "Workspace mới",
+    "needsAttention": "Cần chú ý",
+    "idle": "Rảnh",
+    "running": "Đang chạy",
+    "pin": "Ghim",
+    "unpin": "Bỏ ghim",
+    "archive": "Lưu trữ",
+    "more": "Thêm thao tác",
+    "rename": {
+      "title": "Đổi tên workspace",
+      "description": "Nhập tên mới cho workspace này.",
+      "nameLabel": "Tên",
+      "placeholder": "Nhập tên workspace",
+      "action": "Đổi tên",
+      "renaming": "Đang đổi tên..."
+    },
+    "unlinkFromIssue": "Bỏ liên kết với issue",
+    "deleteWorkspace": "Xoá workspace",
+    "sendIssueHere": "Gửi issue vào đây",
+    "dispatchError": "Không chạy được issue trong workspace",
+    "unlink": "Bỏ liên kết",
+    "delete": "Xoá",
+    "unlinkConfirmMessage": "Bạn có chắc muốn bỏ liên kết workspace này với issue? Workspace vẫn còn nhưng không gắn với issue này nữa.",
+    "deleteConfirmMessage": "Bạn có chắc muốn xoá workspace này? Workspace sẽ bị bỏ liên kết khỏi issue và bị xoá trên máy. Không thể hoàn tác.",
+    "unlinkError": "Không bỏ liên kết được workspace",
+    "deleteError": "Không xoá được workspace",
+    "linkError": "Không liên kết được workspace",
+    "filesChanged": "{{count}} file",
+    "deleteDialog": {
+      "title": "Xoá workspace",
+      "description": "Bạn có chắc muốn xoá workspace này? Không thể hoàn tác.",
+      "deleteBranchLabel": "Xoá branch",
+      "cannotDeleteOpenPr": "Không thể xoá branch khi PR đang mở",
+      "unlinkFromIssueLabel": "Đồng thời bỏ liên kết với issue"
+    },
+    "dashboard": {
+      "title": "Workspace",
+      "sectionNeedsAttention": "Cần chú ý",
+      "sectionRunning": "Đang chạy",
+      "sectionRecentlyActive": "Hoạt động gần đây",
+      "sectionArchived": "Đã lưu trữ",
+      "emptyNeedsAttention": "Không có gì cần bạn chú ý.",
+      "emptyRunning": "Không có workspace nào đang chạy.",
+      "emptyRecentlyActive": "Chưa có hoạt động gần đây.",
+      "emptyArchived": "Không có workspace lưu trữ.",
+      "summary": "{{active}} đang hoạt động · {{archived}} lưu trữ · {{running}} đang chạy · {{attention}} cần chú ý",
+      "filterAll": "Tất cả",
+      "filterProject": "Project: {{name}}",
+      "filterProjectNone": "Project"
+    },
+    "outliner": {
+      "attention": "Cần chú ý"
+    },
+    "bucketEmpty": "Chưa có workspace",
+    "bucketBarLabel": "Nhóm workspace",
+    "createDraftError": "Không chuẩn bị được bản nháp workspace. Vui lòng thử lại."
+  },
+  "fileTree": {
+    "searchPlaceholder": "Tìm file...",
+    "noResults": "Không có file phù hợp",
+    "title": "File",
+    "showGitHubComments": "Hiện bình luận GitHub",
+    "hideGitHubComments": "Ẩn bình luận GitHub",
+    "prevGitHubComment": "File có bình luận trước",
+    "nextGitHubComment": "File có bình luận tiếp theo"
+  },
+  "sections": {
+    "changes": "Thay đổi",
+    "repositories": "Repo",
+    "addRepositories": "Thêm repo",
+    "project": "Project",
+    "processes": "Tiến trình",
+    "devServer": "Dev server",
+    "advanced": "Nâng cao",
+    "workingBranch": "Branch làm việc",
+    "recent": "Gần đây",
+    "other": "Khác",
+    "devServerPreview": "Xem trước dev server",
+    "terminal": "Terminal",
+    "notes": "Ghi chú"
+  },
+  "notes": {
+    "placeholder": "Thêm ghi chú cho workspace này...",
+    "selectWorkspace": "Chọn một workspace để xem ghi chú"
+  },
+  "actions": {
+    "copyPath": "Sao chép đường dẫn",
+    "cancel": "Huỷ",
+    "saveChanges": "Lưu thay đổi",
+    "copied": "Đã sao chép",
+    "collapse": "Thu gọn",
+    "copy": "Sao chép"
+  },
+  "comments": {
+    "addReviewComment": "Thêm bình luận review",
+    "addPlaceholder": "Thêm bình luận...",
+    "editPlaceholder": "Sửa bình luận...",
+    "copyToReview": "Sao chép vào review"
+  },
+  "confirm": {
+    "defaultConfirm": "Xác nhận",
+    "defaultCancel": "Huỷ"
+  },
+  "dialogs": {
+    "selectGitRepository": "Chọn Git repo",
+    "chooseExistingRepo": "Chọn một repo có sẵn trên máy"
+  },
+  "empty": {
+    "noChanges": "Không có thay đổi"
+  },
+  "commandBar": {
+    "noResults": "Không có kết quả.",
+    "back": "Quay lại",
+    "defaultPlaceholder": "Gõ lệnh hoặc tìm kiếm...",
+    "selectBranch": "Chọn branch",
+    "selectBranchFor": "Chọn branch cho {{repoName}}"
+  },
+  "logs": {
+    "searchLogs": "Tìm trong log",
+    "selectProcessToView": "Chọn một tiến trình để xem log"
+  },
+  "processes": {
+    "noProcesses": "Không có tiến trình",
+    "terminal": "Terminal",
+    "openInTerminal": "Mở trong Terminal",
+    "send": "Gửi",
+    "sendInputPlaceholder": "Trả lời hoặc nhắn cho agent…",
+    "viewLog": "Log",
+    "viewTerminal": "Terminal",
+    "sessionEnded": "Phiên agent đã kết thúc."
+  },
+  "search": {
+    "matchCount": "{{current}} / {{total}}",
+    "noMatches": "Không có kết quả"
+  },
+  "contextUsage": {
+    "label": "Mức dùng context",
+    "emptyTooltip": "Mức dùng context sẽ hiện sau lần trả lời tới",
+    "tooltip": "Context: {{percentage}}% · {{used}} / {{total}} token",
+    "ariaLabel": "Mức dùng context: {{percentage}}%"
+  },
+  "shortcuts": {
+    "title": "Phím tắt",
+    "inWorkspace": "(trong workspace)",
+    "sequentialHint": "Phím tắt nối tiếp: nhấn phím đầu, rồi nhấn phím thứ hai trong vòng 500ms.",
+    "configurableHint": "Chỉnh trong Settings → General → Message Input",
+    "groups": {
+      "quickActions": "Thao tác nhanh",
+      "navigation": "Di chuyển",
+      "modifiers": "Phím bổ trợ",
+      "goTo": "Đi tới (G ...)",
+      "workspace": "Workspace (W ...)",
+      "view": "Hiển thị (V ...)",
+      "issues": "Issue (I ...)",
+      "git": "Git (X ...)",
+      "yank": "Sao chép (Y ...)",
+      "toggle": "Bật/tắt (T ...)",
+      "run": "Chạy (R ...)"
+    },
+    "actions": {
+      "showHelp": "Hiện trợ giúp này",
+      "closeCancel": "Đóng/huỷ",
+      "createNewTask": "Tạo task mới",
+      "deleteSelected": "Xoá mục đã chọn",
+      "focusSearch": "Đến ô tìm kiếm",
+      "moveDown": "Xuống",
+      "moveUp": "Lên",
+      "moveLeft": "Sang trái",
+      "moveRight": "Sang phải",
+      "openCommandBar": "Mở thanh lệnh",
+      "formatInlineCode": "Định dạng code inline",
+      "sendMessage": "Gửi tin nhắn",
+      "settings": "Mở Settings",
+      "new-workspace": "Tạo workspace mới",
+      "duplicate-workspace": "Nhân bản workspace",
+      "rename-workspace": "Đổi tên workspace",
+      "pin-workspace": "Ghim/bỏ ghim workspace",
+      "archive-workspace": "Lưu trữ workspace",
+      "delete-workspace": "Xoá workspace",
+      "toggle-changes-mode": "Bật/tắt bảng Thay đổi",
+      "toggle-logs-mode": "Bật/tắt bảng Log",
+      "toggle-preview-mode": "Bật/tắt bảng Xem trước",
+      "toggle-left-sidebar": "Bật/tắt sidebar trái",
+      "toggle-left-main-panel": "Bật/tắt bảng Chat",
+      "create-issue": "Tạo issue",
+      "change-issue-status": "Đổi trạng thái",
+      "change-issue-priority": "Đổi độ ưu tiên",
+      "make-sub-issue-of": "Làm issue con của",
+      "add-sub-issue": "Thêm issue con",
+      "remove-parent-issue": "Bỏ issue cha",
+      "link-workspace": "Liên kết workspace",
+      "duplicate-issue": "Nhân bản issue",
+      "delete-issue": "Xoá issue",
+      "git-create-pr": "Tạo Pull Request",
+      "git-merge": "Merge branch",
+      "git-rebase": "Rebase branch",
+      "git-push": "Push thay đổi",
+      "copy-path": "Sao chép đường dẫn",
+      "copy-raw-logs": "Sao chép log thô",
+      "toggle-dev-server": "Bật/tắt dev server",
+      "toggle-wrap-lines": "Bật/tắt xuống dòng",
+      "run-setup-script": "Chạy script setup",
+      "run-cleanup-script": "Chạy script dọn dẹp",
+      "run-archive-script": "Chạy script lưu trữ"
+    }
+  },
+  "typeahead": {
+    "tags": "Tag",
+    "files": "File",
+    "commands": "Lệnh",
+    "chooseRepo": "Chọn repo",
+    "selectedRepo": "Repo đã chọn: {{repoName}}",
+    "missingRepo": "Repo đã chọn không còn nữa.",
+    "noTagsOrFiles": "Không tìm thấy tag hoặc file",
+    "createTag": "Tạo tag mới",
+    "noCommands": "Agent này không có lệnh nào."
+  },
+  "kanban": {
+    "noVisibleStatuses": "Tất cả trạng thái đang bị ẩn. Dùng cài đặt hiển thị hoặc chuyển tab khác để xem issue.",
+    "noProjectFound": "Không tìm thấy project",
+    "noTagsAvailable": "Chưa có tag",
+    "createNewIssue": "Tạo issue mới",
+    "selectWorkspace": "Chạy trong workspace...",
+    "dispatchIssue": "Chạy issue trong workspace đã chọn",
+    "searchTags": "Tìm tag...",
+    "selectColorFor": "Chọn màu cho",
+    "createTag": "Tạo",
+    "noPrCreated": "Chưa tạo PR",
+    "noCommentsYet": "Chưa có bình luận",
+    "comments": "Bình luận",
+    "enterCommentPlaceholder": "Nhập bình luận...",
+    "attachFile": "Đính kèm file",
+    "attachFileHint": "Đính kèm file (tối đa 20MB mỗi file)",
+    "dropFilesHere": "Thả file vào đây",
+    "fileDropHint": "Mọi loại file, tối đa 20MB",
+    "moreActions": "Thêm thao tác",
+    "closePanel": "Đóng bảng",
+    "copyLink": "Sao chép link",
+    "issueTitlePlaceholder": "Tiêu đề issue...",
+    "issueDescriptionPlaceholder": "Nhập mô tả task...",
+    "createDraftWorkspaceImmediately": "Tạo workspace nháp ngay",
+    "createDraftWorkspaceDescription": "Sau khi tạo issue, mở form tạo workspace với sẵn thông tin của issue",
+    "createIssue": "Tạo issue",
+    "newIssue": "Issue mới",
+    "previewCodeBlock": "[Khối code]",
+    "previewImage": "[Ảnh]",
+    "previewImageWithName": "[Ảnh: {{name}}]",
+    "previewFile": "[File]",
+    "previewFileWithName": "[File: {{name}}]",
+    "removeImage": "Xoá ảnh",
+    "maxFilesAtOnce": "Tối đa {{count}} file mỗi lần",
+    "fileExceedsLimit": "File {{filename}} vượt quá giới hạn 20MB",
+    "unknownError": "Lỗi không xác định",
+    "failedToUploadFile": "Không tải lên được {{filename}}: {{message}}",
+    "downloadAttachment": "Tải file đính kèm",
+    "subIssues": "Issue con",
+    "noSubIssues": "Không có issue con",
+    "markIndependentIssue": "Đánh dấu là issue độc lập",
+    "parentIssue": "Issue cha",
+    "subIssueIndicator": "↳",
+    "subIssuesCount": "{{count}} issue con",
+    "subIssuesCount_one": "{{count}} issue con",
+    "subIssuesCount_other": "{{count}} issue con",
+    "subIssueBoardTitle": "Board issue con",
+    "subIssueBoardBack": "Quay lại issue cha",
+    "viewTabs": {
+      "active": "Đang làm",
+      "all": "Tất cả"
+    },
+    "team": "Nhóm",
+    "personal": "Cá nhân",
+    "searchPlaceholder": "Tìm issue...",
+    "filters": "Bộ lọc",
+    "clearFilters": "Xoá bộ lọc",
+    "filtersDescription": "Chỉnh bộ lọc và cách sắp xếp cho board này.",
+    "filterByTag": "Lọc theo tag",
+    "filterByPriority": "Lọc theo độ ưu tiên",
+    "tags": "Tag",
+    "sortBy": "Sắp xếp",
+    "sortAscending": "Tăng dần",
+    "sortDescending": "Giảm dần",
+    "priority": "Độ ưu tiên",
+    "subIssuesFilterLabel": "Issue con",
+    "workspacesFilterLabel": "Workspace",
+    "relationships": "Quan hệ",
+    "noRelationships": "Không có quan hệ",
+    "openProjectsGuide": "Hướng dẫn project",
+    "editProjectSettings": "Sửa cài đặt project",
+    "linkWorkspace": "Liên kết workspace...",
+    "createNewWorkspace": "Tạo workspace mới",
+    "workspaces": "Workspace",
+    "showingWorkspaces": "Đang hiện {{count}} / {{total}}",
+    "projectsGuide": {
+      "intro": {
+        "title": "Chào mừng",
+        "content": "Chào mừng bạn đến với HiveDeck. Đọc các mục trợ giúp trong bảng này để hiểu cách hoạt động, rồi tạo issue đầu tiên. Bạn có thể mở lại trợ giúp hoặc gửi góp ý bất cứ lúc nào từ thanh điều hướng."
+      },
+      "welcome": {
+        "title": "Project",
+        "content": "Trang project là nơi bạn quản lý issue. Bạn có thể xem issue dạng board kanban hoặc danh sách, và lọc theo trạng thái, tag, v.v."
+      },
+      "issues": {
+        "title": "Issue",
+        "content": "Mỗi issue là một tính năng hoặc vấn đề cần giải quyết. Issue có trạng thái, độ ưu tiên, tag, quan hệ, bình luận, issue con và nhiều thứ khác."
+      },
+      "workspaces": {
+        "title": "Workspace",
+        "content": "Để bắt đầu làm một issue, hãy tạo workspace. Một issue có thể có nhiều workspace. Issue mô tả việc cần làm, còn workspace là nơi việc được làm."
+      }
+    },
+    "currentWorkspace": "đang chạy ở đây",
+    "hideBlockedFilterLabel": "Ẩn issue bị chặn",
+    "closeSearch": "Đóng tìm kiếm"
+  },
+  "createMode": {
+    "headings": {
+      "repoStep": "Bạn muốn làm việc trên repo nào?",
+      "chatStep": "Bạn muốn làm gì?"
+    },
+    "repoPicker": {
+      "actions": {
+        "recent": "Gần đây",
+        "browse": "Duyệt",
+        "create": "Tạo"
+      },
+      "setupHintTitle": "Script setup",
+      "setupHint": "Mẹo: cấu hình script setup cho repo này trong Settings → Repositories",
+      "setupHintDismiss": "Bỏ qua",
+      "setupHintLink": "Cấu hình trong Settings"
+    }
+  },
+  "modelSelector": {
+    "preset": "Preset",
+    "custom": "Tuỳ chỉnh",
+    "permissions": "Quyền",
+    "permissionAuto": "Tự động",
+    "permissionAsk": "Hỏi",
+    "permissionPlan": "Lập kế hoạch",
+    "agent": "Agent",
+    "default": "Mặc định",
+    "model": "Model"
+  },
+  "crashScreen": {
+    "title": "Đã có lỗi xảy ra",
+    "description": "Ứng dụng gặp lỗi không mong muốn.",
+    "reload": "Tải lại",
+    "showDetails": "Xem chi tiết",
+    "hideDetails": "Ẩn chi tiết"
+  },
+  "syncError": {
+    "networkErrors": "Lỗi mạng",
+    "streamsAffected": "{{count}} luồng bị ảnh hưởng",
+    "streamsAffected_other": "{{count}} luồng bị ảnh hưởng",
+    "status": "(mã {{status}})",
+    "refreshPage": "Tải lại trang"
+  },
+  "askQuestion": {
+    "title": "Agent đang hỏi bạn",
+    "selectMultiple": "chọn nhiều",
+    "confirmSelection": "Xác nhận lựa chọn",
+    "submitting": "Đang gửi câu trả lời...",
+    "answeredCount": "Đã trả lời {{count}} câu hỏi",
+    "answeredCount_other": "Đã trả lời {{count}} câu hỏi"
+  },
+  "cardPipeline": {
+    "title": "Pipeline",
+    "description": "Chỉ chọn pipeline khi card này cần đi theo quy trình nhiều bước. Các bước sẽ được thêm vào mô tả card để agent làm theo; để None nếu chỉ là yêu cầu thông thường.",
+    "pipelineLabel": "Pipeline",
+    "pipelinePlaceholder": "Chọn pipeline",
+    "none": "None",
+    "noneDescription": "Gửi yêu cầu đúng như đã viết, không thêm bước nào.",
+    "noPipeline": "Không có pipeline",
+    "noSteps": "Pipeline này chưa có bước mặc định. Thêm trong Settings → Pipeline.",
+    "agentLabel": "Agent thực thi",
+    "agentDefault": "Mặc định (thuyền trưởng tự chọn)",
+    "agentHelper": "Chỉ định coding agent mà thuyền trưởng dùng cho card này. Để mặc định nếu muốn nó tự chọn.",
+    "addonLabel": "Phần thêm vào prompt (sửa được)",
+    "addonPlaceholder": "Chọn pipeline ở trên để tạo nội dung, hoặc tự gõ.",
+    "resetToGenerated": "Đặt lại nội dung tự tạo",
+    "progressTitle": "Tiến độ pipeline",
+    "progressHeader": "Bước {{n}} / {{total}} — {{label}}",
+    "progressNotStarted": "{{total}} bước, chưa bắt đầu",
+    "heavyBadge": "nặng",
+    "chatChip": "Pipeline: {{name}} · {{count}} bước",
+    "chatChipUnnamed": "Hướng dẫn pipeline · {{count}} bước",
+    "chatShow": "hiện",
+    "chatHide": "ẩn"
+  },
+  "createIssueDialog": {
+    "title": "Tạo issue",
+    "titlePlaceholder": "Tiêu đề issue",
+    "descriptionPlaceholder": "Thêm mô tả (không bắt buộc)",
+    "statusLabel": "Trạng thái",
+    "priorityLabel": "Độ ưu tiên",
+    "priority": {
+      "urgent": "Khẩn cấp",
+      "high": "Cao",
+      "medium": "Trung bình",
+      "low": "Thấp"
+    },
+    "save": "Lưu",
+    "cancel": "Huỷ",
+    "close": "Đóng",
+    "parentHint": "Issue cha: {{id}}",
+    "saveToAddWorkspaces": "Lưu issue để thêm workspace.",
+    "saveToAddRelationships": "Lưu issue để thêm quan hệ.",
+    "saveToAddSubIssues": "Lưu issue để thêm issue con.",
+    "errorCreateFailed": "Không tạo được issue. Vui lòng thử lại."
+  },
+  "appBar": {
+    "projects": "Project"
+  },
+  "orchestratorPromptEditor": {
+    "title": "Prompt cho thuyền trưởng",
+    "subtitle": "Thuyền trưởng đọc prompt này ở đầu mỗi lượt. Sửa là áp dụng ngay, không cần khởi động lại.",
+    "inheritedFrom": "Kế thừa từ project cha",
+    "usingDefault": "Đang dùng hành vi mặc định",
+    "placeholder": "Viết ngắn gọn. Commit ít. Luôn chạy test trước khi commit.",
+    "save": "Lưu",
+    "saving": "Đang lưu…",
+    "clear": "Xoá",
+    "saved": "Đã lưu",
+    "missingProjectId": "Route không có project id."
+  },
+  "sidebar": {
+    "workspacesSection": "Workspace",
+    "tasksSection": "Task",
+    "tasksLoading": "Đang tải task…",
+    "orchestrator": "Thuyền trưởng",
+    "collapse": "Thu gọn",
+    "expand": "Mở rộng",
+    "createChildBoard": "Tạo board con",
+    "createProject": "Tạo project",
+    "router": "Router",
+    "settings": "Settings",
+    "bottomBarLabel": "Thao tác sidebar",
+    "orchestratorPrompt": "Prompt thuyền trưởng",
+    "orchestratorPromptSet": "Đã có prompt cho thuyền trưởng",
+    "projectActions": "Thao tác project",
+    "addChildBoard": "Thêm board",
+    "addOrchestratorPrompt": "Thêm prompt cho thuyền trưởng",
+    "openProjectPage": "Mở board project",
+    "openWorkspacesPage": "Mở danh sách workspace",
+    "openIssuePage": "Mở task",
+    "openOrchestratorWorkspace": "Khởi động hoặc dừng thuyền trưởng",
+    "deleteProject": "Xoá project…",
+    "manageRepos": "Repo…",
+    "workspaceActions": "Thao tác workspace",
+    "archiveWorkspace": "Lưu trữ",
+    "unarchiveWorkspace": "Bỏ lưu trữ",
+    "deleteWorkspace": "Xoá workspace…"
+  },
+  "common": {
+    "loading": "Đang tải...",
+    "saving": "Đang lưu..."
+  }
+}

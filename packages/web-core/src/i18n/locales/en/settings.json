@@ -799,13 +799,13 @@
       "routing": {
         "on": "Routing on",
         "enable": "Route agents through 9router",
-        "enableHint": "Claude Code runs go through 9router and use the combo for their role.",
+        "enableHint": "Claude Code and Codex runs go through 9router and use the combo for their role.",
         "notRunning": "9router isn't running, so agents currently run without it. Start it on this page.",
         "roles": "Combo per role",
         "agentDefault": "Agent default",
         "missingCombo": "Combo \"{{name}}\" no longer exists in 9router; this role falls back to the agent default.",
         "noCombos": "No combos in 9router yet. Create them on the Combos tab.",
-        "scope": "Applies to Claude Code (headless and headed). Other agents run as before.",
+        "scope": "Applies to Claude Code (headless and headed) and Codex. Other agents run as before.",
         "precedence": "A model you pick in the model selector or set on a profile always wins over the role's combo.",
         "usedFor": {
           "planner": "Orchestrator sessions. Also Claude's \"opus\" and \"fable\" aliases.",

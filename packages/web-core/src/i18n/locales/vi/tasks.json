@@ -1,0 +1,564 @@
+{
+  "dropzone": {
+    "dropImagesHere": "Thả ảnh vào đây",
+    "supportedFormats": "Hỗ trợ PNG, JPG, GIF, WebP, SVG"
+  },
+  "gitPanel": {
+    "advanced": {
+      "placeholder": "vd. acme Corp"
+    }
+  },
+  "loading": "Đang tải task...",
+  "actions": {
+    "addTask": "Thêm task"
+  },
+  "rebase": {
+    "common": {
+      "action": "Rebase",
+      "inProgress": "Đang rebase..."
+    },
+    "dialog": {
+      "title": "Rebase workspace",
+      "description": "Chọn base branch mới để rebase workspace này lên.",
+      "upstreamLabel": "Branch upstream",
+      "upstreamPlaceholder": "Chọn branch upstream",
+      "targetLabel": "Branch đích",
+      "targetPlaceholder": "Chọn branch đích",
+      "advanced": "Nâng cao"
+    }
+  },
+  "branches": {
+    "changeTarget": {
+      "dialog": {
+        "title": "Đổi branch đích",
+        "description": "Chọn branch đích mới cho workspace.",
+        "placeholder": "Chọn branch đích",
+        "action": "Đổi branch",
+        "inProgress": "Đang đổi..."
+      }
+    }
+  },
+  "repos": {
+    "selector": {
+      "placeholder": "Chọn repo",
+      "empty": "Chưa có repo nào"
+    }
+  },
+  "preview": {
+    "noServer": {
+      "title": "Chưa có dev server nào chạy",
+      "setupTitle": "Bạn cần cấu hình script dev server để dùng tính năng xem trước",
+      "setupPrompt": "Để xem trước trực tiếp và bấm-để-sửa, hãy thêm script dev server cho project này.",
+      "editDevScript": "Sửa script dev server",
+      "learnMore": "Tìm hiểu thêm về cách test ứng dụng"
+    },
+    "logs": {
+      "label": "Log",
+      "viewFull": "Xem toàn bộ log"
+    },
+    "toolbar": {
+      "refresh": "Tải lại bản xem trước",
+      "copyUrl": "Sao chép URL",
+      "openInTab": "Mở trong tab mới",
+      "stopDevServer": "Dừng dev server",
+      "resetUrl": "Về URL tự phát hiện",
+      "clearUrlOverride": "Bỏ URL tự nhập",
+      "desktopView": "Giao diện desktop",
+      "mobileView": "Giao diện mobile (390x844)",
+      "responsiveView": "Giao diện responsive (kéo giãn được)",
+      "startDevServer": "Chạy dev server",
+      "submitUrl": "Mở URL",
+      "toggleDevTools": "Bật/tắt DevTools"
+    },
+    "loading": {
+      "startingServer": "Đang khởi động dev server...",
+      "waitingForServer": "Đang chờ server...",
+      "loadingPreview": "Đang tải bản xem trước...",
+      "manualUrlHint": "Chưa phát hiện URL. Bạn có thể tự nhập URL ở thanh công cụ phía trên."
+    },
+    "browser": {
+      "title": "Xem trước dev server",
+      "devServerFallback": "Dev server"
+    }
+  },
+  "diff": {
+    "filesChanged_one": "{{count}} file thay đổi",
+    "filesChanged_other": "{{count}} file thay đổi"
+  },
+  "processes": {
+    "noLogsAvailable": "Chưa có log",
+    "selectAttempt": "Chọn một lượt chạy để xem các tiến trình.",
+    "errorLoadingUpdates": "Không tải được cập nhật trực tiếp của tiến trình.",
+    "reconnecting": "Đang kết nối lại...",
+    "loading": "Đang tải tiến trình...",
+    "noProcesses": "Lượt chạy này không có tiến trình nào.",
+    "processId": "ID tiến trình: {{id}}",
+    "deleted": "Đã xoá",
+    "deletedTooltip": "Bị xoá khi khôi phục: dòng thời gian đã quay về một checkpoint và các lượt chạy sau đó đã bị xoá",
+    "agent": "Agent:",
+    "exit": "Thoát: {{code}}",
+    "started": "Bắt đầu: {{date}}",
+    "completed": "Hoàn tất: {{date}}",
+    "detailsTitle": "Chi tiết tiến trình",
+    "backToList": "Quay lại danh sách",
+    "loadingDetails": "Đang tải chi tiết tiến trình...",
+    "errorLoadingDetails": "Không tải được chi tiết tiến trình. Vui lòng thử lại.",
+    "copyLogs": "Sao chép log",
+    "logsCopied": "Đã sao chép!"
+  },
+  "followUp": {
+    "queuedMessage": "Tin nhắn đang chờ — sẽ chạy khi lượt hiện tại xong"
+  },
+  "todoPopup": {
+    "title": "Task",
+    "progress": "Xong {{completed}}/{{total}}",
+    "noTasks": "Không có task"
+  },
+  "conversation": {
+    "executors": "Executor",
+    "saveAsDefault": "Lưu làm mặc định",
+    "you": "Bạn",
+    "thinking": "Đang suy nghĩ",
+    "todo": "Todo",
+    "todos": "Todo",
+    "completed": "xong",
+    "incomplete": "chưa xong",
+    "pending": "đang chờ",
+    "inProgress": "đang làm",
+    "skipped": "bỏ qua",
+    "error": "Lỗi",
+    "retry": "Thử lại",
+    "showMore": "Xem thêm",
+    "showLess": "Thu gọn",
+    "actions": {
+      "cancel": "Huỷ",
+      "submitFeedback": "Gửi góp ý",
+      "stop": "Dừng",
+      "stopping": "Đang dừng",
+      "loading": "Đang tải",
+      "send": "Gửi",
+      "sending": "Đang gửi",
+      "agentWorking": "Agent đang làm việc…",
+      "queue": "Xếp hàng",
+      "cancelQueue": "Huỷ hàng chờ",
+      "requestChanges": "Yêu cầu sửa",
+      "approve": "Duyệt",
+      "clearReviewComments": "Xoá bình luận review",
+      "edit": "Sửa tin nhắn",
+      "scrollToPreviousMessage": "Đến tin nhắn trước",
+      "reset": "Đặt lại",
+      "resetTooltip": "Quay về thời điểm này"
+    },
+    "approval": {
+      "conflictWarning": "Các file bị conflict cần xử lý thủ công",
+      "conflicts_one": "{{count}} conflict",
+      "conflicts_other": "{{count}} conflict"
+    },
+    "sessions": {
+      "newSession": "Phiên mới",
+      "latest": "Mới nhất",
+      "previous": "Trước đó",
+      "label": "Phiên",
+      "noPreviousSessions": "Chưa có phiên trước",
+      "rename": "Đổi tên",
+      "renameTitle": "Đổi tên phiên",
+      "renameDescription": "Nhập tên mới cho phiên này.",
+      "renamePlaceholder": "Nhập tên phiên",
+      "renaming": "Đang đổi tên..."
+    },
+    "reviewComments": {
+      "count_one": "Sẽ kèm {{count}} bình luận review",
+      "count_other": "Sẽ kèm {{count}} bình luận review"
+    },
+    "workspace": {
+      "create": "Tạo",
+      "creating": "Đang tạo..."
+    },
+    "fileEntry": {
+      "created": "Tạo mới",
+      "modified": "Đã sửa",
+      "deleted": "Đã xoá",
+      "renamed": "Đổi tên"
+    },
+    "script": {
+      "running": "Đang chạy...",
+      "exitCode": "Mã thoát: {{code}}",
+      "completedSuccessfully": "Chạy thành công",
+      "clickToViewLogs": "Bấm để xem log"
+    },
+    "scriptPlaceholder": {
+      "setupTitle": "Script setup",
+      "setupDescription": "Chưa cấu hình script setup. Script setup chạy trước khi coding agent bắt đầu.",
+      "cleanupTitle": "Script dọn dẹp",
+      "cleanupDescription": "Chưa cấu hình script dọn dẹp. Script dọn dẹp chạy sau khi coding agent xong.",
+      "configure": "Cấu hình"
+    },
+    "updatedTodos": "Đã cập nhật todo",
+    "viewInChangesPanel": "Xem trong bảng Thay đổi",
+    "unableToRenderDiff": "Không hiển thị được diff."
+  },
+  "attempt": {
+    "actions": {
+      "startDevServer": "Chạy dev server"
+    }
+  },
+  "git": {
+    "labels": {
+      "taskBranch": "Branch của task"
+    },
+    "branch": {
+      "current": "hiện tại"
+    },
+    "forcePushDialog": {
+      "title": "Cần force push",
+      "description": "Branch remote{{branchLabel}} đã khác với branch trên máy. Push thường đã bị từ chối.",
+      "warning": "Force push sẽ ghi đè thay đổi trên remote bằng thay đổi trên máy. Không thể hoàn tác.",
+      "note": "Chỉ tiếp tục nếu bạn chắc chắn muốn thay lịch sử của branch remote.",
+      "error": "Force push thất bại"
+    },
+    "status": {
+      "commits_one": "commit",
+      "commits_other": "commit",
+      "conflicts": "Conflict",
+      "upToDate": "Đã cập nhật",
+      "ahead": "đi trước",
+      "behind": "đi sau"
+    },
+    "states": {
+      "merged": "Đã merge!",
+      "merging": "Đang merge...",
+      "merge": "Merge",
+      "committing": "Đang commit...",
+      "commit": "Commit",
+      "committed": "Đã commit!",
+      "rebasing": "Đang rebase...",
+      "rebase": "Rebase",
+      "pushed": "Đã push!",
+      "pushing": "Đang push...",
+      "push": "Push",
+      "pushFailed": "Thất bại",
+      "forcePush": "Force push",
+      "forcePushing": "Đang force push...",
+      "creating": "Đang tạo...",
+      "createPr": "Tạo PR"
+    },
+    "errors": {
+      "changeTargetBranch": "Không đổi được branch đích",
+      "pushChanges": "Không push được thay đổi",
+      "mergeChanges": "Không merge được thay đổi",
+      "rebaseBranch": "Không rebase được branch",
+      "branchStatusUnavailable": "Không lấy được trạng thái branch. Bạn vẫn có thể đổi branch đích."
+    },
+    "pr": {
+      "open": "Mở PR #{{number}}",
+      "number": "PR #{{number}}",
+      "merged": "Đã merge PR #{{prNumber}}"
+    },
+    "actions": {
+      "title": "Thao tác Git",
+      "changeTarget": "Đổi branch đích",
+      "prMerged": "PR #{{number}} đã được merge"
+    },
+    "mergeDialog": {
+      "title": "Merge thay đổi",
+      "description": "Thay đổi của bạn sẽ được merge vào branch đích. Bạn có chắc muốn tiếp tục?"
+    },
+    "createRepo": {
+      "dialog": {
+        "title": "Tạo repo mới",
+        "description": "Khởi tạo một git repo mới"
+      },
+      "form": {
+        "nameLabel": "Tên",
+        "namePlaceholder": "my-project",
+        "locationLabel": "Vị trí",
+        "locationPlaceholder": "Thư mục hiện tại"
+      },
+      "browseDialog": {
+        "title": "Chọn thư mục cha",
+        "description": "Chọn nơi tạo repo mới"
+      },
+      "errors": {
+        "nameRequired": "Cần nhập tên repo",
+        "createFailed": "Không tạo được repo"
+      },
+      "buttons": {
+        "createRepository": "Tạo repo"
+      },
+      "states": {
+        "creating": "Đang tạo..."
+      }
+    }
+  },
+  "repoBranchSelector": {
+    "label": "Base branch"
+  },
+  "viewProcessesDialog": {
+    "title": "Tiến trình thực thi"
+  },
+  "editBranchName": {
+    "dialog": {
+      "title": "Sửa tên branch",
+      "description": "Nhập tên mới cho branch. Không đổi tên được nếu đang có PR mở.",
+      "branchNameLabel": "Tên branch",
+      "placeholder": "vd. feature/my-branch",
+      "renaming": "Đang đổi tên...",
+      "action": "Đổi tên branch"
+    }
+  },
+  "startReviewDialog": {
+    "title": "Bắt đầu review",
+    "description": "Nhờ coding agent review thay đổi của bạn và góp ý.",
+    "additionalInstructions": "Hướng dẫn thêm (không bắt buộc)",
+    "reviewComments": "Bình luận review ({{count}})",
+    "includeGitContext": "Kèm ngữ cảnh git",
+    "includeGitContextDescription": "Chỉ cho agent cách xem mọi thay đổi trên branch này",
+    "newSession": "Phiên mới",
+    "sessionName": "Review"
+  },
+  "actionsMenu": {
+    "startReview": "Bắt đầu review",
+    "startingReview": "Đang bắt đầu review..."
+  },
+  "resolveConflicts": {
+    "dialog": {
+      "title": "Xử lý conflict",
+      "description": "Phát hiện conflict. Chọn cách bạn muốn agent xử lý.",
+      "newSession": "Bắt đầu phiên mới",
+      "resolve": "Xử lý conflict",
+      "resolving": "Đang bắt đầu...",
+      "filesWithConflicts_one": "{{count}} file bị conflict",
+      "filesWithConflicts_other": "{{count}} file bị conflict",
+      "andMore": "...và {{count}} file khác",
+      "sessionName": "Xử lý conflict"
+    }
+  },
+  "rebaseInProgress": {
+    "dialog": {
+      "title": "Đang rebase dở",
+      "description": "Đang rebase lên {{targetBranch}} và không có conflict. Chọn cách tiếp tục.",
+      "hint": "Bạn có thể tiếp tục để hoàn tất rebase, hoặc huỷ để quay về trạng thái trước đó.",
+      "continue": "Tiếp tục rebase",
+      "continuing": "Đang tiếp tục...",
+      "abort": "Huỷ rebase",
+      "aborting": "Đang huỷ...",
+      "continueError": "Không tiếp tục rebase được. Có thể còn conflict chưa xử lý.",
+      "abortError": "Không huỷ rebase được. Vui lòng thử lại."
+    }
+  },
+  "createPrDialog": {
+    "title": "Tạo Pull Request",
+    "description": "Tạo pull request cho workspace này.",
+    "titleLabel": "Tiêu đề",
+    "titlePlaceholder": "Nhập tiêu đề PR",
+    "descriptionLabel": "Mô tả (không bắt buộc)",
+    "descriptionPlaceholder": "Nhập mô tả PR",
+    "baseBranchLabel": "Base branch",
+    "loadingBranches": "Đang tải branch...",
+    "selectBaseBranch": "Chọn base branch",
+    "draftLabel": "Tạo dạng draft",
+    "autoGenerateLabel": "Dùng AI tự viết mô tả PR",
+    "creating": "Đang tạo...",
+    "createButton": "Tạo PR",
+    "errors": {
+      "failedToCreate": "Không tạo được PR",
+      "gitCliNotLoggedIn": "Git chưa đăng nhập. Chạy \"gh auth login\" (hoặc cấu hình thông tin Git) rồi thử lại.",
+      "gitCliNotInstalled": "Chưa cài Git CLI. Cài Git để tạo PR.",
+      "targetBranchNotFound": "Branch đích '{{branch}}' không có trên remote. Hãy tạo branch đó trước khi tạo pull request."
+    }
+  },
+  "prComments": {
+    "dialog": {
+      "title": "Chọn bình luận PR",
+      "noComments": "PR này chưa có bình luận",
+      "selectAll": "Chọn tất cả",
+      "deselectAll": "Bỏ chọn tất cả",
+      "add": "Thêm",
+      "selectedCount": "Đã chọn {{selected}} / {{total}}"
+    },
+    "card": {
+      "review": "Review",
+      "tooltip": "Bấm để xem, bấm đúp để sửa"
+    }
+  },
+  "taskFormDialog": {
+    "createTitle": "Tạo task mới",
+    "editTitle": "Sửa task",
+    "titlePlaceholder": "Tiêu đề task...",
+    "descriptionPlaceholder": "Thêm chi tiết (không bắt buộc). Gõ @ để tìm file.",
+    "statusLabel": "Trạng thái",
+    "statusOptions": {
+      "todo": "To Do",
+      "inprogress": "In Progress",
+      "inreview": "In Review",
+      "done": "Done",
+      "cancelled": "Đã huỷ"
+    },
+    "startLabel": "Bắt đầu",
+    "attachFile": "Đính kèm file",
+    "dropImagesHere": "Thả ảnh vào đây",
+    "updating": "Đang cập nhật...",
+    "updateTask": "Cập nhật task",
+    "starting": "Đang bắt đầu...",
+    "creating": "Đang tạo...",
+    "create": "Tạo",
+    "discardDialog": {
+      "title": "Bỏ thay đổi chưa lưu?",
+      "description": "Bạn có thay đổi chưa lưu. Bạn có chắc muốn bỏ chúng?",
+      "continueEditing": "Tiếp tục sửa",
+      "discardChanges": "Bỏ thay đổi"
+    }
+  },
+  "restoreLogsDialog": {
+    "title": "Xác nhận thử lại",
+    "titleReset": "Xác nhận đặt lại",
+    "historyChange": {
+      "title": "Thay đổi lịch sử",
+      "willDelete": "Sẽ xoá tiến trình này",
+      "willDeleteProcesses_one": "Sẽ xoá {{count}} tiến trình",
+      "willDeleteProcesses_other": "Sẽ xoá {{count}} tiến trình",
+      "andLaterProcesses_one": "và {{count}} tiến trình sau đó",
+      "andLaterProcesses_other": "và {{count}} tiến trình sau đó",
+      "fromHistory": "khỏi lịch sử.",
+      "codingAgentRuns_one": "{{count}} lượt chạy coding agent",
+      "codingAgentRuns_other": "{{count}} lượt chạy coding agent",
+      "scriptProcesses_one": "{{count}} tiến trình script",
+      "scriptProcesses_other": "{{count}} tiến trình script",
+      "setupCleanupBreakdown": "({{setup}} setup, {{cleanup}} dọn dẹp)",
+      "permanentWarning": "Thao tác này thay đổi lịch sử vĩnh viễn và không thể hoàn tác."
+    },
+    "uncommittedChanges": {
+      "title": "Phát hiện thay đổi chưa commit",
+      "description_one": "Bạn có {{count}} thay đổi chưa commit",
+      "description_other": "Bạn có {{count}} thay đổi chưa commit",
+      "andUntracked_one": " và {{count}} file chưa được track",
+      "andUntracked_other": " và {{count}} file chưa được track",
+      "acknowledgeLabel": "Tôi hiểu các thay đổi này có thể bị ảnh hưởng"
+    },
+    "resetWorktree": {
+      "title": "Đặt lại worktree",
+      "enabled": "Bật",
+      "disabled": "Tắt",
+      "disabledUncommitted": "Tắt (có thay đổi chưa commit)",
+      "restoreDescription": "Worktree sẽ được khôi phục về commit này.",
+      "discardChanges_one": "Bỏ {{count}} thay đổi chưa commit.",
+      "discardChanges_other": "Bỏ {{count}} thay đổi chưa commit.",
+      "untrackedPresent_one": "Có {{count}} file chưa được track (không bị ảnh hưởng khi đặt lại).",
+      "untrackedPresent_other": "Có {{count}} file chưa được track (không bị ảnh hưởng khi đặt lại).",
+      "forceReset": "Buộc đặt lại (bỏ thay đổi chưa commit)",
+      "uncommittedWillDiscard": "Thay đổi chưa commit sẽ bị bỏ.",
+      "uncommittedPresentHint": "Đang có thay đổi chưa commit. Bật Buộc đặt lại hoặc commit/stash để tiếp tục."
+    },
+    "buttons": {
+      "retry": "Thử lại",
+      "reset": "Đặt lại"
+    }
+  },
+  "scriptFixer": {
+    "setupScriptTitle": "Sửa script setup",
+    "cleanupScriptTitle": "Sửa script dọn dẹp",
+    "archiveScriptTitle": "Sửa script lưu trữ",
+    "devServerTitle": "Sửa script dev server",
+    "scriptLabel": "Script (sửa được)",
+    "logsLabel": "Log lần chạy gần nhất",
+    "saveButton": "Lưu",
+    "saveAndTestButton": "Lưu và chạy thử",
+    "noLogs": "Chưa có log chạy",
+    "selectRepo": "Repo",
+    "fixScript": "Sửa script",
+    "statusRunning": "Đang chạy...",
+    "statusSuccess": "Chạy thành công",
+    "statusFailed": "Thất bại với mã thoát {{exitCode}}",
+    "statusKilled": "Tiến trình đã bị dừng"
+  },
+  "createWorkspaceFromPr": {
+    "title": "Tạo workspace từ PR",
+    "description": "Chọn một pull request đang mở để tạo workspace. Một task sẽ được tự tạo theo tiêu đề PR.",
+    "repositoryLabel": "Repo",
+    "remoteLabel": "Remote",
+    "pullRequestLabel": "Pull request",
+    "loadingRepositories": "Đang tải repo...",
+    "loadingRemotes": "Đang tải remote...",
+    "noRepositoriesFound": "Không tìm thấy repo",
+    "loadingPullRequests": "Đang tải pull request...",
+    "selectRepositoryFirst": "Chọn repo trước",
+    "noPullRequestsFound": "Không có pull request nào đang mở",
+    "runSetupScript": "Chạy script setup",
+    "creating": "Đang tạo...",
+    "createWorkspace": "Tạo workspace",
+    "selectRepository": "Chọn repo",
+    "selectRemote": "Chọn remote",
+    "selectPullRequest": "Chọn pull request",
+    "searchPrsPlaceholder": "Tìm PR theo số hoặc tiêu đề...",
+    "noMatchingPrs": "Không có pull request phù hợp",
+    "default": "mặc định",
+    "openPrInBrowser": "Mở PR trên trình duyệt",
+    "errors": {
+      "cliNotInstalled": "Chưa cài CLI của {{provider}}",
+      "unsupportedProvider": "Không hỗ trợ nhà cung cấp Git này",
+      "failedToLoadPrs": "Không tải được pull request",
+      "prNotFound": "Không tìm thấy pull request",
+      "failedToCreateWorkspace": "Không tạo được workspace"
+    }
+  },
+  "spawnOrchestrator": {
+    "title": "Khởi động thuyền trưởng",
+    "description": "Khởi động thuyền trưởng của HiveDeck: một phiên Claude Code chạy trong tmux, điều hành board theo vòng lặp — giao card Todo cho agent, theo dõi và gỡ vướng cho chúng, rồi chuyển việc đã xong sang In Review cho bạn. Nó chạy từ một thư mục cố định và làm việc với mọi project qua MCP. Chọn các chỉ thị cho lần chạy này.",
+    "nameLabel": "Tên",
+    "directivesLabel": "Chỉ thị",
+    "existingRunning": "Thuyền trưởng đang chạy. Mở để dùng tiếp phiên đang chạy — nếu phiên đã kết thúc, một phiên mới sẽ tự khởi động.",
+    "openRunning": "Mở thuyền trưởng đang chạy",
+    "close": "Dừng thuyền trưởng",
+    "closing": "Đang dừng...",
+    "spawning": "Đang khởi động...",
+    "spawn": "Khởi động thuyền trưởng",
+    "options": {
+      "auto-unblock": {
+        "label": "Tự duyệt quyền",
+        "description": "Tự duyệt các yêu cầu dùng tool rõ ràng an toàn và đúng phạm vi (đọc file, chạy test hoặc build, sửa file trong workspace). Yêu cầu nguy hiểm hoặc ngoài phạm vi sẽ bị từ chối và báo cho bạn."
+      },
+      "auto-answer-questions": {
+        "label": "Tự trả lời câu hỏi",
+        "description": "Tự trả lời câu hỏi của agent sau khoảng 2 phút, dựa trên card, prompt của board và code. Câu nào không trả lời được thì để lại cho bạn."
+      },
+      "telegram-fanout": {
+        "label": "Gửi qua Telegram",
+        "description": "Viết mỗi báo cáo sao cho đọc riêng trên điện thoại vẫn hiểu, và để câu hỏi chờ bạn trả lời để chúng tới được Telegram. Cần chạy Telegram bridge."
+      },
+      "nudge-stuck": {
+        "label": "Nhắc agent bị kẹt",
+        "description": "Nếu một agent đang chạy không có tin nhắn mới trong khoảng 15 phút, hỏi nó tình hình và bước tiếp theo; vẫn im lặng thì dừng nó."
+      }
+    },
+    "existingIdle": "Đã có workspace thuyền trưởng và đang rảnh. Khởi động sẽ mở một phiên mới trong đó; các phiên cũ vẫn nằm trong lịch sử.",
+    "removeStart": "Xoá và làm lại từ đầu",
+    "removeConfirm": "Xoá workspace thuyền trưởng cùng toàn bộ lịch sử phiên? Lần khởi động sau sẽ tạo workspace mới.",
+    "remove": "Xoá",
+    "removing": "Đang xoá..."
+  },
+  "linkPrToIssue": {
+    "title": "Liên kết pull request",
+    "description": "Liên kết một pull request có sẵn với issue này.",
+    "urlTab": "Từ URL",
+    "browseTab": "Duyệt",
+    "urlLabel": "URL pull request",
+    "urlPlaceholder": "https://github.com/owner/repo/pull/123",
+    "repositoryLabel": "Repo",
+    "remoteLabel": "Remote",
+    "pullRequestLabel": "Pull request",
+    "loadingPrInfo": "Đang tải thông tin PR...",
+    "invalidUrl": "Không tải được thông tin PR từ URL này",
+    "baseBranch": "Base:",
+    "linkPr": "Liên kết PR",
+    "linking": "Đang liên kết...",
+    "status": {
+      "open": "Đang mở",
+      "merged": "Đã merge",
+      "closed": "Đã đóng",
+      "unknown": "Không rõ"
+    },
+    "errors": {
+      "failed": "Không liên kết được PR. Vui lòng thử lại."
+    }
+  }
+}

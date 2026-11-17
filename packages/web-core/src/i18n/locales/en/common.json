@@ -157,7 +157,8 @@
       "attention": "Attention"
     },
     "bucketEmpty": "No workspaces",
-    "bucketBarLabel": "Workspace buckets"
+    "bucketBarLabel": "Workspace buckets",
+    "createDraftError": "Failed to prepare workspace draft. Please try again."
   },
   "fileTree": {
     "searchPlaceholder": "Search files...",
@@ -412,7 +413,9 @@
         "content": "To start working on an issue, create a workspace. A single issue can have multiple workspaces. Issues describe the work to be done, workspaces are where the work happens."
       }
     },
-    "currentWorkspace": "running here"
+    "currentWorkspace": "running here",
+    "hideBlockedFilterLabel": "Hide blocked",
+    "closeSearch": "Close search"
   },
   "createMode": {
     "headings": {
@@ -551,5 +554,9 @@
     "archiveWorkspace": "Archive",
     "unarchiveWorkspace": "Unarchive",
     "deleteWorkspace": "Delete workspace…"
+  },
+  "common": {
+    "loading": "Loading...",
+    "saving": "Saving..."
   }
 }

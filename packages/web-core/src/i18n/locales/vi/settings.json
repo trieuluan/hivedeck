@@ -1,0 +1,854 @@
+{
+  "settings": {
+    "common": {
+      "unsavedChanges": "• Bạn có thay đổi chưa lưu",
+      "discardChangesConfirm": "Bỏ thay đổi chưa lưu?"
+    },
+    "unsavedChanges": {
+      "title": "Thay đổi chưa lưu",
+      "message": "Bạn có thay đổi chưa lưu. Bạn có chắc muốn đóng mà không lưu?",
+      "discard": "Bỏ thay đổi",
+      "cancel": "Tiếp tục sửa"
+    },
+    "layout": {
+      "nav": {
+        "title": "Settings",
+        "machineSettings": "Cài đặt máy",
+        "selectHost": "Chọn máy",
+        "general": "Chung",
+        "generalDesc": "Giao diện, thông báo và tuỳ chọn",
+        "pipeline": "Pipeline",
+        "pipelineDesc": "Các bước pipeline cho từng card",
+        "recurrent": "Tác vụ định kỳ",
+        "recurrentDesc": "Lượt chạy agent theo lịch",
+        "projects": "Project",
+        "projectsDesc": "Repo và cấu hình của project",
+        "repos": "Repo",
+        "reposDesc": "Script và cấu hình repo",
+        "agents": "Agent",
+        "agentsDesc": "Cấu hình coding agent",
+        "mcp": "MCP server",
+        "mcpDesc": "Server Model Context Protocol",
+        "telegram": "Telegram",
+        "telegramDesc": "Chuyển yêu cầu của agent tới Telegram"
+      }
+    },
+    "hostPicker": {
+      "thisMachine": "Máy này",
+      "localHost": "Máy cục bộ",
+      "remoteHost": "Máy từ xa",
+      "noHostAvailable": "Chưa có máy nào cho cài đặt theo máy.",
+      "pairMachineHint": "Ghép nối một máy để mở cài đặt máy.",
+      "selectMachineHint": "Chọn một máy để mở cài đặt máy."
+    },
+    "general": {
+      "loading": "Đang tải cài đặt...",
+      "loadError": "Không tải được cấu hình.",
+      "save": {
+        "button": "Lưu cài đặt",
+        "success": "✓ Đã lưu cài đặt!",
+        "error": "Không lưu được cấu hình",
+        "unsavedChanges": "• Bạn có thay đổi chưa lưu",
+        "discard": "Bỏ"
+      },
+      "appearance": {
+        "title": "Giao diện",
+        "description": "Tuỳ chỉnh giao diện ứng dụng.",
+        "theme": {
+          "label": "Theme",
+          "placeholder": "Chọn theme",
+          "helper": "Chọn bảng màu bạn thích."
+        },
+        "language": {
+          "label": "Ngôn ngữ",
+          "placeholder": "Chọn ngôn ngữ",
+          "helper": "Chọn ngôn ngữ hiển thị. \"Theo trình duyệt\" sẽ dùng ngôn ngữ của hệ thống."
+        },
+        "animateRunningOutline": {
+          "label": "Viền chuyển động khi đang chạy",
+          "helper": "Hiện viền lấp lánh quanh ô nhập tin nhắn khi agent đang làm việc. Chấm nhấp nháy nhỏ luôn được hiện."
+        }
+      },
+      "taskExecution": {
+        "title": "Coding agent mặc định",
+        "description": "Chọn coding agent mặc định cho task.",
+        "executor": {
+          "label": "Cấu hình agent mặc định",
+          "placeholder": "Chọn profile",
+          "helper": "Chọn cấu hình agent mặc định khi tạo workspace."
+        },
+        "variant": "DEFAULT",
+        "defaultLabel": "Mặc định"
+      },
+      "editor": {
+        "title": "Trình soạn thảo",
+        "description": "Cấu hình trình soạn thảo code.",
+        "type": {
+          "label": "Loại trình soạn thảo",
+          "placeholder": "Chọn trình soạn thảo",
+          "helper": "Chọn trình soạn thảo code bạn dùng."
+        },
+        "customCommand": {
+          "label": "Lệnh mở trình soạn thảo tuỳ chỉnh",
+          "placeholder": "vd. code, subl, vim",
+          "helper": "Nhập lệnh để mở trình soạn thảo của bạn. Lệnh này được dùng để mở file."
+        },
+        "remoteSsh": {
+          "host": {
+            "label": "SSH host từ xa (không bắt buộc)",
+            "placeholder": "vd. hostname hoặc địa chỉ IP",
+            "helper": "Đặt khi HiveDeck chạy trên server từ xa. Khi đó, bấm \"Mở trong trình soạn thảo\" sẽ tạo URL mở trình soạn thảo qua SSH thay vì chạy lệnh trên máy."
+          },
+          "user": {
+            "label": "SSH user từ xa (không bắt buộc)",
+            "placeholder": "vd. username",
+            "helper": "Tên người dùng SSH cho kết nối từ xa. Nếu bỏ trống, VS Code sẽ dùng cấu hình SSH của bạn hoặc hỏi bạn."
+          }
+        },
+        "autoInstallExtension": {
+          "label": "Tự cài extension VS Code",
+          "helper": "Tự cài extension Vibe Kanban khi mở project trong VS Code hoặc Cursor. Chạy nền và không làm gì nếu extension đã được cài."
+        },
+        "availability": {
+          "checking": "Đang kiểm tra...",
+          "available": "Có sẵn",
+          "notFound": "Không có trong PATH"
+        }
+      },
+      "terminal": {
+        "title": "Terminal tương tác",
+        "description": "Cấu hình cách hiển thị phiên terminal tương tác (headed) của agent.",
+        "itermTabs": {
+          "label": "Gom phiên iTerm2 thành tab",
+          "helper": "Khi bật, các phiên agent tương tác mở thành tab trong cùng một cửa sổ iTerm2 thay vì mỗi phiên một cửa sổ. Chỉ áp dụng cho iTerm2."
+        }
+      },
+      "github": {
+        "title": "Tích hợp GitHub",
+        "cliSetup": {
+          "title": "Cài đặt GitHub CLI",
+          "description": "Cần đăng nhập GitHub CLI để tạo pull request và làm việc với repo GitHub.",
+          "setupWillTitle": "Bước cài đặt này sẽ:",
+          "steps": {
+            "checkInstalled": "Kiểm tra GitHub CLI (gh) đã được cài chưa",
+            "installHomebrew": "Cài bằng Homebrew nếu cần (macOS)",
+            "authenticate": "Đăng nhập GitHub bằng OAuth"
+          },
+          "setupNote": "Quá trình cài đặt chạy trong cửa sổ chat. Bạn cần hoàn tất đăng nhập trên trình duyệt.",
+          "runSetup": "Chạy cài đặt",
+          "running": "Đang chạy...",
+          "errors": {
+            "brewMissing": "Chưa cài Homebrew. Cài Homebrew để dùng cài đặt tự động.",
+            "notSupported": "Nền tảng này không hỗ trợ cài đặt tự động. Hãy cài GitHub CLI thủ công.",
+            "setupFailed": "Không chạy được cài đặt GitHub CLI."
+          },
+          "help": {
+            "homebrew": {
+              "description": "Cài đặt tự động cần Homebrew. Cài Homebrew từ",
+              "brewSh": "brew.sh",
+              "manualInstall": "rồi chạy lại cài đặt. Hoặc cài GitHub CLI thủ công bằng:",
+              "afterInstall": "Sau khi cài, đăng nhập bằng:"
+            },
+            "manual": {
+              "description": "Cài GitHub CLI theo",
+              "officialDocs": "tài liệu chính thức",
+              "andAuthenticate": "rồi đăng nhập bằng tài khoản GitHub của bạn."
+            }
+          }
+        }
+      },
+      "git": {
+        "title": "Git",
+        "description": "Cấu hình cách đặt tên branch",
+        "branchPrefix": {
+          "label": "Tiền tố branch",
+          "placeholder": "vk",
+          "helper": "Tiền tố cho tên branch tự tạo. Để trống nếu không cần tiền tố.",
+          "preview": "Xem trước:",
+          "previewWithPrefix": "{{prefix}}/1a2b-task-name",
+          "previewNoPrefix": "1a2b-task-name",
+          "errors": {
+            "slash": "Tiền tố không được chứa '/'.",
+            "startsWithDot": "Tiền tố không được bắt đầu bằng '.'.",
+            "endsWithDot": "Tiền tố không được kết thúc bằng '.' hoặc '.lock'.",
+            "invalidSequence": "Chứa chuỗi không hợp lệ (.., @{).",
+            "invalidChars": "Chứa ký tự không hợp lệ.",
+            "controlChars": "Chứa ký tự điều khiển."
+          }
+        },
+        "workspaceDir": {
+          "label": "Thư mục workspace",
+          "placeholder": "~/",
+          "helper": "Workspace sẽ được tạo trong thư mục con .hivedeck-workspaces của đường dẫn này. Để trống để dùng mặc định của hệ thống. Cần khởi động lại app để áp dụng.",
+          "browse": "Duyệt",
+          "dialogTitle": "Chọn thư mục workspace",
+          "dialogDescription": "Chọn một thư mục. Workspace sẽ được tạo trong thư mục con .hivedeck-workspaces của nó."
+        }
+      },
+      "network": {
+        "title": "Mạng",
+        "description": "Cấu hình nguồn (origin) được phép truy cập app (để truy cập từ LAN, VPN hoặc tunnel mà không cần khởi động lại server).",
+        "allowedOrigins": {
+          "label": "Origin được phép",
+          "placeholder": "http://192.168.1.50:3001, https://tunnel.example.com",
+          "helper": "Danh sách URL đầy đủ (gồm scheme và port), cách nhau bằng dấu phẩy, được phép truy cập server này ngoài localhost. Origin loopback luôn được phép. Có hiệu lực ngay khi lưu. Xoá trống ô này sẽ dùng biến môi trường VK_ALLOWED_ORIGINS."
+        }
+      },
+      "pullRequests": {
+        "title": "Pull request",
+        "description": "Cấu hình cách tạo PR",
+        "autoDescription": {
+          "label": "Mặc định tự viết mô tả PR",
+          "helper": "Khi bật, AI agent sẽ tự cập nhật tiêu đề và mô tả PR sau khi tạo."
+        },
+        "customPrompt": {
+          "useCustom": "Dùng prompt tuỳ chỉnh",
+          "helper": "Prompt tuỳ chỉnh cho AI agent khi viết mô tả PR. Dùng {pr_number} và {pr_url} làm chỗ điền."
+        }
+      },
+      "commits": {
+        "title": "Commit",
+        "description": "Cấu hình commit cho workspace",
+        "reminder": {
+          "label": "Nhắc commit",
+          "helper": "Nhắc các agent được hỗ trợ commit thay đổi trước khi dừng."
+        },
+        "customPrompt": {
+          "useCustom": "Dùng prompt tuỳ chỉnh",
+          "helper": "Prompt tuỳ chỉnh cho lời nhắc commit. Trạng thái git sẽ được tự thêm vào."
+        }
+      },
+      "notifications": {
+        "title": "Thông báo",
+        "description": "Chọn khi nào và cách nhận thông báo.",
+        "sound": {
+          "label": "Thông báo bằng âm thanh",
+          "helper": "Phát âm thanh khi workspace chạy xong.",
+          "fileLabel": "Âm thanh",
+          "filePlaceholder": "Chọn âm thanh",
+          "fileHelper": "Chọn âm thanh phát khi task xong. Bấm nút loa để nghe thử."
+        },
+        "push": {
+          "label": "Thông báo hệ thống",
+          "helper": "Hiện thông báo hệ thống khi workspace chạy xong."
+        }
+      },
+      "messageInput": {
+        "title": "Ô nhập tin nhắn",
+        "description": "Cấu hình cách gửi tin nhắn trong ô chat.",
+        "shortcut": {
+          "label": "Gửi tin nhắn bằng",
+          "helper": "Chọn phím tắt để gửi tin nhắn.",
+          "enterLabel": "Enter (Shift+Enter để xuống dòng)"
+        }
+      },
+      "taskTemplates": {
+        "title": "Tag",
+        "description": "Tạo đoạn văn bản dùng lại được, chèn vào mô tả task bằng @tên_tag."
+      },
+      "tags": {
+        "manager": {
+          "title": "Tag cho task",
+          "addTag": "Thêm tag",
+          "noTags": "Chưa có tag. Tạo đoạn văn bản dùng lại cho các mô tả task hay gặp. Dùng @tên_tag trong bất kỳ task nào.",
+          "table": {
+            "tagName": "Tên tag",
+            "content": "Nội dung",
+            "actions": "Thao tác"
+          },
+          "actions": {
+            "editTag": "Sửa tag",
+            "deleteTag": "Xoá tag"
+          },
+          "deleteConfirm": "Bạn có chắc muốn xoá tag \"{{tagName}}\"?"
+        },
+        "dialog": {
+          "createTitle": "Tạo tag",
+          "editTitle": "Sửa tag",
+          "tagName": {
+            "label": "Tên tag",
+            "required": "*",
+            "hint": "Dùng tên này với @ trong mô tả task: @{{tagName}}",
+            "placeholder": "vd. bug_fix, test_plan, api_docs",
+            "error": "Tên tag không được có dấu cách. Hãy dùng dấu gạch dưới (vd. my_tag)"
+          },
+          "content": {
+            "label": "Nội dung",
+            "required": "*",
+            "hint": "Văn bản sẽ được chèn khi bạn dùng @{{tagName}} trong mô tả task",
+            "placeholder": "Nhập văn bản sẽ được chèn khi dùng tag này"
+          },
+          "errors": {
+            "nameRequired": "Cần nhập tên tag",
+            "saveFailed": "Không lưu được tag"
+          },
+          "buttons": {
+            "cancel": "Huỷ",
+            "create": "Tạo",
+            "update": "Cập nhật"
+          }
+        }
+      },
+      "safety": {
+        "title": "An toàn & cảnh báo",
+        "description": "Đặt lại các xác nhận cảnh báo an toàn và hướng dẫn ban đầu.",
+        "disclaimer": {
+          "title": "Xác nhận cảnh báo",
+          "description": "Đặt lại cảnh báo an toàn.",
+          "button": "Đặt lại"
+        },
+        "onboarding": {
+          "title": "Hướng dẫn ban đầu",
+          "description": "Đặt lại phần hướng dẫn ban đầu.",
+          "button": "Đặt lại"
+        }
+      },
+      "beta": {
+        "title": "Tính năng beta",
+        "description": "Dùng thử các tính năng thử nghiệm trước khi phát hành.",
+        "workspaces": {
+          "label": "Bật Workspaces beta",
+          "helper": "Dùng giao diện workspace mới khi xem workspace. Task sẽ mở ở chế độ xem task trước, còn các lượt chạy mở ở giao diện workspace mới."
+        }
+      }
+    },
+    "pipeline": {
+      "loading": "Đang tải cài đặt pipeline…",
+      "loadError": "Không tải được cài đặt pipeline",
+      "save": {
+        "success": "✓ Đã lưu cài đặt!",
+        "error": "Không lưu được cấu hình"
+      },
+      "steps": {
+        "title": "Các bước pipeline",
+        "description": "Danh sách các bước hiện trong mục Pipeline khi tạo issue. Mỗi bước gồm nhãn và một đoạn prompt được thêm vào card khi được chọn.",
+        "reset": "Về mặc định",
+        "empty": "Chưa có bước nào. Thêm ở dưới hoặc đặt về mặc định.",
+        "customize": {
+          "label": "Tuỳ chỉnh các bước pipeline",
+          "helper": "Dùng danh sách bước của riêng bạn thay cho mặc định. Khi tắt, các bước mặc định chỉ được xem."
+        },
+        "fields": {
+          "label": "Nhãn",
+          "labelPlaceholder": "vd. Viết spec",
+          "prompt": "Đoạn prompt",
+          "promptPlaceholder": "Hướng dẫn được thêm vào card khi bước này được chọn.",
+          "defaultEnabled": "Mặc định được chọn cho card mới"
+        },
+        "actions": {
+          "add": "Thêm bước",
+          "remove": "Xoá bước"
+        }
+      },
+      "files": {
+        "title": "File pipeline",
+        "description": "Pipeline là các file TOML trong ~/.hivedeck/pipelines/. Chọn một pipeline cho mỗi card trong hộp thoại tạo issue. Sửa nội dung TOML bên dưới, hoặc đặt về mặc định có sẵn."
+      },
+      "resetAll": "Đặt tất cả về mặc định",
+      "empty": "Không tìm thấy file pipeline.",
+      "stageCount": "{{n}} bước",
+      "remove": "Xoá pipeline",
+      "rawPlaceholder": "Nội dung TOML của pipeline…",
+      "saveButton": "Lưu",
+      "reset": "Về mặc định",
+      "saved": "✓ Đã lưu",
+      "saveError": "Không lưu được pipeline",
+      "invalidBadge": "Không hợp lệ",
+      "parseError": "Lỗi cú pháp",
+      "errorAt": "dòng {{line}}, cột {{column}}"
+    },
+    "recurrent": {
+      "loading": "Đang tải tác vụ định kỳ…",
+      "loadError": "Không tải được tác vụ định kỳ",
+      "list": {
+        "title": "Tác vụ định kỳ",
+        "description": "Tác vụ định kỳ là các file TOML trong ~/.hivedeck/recurrent/. Bật một tác vụ để nó chạy theo lịch, hoặc chạy ngay. Sửa nội dung TOML bên dưới."
+      },
+      "empty": "Không tìm thấy tác vụ định kỳ.",
+      "neverRun": "Chưa chạy lần nào",
+      "enabledLabel": "Bật",
+      "runNow": "Chạy ngay",
+      "runSkipped": "Tác vụ này đang có một lượt chạy.",
+      "openRun": "Mở lượt chạy",
+      "rawPlaceholder": "Nội dung TOML của tác vụ…",
+      "saveButton": "Lưu",
+      "saved": "✓ Đã lưu",
+      "saveError": "Không lưu được tác vụ",
+      "schedule": {
+        "cron": "cron: {{expr}}",
+        "every": "mỗi {{expr}}"
+      },
+      "status": {
+        "running": "đang chạy",
+        "completed": "xong",
+        "failed": "thất bại",
+        "killed": "đã dừng"
+      },
+      "page": {
+        "title": "Tác vụ thường dùng",
+        "description": "Prompt task dùng lại được, chạy theo lịch hoặc khi cần. Mỗi tác vụ là một file TOML trong ~/.hivedeck/recurrent/."
+      },
+      "reload": "Tải lại",
+      "create": {
+        "button": "Tác vụ mới",
+        "nameLabel": "Tên",
+        "namePlaceholder": "Tác vụ của tôi",
+        "slugLabel": "Slug",
+        "slugHelp": "Dùng làm tên file. Chỉ gồm chữ, số, - và _.",
+        "invalidSlug": "Slug chỉ được gồm chữ, số, - và _.",
+        "duplicateSlug": "Đã có tác vụ với slug này.",
+        "submit": "Tạo",
+        "cancel": "Huỷ"
+      },
+      "delete": {
+        "button": "Xoá",
+        "confirmTitle": "Xoá tác vụ",
+        "confirmMessage": "Bạn có chắc muốn xoá \"{{name}}\"? Không thể hoàn tác.",
+        "confirmConfirm": "Xoá",
+        "confirmCancel": "Huỷ"
+      }
+    },
+    "agents": {
+      "title": "Cấu hình coding agent",
+      "description": "Tuỳ chỉnh cách coding agent hoạt động bằng các cấu hình khác nhau.",
+      "loading": "Đang tải cấu hình agent...",
+      "selectAgent": "Chọn agent",
+      "save": {
+        "button": "Lưu cấu hình agent",
+        "success": "✓ Đã lưu cấu hình executor!",
+        "unsavedChanges": "• Bạn có thay đổi chưa lưu"
+      },
+      "availability": {
+        "checking": "Đang kiểm tra...",
+        "checkingAvailability": "Đang kiểm tra...",
+        "available": "Agent có sẵn",
+        "notFoundSimple": "Không tìm thấy agent",
+        "loginDetected": "Đã dùng gần đây",
+        "loginDetectedTooltip": "Tìm thấy thông tin đăng nhập gần đây của agent này",
+        "installationFound": "Đã từng dùng",
+        "installationFoundTooltip": "Tìm thấy cấu hình của agent. Có thể bạn cần đăng nhập để dùng."
+      },
+      "editor": {
+        "formLabel": "Sửa JSON",
+        "agentLabel": "Agent",
+        "agentPlaceholder": "Chọn loại executor",
+        "configLabel": "Cấu hình",
+        "configPlaceholder": "Chọn cấu hình",
+        "createNew": "Tạo mới...",
+        "deleteTitle": "Không thể xoá cấu hình cuối cùng",
+        "deleteButton": "Xoá {{name}}",
+        "deleteText": "Xoá",
+        "makeDefault": "Đặt làm mặc định",
+        "isDefault": "Mặc định",
+        "jsonLabel": "Cấu hình agent (JSON)",
+        "jsonPlaceholder": "Đang tải profile...",
+        "jsonLoading": "Đang tải...",
+        "pathLabel": "Vị trí file cấu hình:"
+      },
+      "errors": {
+        "deleteFailed": "Không xoá được cấu hình. Vui lòng thử lại.",
+        "saveFailed": "Không lưu được cấu hình agent. Vui lòng thử lại.",
+        "saveConfigFailed": "Không lưu được cấu hình. Vui lòng thử lại.",
+        "schemaNotFound": "Không tìm thấy schema cho executor: {{executor}}"
+      },
+      "tree": {
+        "search": "Tìm cấu hình...",
+        "expandAll": "Mở tất cả",
+        "collapseAll": "Thu gọn tất cả",
+        "noResults": "Không có cấu hình phù hợp",
+        "noConfigs": "Chưa có cấu hình",
+        "selectConfig": "Chọn một cấu hình ở sidebar để xem và sửa."
+      },
+      "deleteConfigDialog": {
+        "title": "Xoá cấu hình?",
+        "description": "Thao tác này xoá vĩnh viễn \"{{configName}}\" khỏi executor {{executorType}}. Không thể hoàn tác."
+      }
+    },
+    "mcp": {
+      "title": "Cấu hình MCP server",
+      "description": "Cấu hình server Model Context Protocol để mở rộng coding agent bằng tool và tài nguyên tuỳ chỉnh.",
+      "loading": "Đang tải cấu hình MCP...",
+      "applying": "Đang áp dụng cấu hình...",
+      "labels": {
+        "agent": "Agent",
+        "agentPlaceholder": "Chọn executor",
+        "agentHelper": "Chọn agent cần cấu hình MCP server.",
+        "serverConfig": "Cấu hình server (JSON)",
+        "popularServers": "Server phổ biến",
+        "serverHelper": "Bấm vào một thẻ để chèn MCP server đó vào JSON ở trên.",
+        "saveLocation": "Thay đổi sẽ được lưu vào:"
+      },
+      "loadingStates": {
+        "jsonEditor": "Đang tải...",
+        "configuration": "Đang tải cấu hình MCP server hiện tại..."
+      },
+      "errors": {
+        "loadFailed": "Không tải được cấu hình.",
+        "invalidJson": "JSON không hợp lệ",
+        "validationError": "Lỗi kiểm tra",
+        "saveFailed": "Không lưu được MCP server",
+        "applyFailed": "Không áp dụng được cấu hình MCP server",
+        "addServerFailed": "Không thêm được server có sẵn",
+        "mcpError": "Lỗi cấu hình MCP: {{error}}",
+        "notSupported": "Không hỗ trợ MCP",
+        "supportMessage": "Để dùng MCP server, hãy chọn ở trên một executor có hỗ trợ MCP (Claude, Amp, Gemini, Codex hoặc Opencode)."
+      },
+      "save": {
+        "button": "Lưu cấu hình MCP",
+        "success": "Đã lưu!",
+        "successMessage": "✓ Đã lưu cấu hình MCP!",
+        "loading": "Đang tải cấu hình MCP server hiện tại...",
+        "unsavedChanges": "• Bạn có thay đổi chưa lưu"
+      }
+    },
+    "projects": {
+      "title": "Cấu hình project",
+      "description": "Cấu hình script và cài đặt riêng của project.",
+      "loading": "Đang tải project...",
+      "loadError": "Không tải được project.",
+      "selector": {
+        "label": "Chọn project",
+        "placeholder": "Chọn project cần cấu hình",
+        "helper": "Chọn một project để xem và sửa cấu hình.",
+        "noProjects": "Chưa có project"
+      },
+      "general": {
+        "title": "Cài đặt chung",
+        "description": "Cấu hình thông tin cơ bản của project.",
+        "name": {
+          "label": "Tên project",
+          "placeholder": "Nhập tên project",
+          "helper": "Tên hiển thị của project."
+        },
+        "repoPath": {
+          "label": "Đường dẫn Git repo",
+          "placeholder": "/path/to/your/existing/repo",
+          "helper": "Đường dẫn tuyệt đối tới git repo trên máy."
+        }
+      },
+      "save": {
+        "button": "Lưu cài đặt project",
+        "saving": "Đang lưu...",
+        "success": "✓ Đã lưu cài đặt project!",
+        "error": "Không lưu được cài đặt project",
+        "unsavedChanges": "• Bạn có thay đổi chưa lưu",
+        "discard": "Bỏ",
+        "confirmSwitch": "Bạn có thay đổi chưa lưu. Bạn có chắc muốn chuyển project? Thay đổi sẽ bị mất."
+      },
+      "repositories": {
+        "title": "Repo",
+        "description": "Quản lý các git repo trong project này",
+        "noRepositories": "Chưa cấu hình repo nào",
+        "addRepository": "Thêm repo"
+      }
+    },
+    "repos": {
+      "title": "Cấu hình repo",
+      "description": "Cấu hình các script chạy khi repo này được dùng trong workspace.",
+      "loading": "Đang tải repo...",
+      "loadError": "Không tải được repo.",
+      "addRepo": {
+        "button": "Thêm repo",
+        "dialogTitle": "Chọn Git repo",
+        "dialogDescription": "Chọn một git repo có sẵn để đăng ký.",
+        "error": "Không đăng ký được repo"
+      },
+      "selector": {
+        "label": "Chọn repo",
+        "placeholder": "Chọn repo cần cấu hình",
+        "helper": "Chọn một repo để xem và sửa cấu hình.",
+        "noRepos": "Chưa có repo"
+      },
+      "general": {
+        "title": "Cài đặt chung",
+        "description": "Cấu hình thông tin cơ bản của repo.",
+        "displayName": {
+          "label": "Tên hiển thị",
+          "placeholder": "Nhập tên hiển thị",
+          "helper": "Tên thân thiện cho repo này."
+        },
+        "path": {
+          "label": "Đường dẫn repo"
+        },
+        "defaultWorkingDir": {
+          "label": "Thư mục làm việc mặc định",
+          "placeholder": "vd. packages/frontend",
+          "helper": "Thư mục con (tính từ gốc repo) nơi coding agent chạy với workspace một repo. Áp dụng khi tạo workspace. Để trống để dùng gốc repo."
+        },
+        "defaultTargetBranch": {
+          "label": "Branch đích mặc định",
+          "placeholder": "Chọn branch",
+          "helper": "Base branch mặc định cho workspace mới. Worktree được tách từ branch này và PR sẽ nhắm vào nó.",
+          "search": "Tìm branch",
+          "noBranches": "Không tìm thấy branch",
+          "loading": "Đang tải branch...",
+          "useCurrent": "Dùng branch hiện tại"
+        }
+      },
+      "scripts": {
+        "title": "Script & cấu hình",
+        "description": "Cấu hình dev server, setup, dọn dẹp và các file cần sao chép cho repo này. Các script chạy mỗi khi repo được dùng trong workspace.",
+        "setup": {
+          "label": "Script setup",
+          "helper": "Script chạy trong worktree sau khi worktree được tạo và trước khi coding agent bắt đầu. Dùng cho việc chuẩn bị như cài dependency hay chuẩn bị môi trường.",
+          "parallelLabel": "Chạy script setup song song với coding agent",
+          "parallelHelper": "Khi bật, script setup chạy cùng lúc với coding agent thay vì chờ setup xong trước."
+        },
+        "cleanup": {
+          "label": "Script dọn dẹp",
+          "helper": "Script chạy trong worktree sau khi coding agent chạy xong, chỉ khi có thay đổi. Dùng cho kiểm tra chất lượng như chạy linter, formatter, test hoặc bước kiểm tra khác."
+        },
+        "archive": {
+          "label": "Script lưu trữ",
+          "helper": "Script chạy trong worktree khi workspace được lưu trữ. Dùng cho việc dọn dẹp như dừng dịch vụ, giải phóng tài nguyên hoặc lưu trạng thái."
+        },
+        "copyFiles": {
+          "label": "Sao chép file",
+          "helper": "Danh sách file, cách nhau bằng dấu phẩy, cần sao chép từ thư mục repo gốc sang worktree. Hữu ích cho file môi trường như .env. Nhớ đưa chúng vào gitignore!",
+          "placeholder": "Đường dẫn file hoặc mẫu glob (vd. .env, config/*.json)"
+        },
+        "devServer": {
+          "label": "Script dev server",
+          "helper": "Khởi động dev server cho repo này. Script chạy trong thư mục worktree của repo."
+        }
+      },
+      "linkedProjects": {
+        "title": "Project liên kết",
+        "description": "Các project dùng repo này trong cấu hình workspace mặc định.",
+        "loading": "Đang kiểm tra project…",
+        "none": "Chưa có project liên kết"
+      },
+      "remove": {
+        "title": "Gỡ repo",
+        "description": "Gỡ liên kết repo này khỏi HiveDeck. File trên máy không bị xoá.",
+        "button": "Gỡ",
+        "confirm": "Gỡ repo",
+        "dialogTitle": "Gỡ \"{{name}}\"?",
+        "dialogDescription": "Repo sẽ được gỡ khỏi HiveDeck. File trên máy không bị ảnh hưởng. Bạn có thể thêm lại sau.",
+        "success": "Đã gỡ repo.",
+        "error": "Không gỡ được repo."
+      },
+      "save": {
+        "button": "Lưu cài đặt repo",
+        "success": "Đã lưu cài đặt repo!",
+        "error": "Không lưu được cài đặt repo",
+        "unsavedChanges": "Bạn có thay đổi chưa lưu",
+        "discard": "Bỏ",
+        "confirmSwitch": "Bạn có thay đổi chưa lưu. Bạn có chắc muốn chuyển repo? Thay đổi sẽ bị mất."
+      }
+    },
+    "telegram": {
+      "title": "Telegram",
+      "description": "Gửi các yêu cầu duyệt của agent tới một supergroup Telegram. Cấu hình bằng cách sửa file TOML bên dưới; daemon hivedeck-telegram-bridge sẽ gửi tin nhắn.",
+      "status": {
+        "title": "Trạng thái",
+        "enabled": "Bật",
+        "disabled": "Tắt",
+        "configured": "Đã cấu hình",
+        "notConfigured": "Chưa cấu hình",
+        "chatId": "Chat ID",
+        "tokenSource": "Nguồn token",
+        "perWorktreeTopics": "Mỗi worktree một topic",
+        "on": "Bật",
+        "off": "Tắt",
+        "bridgeConnected": "Bridge đang chạy",
+        "bridgeDisconnected": "Bridge chưa chạy",
+        "lastSeen": "Hoạt động lần cuối {{time}}",
+        "loadError": "Không tải được trạng thái Telegram"
+      },
+      "test": {
+        "button": "Gửi tin nhắn thử",
+        "sending": "Đang gửi…",
+        "success": "Đã gửi tin nhắn thử",
+        "failure": "Thất bại: {{error}}"
+      },
+      "config": {
+        "title": "File cấu hình",
+        "description": "Sửa file này rồi khởi động lại bridge để áp dụng.",
+        "example": "Ví dụ telegram.toml"
+      }
+    },
+    "router": {
+      "title": "Router",
+      "subtitle": "9router tích hợp sẵn: provider, API key và combo model cho các agent.",
+      "open": "Router",
+      "state": {
+        "not_installed": "Chưa cài",
+        "installing": "Đang cài…",
+        "updating": "Đang cập nhật…",
+        "stopped": "Đã dừng",
+        "starting": "Đang khởi động…",
+        "running": "Đang chạy",
+        "external": "Đang chạy (bên ngoài)"
+      },
+      "actions": {
+        "install": "Cài 9router",
+        "start": "Khởi động",
+        "stop": "Dừng",
+        "restart": "Khởi động lại",
+        "openInBrowser": "Mở trên trình duyệt",
+        "copy": "Sao chép",
+        "copied": "Đã sao chép"
+      },
+      "autoStart": "Khởi động cùng HiveDeck",
+      "baseUrl": "Base URL",
+      "combos": {
+        "intro": "Chuỗi model dự phòng gợi ý cho từng vai trò agent, dựa trên model, tình trạng provider và quota mà 9router báo hiện tại. Khi lưu, mỗi model sẽ được thử bằng một request nhỏ; không có gì thay đổi cho tới khi bạn áp dụng combo.",
+        "refresh": "Làm mới",
+        "providers": "Provider",
+        "create": "Tạo combo",
+        "upToDate": "Đã khớp",
+        "noCandidates": "Không có model dùng được cho vai trò này. Kết nối thêm provider hoặc chờ quota được làm mới.",
+        "notRunning": "Khởi động 9router để nhận gợi ý combo.",
+        "resetsIn": "làm mới sau {{time}}",
+        "revoke": "Thôi cho HiveDeck quản lý 9router",
+        "roles": {
+          "planner": "Lập kế hoạch và điều phối: suy luận mạnh nhất, context lớn.",
+          "coder": "Viết code: dùng tool tốt, model chuyên code, nhiều quota nhất.",
+          "reviewer": "Review diff: suy luận mạnh, khác dòng model với coder.",
+          "fast": "Tiêu đề, commit message, tóm tắt: nhanh và rẻ."
+        },
+        "health": {
+          "ok": "Ổn",
+          "low": "Sắp hết",
+          "exhausted": "Hết quota",
+          "error": "Cần xử lý",
+          "inactive": "Đã tắt",
+          "unknown": "Không có dữ liệu quota"
+        },
+        "consent": {
+          "title": "Cho HiveDeck quản lý 9router",
+          "body": "Để gợi ý combo theo quota thực tế và tạo combo giúp bạn, HiveDeck dùng CLI token nội bộ của 9router — giống cách CLI của chính 9router làm.",
+          "reads": "Đọc ~/.9router/machine-id và ~/.9router/auth/cli-secret để tạo token, rồi đọc trạng thái provider và quota.",
+          "writes": "Chỉ tạo hoặc cập nhật combo khi bạn bấm Tạo/Cập nhật.",
+          "local": "Chỉ kết nối tới 127.0.0.1; token không bao giờ được lưu hay gửi đi đâu khác. Bạn có thể tắt bất cứ lúc nào.",
+          "allow": "Cho phép"
+        },
+        "updatedAgo": "Cập nhật {{time}} trước",
+        "newCombo": "Combo mới",
+        "matches": "Khớp với gợi ý",
+        "changes": "+{{added}} · −{{removed}}",
+        "replace": "Thay combo",
+        "added": "mới",
+        "removes": "Bỏ {{count}} model hiện có",
+        "show": "Hiện",
+        "hide": "Ẩn",
+        "confirm": "Thay {{name}}? Thao tác này bỏ {{count}} model hiện có của nó. Bạn có thể hoàn tác sau.",
+        "cancel": "Huỷ",
+        "undo": "Hoàn tác",
+        "saved": "Đã lưu {{name}}. Có thể hoàn tác ngay trên thẻ của nó.",
+        "restored": "Đã khôi phục {{name}}.",
+        "fixInDashboard": "Sửa trong dashboard",
+        "noQuotaApi": "Provider không báo quota",
+        "modelCount": "{{count}} model",
+        "test": "Thử",
+        "testing": "Đang thử…",
+        "check": {
+          "ok": "{{ms}} ms",
+          "okNoTime": "OK",
+          "failed": "Lỗi",
+          "hidden": "đã ẩn khỏi gợi ý",
+          "cooldown": "bỏ qua trong 30 phút"
+        },
+        "excluded": {
+          "title": "Model bị loại",
+          "hint": "Không được gợi ý: đang tạm nghỉ, hoặc không có trên tài khoản của bạn",
+          "hidden": "Đã ẩn",
+          "restore": "Hiện lại",
+          "restored": "{{id}} có thể được gợi ý lại.",
+          "cooldown": "Tạm nghỉ · còn {{time}}",
+          "cooldownNoTime": "Tạm nghỉ"
+        },
+        "excludedAfterTest": "{{count}} model thử không qua và đã bị loại khỏi gợi ý; các chuỗi đã được cập nhật."
+      },
+      "version": "Phiên bản",
+      "pinned": "HiveDeck cài v{{version}}",
+      "source": {
+        "managed": "do HiveDeck cài",
+        "global": "cài global"
+      },
+      "externalNote": "9router này không do HiveDeck khởi động nên không thể dừng từ đây.",
+      "globalLeftover": "Vẫn còn bản 9router v{{version}} cài global. Nó có thể chiếm port hoặc chạy với dữ liệu ~/.9router mới hơn — hãy gỡ nó:",
+      "tabs": {
+        "dashboard": "Dashboard",
+        "combos": "Combo",
+        "routing": "Định tuyến",
+        "logs": "Log"
+      },
+      "noLogs": "Chưa có log.",
+      "empty": {
+        "notInstalledTitle": "Chưa cài 9router",
+        "notInstalledBody": "HiveDeck có thể cài 9router v{{version}} giúp bạn bằng npm. Nó chạy trên máy tại 127.0.0.1 và lưu dữ liệu trong ~/.9router.",
+        "stoppedTitle": "9router đang dừng",
+        "stoppedBody": "Khởi động để quản lý provider, API key và combo tại đây.",
+        "busyTitle": "Đang xử lý…",
+        "busyBody": "Có thể mất một phút. Xem tiến độ ở tab Log.",
+        "noNode": "Cần có Node.js và npm trong PATH để cài và chạy 9router.",
+        "remoteHost": "Dashboard chỉ truy cập được từ máy này. Mở HiveDeck qua localhost để dùng ở đây."
+      },
+      "update": {
+        "available": "Có bản v{{version}}",
+        "action": "Cập nhật lên v{{version}}",
+        "check": "Kiểm tra cập nhật",
+        "upToDate": "Đã là bản mới nhất",
+        "rollback": "Quay về v{{version}}",
+        "takeOver": "Để HiveDeck quản lý cập nhật",
+        "copyNpm": "Sao chép lệnh cập nhật npm",
+        "checking": "Đang kiểm tra…"
+      },
+      "routing": {
+        "on": "Đang định tuyến",
+        "enable": "Cho agent đi qua 9router",
+        "enableHint": "Các lượt chạy Claude Code và Codex sẽ đi qua 9router và dùng combo theo vai trò.",
+        "notRunning": "9router chưa chạy nên agent hiện chạy không qua nó. Khởi động ở trang này.",
+        "roles": "Combo cho từng vai trò",
+        "agentDefault": "Mặc định của agent",
+        "missingCombo": "Combo \"{{name}}\" không còn trong 9router; vai trò này dùng mặc định của agent.",
+        "noCombos": "9router chưa có combo nào. Tạo ở tab Combo.",
+        "scope": "Áp dụng cho Claude Code (headless và headed) và Codex. Các agent khác chạy như cũ.",
+        "precedence": "Model bạn chọn trong ô chọn model hoặc đặt trong profile luôn được ưu tiên hơn combo của vai trò.",
+        "usedFor": {
+          "planner": "Phiên thuyền trưởng. Cũng là alias \"opus\" và \"fable\" của Claude.",
+          "coder": "Lượt chạy workspace và task. Cũng là alias \"sonnet\" của Claude.",
+          "reviewer": "Lượt review code.",
+          "fast": "Các lệnh gọi nền của Claude (tiêu đề, tóm tắt): alias \"haiku\"."
+        }
+      }
+    }
+  },
+  "integrations": {
+    "github": {
+      "cliSetup": {
+        "title": "Cài đặt GitHub CLI",
+        "description": "Cần đăng nhập GitHub CLI để tạo pull request và làm việc với repo GitHub.",
+        "setupWillTitle": "Bước cài đặt này sẽ:",
+        "steps": {
+          "checkInstalled": "Kiểm tra GitHub CLI (gh) đã được cài chưa",
+          "installHomebrew": "Cài bằng Homebrew nếu cần (macOS)",
+          "authenticate": "Đăng nhập GitHub bằng OAuth"
+        },
+        "setupNote": "Quá trình cài đặt chạy trong cửa sổ chat. Bạn cần hoàn tất đăng nhập trên trình duyệt.",
+        "runSetup": "Chạy cài đặt",
+        "running": "Đang chạy...",
+        "errors": {
+          "brewMissing": "Chưa cài Homebrew. Cài Homebrew để dùng cài đặt tự động.",
+          "notSupported": "Nền tảng này không hỗ trợ cài đặt tự động. Hãy cài GitHub CLI thủ công.",
+          "setupFailed": "Không chạy được cài đặt GitHub CLI."
+        },
+        "help": {
+          "homebrew": {
+            "description": "Cài đặt tự động cần Homebrew. Cài Homebrew từ",
+            "brewSh": "brew.sh",
+            "manualInstall": "rồi chạy lại cài đặt. Hoặc cài GitHub CLI thủ công bằng:",
+            "afterInstall": "Sau khi cài, đăng nhập bằng:"
+          },
+          "manual": {
+            "description": "Cài GitHub CLI theo",
+            "officialDocs": "tài liệu chính thức",
+            "andAuthenticate": "rồi đăng nhập bằng tài khoản GitHub của bạn."
+          }
+        }
+      }
+    }
+  }
+}

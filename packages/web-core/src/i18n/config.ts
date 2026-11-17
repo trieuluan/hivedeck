@@ -3,12 +3,16 @@ import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import { uiLanguageToI18nCode } from './languages';
 
-// Import translation files (English only — the local-only fork ships one
-// language; translation files for other locales were removed)
+// Translation files: English (source of truth) and Vietnamese. Keys missing
+// from a locale fall back to English.
 import enCommon from './locales/en/common.json';
 import enSettings from './locales/en/settings.json';
 import enProjects from './locales/en/projects.json';
 import enTasks from './locales/en/tasks.json';
+import viCommon from './locales/vi/common.json';
+import viSettings from './locales/vi/settings.json';
+import viProjects from './locales/vi/projects.json';
+import viTasks from './locales/vi/tasks.json';
 
 const resources = {
   en: {
@@ -16,6 +20,12 @@ const resources = {
     settings: enSettings,
     projects: enProjects,
     tasks: enTasks,
+  },
+  vi: {
+    common: viCommon,
+    settings: viSettings,
+    projects: viProjects,
+    tasks: viTasks,
   },
 };
 
@@ -27,8 +37,8 @@ i18n
     fallbackLng: 'en',
     defaultNS: 'common',
     debug: import.meta.env.DEV,
-    supportedLngs: ['en'],
-    load: 'currentOnly', // Load exact language code
+    supportedLngs: ['en', 'vi'],
+    load: 'languageOnly', // vi-VN → vi, en-US → en
 
     interpolation: {
       escapeValue: false, // React already escapes
