@@ -107,7 +107,7 @@ function WorkspaceCreatePanel({
   }, [linkedIssueId, onOpenIssue, onClose]);
 
   return (
-    <div className="relative flex h-full flex-1 flex-col bg-primary">
+    <div className="ship-chat relative flex h-full flex-1 flex-col bg-primary">
       <div className="flex items-center justify-between px-base py-half border-b shrink-0">
         <div className="flex items-center gap-half min-w-0 font-ibm-plex-mono">
           <button
@@ -152,6 +152,7 @@ export function WorkspaceSessionPanel({
   const { activeWorkspaces, archivedWorkspaces } = useWorkspaceContext();
   const conversationListRef = useRef<ConversationListHandle>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [hasNewMessages, setHasNewMessages] = useState(false);
   const { data: workspace, isLoading: isWorkspaceLoading } = useWorkspaceRecord(
     workspaceId,
     { enabled: !!workspaceId }
@@ -165,6 +166,11 @@ export function WorkspaceSessionPanel({
     isNewSessionMode,
     startNewSession,
   } = useWorkspaceSessions(workspaceId, { enabled: !!workspaceId });
+
+  useEffect(() => {
+    setIsAtBottom(true);
+    setHasNewMessages(false);
+  }, [workspaceId, selectedSessionId]);
 
   const workspaceSummary = useMemo(
     () =>
@@ -234,6 +240,11 @@ export function WorkspaceSessionPanel({
 
   const handleAtBottomChange = useCallback((atBottom: boolean) => {
     setIsAtBottom(atBottom);
+    if (atBottom) setHasNewMessages(false);
+  }, []);
+
+  const handleNewMessages = useCallback(() => {
+    setHasNewMessages(true);
   }, []);
 
   return (
@@ -244,7 +255,7 @@ export function WorkspaceSessionPanel({
       <ApprovalFeedbackProvider>
         <EntriesProvider key={`${workspaceId}-${selectedSessionId ?? 'new'}`}>
           <MessageEditProvider>
-            <div className="relative flex h-full flex-1 flex-col bg-primary">
+            <div className="ship-chat relative flex h-full flex-1 flex-col bg-primary">
               <div
                 className={`flex items-center justify-between px-base py-half border-b shrink-0${hideHeader ? ' hidden' : ''}`}
               >
@@ -299,6 +310,7 @@ export function WorkspaceSessionPanel({
                         ref={conversationListRef}
                         attempt={workspaceWithSession}
                         onAtBottomChange={handleAtBottomChange}
+                        onNewMessages={handleNewMessages}
                         sessionScopeId={selectedSessionId}
                       />
                     </RetryUiProvider>
@@ -313,12 +325,22 @@ export function WorkspaceSessionPanel({
                   <div className="w-chat max-w-full relative">
                     <button
                       type="button"
-                      onClick={() => handleScrollToBottom('auto')}
-                      className="absolute bottom-2 right-4 z-10 pointer-events-auto flex items-center justify-center size-10 rounded-full bg-secondary border border-border text-normal hover:text-high hover:bg-secondary shadow-lg transition-all"
+                      onClick={() => {
+                        setHasNewMessages(false);
+                        handleScrollToBottom('auto');
+                      }}
+                      className="absolute bottom-2 right-4 z-10 pointer-events-auto flex min-h-10 max-w-full items-center justify-center gap-half rounded-full border border-brand/40 bg-panel px-base py-half text-base font-medium text-normal shadow-lg transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                       aria-label={t('common:ui.scrollToBottom')}
-                      title={t('common:ui.scrollToBottom')}
                     >
                       <ArrowDownIcon className="size-icon-base" weight="bold" />
+                      {hasNewMessages ? (
+                        <span className="flex items-center gap-half">
+                          <span className="size-1.5 animate-pulse rounded-full bg-brand motion-reduce:animate-none" />
+                          <span>{t('common:ui.newMessages')}</span>
+                        </span>
+                      ) : (
+                        <span>{t('common:ui.scrollToBottom')}</span>
+                      )}
                     </button>
                   </div>
                 </div>

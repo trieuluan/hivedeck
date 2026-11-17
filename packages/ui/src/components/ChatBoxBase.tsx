@@ -18,6 +18,8 @@ export interface DropzoneProps {
 }
 
 interface ChatBoxBaseProps {
+  className?: string;
+  keyboardHint?: ReactNode;
   // Editor node (provided by frontend)
   editor: ReactNode;
 
@@ -68,6 +70,8 @@ export function ChatBoxBase({
   visualVariant,
   isRunning,
   dropzone,
+  className,
+  keyboardHint,
 }: ChatBoxBaseProps) {
   const { t } = useTranslation(['common', 'tasks']);
 
@@ -78,6 +82,7 @@ export function ChatBoxBase({
       {...(dropzone?.getRootProps() ?? {})}
       className={cn(
         'relative flex w-chat max-w-full flex-col rounded-sm border border-border bg-secondary',
+        className,
         (visualVariant === VisualVariant.FEEDBACK ||
           visualVariant === VisualVariant.EDIT ||
           visualVariant === VisualVariant.PLAN) &&
@@ -134,6 +139,7 @@ export function ChatBoxBase({
           </Toolbar>
           <div className="flex shrink-0 gap-base">{footerRight}</div>
         </div>
+        {keyboardHint}
       </div>
     </div>
   );

@@ -14,8 +14,12 @@ import {
   ArrowsOutIcon,
   GithubLogoIcon,
   PencilSimpleIcon,
+  PaperPlaneTiltIcon,
+  SquareIcon,
 } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
+import type { SendMessageShortcut } from 'shared/types';
+import { getModifierKey } from '../lib/platform';
 import { ChatBoxBase, VisualVariant, type DropzoneProps } from './ChatBoxBase';
 import { PulsingDot } from './PulsingDot';
 import { type EditorProps, type ExecutorProps } from './CreateChatBox';
@@ -49,11 +53,8 @@ export type ExecutionStatus =
   | 'queue-loading'
   | 'feedback'
   | 'edit'
-  // A headed (interactive tmux) session that is running but mid-turn: the
-  // editor stays usable but Send is disabled until the turn settles. It is NOT
-  // a "running" state for animation/stop purposes (the live agent is driven via
-  // send-input, not stopped here). Headed-idle reuses 'idle' with onSend routed
-  // to the live send-input endpoint.
+  // Headed mid-turn: compose is disabled; Stop uses the existing execution stop.
+  // Headed-idle reuses 'idle' with onSend routed to live send-input.
   | 'headed-busy';
 
 interface ActionsProps {
@@ -199,6 +200,7 @@ interface SessionChatBoxProps<TExecutor extends string = string> {
   getActiveTurnPatchKey?: () => string | null;
   tokenUsageInfo?: ContextUsageInfo | null;
   supportsContextUsage?: boolean;
+  sendShortcut?: SendMessageShortcut;
   dropzone?: DropzoneProps;
   /**
    * Disable all content-insertion affordances (attachment paperclip + dropzone).
@@ -273,11 +275,15 @@ export function SessionChatBox<TExecutor extends string = string>({
   getActiveTurnPatchKey,
   tokenUsageInfo,
   supportsContextUsage,
+  sendShortcut = 'ModifierEnter',
   dropzone,
   disableContentInsert = false,
   animateRunningOutline = true,
 }: SessionChatBoxProps<TExecutor>) {
-  const { t } = useTranslation('tasks');
+  const { t, i18n } = useTranslation('tasks');
+  const isVietnamese = (i18n.resolvedLanguage ?? i18n.language).startsWith('vi');
+  const sendIconLabel = t('conversation.actions.send');
+  const sendKeys = sendShortcut === 'Enter' ? 'Enter' : `${getModifierKey()}+Enter`;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const askQuestionBannerRef = useRef<AskUserQuestionBannerHandle>(null);
 
@@ -298,23 +304,30 @@ export function SessionChatBox<TExecutor extends string = string>({
           ? 'question'
           : 'normal';
 
-  // Derived state from status
   const isDisabled = Boolean(
     status === 'sending' ||
       status === 'stopping' ||
+      status === 'queue-loading' ||
       feedbackMode?.isSubmitting ||
       editMode?.isSubmitting ||
       approvalMode?.isSubmitting ||
       askQuestionMode?.isSubmitting
   );
+  const isQueued = status === 'queued';
+  const isRunning = status === 'running' || isQueued;
+  const isComposerDisabled =
+    isDisabled ||
+    ((isRunning || status === 'headed-busy') &&
+      !isInFeedbackMode &&
+      !isInEditMode &&
+      !isInApprovalMode &&
+      !isInAskQuestionMode);
   const hasContent =
     editor.value.trim().length > 0 || (reviewComments?.count ?? 0) > 0;
-  const canSend =
-    hasContent && !['sending', 'stopping', 'queue-loading'].includes(status);
-  const isQueued = status === 'queued';
-  const isRunning = status === 'running' || status === 'queued';
+  // Existing drafts can still be queued while the editor is locked.
+  const canSend = hasContent && !isDisabled;
   const areContentInsertActionsDisabled =
-    isDisabled || isQueued || disableContentInsert;
+    isComposerDisabled || isQueued || disableContentInsert;
   // The pulsating dot (subtle, always on) shows for every actively-working
   // state including headed-live mid-turn turns. The animated border is the
   // eye-catching variant, gated behind the settings toggle, and only for the
@@ -342,14 +355,17 @@ export function SessionChatBox<TExecutor extends string = string>({
         ? 'Provide feedback to request changes...'
         : isInAskQuestionMode
           ? 'Type a different answer...'
-          : session.isNewSessionMode
-            ? 'Start a new conversation...'
-            : 'Continue working on this task...';
+          : t('conversation.composer.placeholder', {
+              defaultValue: isVietnamese
+                ? 'Nhắn thuyền trưởng…'
+                : 'Message the captain…',
+            });
 
   // Cmd+Enter handler
   const handleCmdEnter = () => {
+    if (isComposerDisabled) return;
     // AskUserQuestion mode: Enter submits custom text as answer
-    if (isInAskQuestionMode && hasContent) {
+    if (isInAskQuestionMode && hasContent && !askQuestionMode?.isTimedOut) {
       askQuestionBannerRef.current?.submitCustomAnswer(editor.value);
       editor.onChange('');
       return;
@@ -412,8 +428,33 @@ export function SessionChatBox<TExecutor extends string = string>({
   const linesRemoved = stats?.linesRemoved;
 
   // Render action buttons based on status
+  const stopButton = (
+    <button
+      type="button"
+      onClick={actions.onStop}
+      disabled={status === 'stopping'}
+      aria-label={t('conversation.actions.stop')}
+      title={t('conversation.actions.stop')}
+      className="ship-stop flex h-10 w-10 items-center justify-center rounded-md border border-brand text-brand hover:border-error hover:bg-error/10 hover:text-error focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      <SquareIcon aria-hidden="true" className="h-4 w-4" weight="fill" />
+    </button>
+  );
+  const sendButton = (disabled: boolean) => (
+    <button
+      type="button"
+      onClick={actions.onSend}
+      disabled={disabled}
+      aria-label={sendIconLabel}
+      title={sendIconLabel}
+      className="ship-send flex h-10 w-10 items-center justify-center rounded-md bg-brand text-on-brand hover:bg-brand-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <PaperPlaneTiltIcon aria-hidden="true" className="h-4 w-4" weight="fill" />
+    </button>
+  );
+
   const renderActionButtons = () => {
-    // Feedback mode takes precedence
+    // Feedback mode takes precedence.
     if (isInFeedbackMode) {
       if (feedbackMode?.isTimedOut) {
         return (
@@ -463,24 +504,14 @@ export function SessionChatBox<TExecutor extends string = string>({
     // Approval mode
     if (isInApprovalMode) {
       if (approvalMode?.isTimedOut) {
-        return (
-          <PrimaryButton
-            variant="secondary"
-            onClick={actions.onStop}
-            value={t('conversation.actions.stop')}
-          />
-        );
+        return stopButton;
       }
 
       const hasMessage = editor.value.trim().length > 0;
 
       return (
         <>
-          <PrimaryButton
-            variant="secondary"
-            onClick={actions.onStop}
-            value={t('conversation.actions.stop')}
-          />
+          {stopButton}
           {hasMessage ? (
             <PrimaryButton
               onClick={approvalMode?.onRequestChanges}
@@ -503,24 +534,14 @@ export function SessionChatBox<TExecutor extends string = string>({
     // AskUserQuestion mode
     if (isInAskQuestionMode) {
       if (askQuestionMode?.isTimedOut) {
-        return (
-          <PrimaryButton
-            variant="secondary"
-            onClick={actions.onStop}
-            value={t('conversation.actions.stop')}
-          />
-        );
+        return stopButton;
       }
 
       const hasMessage = editor.value.trim().length > 0;
 
       return (
         <>
-          <PrimaryButton
-            variant="secondary"
-            onClick={actions.onStop}
-            value={t('conversation.actions.stop')}
-          />
+          {stopButton}
           {hasMessage && (
             <PrimaryButton
               onClick={() => {
@@ -538,21 +559,14 @@ export function SessionChatBox<TExecutor extends string = string>({
 
     switch (status) {
       case 'idle':
-        return (
-          <PrimaryButton
-            onClick={actions.onSend}
-            disabled={!canSend}
-            value={t('conversation.actions.send')}
-          />
-        );
+        return sendButton(!canSend);
 
       case 'sending':
         return (
-          <PrimaryButton
-            onClick={actions.onStop}
-            actionIcon="spinner"
-            value={t('conversation.actions.sending')}
-          />
+          <>
+            {stopButton}
+            {sendButton(true)}
+          </>
         );
 
       case 'running':
@@ -562,13 +576,9 @@ export function SessionChatBox<TExecutor extends string = string>({
               onClick={actions.onQueue}
               disabled={!canSend}
               value={t('conversation.actions.queue')}
+              className="h-10 rounded-md"
             />
-            <PrimaryButton
-              onClick={actions.onStop}
-              variant="secondary"
-              value={t('conversation.actions.stop')}
-              actionIcon="spinner"
-            />
+            {stopButton}
           </>
         );
 
@@ -579,40 +589,25 @@ export function SessionChatBox<TExecutor extends string = string>({
               onClick={actions.onCancelQueue}
               value={t('conversation.actions.cancelQueue')}
               actionIcon={XIcon}
+              className="h-10 rounded-md"
             />
-            <PrimaryButton
-              onClick={actions.onStop}
-              variant="secondary"
-              value={t('conversation.actions.stop')}
-              actionIcon="spinner"
-            />
+            {stopButton}
           </>
         );
 
       case 'stopping':
-        return (
-          <PrimaryButton
-            disabled
-            value={t('conversation.actions.stopping')}
-            actionIcon="spinner"
-          />
-        );
+        return stopButton;
       case 'queue-loading':
-        return (
-          <PrimaryButton
-            disabled
-            value={t('conversation.actions.loading')}
-            actionIcon="spinner"
-          />
-        );
+        return sendButton(true);
       case 'headed-busy':
-        // Headed session mid-turn: editor stays usable, Send disabled until the
-        // turn settles (the live agent is driven via send-input on idle).
+        // Headed session mid-turn: Send disabled until the turn settles (the
+        // live agent is driven via send-input on idle). Stop uses the existing
+        // onStop wiring (stopExecution).
         return (
-          <PrimaryButton
-            disabled
-            value={t('conversation.actions.agentWorking')}
-          />
+          <>
+            {stopButton}
+            {sendButton(true)}
+          </>
         );
       case 'feedback':
       case 'edit':
@@ -704,7 +699,7 @@ export function SessionChatBox<TExecutor extends string = string>({
         value: editor.value,
         onChange: editor.onChange,
         onCmdEnter: handleCmdEnter,
-        disabled: isDisabled,
+        disabled: isComposerDisabled,
         repoIds,
         executor: agent || executor?.selected || null,
         onPasteFiles: actions.onPasteFiles,
@@ -958,12 +953,25 @@ export function SessionChatBox<TExecutor extends string = string>({
               aria-label={item.label}
               title={item.tooltip}
               onClick={item.onClick}
-              disabled={isDisabled || isRunning || Boolean(item.disabled)}
+              disabled={isComposerDisabled || isRunning || Boolean(item.disabled)}
             />
           ))}
         </>
       }
       footerRight={renderActionButtons()}
+      className="ship-composer rounded-xl focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/30"
+      keyboardHint={
+        !isComposerDisabled && status === 'idle' && focusKey === 'normal' ? (
+          <p className="ship-composer-hint text-xs text-low text-right">
+            {t('conversation.composer.sendHint', {
+              shortcut: sendKeys,
+              defaultValue: isVietnamese
+                ? '{{shortcut}} để gửi · Shift+Enter xuống dòng'
+                : '{{shortcut}} to send · Shift+Enter for a new line',
+            })}
+          </p>
+        ) : undefined
+      }
     />
   );
 }

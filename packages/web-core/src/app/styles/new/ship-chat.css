@@ -1,0 +1,207 @@
+/* Ship-deck treatment is scoped to conversation surfaces; other themes remain intact. */
+.ship-chat {
+  --ship-ink: 212 48% 8%;
+  --ship-water: 211 42% 11%;
+  --ship-panel: 211 35% 14%;
+  --ship-brass: 39 61% 48%;
+  --ship-amber: 39 88% 61%;
+  --ship-teal: 174 40% 63%;
+  --ship-white: 39 34% 92%;
+  --bg-primary: 212 48% 8%;
+  --bg-secondary: 211 42% 11%;
+  --bg-panel: 211 35% 16%;
+  --background: 212 48% 8%;
+  --foreground: 39 34% 92%;
+  --text-high: 39 34% 92%;
+  --text-normal: 207 21% 82%;
+  --text-low: 207 18% 68%;
+  --muted-foreground: 207 18% 68%;
+  --muted: 211 35% 16%;
+  --border: 207 25% 25%;
+  --brand: 39 88% 61%;
+  --brand-hover: 39 88% 70%;
+  --brand-secondary: 39 48% 42%;
+  --text-on-brand: 212 48% 8%;
+  --primary-foreground: 39 34% 92%;
+  --ring: 39 88% 61%;
+  color: hsl(var(--ship-white));
+  background: hsl(var(--ship-ink));
+  color-scheme: dark;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.ship-chat :where(button, input, textarea, [contenteditable='true']) {
+  font-family: inherit;
+}
+
+.ship-chat
+  :where(button, a, input, textarea, [contenteditable='true']):focus-visible {
+  outline: 2px solid hsl(var(--ship-amber));
+  outline-offset: 2px;
+}
+
+.ship-chat ::selection {
+  color: hsl(var(--ship-ink));
+  background: hsl(var(--ship-amber) / 0.7);
+}
+
+.ship-chat :where(.ship-composer) {
+  border-color: hsl(var(--ship-brass) / 0.6);
+  border-radius: 14px;
+  background: hsl(var(--ship-water));
+  box-shadow:
+    0 8px 20px hsl(212 55% 3% / 0.32),
+    inset 0 1px hsl(var(--ship-brass) / 0.12);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.ship-chat :where(.ship-composer:focus-within) {
+  border-color: hsl(var(--ship-amber));
+  box-shadow:
+    0 0 0 2px hsl(var(--ship-amber) / 0.2),
+    0 8px 20px hsl(212 55% 3% / 0.32);
+}
+
+.ship-chat :where(.ship-message-human) {
+  border: 1px solid hsl(var(--ship-brass) / 0.42);
+  border-radius: 16px 16px 4px 16px;
+  background: hsl(var(--ship-brass) / 0.16);
+  color: hsl(var(--ship-white));
+}
+
+.ship-chat :where(.ship-message-ai) {
+  border: 1px solid hsl(var(--ship-teal) / 0.28);
+  border-radius: 4px 16px 16px 16px;
+  background: hsl(var(--ship-teal) / 0.075);
+  color: hsl(var(--ship-white));
+}
+
+.ship-chat :where(.ship-message-human, .ship-message-ai) {
+  max-width: min(88%, 680px);
+  padding: 11px 15px;
+  font:
+    400 14px/1.55 'IBM Plex Sans',
+    system-ui,
+    sans-serif;
+  overflow-wrap: anywhere;
+}
+
+.ship-chat :where(.ship-message-human) p,
+.ship-chat :where(.ship-message-ai) p {
+  margin-block: 0.35em;
+}
+
+.ship-chat :where(.ship-message-ai pre, .ship-message-ai code) {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+.ship-chat :where(.ship-message-ai pre) {
+  position: relative;
+  border: 1px solid hsl(var(--ship-teal) / 0.2);
+  border-radius: 9px;
+  background: hsl(212 48% 5%);
+  padding: 12px 14px;
+  overflow-x: auto;
+}
+
+.ship-chat :where(.ship-message-ai code:not(pre code)) {
+  border-radius: 4px;
+  background: hsl(var(--ship-teal) / 0.12);
+  padding: 0.08em 0.3em;
+}
+
+.ship-chat :where(.ship-stop) {
+  border: 1px solid hsl(var(--ship-amber) / 0.8) !important;
+  background: transparent !important;
+  color: hsl(var(--ship-amber)) !important;
+}
+
+.ship-chat :where(.ship-stop:hover:not(:disabled)) {
+  border-color: hsl(0 72% 61%) !important;
+  background: hsl(0 72% 50%) !important;
+  color: white !important;
+}
+
+.ship-chat :where(.ship-action) {
+  min-width: 38px;
+  min-height: 38px;
+  border-radius: 10px;
+}
+
+.ship-chat :where(.ship-new-messages) {
+  border: 1px solid hsl(var(--ship-brass) / 0.72);
+  border-radius: 999px;
+  background: hsl(var(--ship-water));
+  color: hsl(var(--ship-amber));
+  box-shadow: 0 4px 14px hsl(212 55% 3% / 0.42);
+}
+
+.ship-chat :where(.ship-beacon) {
+  color: hsl(var(--ship-teal));
+  filter: drop-shadow(0 2px 5px hsl(var(--ship-teal) / 0.22));
+}
+
+.ship-chat .ship-message {
+  margin-block: 14px;
+}
+
+.ship-chat .ship-message-ai {
+  max-width: 100%;
+}
+
+.ship-chat .ship-message-body .wysiwyg {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.ship-chat .ship-composer button {
+  min-height: 36px;
+  min-width: 36px;
+}
+
+.ship-chat [data-chatbox-container] {
+  padding: 12px;
+}
+
+.ship-chat [data-lexical-decorator] {
+  max-width: 100%;
+}
+
+.ship-chat pre,
+.ship-chat code[data-highlight-language] {
+  position: relative;
+  padding-top: 44px;
+  background: hsl(212 48% 5%);
+  border: 1px solid hsl(var(--ship-teal) / 0.2);
+}
+
+.ship-chat .ship-code-copy {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  color: hsl(var(--text-low));
+  background: hsl(var(--bg-panel));
+}
+
+.ship-code-copy:hover {
+  color: hsl(var(--brand));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ship-chat :where(*, *::before, *::after) {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

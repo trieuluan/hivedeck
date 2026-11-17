@@ -727,6 +727,11 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
   const areAttachmentInputsDisabled =
     mode === 'placeholder' ||
     isQueued ||
+    (isAttemptRunning &&
+      !headedLive?.idle &&
+      !isInFeedbackMode &&
+      !isInEditMode &&
+      !pendingApproval) ||
     isSending ||
     isStopping ||
     !!feedbackContext?.isSubmitting ||
@@ -962,11 +967,12 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
 
   // Headed-live overrides: idle -> normal Send compose (routed to send-input via
   // onSend below); mid-turn -> a disabled "Agent is working…" Send.
-  const effectiveStatus: ExecutionStatus = headedLive
-    ? headedLive.idle
-      ? 'idle'
-      : 'headed-busy'
-    : status;
+  const effectiveStatus: ExecutionStatus =
+    headedLive && !isStopping
+      ? headedLive.idle
+        ? 'idle'
+        : 'headed-busy'
+      : status;
 
   // During loading, render with empty editor to preserve container UI
   // In approval mode, don't show queued message - it's for follow-up, not approval response
@@ -1096,6 +1102,7 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
       repoIds={repoIds}
       tokenUsageInfo={tokenUsageInfo}
       supportsContextUsage={supportsContextUsage}
+      sendShortcut={config?.send_message_shortcut ?? 'ModifierEnter'}
       formatExecutorLabel={toPrettyCase}
       formatSessionDate={(createdAt) =>
         formatDateShortWithTime(

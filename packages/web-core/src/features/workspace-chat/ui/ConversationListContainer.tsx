@@ -8,7 +8,7 @@ import {
   useState,
   type MouseEvent,
 } from 'react';
-import { SpinnerIcon } from '@phosphor-icons/react';
+import { LighthouseIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -41,7 +41,6 @@ import { useConversationHistory } from '../model/hooks/useConversationHistory';
 import { useSetTokenUsageInfo } from '../model/contexts/EntriesContext';
 import type { WorkspaceWithSession } from '@/shared/types/attempt';
 import type { RepoWithTargetBranch } from 'shared/types';
-import { ChatEmptyState } from '@vibe/ui/components/ChatEmptyState';
 import { ChatScriptPlaceholder } from '@vibe/ui/components/ChatScriptPlaceholder';
 import { ScriptFixerDialog } from '@/shared/dialogs/scripts/ScriptFixerDialog';
 
@@ -49,6 +48,7 @@ interface ConversationListProps {
   attempt: WorkspaceWithSession;
   repos?: RepoWithTargetBranch[];
   onAtBottomChange?: (atBottom: boolean) => void;
+  onNewMessages?: () => void;
   sessionScopeId?: string;
 }
 
@@ -148,7 +148,13 @@ export const ConversationList = forwardRef<
   ConversationListHandle,
   ConversationListProps
 >(function ConversationList(
-  { attempt, repos: reposProp = [], onAtBottomChange, sessionScopeId },
+  {
+    attempt,
+    repos: reposProp = [],
+    onAtBottomChange,
+    onNewMessages,
+    sessionScopeId,
+  },
   ref
 ) {
   const { t } = useTranslation('common');
@@ -351,6 +357,16 @@ export const ConversationList = forwardRef<
       prevEntriesRef.current,
       prevRowsRef.current
     );
+
+    // History prepends and streaming patches are not new messages.
+    if (
+      !loading &&
+      pending.addType === 'running' &&
+      derivedTimeline.displayEntries.length > prevEntriesRef.current.length &&
+      !conversationVirtualizer.isAtBottom
+    ) {
+      onNewMessages?.();
+    }
 
     prevEntriesRef.current = derivedTimeline.displayEntries;
     prevRowsRef.current = derivedTimeline.rows;
@@ -742,8 +758,8 @@ export const ConversationList = forwardRef<
   );
 
   const showLoader = loading && conversationRows.length === 0;
-  const showEmptyState = !loading && conversationRows.length === 0;
-
+  const showEmptyState =
+    !loading && !hasRunningProcess && conversationRows.length === 0;
   const { virtualItems, totalSize, measureElement } = conversationVirtualizer;
 
   useEffect(() => {
@@ -756,8 +772,18 @@ export const ConversationList = forwardRef<
     <ApprovalFormProvider>
       <div className="relative h-full overflow-hidden">
         {showLoader && (
-          <div className="absolute inset-0 flex items-center justify-center z-10">
-            <SpinnerIcon className="size-6 animate-spin text-low" />
+          <div
+            className="absolute inset-0 z-10 flex flex-col gap-4 px-double pt-8"
+            role="status"
+            aria-label={t('states.loading')}
+          >
+            <div className="flex items-center gap-2">
+              <div className="size-8 animate-pulse rounded-full bg-foreground/10" />
+              <div className="h-3 w-32 animate-pulse rounded-full bg-foreground/[0.08]" />
+            </div>
+            <div className="ml-auto h-10 w-3/4 animate-pulse rounded-lg bg-foreground/[0.07]" />
+            <div className="h-16 w-4/5 animate-pulse rounded-lg bg-foreground/[0.06]" />
+            <div className="h-12 w-2/3 animate-pulse rounded-lg bg-foreground/[0.05]" />
           </div>
         )}
         <div
@@ -803,15 +829,23 @@ export const ConversationList = forwardRef<
 
           {showEmptyState && (
             <div className="flex min-h-full items-center justify-center px-double py-12">
-              <ChatEmptyState
-                title={t('conversation.emptyTitle', {
-                  defaultValue: 'Send a message to start the conversation.',
-                })}
-                description={t('conversation.emptyDescription', {
-                  defaultValue:
-                    'Your workspace conversation will appear here once a new turn starts.',
-                })}
-              />
+              <div className="mx-auto flex max-w-md flex-col items-center gap-2 text-center">
+                <div className="relative mb-2 flex size-14 items-center justify-center rounded-full border border-brand/25 bg-brand/[0.08] text-brand">
+                  <span className="absolute inset-0 animate-ping rounded-full border border-brand/20 motion-reduce:animate-none" />
+                  <LighthouseIcon
+                    className="relative size-7"
+                    weight="duotone"
+                  />
+                </div>
+                <p className="text-sm font-medium text-normal">
+                  {t('conversation.emptyTitle', {
+                    defaultValue: 'What would you like to build?',
+                  })}
+                </p>
+                <p className="text-sm text-low">
+                  {t('conversation.emptyDescription')}
+                </p>
+              </div>
             </div>
           )}
 
@@ -865,6 +899,27 @@ export const ConversationList = forwardRef<
               can align the plan entry to the top of the viewport. Height is set
               imperatively in scrollToAbsoluteIndex and cleared on scrollToBottom. */}
           <div ref={planRevealSpacerRef} style={{ height: 0 }} />
+
+          {(hasEntries || hasRunningProcess) && (
+            <div
+              className="flex h-10 items-center gap-half px-double text-base text-low"
+              role="status"
+            >
+              {hasRunningProcess && (
+                <>
+                  <span
+                    aria-hidden="true"
+                    className="size-1.5 shrink-0 rounded-full bg-brand motion-safe:animate-pulse"
+                  />
+                  <span>
+                    {t('tasks:captain.listening', {
+                      defaultValue: 'Thuyền trưởng đang lắng nghe…',
+                    })}
+                  </span>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Footer placeholder */}
           <div className="pb-2">

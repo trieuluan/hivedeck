@@ -54,7 +54,9 @@
     "subagent": {
       "defaultType": "Subagent"
     },
-    "loadingEarlierMessages": "Loading earlier messages"
+    "loadingEarlierMessages": "Loading earlier messages",
+    "emptyTitle": "The conversation is quiet",
+    "emptyDescription": "Send a message to begin."
   },
   "folderPicker": {
     "legend": "Click folder names to navigate • Use action buttons to select",
@@ -694,6 +696,7 @@
     "s9routerDashboard": "9router dashboard",
     "scaleTextSizeOnMobileFor": "Scale text size on mobile for better readability",
     "scrollToBottom": "Scroll to bottom",
+    "newMessages": "New messages",
     "selectAColor": "Select a color",
     "selectAgent": "Select agent",
     "selectAll": "Select All",
@@ -747,5 +750,10 @@
       "title": "The agent's login has expired",
       "hint": "Log in again in a terminal (claude /login or codex login), then send the message again."
     }
+  },
+  "chatCode": {
+    "idle": "Copy code",
+    "copied": "Copied",
+    "error": "Could not copy. Select the code and copy manually."
   }
 }

@@ -40,7 +40,7 @@ export function WorkspacesMain({
     <main
       ref={containerRef}
       className={cn(
-        'relative flex flex-1 flex-col bg-primary',
+        'ship-chat relative flex flex-1 flex-col bg-primary',
         isMobile ? 'min-h-0' : 'h-full'
       )}
     >
@@ -70,11 +70,12 @@ export function WorkspacesMain({
             <button
               type="button"
               onClick={() => onScrollToBottom?.('auto')}
-              className="absolute bottom-2 right-4 z-10 pointer-events-auto flex items-center justify-center size-10 rounded-full bg-secondary border border-border text-normal hover:text-high hover:bg-secondary shadow-lg transition-all"
+              className="ship-new-messages absolute bottom-2 right-4 z-10 pointer-events-auto flex min-h-10 items-center justify-center gap-2 px-4 text-sm hover:bg-panel"
               aria-label={t('common:ui.scrollToBottom')}
               title={t('common:ui.scrollToBottom')}
             >
               <ArrowDownIcon className="size-icon-base" weight="bold" />
+              {t('common:ui.newMessages', { defaultValue: 'New messages' })}
             </button>
           </div>
         </div>

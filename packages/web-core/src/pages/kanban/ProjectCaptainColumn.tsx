@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   CaretDoubleLeftIcon,
   GitBranchIcon,
-  RobotIcon,
+  LighthouseIcon,
 } from '@phosphor-icons/react';
 import { BaseCodingAgent } from 'shared/types';
 import { cn } from '@/shared/lib/utils';
@@ -81,7 +81,7 @@ export function ProjectCaptainColumn({
         aria-label={t('captain.show')}
         title={t('captain.show')}
       >
-        <RobotIcon className="size-icon-base" weight="fill" />
+        <LighthouseIcon className="size-icon-base" weight="fill" />
         {status?.active && (
           <span className="size-2 rounded-full bg-success" aria-hidden />
         )}
@@ -94,11 +94,11 @@ export function ProjectCaptainColumn({
 
   return (
     <aside
-      className="flex h-full w-[420px] shrink-0 flex-col border-r border-border bg-secondary"
+      className="ship-chat flex h-full w-[420px] max-w-full shrink-0 flex-col border-r border-border bg-secondary"
       aria-label={t('captain.title')}
     >
       <header className="flex items-center gap-2 border-b border-border px-base py-half">
-        <RobotIcon className="size-icon-base text-brand" weight="fill" />
+        <LighthouseIcon className="size-icon-base text-brand" weight="fill" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-high">{t('captain.title')}</p>
           <p className="flex items-center gap-1 text-xs text-low">
@@ -121,7 +121,7 @@ export function ProjectCaptainColumn({
         <button
           type="button"
           onClick={openDialog}
-          className="rounded-sm border border-border px-2 py-0.5 text-xs text-normal hover:bg-primary"
+          className="min-h-9 rounded-lg border border-border px-3 text-xs text-normal hover:border-brand hover:bg-primary"
         >
           {status?.active ? t('captain.manage') : t('captain.start')}
         </button>

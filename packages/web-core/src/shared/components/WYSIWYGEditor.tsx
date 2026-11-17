@@ -62,6 +62,7 @@ import { ListPlugin } from '@lexical/react/LexicalListPlugin';
 import { CodeNode, CodeHighlightNode } from '@lexical/code';
 import { CodeHighlightPlugin } from '@vibe/ui/components/CodeHighlightPlugin';
 import { CODE_HIGHLIGHT_CLASSES } from '@vibe/ui/lib/code-highlight-theme';
+import { CodeCopyPlugin } from './CodeCopyPlugin';
 import { LinkNode } from '@lexical/link';
 import { TableNode, TableRowNode, TableCellNode } from '@lexical/table';
 import { TablePlugin } from '@lexical/react/LexicalTablePlugin';
@@ -378,7 +379,10 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WysiwygProps>(
         }),
       []
     );
-    const attachmentNodeDefinition = useMemo(() => createAttachmentNode(), []);
+    const attachmentNodeDefinition = useMemo(
+      () => createAttachmentNode(imageNodeDefinition.ImageComponent),
+      [imageNodeDefinition]
+    );
     const { ImageNode, IMAGE_TRANSFORMER, $isImageNode } = imageNodeDefinition;
     const { AttachmentNode, ATTACHMENT_TRANSFORMER } = attachmentNodeDefinition;
 
@@ -548,6 +552,7 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WysiwygProps>(
                 <ListPlugin />
                 <TablePlugin />
                 <CodeHighlightPlugin />
+                {disabled && <CodeCopyPlugin />}
                 {/* Only include editing plugins when not in read-only mode */}
                 {!disabled && (
                   <>

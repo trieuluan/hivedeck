@@ -54,7 +54,9 @@
     "subagent": {
       "defaultType": "Subagent"
     },
-    "loadingEarlierMessages": "Đang tải tin nhắn cũ hơn"
+    "loadingEarlierMessages": "Đang tải tin nhắn cũ hơn",
+    "emptyTitle": "Cuộc trò chuyện còn trống",
+    "emptyDescription": "Gửi tin nhắn đầu tiên để bắt đầu."
   },
   "folderPicker": {
     "legend": "Bấm tên thư mục để di chuyển • Dùng các nút để chọn",
@@ -694,6 +696,7 @@
     "s9routerDashboard": "Dashboard 9router",
     "scaleTextSizeOnMobileFor": "Phóng to chữ trên mobile cho dễ đọc",
     "scrollToBottom": "Cuộn xuống cuối",
+    "newMessages": "Tin mới",
     "selectAColor": "Chọn màu",
     "selectAgent": "Chọn agent",
     "selectAll": "Chọn tất cả",
@@ -747,5 +750,10 @@
       "title": "Phiên đăng nhập của agent đã hết hạn",
       "hint": "Đăng nhập lại trong terminal (claude /login hoặc codex login) rồi gửi lại tin nhắn."
     }
+  },
+  "chatCode": {
+    "idle": "Sao chép mã",
+    "copied": "Đã sao chép",
+    "error": "Không thể sao chép. Chọn mã rồi sao chép thủ công."
   }
 }

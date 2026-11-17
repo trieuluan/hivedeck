@@ -130,6 +130,10 @@
     "retry": "Thử lại",
     "showMore": "Xem thêm",
     "showLess": "Thu gọn",
+    "composer": {
+      "placeholder": "Nhắn thuyền trưởng…",
+      "sendHint": "{{shortcut}} để gửi · Shift+Enter xuống dòng"
+    },
     "actions": {
       "cancel": "Huỷ",
       "submitFeedback": "Gửi góp ý",
@@ -603,6 +607,7 @@
     "noRepo": "Chưa liên kết repo — thuyền trưởng lập kế hoạch được nhưng chưa giao việc được.",
     "linkRepo": "Liên kết repo",
     "emptyTitle": "Project này chưa có thuyền trưởng",
-    "emptyBody": "Khởi động rồi chỉ cần chat: thuyền trưởng biến mục tiêu của bạn thành card, giao cho agent, theo dõi và chuyển card xong sang In Review. Bạn bấm Merge."
+    "emptyBody": "Khởi động rồi chỉ cần chat: thuyền trưởng biến mục tiêu của bạn thành card, giao cho agent, theo dõi và chuyển card xong sang In Review. Bạn bấm Merge.",
+    "listening": "Thuyền trưởng đang lắng nghe…"
   }
 }

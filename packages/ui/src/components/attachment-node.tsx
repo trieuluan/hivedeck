@@ -1,4 +1,6 @@
 import { useCallback, useMemo } from 'react';
+import type { createImageNode } from './image-node';
+import { isImageAttachment } from '../lib/is-image-attachment';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { NodeKey, SerializedLexicalNode, Spread, $getNodeByKey } from 'lexical';
@@ -121,7 +123,9 @@ function useAttachmentMetadata(
   };
 }
 
-export function createAttachmentNode() {
+export function createAttachmentNode(
+  ImageComponent?: ReturnType<typeof createImageNode>['ImageComponent']
+) {
   function AttachmentComponent({
     data,
     nodeKey,
@@ -202,6 +206,25 @@ export function createAttachmentNode() {
       },
       [openUrl]
     );
+
+    // Render only: retain the attachment node and its original link serialization.
+    const localAttachment = localAttachments.find((item) => item.path === src);
+    if (
+      ImageComponent &&
+      isImageAttachment(
+        src,
+        metadata?.file_name || localAttachment?.file_name || label,
+        localAttachment?.mime_type
+      )
+    ) {
+      return (
+        <ImageComponent
+          data={{ src, altText: label }}
+          nodeKey={nodeKey}
+          onDoubleClickEdit={onDoubleClickEdit}
+        />
+      );
+    }
 
     const icon =
       isWorkspaceAttachment || isDirectAttachmentUrl ? (

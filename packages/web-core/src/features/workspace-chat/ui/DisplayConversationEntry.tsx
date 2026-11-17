@@ -363,6 +363,7 @@ function DisplayConversationEntry(props: Props) {
       return (
         <UserMessageEntry
           content={entry.content}
+          timestamp={entry.timestamp}
           expansionKey={expansionKey}
           workspaceId={workspaceWithSession?.id}
           sessionId={sessionId}
@@ -376,6 +377,7 @@ function DisplayConversationEntry(props: Props) {
       return (
         <AssistantMessageEntry
           content={entry.content}
+          timestamp={entry.timestamp}
           workspaceId={workspaceWithSession?.id}
           sessionId={sessionId}
         />
@@ -764,6 +766,7 @@ function GenericToolApprovalEntry({
  */
 function UserMessageEntry({
   content,
+  timestamp,
   expansionKey,
   workspaceId,
   sessionId,
@@ -772,6 +775,7 @@ function UserMessageEntry({
   resetAction,
 }: {
   content: string;
+  timestamp: string | null;
   expansionKey: string;
   workspaceId: string | undefined;
   sessionId: string | undefined;
@@ -814,6 +818,7 @@ function UserMessageEntry({
       onEdit={canEdit ? handleEdit : undefined}
       onReset={canReset ? handleReset : undefined}
       isGreyed={isGreyed}
+      timestamp={timestamp}
       renderMarkdown={({ content, workspaceId }) => {
         // A card's pipeline block rides along in the prompt for the agent;
         // show it as a collapsed chip so the user's own request stays readable.
@@ -950,16 +955,19 @@ function LoadingEntry() {
  */
 function AssistantMessageEntry({
   content,
+  timestamp,
   workspaceId,
   sessionId,
 }: {
   content: string;
+  timestamp: string | null;
   workspaceId: string | undefined;
   sessionId: string | undefined;
 }) {
   return (
     <ChatAssistantMessage
       content={content}
+      timestamp={timestamp}
       workspaceId={workspaceId}
       renderMarkdown={({ content, workspaceId }) => (
         <AppChatMarkdown

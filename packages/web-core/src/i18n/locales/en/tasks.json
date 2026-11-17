@@ -130,6 +130,10 @@
     "retry": "Retry",
     "showMore": "Show more",
     "showLess": "Show less",
+    "composer": {
+      "placeholder": "Message the captain…",
+      "sendHint": "{{shortcut}} to send · Shift+Enter for a new line"
+    },
     "actions": {
       "cancel": "Cancel",
       "submitFeedback": "Submit Feedback",
@@ -603,6 +607,7 @@
     "noRepo": "No repository linked — the captain can plan but not dispatch work.",
     "linkRepo": "Link repo",
     "emptyTitle": "This project has no captain yet",
-    "emptyBody": "Start one and just chat with it: it turns your goals into cards, sends them to agents, watches them work and moves finished cards to In Review. You press Merge."
+    "emptyBody": "Start one and just chat with it: it turns your goals into cards, sends them to agents, watches them work and moves finished cards to In Review. You press Merge.",
+    "listening": "The captain is listening…"
   }
 }

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { NodeKey, SerializedLexicalNode, Spread, $getNodeByKey } from 'lexical';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { Download, File, HelpCircle, Loader2, X } from 'lucide-react';
+import { isImageAttachment } from '../lib/is-image-attachment';
 import {
   useWorkspaceId,
   useSessionId,
@@ -14,9 +15,6 @@ import {
   createDecoratorNode,
   type DecoratorNodeConfig,
 } from './create-decorator-node';
-
-const IMAGE_FILE_EXTENSION_REGEX =
-  /\.(png|jpe?g|gif|webp|bmp|svg|avif|heic|heif)$/i;
 
 interface ImageMetadataLike {
   exists: boolean;
@@ -51,17 +49,8 @@ export type SerializedImageNode = Spread<
   SerializedLexicalNode
 >;
 
-function isImageLikeFileName(name: string): boolean {
-  const normalized = name.trim();
-  if (!normalized) {
-    return false;
-  }
-
-  return IMAGE_FILE_EXTENSION_REGEX.test(normalized);
-}
-
 function truncatePath(path: string, maxLength = 24): string {
-  const filename = path.split('/').pop() || path;
+  const filename = path.split(/[\\/]/).pop() || 'attachment';
   if (filename.length <= maxLength) return filename;
   return filename.slice(0, maxLength - 3) + '...';
 }
@@ -190,38 +179,28 @@ export function createImageNode(options: CreateImageNodeOptions) {
       metadata?.file_name || localAttachment?.file_name || altText || src;
     const isWorkspaceImage =
       isVibeImage &&
-      ((localAttachment?.mime_type?.startsWith('image/') ?? false) ||
-        isImageLikeFileName(workspaceDisplayName));
+      isImageAttachment(src, workspaceDisplayName, localAttachment?.mime_type);
+    const isImage = isWorkspaceImage || isDirectAttachmentUrl;
 
     const handleClick = useCallback(
       (event: React.MouseEvent) => {
         event.preventDefault();
         event.stopPropagation();
-
-        if (isDirectAttachmentUrl) {
+        const imageUrl = isDirectAttachmentUrl ? src : metadata?.proxy_url;
+        if (!imageUrl) return;
+        if (isImage) {
           options.openImagePreview({
-            imageUrl: src,
-            altText,
-            fileName: altText || undefined,
+            imageUrl,
+            altText: truncatePath(workspaceDisplayName),
+            fileName: truncatePath(workspaceDisplayName, Infinity),
+            format: metadata?.format ?? undefined,
+            sizeBytes: metadata?.size_bytes,
           });
-          return;
-        }
-
-        if (metadata?.exists && metadata.proxy_url) {
-          if (isWorkspaceImage) {
-            options.openImagePreview({
-              imageUrl: metadata.proxy_url,
-              altText,
-              fileName: metadata.file_name ?? undefined,
-              format: metadata.format ?? undefined,
-              sizeBytes: metadata.size_bytes,
-            });
-          } else {
-            window.open(metadata.proxy_url, '_blank', 'noopener,noreferrer');
-          }
+        } else {
+          window.open(imageUrl, '_blank', 'noopener,noreferrer');
         }
       },
-      [isDirectAttachmentUrl, metadata, isWorkspaceImage, altText, src]
+      [isDirectAttachmentUrl, metadata, isImage, workspaceDisplayName, src]
     );
 
     const handleDownload = useCallback(
@@ -229,18 +208,17 @@ export function createImageNode(options: CreateImageNodeOptions) {
         event.preventDefault();
         event.stopPropagation();
 
-        const downloadUrl = isDirectAttachmentUrl
-          ? src
-          : !isWorkspaceImage
-            ? (metadata?.proxy_url ?? null)
-            : null;
+        const downloadUrl = isDirectAttachmentUrl ? src : metadata?.proxy_url;
         if (!downloadUrl) return;
 
-        downloadBlobUrl(downloadUrl, altText || 'attachment').catch((error) => {
+        downloadBlobUrl(
+          downloadUrl,
+          truncatePath(workspaceDisplayName, Infinity)
+        ).catch((error) => {
           console.error('Failed to download attachment:', error);
         });
       },
-      [isDirectAttachmentUrl, isWorkspaceImage, metadata, altText, src]
+      [isDirectAttachmentUrl, metadata, workspaceDisplayName, src]
     );
 
     const handleDelete = useCallback(
@@ -260,98 +238,78 @@ export function createImageNode(options: CreateImageNodeOptions) {
       [editor, nodeKey]
     );
 
-    let thumbnailContent: React.ReactNode;
-    let displayName: string;
-    let metadataLine: string | null = null;
-
-    const hasContext = !!workspaceId;
-    const hasLocalImage = localAttachments.some(
-      (attachment) => attachment.path === src
-    );
-
-    if (isDirectAttachmentUrl) {
-      thumbnailContent = (
-        <img
-          src={src}
-          alt={altText}
-          className="w-10 h-10 object-cover rounded flex-shrink-0"
-          draggable={false}
-        />
+    if (isImage) {
+      const imageUrl = isDirectAttachmentUrl ? src : metadata?.proxy_url;
+      const displayName = truncatePath(workspaceDisplayName);
+      const actionClass =
+        'inline-flex min-w-[36px] min-h-[36px] items-center justify-center rounded text-foreground hover:bg-background focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand';
+      return (
+        <span className="inline-flex max-w-full flex-col align-bottom rounded border border-border bg-muted p-1 gap-1">
+          <button
+            type="button"
+            onClick={handleClick}
+            disabled={!imageUrl}
+            aria-label={`${t('kanban.previewFile')}: ${displayName}`}
+            className="flex w-[120px] h-[90px] max-w-full items-center justify-center rounded overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:cursor-default"
+          >
+            {imageUrl ? (
+              <img
+                src={imageUrl}
+                alt={displayName}
+                className="max-w-full max-h-full object-contain"
+                draggable={false}
+              />
+            ) : loading ? (
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            ) : (
+              <HelpCircle className="w-5 h-5 text-muted-foreground" />
+            )}
+          </button>
+          <span className="max-w-[120px] truncate text-xs text-foreground">
+            {displayName}
+          </span>
+          <span className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleDownload}
+              disabled={!imageUrl}
+              className={`${actionClass} disabled:opacity-50`}
+              aria-label={t('kanban.downloadAttachment')}
+            >
+              <Download className="w-4 h-4" />
+            </button>
+            {editor.isEditable() && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                className={actionClass}
+                aria-label={t('kanban.removeImage')}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </span>
+        </span>
       );
-      displayName = truncatePath(altText || src);
-    } else if (isVibeImage && (hasLocalImage || hasContext)) {
-      if (!isWorkspaceImage) {
-        thumbnailContent = (
-          <div className="w-10 h-10 flex items-center justify-center bg-muted rounded flex-shrink-0">
-            <File className="w-5 h-5 text-muted-foreground" />
-          </div>
-        );
-        displayName = truncatePath(workspaceDisplayName);
-        const parts: string[] = [];
-        if (metadata?.format) {
-          parts.push(metadata.format.toUpperCase());
-        }
-        const sizeText = formatFileSize(metadata?.size_bytes);
-        if (sizeText) {
-          parts.push(sizeText);
-        }
-        metadataLine = parts.length > 0 ? parts.join(' · ') : null;
-      } else if (loading) {
-        thumbnailContent = (
-          <div className="w-10 h-10 flex items-center justify-center bg-muted rounded flex-shrink-0">
-            <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
-          </div>
-        );
-        displayName = truncatePath(src);
-      } else if (metadata?.exists && metadata.proxy_url) {
-        thumbnailContent = (
-          <img
-            src={metadata.proxy_url}
-            alt={altText}
-            className="w-10 h-10 object-cover rounded flex-shrink-0"
-            draggable={false}
-          />
-        );
-        displayName = truncatePath(workspaceDisplayName);
-
-        const parts: string[] = [];
-        if (metadata.format) {
-          parts.push(metadata.format.toUpperCase());
-        }
-        const sizeText = formatFileSize(metadata.size_bytes);
-        if (sizeText) {
-          parts.push(sizeText);
-        }
-        if (parts.length > 0) {
-          metadataLine = parts.join(' · ');
-        }
-      } else {
-        thumbnailContent = (
-          <div className="w-10 h-10 flex items-center justify-center bg-muted rounded flex-shrink-0">
-            <HelpCircle className="w-5 h-5 text-muted-foreground" />
-          </div>
-        );
-        displayName = truncatePath(src);
-      }
-    } else if (!isVibeImage) {
-      thumbnailContent = (
-        <div className="w-10 h-10 flex items-center justify-center bg-muted rounded flex-shrink-0">
-          <HelpCircle className="w-5 h-5 text-muted-foreground" />
-        </div>
-      );
-      displayName = truncatePath(altText || src);
-    } else {
-      thumbnailContent = (
-        <div className="w-10 h-10 flex items-center justify-center bg-muted rounded flex-shrink-0">
-          <HelpCircle className="w-5 h-5 text-muted-foreground" />
-        </div>
-      );
-      displayName = truncatePath(src);
     }
 
-    const showDownloadButton = isDirectAttachmentUrl
-      ? true
-      : Boolean(!isWorkspaceImage && metadata?.proxy_url);
+    const displayName = truncatePath(workspaceDisplayName);
+    const metadataLine = [
+      metadata?.format?.toUpperCase(),
+      formatFileSize(metadata?.size_bytes),
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    const thumbnailContent = (
+      <span className="w-10 h-10 flex items-center justify-center bg-muted rounded flex-shrink-0">
+        {isVibeImage ? (
+          <File className="w-5 h-5 text-muted-foreground" />
+        ) : (
+          <HelpCircle className="w-5 h-5 text-muted-foreground" />
+        )}
+      </span>
+    );
+    const showDownloadButton = Boolean(metadata?.proxy_url);
 
     return (
       <span
@@ -442,6 +400,7 @@ export function createImageNode(options: CreateImageNodeOptions) {
   const result = createDecoratorNode(config);
 
   return {
+    ImageComponent,
     ImageNode: result.Node,
     $createImageNode: (src: string, altText: string) =>
       result.createNode({ src, altText }),
