@@ -223,7 +223,8 @@
       }
     },
     "agentWorking": "Agent đang làm việc…",
-    "waitingForModel": "Đang chờ model phản hồi…"
+    "waitingForModel": "Đang chờ model phản hồi…",
+    "runningCommand": "Đang chạy lệnh…"
   },
   "attempt": {
     "actions": {

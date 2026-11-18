@@ -223,7 +223,8 @@
       }
     },
     "agentWorking": "Agent is working…",
-    "waitingForModel": "Waiting for the model to respond…"
+    "waitingForModel": "Waiting for the model to respond…",
+    "runningCommand": "Running a command…"
   },
   "attempt": {
     "actions": {

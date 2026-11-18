@@ -46,6 +46,7 @@ import {
 } from '@/shared/stores/useUiPreferencesStore';
 import { useConversationHistory } from '../model/hooks/useConversationHistory';
 import { summarizeWork, WORK_KIND_ORDER } from '../model/summarizeWork';
+import { hasRunningTool } from '../model/runningTool';
 import { useSetTokenUsageInfo } from '../model/contexts/EntriesContext';
 import type { WorkspaceWithSession } from '@/shared/types/attempt';
 import type { RepoWithTargetBranch } from 'shared/types';
@@ -626,17 +627,23 @@ export const ConversationList = forwardRef<
   scrollOnEntriesChangedRef.current = scrollExecutor.onEntriesChanged;
 
   // Nothing new for a while during a run: usually the model (or the router
-  // retrying a rate limit) hasn't answered yet. Say so instead of "working".
+  // retrying a rate limit) hasn't answered yet. Say so instead of "working" —
+  // unless a command is still running, which is the agent working, not the
+  // model being slow.
+  const toolRunning = useMemo(
+    () => hasRunningTool(conversationRows.map((row) => row.entry)),
+    [conversationRows]
+  );
   const [isWaitingForModel, setIsWaitingForModel] = useState(false);
   useEffect(() => {
     setIsWaitingForModel(false);
-    if (!hasRunningProcess) return;
+    if (!hasRunningProcess || toolRunning) return;
     const timer = window.setTimeout(
       () => setIsWaitingForModel(true),
       WAITING_FOR_MODEL_MS
     );
     return () => window.clearTimeout(timer);
-  }, [hasRunningProcess, dataVersion]);
+  }, [hasRunningProcess, toolRunning, dataVersion]);
 
   // Determine if there are entries to show placeholders
   const hasEntries = conversationRows.length > 0;
@@ -988,11 +995,13 @@ export const ConversationList = forwardRef<
                     className="size-1.5 shrink-0 rounded-full bg-brand motion-safe:animate-pulse"
                   />
                   <span>
-                    {isWaitingForModel
-                      ? t('tasks:conversation.waitingForModel')
-                      : attempt.kind === 'orchestrator'
-                        ? t('tasks:captain.listening')
-                        : t('tasks:conversation.agentWorking')}
+                    {toolRunning
+                      ? t('tasks:conversation.runningCommand')
+                      : isWaitingForModel
+                        ? t('tasks:conversation.waitingForModel')
+                        : attempt.kind === 'orchestrator'
+                          ? t('tasks:captain.listening')
+                          : t('tasks:conversation.agentWorking')}
                   </span>
                 </>
               )}

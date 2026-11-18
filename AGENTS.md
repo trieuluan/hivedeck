@@ -46,6 +46,10 @@ Do not manually edit shared/types.ts, instead edit crates/server/src/bin/generat
 - Format code: `pnpm run format` (runs `cargo fmt` for all backend Rust workspaces + web-core/web Prettier)
 - Lint: `pnpm run lint` (runs web/ui ESLint + `cargo clippy` for all backend Rust workspaces)
 
+## Where agents work
+
+Card agents run in their own git worktree (`~/.hivedeck*/worktrees/<id>/…`). Edit, build and commit **only there**. Never write to the main checkout (`~/Development/hivedeck`) or apply patches to it: HiveDeck's own dev backend runs from it under `cargo watch`, so any change under `crates/` there rebuilds and restarts HiveDeck, which kills every running agent — including you — mid-step. To run the app for UI checks, start a dev server inside your worktree on spare ports (e.g. `FRONTEND_PORT=3101 BACKEND_PORT=3102 pnpm run dev`); its first backend build takes a few minutes.
+
 ## UI testing (agents)
 
 Headless agent runs cannot use Computer Use or a Paradev/Superset browser pane: Computer Use needs the owner to approve control of Chrome (nobody can approve in a headless run), and the `superset` browser CLI is not installed here. Test the UI with headless Chrome instead (no permission needed; Node 22+ and an installed Chrome/Chromium, or `CHROME_PATH`):
