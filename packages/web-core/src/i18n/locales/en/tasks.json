@@ -223,6 +223,13 @@
       }
     },
     "agentWorking": "Agent is working…",
+    "activity": {
+      "elapsed": "Running {{elapsed}}",
+      "lastActivityNow": "last activity just now",
+      "lastActivity_one": "last activity {{count}} min ago",
+      "lastActivity_other": "last activity {{count}} min ago",
+      "unresponsive": "Unresponsive: no new activity"
+    },
     "waitingForModel": "Waiting for the model to respond…",
     "runningCommand": "Running a command…"
   },

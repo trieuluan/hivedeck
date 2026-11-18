@@ -251,6 +251,36 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
   // Approvals state
   const { getPendingForProcess } = useApprovals();
 
+  const runningAgentProcess = useMemo(
+    () =>
+      processes.findLast(
+        (p) =>
+          p.run_reason === 'codingagent' &&
+          p.status === ExecutionProcessStatus.running
+      ) ?? null,
+    [processes]
+  );
+  const [observedEntryAt, setObservedEntryAt] = useState<number | null>(null);
+  useEffect(() => {
+    if (entries.length > 0) setObservedEntryAt(Date.now());
+  }, [entries]);
+  const agentActivity = useMemo(() => {
+    if (!runningAgentProcess) return null;
+    const startedAt = Date.parse(runningAgentProcess.started_at);
+    if (Number.isNaN(startedAt)) return null;
+    // ponytail: many entries lack timestamps; client-seen entry changes fill in
+    let lastActivityAt = startedAt;
+    for (const entry of entries) {
+      if (entry.type !== 'NORMALIZED_ENTRY' || !entry.content.timestamp)
+        continue;
+      const ts = Date.parse(entry.content.timestamp);
+      if (!Number.isNaN(ts)) lastActivityAt = Math.max(lastActivityAt, ts);
+    }
+    if (observedEntryAt !== null && observedEntryAt > lastActivityAt)
+      lastActivityAt = observedEntryAt;
+    return { startedAt, lastActivityAt };
+  }, [runningAgentProcess, entries, observedEntryAt]);
+
   // Get pending approval from running processes
   const pendingApproval = useMemo(() => {
     const runningProcesses = processes.filter(
@@ -1100,6 +1130,7 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
     <SessionChatBox<BaseCodingAgent>
       isCaptain={isCaptain}
       status={effectiveStatus}
+      activity={agentActivity}
       animateRunningOutline={animateRunningOutline}
       disableContentInsert={!!headedLive}
       onViewCode={disableViewCode ? undefined : handleViewCode}

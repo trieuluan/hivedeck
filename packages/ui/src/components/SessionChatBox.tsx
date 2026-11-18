@@ -46,6 +46,10 @@ import {
   type TurnNavigationItem,
 } from './TurnNavigationPopup';
 import { ChatSettingsPopover } from './ChatSettingsPopover';
+import {
+  AgentActivityIndicator,
+  type AgentActivity,
+} from './AgentActivityIndicator';
 
 // Status enum - single source of truth for execution state
 export type ExecutionStatus =
@@ -194,6 +198,8 @@ interface SessionChatBoxProps<TExecutor extends string = string> {
     className?: string
   ) => ReactNode;
   formatSessionDate?: (createdAt: string | Date) => string;
+  /** Run timing of the active agent process; drives elapsed/stale display. */
+  activity?: AgentActivity | null;
   todos?: TodoProgressItem[];
   inProgressTodo?: TodoProgressItem | null;
   localAttachments?: LocalAttachmentMetadata[];
@@ -269,6 +275,7 @@ export function SessionChatBox<TExecutor extends string = string>({
   emptyExecutorLabel = 'Select Executor',
   renderAgentIcon,
   formatSessionDate = defaultFormatSessionDate,
+  activity,
   todos,
   inProgressTodo,
   localAttachments,
@@ -744,6 +751,9 @@ export function SessionChatBox<TExecutor extends string = string>({
       dropzone={disableContentInsert ? undefined : dropzone}
       headerLeft={
         <>
+          {!isNewSessionMode && activity && showRunningAnimation && (
+            <AgentActivityIndicator activity={activity} />
+          )}
           {/* Existing session mode: show in-progress todo when running, otherwise file stats */}
           {!isNewSessionMode && (
             <>

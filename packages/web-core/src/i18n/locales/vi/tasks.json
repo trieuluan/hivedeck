@@ -223,6 +223,12 @@
       }
     },
     "agentWorking": "Agent đang làm việc…",
+    "activity": {
+      "elapsed": "Đã chạy {{elapsed}}",
+      "lastActivityNow": "vừa có hoạt động",
+      "lastActivity_other": "hoạt động cuối {{count}} phút trước",
+      "unresponsive": "Không phản hồi: không có hoạt động mới"
+    },
     "waitingForModel": "Đang chờ model phản hồi…",
     "runningCommand": "Đang chạy lệnh…"
   },
