@@ -1277,8 +1277,11 @@ pub async fn set_session_rotation(
         combos.dedup();
         rotation::sync(settings, &combos).await
     } else {
+        // Off: sessions use the plain combos, still walked as fallback.
+        // Request-level round-robin would move a session to another model on
+        // every call and lose its prompt cache (ADR-040).
         rotation::remove_all(settings).await?;
-        set_combo_strategy(settings, "round-robin").await?;
+        set_combo_strategy(settings, "fallback").await?;
         Ok(Default::default())
     }
 }

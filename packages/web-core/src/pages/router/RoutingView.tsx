@@ -55,7 +55,7 @@ export function RoutingView({
     });
 
   // Rotations are walked as fallback (one provider per session); turning
-  // this off restores 9router's request-level round-robin.
+  // this off uses the plain combos, still as fallback (ADR-040).
   const setRotate = (rotate: boolean) => {
     onSave({ ...settings, rotate_per_session: rotate });
     void nineRouterApi

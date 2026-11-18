@@ -56,6 +56,12 @@ use crate::{
     stdout_dup::create_stdout_pipe_writer,
 };
 
+/// Tools a headless run never uses. The claude.ai Artifact tools also carry
+/// a JSON-schema `pattern` that some Anthropic-compatible providers reject
+/// outright (DeepSeek: "is not a regex"), failing every request routed to
+/// them through 9router (ADR-040).
+const HEADLESS_DISALLOWED: &str = "Artifact,ArtifactComments,ArtifactData";
+
 const SUPPRESSED_STDERR_PATTERNS: &[&str] = &[
     "[WARN] Fast mode requires the native binary",
     // Runs routed through 9router authenticate with a token on purpose, so
@@ -188,8 +194,11 @@ impl ClaudeCode {
                 "--permission-mode={}",
                 PermissionMode::BypassPermissions
             )]);
+            builder = builder.extend_params([format!("--disallowedTools={HEADLESS_DISALLOWED}")]);
         } else {
-            builder = builder.extend_params(["--disallowedTools=AskUserQuestion"]);
+            builder = builder.extend_params([format!(
+                "--disallowedTools=AskUserQuestion,{HEADLESS_DISALLOWED}"
+            )]);
         }
         if self.dangerously_skip_permissions.unwrap_or(false) {
             builder = builder.extend_params(["--dangerously-skip-permissions"]);

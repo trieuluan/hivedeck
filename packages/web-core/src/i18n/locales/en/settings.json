@@ -863,7 +863,7 @@
           "fast": "Claude's background calls (titles, summaries): the \"haiku\" alias."
         },
         "rotate": "Rotate combos per session",
-        "rotateHint": "Each agent session stays on one model of the combo (prompt cache stays warm); new sessions start on different models, so every provider's quota gets used. Off: 9router switches model on every request."
+        "rotateHint": "Each agent session stays on one model of the combo; new sessions start on different models, so every provider's quota gets used. Off: every session starts at the top of the combo and falls through in order (prompt cache stays warm either way)."
       }
     },
     "extensions": {
