@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useTranslation } from 'react-i18next';
 import { CaretLeftIcon, XIcon } from '@phosphor-icons/react';
 import { create, useModal } from '@ebay/nice-modal-react';
@@ -166,6 +166,7 @@ function SettingsDialogContent({
     initialSection === resolvedInitialSection
   );
   const isConfirmingRef = useRef(false);
+  const triggerRef = useRef<HTMLElement | null>(null);
 
   const handleCloseWithConfirmation = useCallback(async () => {
     if (isConfirmingRef.current) return;
@@ -211,140 +212,142 @@ function SettingsDialogContent({
     setMobileShowContent(false);
   };
 
-  // Handle ESC key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        handleCloseWithConfirmation();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleCloseWithConfirmation]);
-
   return (
-    <>
-      {/* Overlay */}
-      <div
-        data-tauri-drag-region
-        className="fixed inset-0 z-[9998] bg-black/50 animate-in fade-in-0 duration-200"
-        onClick={handleCloseWithConfirmation}
-      />
-      {/* Dialog wrapper - handles positioning */}
-      <div
-        className={cn(
-          'fixed z-[9999]',
-          // Mobile: full screen
-          'inset-0',
-          // Desktop: centered with fixed size
-          'md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2'
-        )}
-      >
-        {/* Dialog content - handles animation */}
-        <div
+    <DialogPrimitive.Root
+      open
+      onOpenChange={(open) => {
+        if (!open) handleCloseWithConfirmation();
+      }}
+    >
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay
+          data-tauri-drag-region
+          className="fixed inset-0 z-[9998] bg-black/50 animate-in fade-in-0 duration-200"
+        />
+        <DialogPrimitive.Content
+          aria-modal="true"
+          aria-describedby={undefined}
+          onOpenAutoFocus={() => {
+            triggerRef.current = document.activeElement as HTMLElement | null;
+          }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            triggerRef.current?.focus();
+          }}
           className={cn(
-            'h-full w-full flex overflow-hidden',
-            'bg-panel/95 backdrop-blur-sm shadow-lg',
-            'animate-in fade-in-0 slide-in-from-bottom-4 duration-200',
-            // Mobile: full screen, no rounded corners
-            'rounded-none border-0',
-            // Desktop: fixed size with rounded corners
-            'md:w-[900px] md:h-[700px] md:rounded-sm md:border md:border-border/50'
+            'fixed z-[9999] focus:outline-none',
+            // Mobile: full screen
+            'inset-0',
+            // Desktop: centered with fixed size
+            'md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2'
           )}
         >
-          {/* Sidebar - hidden on mobile when showing content */}
+          {/* Dialog content - handles animation */}
           <div
             className={cn(
-              'bg-secondary/80 border-r border-border flex flex-col',
-              // Mobile: full width, hidden when showing content
-              'w-full',
-              mobileShowContent && 'hidden',
-              // Desktop: fixed width sidebar, always visible
-              'md:w-56 md:block'
+              'h-full w-full flex overflow-hidden',
+              'bg-panel/95 backdrop-blur-sm shadow-lg',
+              'animate-in fade-in-0 slide-in-from-bottom-4 duration-200',
+              // Mobile: full screen, no rounded corners
+              'rounded-none border-0',
+              // Desktop: fixed size with rounded corners
+              'md:w-[900px] md:h-[700px] md:rounded-sm md:border md:border-border/50'
             )}
           >
-            {/* Header */}
-            <div className="p-4 border-b border-border flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-high">
-                {t('settings.layout.nav.title')}
-              </h2>
-              {/* Close button - mobile only */}
-              <button
-                onClick={handleCloseWithConfirmation}
-                className="p-1 rounded-sm hover:bg-secondary text-low hover:text-normal md:hidden"
-              >
-                <XIcon className="size-icon-sm" weight="bold" />
-              </button>
-            </div>
-            <SettingsDialogNavigation
-              activeSection={activeSection}
-              onSectionSelect={handleSectionSelect}
-            />
-          </div>
-          {/* Content - hidden on mobile when showing nav */}
-          <div
-            className={cn(
-              'flex-1 flex flex-col relative overflow-hidden',
-              // Mobile: full width, hidden when showing nav
-              !mobileShowContent && 'hidden',
-              // Desktop: always visible
-              'md:flex'
-            )}
-          >
-            {/* Mobile header with back button */}
-            <div className="flex items-center gap-2 p-3 border-b border-border md:hidden">
-              <button
-                onClick={handleMobileBack}
-                className="p-1 rounded-sm hover:bg-secondary text-low hover:text-normal"
-              >
-                <CaretLeftIcon className="size-icon-sm" weight="bold" />
-              </button>
-              <span className="text-sm font-medium text-high">
-                {t(`settings.layout.nav.${activeSection}`)}
-              </span>
-              <button
-                onClick={handleCloseWithConfirmation}
-                className="ml-auto p-1 rounded-sm hover:bg-secondary text-low hover:text-normal"
-              >
-                <XIcon className="size-icon-sm" weight="bold" />
-              </button>
-            </div>
-            {/* Section content */}
-            <div className="flex-1 overflow-y-auto">
-              {isHostSpecificSettingsSection(activeSection) ? (
-                selectedHost ? (
-                  <SettingsMachineUserSystemProvider>
-                    <SettingsSection
-                      type={activeSection}
-                      onClose={handleCloseWithConfirmation}
-                      initialState={initialState}
-                    />
-                  </SettingsMachineUserSystemProvider>
-                ) : !hostsResolved ? (
-                  <div className="px-6 py-8 text-sm text-low">
-                    {t('settings.general.loading')}
-                  </div>
-                ) : availableHosts.length > 0 ? (
-                  <div className="px-6 py-8 text-sm text-low">
-                    {t('settings.hostPicker.selectMachineHint')}
-                  </div>
-                ) : (
-                  <div className="px-6 py-8 text-sm text-low">
-                    {t('settings.hostPicker.noHostAvailable')}
-                  </div>
-                )
-              ) : (
-                <SettingsSection
-                  type={activeSection}
-                  onClose={handleCloseWithConfirmation}
-                  initialState={initialState}
-                />
+            {/* Sidebar - hidden on mobile when showing content */}
+            <div
+              className={cn(
+                'bg-secondary/80 border-r border-border flex flex-col',
+                // Mobile: full width, hidden when showing content
+                'w-full',
+                mobileShowContent && 'hidden',
+                // Desktop: fixed width sidebar, always visible
+                'md:w-56 md:block'
               )}
+            >
+              {/* Header */}
+              <div className="p-4 border-b border-border flex items-center justify-between">
+                <DialogPrimitive.Title className="text-lg font-semibold text-high">
+                  {t('settings.layout.nav.title')}
+                </DialogPrimitive.Title>
+                {/* Close button - mobile only */}
+                <button
+                  onClick={handleCloseWithConfirmation}
+                  className="p-1 rounded-sm hover:bg-secondary text-low hover:text-normal md:hidden"
+                >
+                  <XIcon className="size-icon-sm" weight="bold" />
+                </button>
+              </div>
+              <SettingsDialogNavigation
+                activeSection={activeSection}
+                onSectionSelect={handleSectionSelect}
+              />
+            </div>
+            {/* Content - hidden on mobile when showing nav */}
+            <div
+              className={cn(
+                'flex-1 flex flex-col relative overflow-hidden',
+                // Mobile: full width, hidden when showing nav
+                !mobileShowContent && 'hidden',
+                // Desktop: always visible
+                'md:flex'
+              )}
+            >
+              {/* Mobile header with back button */}
+              <div className="flex items-center gap-2 p-3 border-b border-border md:hidden">
+                <button
+                  onClick={handleMobileBack}
+                  className="p-1 rounded-sm hover:bg-secondary text-low hover:text-normal"
+                >
+                  <CaretLeftIcon className="size-icon-sm" weight="bold" />
+                </button>
+                <span className="text-sm font-medium text-high">
+                  {t(`settings.layout.nav.${activeSection}`)}
+                </span>
+                <button
+                  onClick={handleCloseWithConfirmation}
+                  className="ml-auto p-1 rounded-sm hover:bg-secondary text-low hover:text-normal"
+                >
+                  <XIcon className="size-icon-sm" weight="bold" />
+                </button>
+              </div>
+              {/* Section content */}
+              <div className="flex-1 overflow-y-auto">
+                {isHostSpecificSettingsSection(activeSection) ? (
+                  selectedHost ? (
+                    <SettingsMachineUserSystemProvider>
+                      <SettingsSection
+                        type={activeSection}
+                        onClose={handleCloseWithConfirmation}
+                        initialState={initialState}
+                      />
+                    </SettingsMachineUserSystemProvider>
+                  ) : !hostsResolved ? (
+                    <div className="px-6 py-8 text-sm text-low">
+                      {t('settings.general.loading')}
+                    </div>
+                  ) : availableHosts.length > 0 ? (
+                    <div className="px-6 py-8 text-sm text-low">
+                      {t('settings.hostPicker.selectMachineHint')}
+                    </div>
+                  ) : (
+                    <div className="px-6 py-8 text-sm text-low">
+                      {t('settings.hostPicker.noHostAvailable')}
+                    </div>
+                  )
+                ) : (
+                  <SettingsSection
+                    type={activeSection}
+                    onClose={handleCloseWithConfirmation}
+                    initialState={initialState}
+                  />
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-    </>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }
 
@@ -357,7 +360,7 @@ const SettingsDialogImpl = create<SettingsDialogProps>(
       modal.remove();
     }, [modal]);
 
-    return createPortal(
+    return (
       <SettingsDirtyProvider>
         <SettingsHostProvider initialHostId={initialHostId}>
           <SettingsDialogContent
@@ -366,8 +369,7 @@ const SettingsDialogImpl = create<SettingsDialogProps>(
             onClose={handleClose}
           />
         </SettingsHostProvider>
-      </SettingsDirtyProvider>,
-      document.body
+      </SettingsDirtyProvider>
     );
   }
 );
