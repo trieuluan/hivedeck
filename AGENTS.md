@@ -60,31 +60,14 @@ Headless agent runs cannot use Computer Use or a Paradev/Superset browser pane: 
   await page.click('Open workspace');               // text or aria-label
   await page.waitFor(`location.pathname.startsWith('/workspaces/')`);
   console.log(await page.evaluate('document.title'), page.errors);
-  await page.screenshot('/tmp/after.png');
+  await page.screenshot('/tmp/after.jpg');          // .jpg = small JPEG
   await close();
   ```
 
-Say in your report what you verified in the browser and what you could not.
-
-## UI testing (agents)
-
-Headless agent runs cannot use Computer Use or a Paradev/Superset browser pane: Computer Use needs the owner to approve control of Chrome (nobody can approve in a headless run), and the `superset` browser CLI is not installed here. Test the UI with headless Chrome instead (no permission needed; Node 22+ and an installed Chrome/Chromium, or `CHROME_PATH`):
-
-- `pnpm run ui:smoke [URL]` — real UI smoke test of a running app (default `http://localhost:3001`; pass your worktree dev server's URL). It opens the home, a project board, a workspace, and the project ↔ workspace navigations that have crashed before; it fails on uncaught errors, React fatals, the error screen, or a doubled page, and prints where the screenshots are.
-- For your own checks, script `scripts/browser/cdp.mjs`:
-
-  ```js
-  import { launch } from './scripts/browser/cdp.mjs';
-  const { page, close } = await launch();          // headless Chrome
-  await page.goto('http://localhost:3001/projects/<id>');
-  await page.click('Open workspace');               // text or aria-label
-  await page.waitFor(`location.pathname.startsWith('/workspaces/')`);
-  console.log(await page.evaluate('document.title'), page.errors);
-  await page.screenshot('/tmp/after.png');
-  await close();
-  ```
+Keep screenshots cheap: every image you open stays in your context for the rest of the session, and on some model routes a PNG counts as 100k+ tokens of text (a run of ~15 full-size PNGs has overflowed a 1M-token context). Check text and state with `page.evaluate(...)` first; save screenshots as `.jpg` (optionally `page.screenshot(path, { scale: 0.5 })`), and open only the few you need to judge visually.
 
 Say in your report what you verified in the browser and what you could not.
+
 
 ## Before Completing a Task
 - Run `pnpm run format` to format all Rust workspaces and web code.

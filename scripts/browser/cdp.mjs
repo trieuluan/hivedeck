@@ -233,10 +233,30 @@ export class Page {
     })()`);
   }
 
-  async screenshot(path) {
-    const { data } = await this.send('Page.captureScreenshot', {
-      format: 'png',
-    });
+  /**
+   * Save a screenshot. The file extension picks the format: `.jpg`/`.jpeg`
+   * saves a compressed JPEG (several times smaller than PNG), anything else
+   * a PNG. Prefer `.jpg` for screenshots an agent will look at: each image
+   * an agent reads stays in its context for the rest of the session, and
+   * some model routes count it as text (a PNG can cost 100k+ tokens).
+   * `scale` shrinks the capture (0.5 = half width and height).
+   */
+  async screenshot(path, { quality = 70, scale = 1 } = {}) {
+    const jpeg = /\.jpe?g$/i.test(path);
+    const params = jpeg ? { format: 'jpeg', quality } : { format: 'png' };
+    if (scale !== 1) {
+      const { cssLayoutViewport: v } = await this.send(
+        'Page.getLayoutMetrics'
+      );
+      params.clip = {
+        x: 0,
+        y: 0,
+        width: v.clientWidth,
+        height: v.clientHeight,
+        scale,
+      };
+    }
+    const { data } = await this.send('Page.captureScreenshot', params);
     const { writeFileSync } = await import('node:fs');
     writeFileSync(path, Buffer.from(data, 'base64'));
     return path;

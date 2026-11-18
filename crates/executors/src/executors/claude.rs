@@ -56,13 +56,22 @@ use crate::{
     stdout_dup::create_stdout_pipe_writer,
 };
 
-const SUPPRESSED_STDERR_PATTERNS: &[&str] = &["[WARN] Fast mode requires the native binary"];
+const SUPPRESSED_STDERR_PATTERNS: &[&str] = &[
+    "[WARN] Fast mode requires the native binary",
+    // Runs routed through 9router authenticate with a token on purpose, so
+    // the CLI's note that claude.ai connectors are off is expected noise.
+    "claude.ai connectors are disabled because",
+];
 
+/// Headless runs always use the newest Claude Code: Anthropic gates new
+/// models on a minimum CLI version, so a pinned version ends up refused
+/// ("Claude Code X does not support this model"). `npx` re-resolves the
+/// `latest` tag on each spawn and reuses its cache when nothing changed.
 fn base_command(claude_code_router: bool) -> &'static str {
     if claude_code_router {
         "npx -y @musistudio/claude-code-router@1.0.66 code"
     } else {
-        "npx -y @anthropic-ai/claude-code@2.1.177"
+        "npx -y @anthropic-ai/claude-code@latest"
     }
 }
 
