@@ -142,6 +142,7 @@ export interface ActionVisibilityContext {
   hasGitRepos: boolean;
   hasMultipleRepos: boolean;
   hasOpenPR: boolean;
+  hasCommitsAhead: boolean;
   hasUnpushedCommits: boolean;
   hasUncommittedChanges: boolean;
 

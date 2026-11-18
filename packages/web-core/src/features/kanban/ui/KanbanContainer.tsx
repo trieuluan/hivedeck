@@ -59,7 +59,11 @@ import {
 } from '@vibe/ui/components/KanbanBoard';
 import { DragDropContext } from '@hello-pangea/dnd';
 import { KanbanCardContent } from '@vibe/ui/components/KanbanCardContent';
-import { ShipIssueButton } from './ShipIssueButton';
+import {
+  AcceptFindingsButton,
+  ShipIssueButton,
+  resolveInReviewAction,
+} from './ShipIssueButton';
 import { KanbanWorkspaceDispatch } from '@vibe/ui/components/KanbanWorkspaceDispatch';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
 import { useQueryClient } from '@tanstack/react-query';
@@ -786,6 +790,16 @@ export function KanbanContainer() {
     const workspace = live[live.length - 1];
     const localId = workspace?.local_workspace_id;
     if (!localId) return null;
+    const localWorkspace = localWorkspacesById.get(localId);
+    const action = resolveInReviewAction(localWorkspace?.filesChanged);
+    if (action === 'accept') {
+      return (
+        <AcceptFindingsButton
+          onAccept={() => updateIssue(issue.id, { status_id: doneStatusId })}
+        />
+      );
+    }
+    if (action !== 'merge') return null;
     return (
       <ShipIssueButton
         workspaceId={localId}

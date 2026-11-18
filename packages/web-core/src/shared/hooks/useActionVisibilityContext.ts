@@ -117,6 +117,9 @@ export function useActionVisibilityContext(
         )
       ) ?? false;
 
+    const hasCommitsAhead =
+      branchStatus?.some((repo) => (repo.commits_ahead ?? 0) > 0) ?? false;
+
     const hasUnpushedCommits =
       branchStatus?.some((repo) => (repo.remote_commits_ahead ?? 0) > 0) ??
       false;
@@ -142,6 +145,7 @@ export function useActionVisibilityContext(
       hasGitRepos: repos.length > 0,
       hasMultipleRepos: repos.length > 1,
       hasOpenPR,
+      hasCommitsAhead,
       hasUnpushedCommits,
       hasUncommittedChanges,
       isAttemptRunning: isAttemptRunningVisible,

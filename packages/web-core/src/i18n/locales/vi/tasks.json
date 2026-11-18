@@ -613,6 +613,7 @@
   },
   "ship": {
     "button": "Merge",
+    "acceptFindings": "Chấp nhận kết quả",
     "merging": "Đang merge…",
     "confirmTitle": "Merge card này?",
     "confirmMessage": "HiveDeck sẽ commit phần còn sót, rebase lên branch đích nếu cần, merge thay đổi, push branch, lưu trữ workspace và chuyển card sang Done.",

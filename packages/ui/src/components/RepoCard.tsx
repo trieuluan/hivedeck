@@ -98,7 +98,7 @@ export function RepoCard({
   // Hide "Commit" when the worktree has no uncommitted changes
   // Hide "Open pull request" and "Link pull request" when PR is already open
   // Hide "Link pull request" when any PR is already linked (open or merged)
-  // Hide "merge" option when PR is already open or target branch is remote
+  // Hide "merge" option when PR is open, target branch is remote, or no commits ahead
   const hasPrOpen = prStatus === 'open';
   const hasPrLinked = !!prNumber;
   const availableActionOptions = useMemo(
@@ -107,11 +107,20 @@ export function RepoCard({
         if (opt.value === 'commit' && !hasUncommittedChanges) return false;
         if (opt.value === 'pull-request' && hasPrOpen) return false;
         if (opt.value === 'link-pr' && hasPrLinked) return false;
-        if (opt.value === 'merge' && (hasPrOpen || isTargetRemote))
+        if (
+          opt.value === 'merge' &&
+          (hasPrOpen || isTargetRemote || commitsAhead === 0)
+        )
           return false;
         return true;
       }),
-    [hasUncommittedChanges, hasPrOpen, hasPrLinked, isTargetRemote]
+    [
+      hasUncommittedChanges,
+      hasPrOpen,
+      hasPrLinked,
+      isTargetRemote,
+      commitsAhead,
+    ]
   );
 
   // If current selection is unavailable, fall back to the first available option.

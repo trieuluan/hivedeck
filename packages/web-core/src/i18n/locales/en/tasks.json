@@ -614,6 +614,7 @@
   },
   "ship": {
     "button": "Merge",
+    "acceptFindings": "Accept findings",
     "merging": "Merging…",
     "confirmTitle": "Merge this card?",
     "confirmMessage": "HiveDeck commits anything left over, rebases onto the target branch if needed, merges the changes, pushes the branch, archives the workspace and moves the card to Done.",

@@ -893,11 +893,13 @@ export const Actions = {
     icon: GitMergeIcon,
     shortcut: 'X M',
     requiresTarget: ActionTargetType.GIT,
-    isVisible: (ctx) => ctx.hasWorkspace && ctx.hasGitRepos,
+    isVisible: (ctx) =>
+      ctx.hasWorkspace && ctx.hasGitRepos && ctx.hasCommitsAhead,
     execute: async (ctx, workspaceId, repoId) => {
       // Check for existing conflicts first
       const branchStatus = await workspacesApi.getBranchStatus(workspaceId);
       const repoStatus = branchStatus?.find((s) => s.repo_id === repoId);
+      if ((repoStatus?.commits_ahead ?? 0) === 0) return;
 
       // Check if repo has an open PR - cannot merge directly
       const hasOpenPR = repoStatus?.merges?.some(

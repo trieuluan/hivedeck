@@ -1,8 +1,41 @@
 import { useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { GitMergeIcon, SpinnerIcon } from '@phosphor-icons/react';
+import { CheckIcon, GitMergeIcon, SpinnerIcon } from '@phosphor-icons/react';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
 import { workspacesApi } from '@/shared/lib/api';
+
+export type InReviewAction = 'merge' | 'accept';
+
+export function resolveInReviewAction(
+  filesChanged: number | undefined
+): InReviewAction | null {
+  if (filesChanged === undefined) return null;
+  return filesChanged > 0 ? 'merge' : 'accept';
+}
+
+export interface AcceptFindingsButtonProps {
+  /** Moves the card to Done without running git merge. */
+  onAccept: () => void;
+}
+
+export function AcceptFindingsButton({ onAccept }: AcceptFindingsButtonProps) {
+  const { t } = useTranslation('tasks');
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onAccept();
+      }}
+      onPointerDown={(e) => e.stopPropagation()}
+      className="inline-flex items-center gap-1 rounded-sm border border-brand/60 bg-brand/10 px-2 py-0.5 text-xs font-medium text-high hover:bg-brand/20"
+    >
+      <CheckIcon className="size-3.5" weight="bold" />
+      {t('ship.acceptFindings')}
+    </button>
+  );
+}
 
 export interface ShipIssueButtonProps {
   /** Local workspace (attempt) whose changes get merged. */
