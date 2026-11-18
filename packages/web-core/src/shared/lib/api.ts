@@ -105,6 +105,8 @@ import {
   RunRoutineResponse,
   PipelineFileStatus,
   PipelineValidation,
+  AgentExtensionsResponse,
+  CliExtensionPrefs,
 } from 'shared/types';
 import type { WorkspaceWithSession } from '@/shared/types/attempt';
 import { createWorkspaceWithSession } from '@/shared/types/attempt';
@@ -1339,6 +1341,24 @@ export const recurrentApi = {
 };
 
 // Task Tags APIs (all tags are global)
+// ADR-038: per-CLI skills/MCP/hooks for HiveDeck's headless runs.
+export const agentExtensionsApi = {
+  load: async (): Promise<AgentExtensionsResponse> => {
+    const response = await makeRequest('/api/agent-extensions');
+    return handleApiResponse<AgentExtensionsResponse>(response);
+  },
+  save: async (
+    cli: string,
+    prefs: CliExtensionPrefs
+  ): Promise<CliExtensionPrefs> => {
+    const response = await makeRequest('/api/agent-extensions', {
+      method: 'PUT',
+      body: JSON.stringify({ cli, prefs }),
+    });
+    return handleApiResponse<CliExtensionPrefs>(response);
+  },
+};
+
 export const telegramApi = {
   getStatus: async (): Promise<TelegramStatus> => {
     const response = await makeRequest('/api/telegram/status');

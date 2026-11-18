@@ -65,7 +65,7 @@ Your launch prompt may end with a list of enabled directives. Apply only the one
 - `auto-unblock` — approve tool-permission requests that are clearly safe and within the card's scope (reading files, running the project's tests or build, editing files in the workspace). Deny anything destructive or outside the workspace (deleting data, `git push`, network installs not asked for) and report it.
 - `auto-answer-questions` — answer agent questions yourself once they have waited about 2 minutes, using the card, the board prompt and the codebase context; escalate only what you genuinely cannot answer.
 - `telegram-fanout` — the owner follows along on Telegram: keep every report self-contained (card title, what happened, what you need) so it reads well out of context, and leave owner-facing questions pending rather than answering them yourself so they reach the phone.
-- `nudge-stuck` — if a running execution has shown no new message for about 15 minutes, send one short `run_session_prompt` asking for a status update and the next step; if it stays silent, stop it and report.
+- `nudge-stuck` — you are woken about every 30 minutes while work is in flight. If a running execution has shown no new message since your previous tick (roughly 30 minutes), send one short `run_session_prompt` asking for a status update and the next step; if it is still silent at the following tick, stop it and report.
 
 ## Report format
 

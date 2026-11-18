@@ -29,6 +29,8 @@
         "agentsDesc": "Coding agent configurations",
         "mcp": "MCP Servers",
         "mcpDesc": "Model Context Protocol servers",
+        "extensions": "Skills & MCP",
+        "extensionsDesc": "What each CLI loads in background runs",
         "telegram": "Telegram",
         "telegramDesc": "Agent escalations to Telegram"
       }
@@ -819,6 +821,59 @@
         },
         "rotate": "Rotate combos per session",
         "rotateHint": "Each agent session stays on one model of the combo (prompt cache stays warm); new sessions start on different models, so every provider's quota gets used. Off: 9router switches model on every request."
+      }
+    },
+    "extensions": {
+      "loading": "Loading what your CLIs have installed…",
+      "loadError": "Could not read the installed skills and MCP servers.",
+      "cliLabel": "CLI",
+      "intro": "Applies only to HiveDeck's background runs (card agents and the captain). Your CLI's own config is not changed, so interactive sessions keep everything.",
+      "readOnly": "Shown for reference; HiveDeck cannot switch these off for this CLI yet.",
+      "readOnlyTag": "View only",
+      "save": {
+        "saving": "Saving…",
+        "saved": "Saved",
+        "error": "Could not save"
+      },
+      "savings": {
+        "title": "Token savings",
+        "description": "Cuts that keep every capability.",
+        "cache": "Cache-friendly system prompt",
+        "cacheHint": "Moves per-machine details (folder, git status) out of the system prompt so the prompt cache is reused between runs.",
+        "budget": "Spending cap per run",
+        "budgetHint": "Stops a single run once it has spent this much, as the CLI estimates it. Empty = no cap.",
+        "hooks": "Run my hooks",
+        "hooksHint": "{{count}} hooks across {{events}} events. They fire on every tool call and turn; turn off if they are only for your own sessions.",
+        "noHooks": "No hooks installed.",
+        "bundled": "Skills bundled with the CLI",
+        "bundledHint": "The skills that ship with the CLI itself. Your own skills below aren't affected."
+      },
+      "skills": {
+        "title": "Skills",
+        "description": "\"Name only\" keeps a skill usable but drops its description from every prompt.",
+        "empty": "No skills installed.",
+        "mode": {
+          "on": "On",
+          "name_only": "Name only",
+          "off": "Off"
+        },
+        "modeHint": {
+          "on": "Listed with its description",
+          "name_only": "Listed by name only: still usable, cheaper",
+          "off": "Not offered in background runs"
+        }
+      },
+      "mcp": {
+        "title": "MCP servers",
+        "description": "Servers switched off aren't started in background runs. HiveDeck's own server for the captain always stays on. Add or edit servers under MCP server.",
+        "empty": "No MCP servers installed."
+      },
+      "plugins": {
+        "title": "Plugins"
+      },
+      "subagents": {
+        "title": "Subagents",
+        "description": "Custom subagents the CLI can delegate to."
       }
     }
   },

@@ -53,7 +53,7 @@ use std::str::FromStr;
 use utils::response::ApiResponse;
 use uuid::Uuid;
 
-use super::local_kanban::{create_issue_record, merge_and_update_issue};
+use super::local_kanban::{create_issue_record, update_issue_and_stop_if_cancelled};
 use crate::{
     DeploymentImpl,
     error::ApiError,
@@ -609,7 +609,7 @@ async fn update_issue(
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateIssueRequest>,
 ) -> Result<ResponseJson<ApiResponse<MutationResponse<ApiIssue>>>, ApiError> {
-    let issue = merge_and_update_issue(&deployment.db().pool, id, req)
+    let issue = update_issue_and_stop_if_cancelled(&deployment, id, req)
         .await?
         .ok_or_else(|| ApiError::BadRequest("issue not found".into()))?;
     Ok(mutated(to_api_issue(issue)))

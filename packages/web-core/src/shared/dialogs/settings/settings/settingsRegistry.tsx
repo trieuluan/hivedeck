@@ -6,6 +6,7 @@ import {
   TelegramLogoIcon,
   FlowArrowIcon,
   ClockCountdownIcon,
+  PuzzlePieceIcon,
 } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import { GeneralSettingsSection } from './GeneralSettingsSection';
@@ -14,6 +15,7 @@ import { RecurrentSettingsSection } from './RecurrentSettingsSection';
 import { ReposSettingsSection } from './ReposSettingsSection';
 import { AgentsSettingsSection } from './AgentsSettingsSection';
 import { McpSettingsSection } from './McpSettingsSection';
+import { ExtensionsSettingsSection } from './ExtensionsSettingsSection';
 import { TelegramSettingsSection } from './TelegramSettingsSection';
 
 // ADR-018 — `organizations` and `remote-projects` sections are gone.
@@ -25,6 +27,7 @@ export type SettingsSectionType =
   | 'repos'
   | 'agents'
   | 'mcp'
+  | 'extensions'
   | 'telegram';
 
 export type SettingsSectionGroup = 'host';
@@ -36,6 +39,7 @@ export type SettingsSectionInitialState = {
   repos: { repoId?: string } | undefined;
   agents: { executor?: string; variant?: string } | undefined;
   mcp: undefined;
+  extensions: undefined;
   telegram: undefined;
 };
 
@@ -52,6 +56,7 @@ export const SETTINGS_SECTION_DEFINITIONS: SettingsSectionDefinition[] = [
   { id: 'repos', icon: GitBranchIcon, group: 'host' },
   { id: 'agents', icon: CpuIcon, group: 'host' },
   { id: 'mcp', icon: PlugIcon, group: 'host' },
+  { id: 'extensions', icon: PuzzlePieceIcon, group: 'host' },
   { id: 'telegram', icon: TelegramLogoIcon, group: 'host' },
 ];
 
@@ -86,6 +91,8 @@ export function renderSettingsSection(
       return <AgentsSettingsSection />;
     case 'mcp':
       return <McpSettingsSection />;
+    case 'extensions':
+      return <ExtensionsSettingsSection />;
     case 'telegram':
       return <TelegramSettingsSection />;
     default:

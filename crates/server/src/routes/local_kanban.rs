@@ -837,6 +837,53 @@ async fn create_issue(
     Ok(mutation(issue))
 }
 
+/// Update an issue; when the update moves it into a cancelled column, stop
+/// the agents still running on its workspaces (dropped work shouldn't keep
+/// burning tokens). Used by every HTTP path that edits an issue.
+pub(crate) async fn update_issue_and_stop_if_cancelled(
+    deployment: &DeploymentImpl,
+    id: Uuid,
+    req: UpdateIssueRequest,
+) -> Result<Option<DbIssue>, ApiError> {
+    let pool = &deployment.db().pool;
+    let before = DbIssue::find_by_id(pool, id).await?.map(|i| i.status_id);
+    let updated = merge_and_update_issue(pool, id, req).await?;
+    if let Some(issue) = &updated
+        && before.is_some_and(|status| status != issue.status_id)
+        && status_is_cancelled(pool, issue.status_id).await
+    {
+        stop_issue_agents(deployment, issue.id).await;
+    }
+    Ok(updated)
+}
+
+async fn status_is_cancelled(pool: &SqlitePool, status_id: Uuid) -> bool {
+    sqlx::query_scalar::<_, String>("SELECT name FROM project_statuses WHERE id = $1")
+        .bind(status_id)
+        .fetch_optional(pool)
+        .await
+        .ok()
+        .flatten()
+        .is_some_and(|name| project_config::is_cancelled_status_name(&name))
+}
+
+/// Stop every running agent (not dev servers) on the issue's workspaces.
+async fn stop_issue_agents(deployment: &DeploymentImpl, issue_id: Uuid) {
+    let pool = &deployment.db().pool;
+    let ids: Vec<Uuid> =
+        sqlx::query_scalar("SELECT workspace_id FROM issue_workspaces WHERE issue_id = $1")
+            .bind(issue_id)
+            .fetch_all(pool)
+            .await
+            .unwrap_or_default();
+    for id in ids {
+        if let Ok(Some(workspace)) = db::models::workspace::Workspace::find_by_id(pool, id).await {
+            tracing::info!("card {issue_id} cancelled: stopping agents in workspace {id}");
+            deployment.container().try_stop(&workspace, false).await;
+        }
+    }
+}
+
 pub(crate) async fn merge_and_update_issue(
     pool: &sqlx::SqlitePool,
     id: Uuid,
@@ -941,7 +988,7 @@ async fn update_issue(
     Path(id): Path<Uuid>,
     ResponseJson(req): ResponseJson<UpdateIssueRequest>,
 ) -> Result<ResponseJson<MutationResponse<DbIssue>>, ApiError> {
-    let issue = merge_and_update_issue(&deployment.db().pool, id, req)
+    let issue = update_issue_and_stop_if_cancelled(&deployment, id, req)
         .await?
         .ok_or_else(|| ApiError::BadRequest("issue not found".into()))?;
     Ok(mutation(issue))
@@ -962,10 +1009,11 @@ async fn bulk_issues(
     State(deployment): State<DeploymentImpl>,
     ResponseJson(req): ResponseJson<BulkIssuesRequest>,
 ) -> Result<ResponseJson<MutationResponse<Vec<DbIssue>>>, ApiError> {
-    let pool = &deployment.db().pool;
     let mut out = Vec::with_capacity(req.updates.len());
     for item in req.updates {
-        if let Some(issue) = merge_and_update_issue(pool, item.id, item.changes).await? {
+        if let Some(issue) =
+            update_issue_and_stop_if_cancelled(&deployment, item.id, item.changes).await?
+        {
             out.push(issue);
         }
     }

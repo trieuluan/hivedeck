@@ -541,7 +541,7 @@
       },
       "nudge-stuck": {
         "label": "Nudge stuck agents",
-        "description": "If a running agent shows no new message for about 15 minutes, ask it for a status and next step; stop it if it stays silent."
+        "description": "If a running agent shows no new message for about 30 minutes (one captain heartbeat), ask it for a status and next step; stop it if it is still silent at the next check."
       }
     },
     "existingIdle": "An orchestrator workspace already exists and is idle. Spawning starts a fresh captain session in it; earlier sessions stay in its history.",

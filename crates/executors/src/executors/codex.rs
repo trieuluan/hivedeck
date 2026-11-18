@@ -685,6 +685,14 @@ impl Codex {
                 captain,
             ));
         }
+        // The owner's per-CLI choices for headless runs (ADR-038).
+        let prefs = crate::extensions::ExtensionPrefs::load().for_cli("CODEX");
+        for (key, value) in crate::extensions::codex_config_overrides(&prefs) {
+            params
+                .config
+                .get_or_insert_with(HashMap::new)
+                .insert(key, value);
+        }
         let resume_session = resume_session.map(|s| s.to_string());
 
         self.spawn_app_server(

@@ -541,7 +541,7 @@
       },
       "nudge-stuck": {
         "label": "Nhắc agent bị kẹt",
-        "description": "Nếu một agent đang chạy không có tin nhắn mới trong khoảng 15 phút, hỏi nó tình hình và bước tiếp theo; vẫn im lặng thì dừng nó."
+        "description": "Nếu một agent đang chạy không có tin nhắn mới trong khoảng 30 phút (một nhịp kiểm tra của thuyền trưởng), hỏi nó tình hình và bước tiếp theo; lần kiểm tra sau vẫn im lặng thì dừng nó."
       }
     },
     "existingIdle": "Đã có workspace thuyền trưởng và đang rảnh. Khởi động sẽ mở một phiên mới trong đó; các phiên cũ vẫn nằm trong lịch sử.",

@@ -458,6 +458,68 @@ export type Environment = { os_type: string, os_version: string, os_architecture
 
 export type McpServerQuery = { executor: BaseCodingAgent, };
 
+export type AgentExtensionsEntry = { inventory: CliInventory, prefs: CliExtensionPrefs, };
+
+export type AgentExtensionsResponse = { clis: Array<AgentExtensionsEntry>, };
+
+export type UpdateAgentExtensionsRequest = { cli: string, prefs: CliExtensionPrefs, };
+
+export type SkillMode = "on" | "name_only" | "off";
+
+export type CliExtensionPrefs = { 
+/**
+ * Skill name → mode; skills not listed stay on.
+ */
+skills: { [key in string]?: SkillMode }, 
+/**
+ * MCP servers switched off for headless runs.
+ */
+disabled_mcp: Array<string>, 
+/**
+ * Plugins switched off for headless runs.
+ */
+disabled_plugins: Array<string>, 
+/**
+ * Skip the owner's hooks in headless runs.
+ */
+disable_hooks: boolean, 
+/**
+ * Drop the skills bundled with the CLI itself.
+ */
+disable_bundled_skills: boolean, 
+/**
+ * Keep per-machine details out of the system prompt so the prompt
+ * cache is reused across runs. No capability is lost.
+ */
+cache_friendly_prompt: boolean, 
+/**
+ * Stop a single run once it has spent this much (USD, as the CLI
+ * estimates it). `None` = no cap.
+ */
+max_budget_usd: number | null, };
+
+export type InstalledItem = { name: string, description?: string, 
+/**
+ * Where it was found (a path or config file), for the owner's reference.
+ */
+source: string, 
+/**
+ * Whether HiveDeck can switch it off for this CLI.
+ */
+toggleable: boolean, };
+
+export type CliInventory = { cli: string, skills: Array<InstalledItem>, mcp_servers: Array<InstalledItem>, plugins: Array<InstalledItem>, subagents: Array<InstalledItem>, 
+/**
+ * Hook events with how many hooks each runs.
+ */
+hooks: Array<InstalledItem>, 
+/**
+ * Which switches this CLI honours.
+ */
+supports: CliSupports, };
+
+export type CliSupports = { skill_modes: boolean, mcp: boolean, plugins: boolean, hooks: boolean, bundled_skills: boolean, cache_friendly_prompt: boolean, max_budget: boolean, };
+
 export type UpdateMcpServersBody = { servers: { [key in string]?: JsonValue }, };
 
 export type GetMcpServerResponse = { mcp_config: McpConfig, config_path: string, };

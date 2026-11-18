@@ -29,6 +29,8 @@
         "agentsDesc": "Cấu hình coding agent",
         "mcp": "MCP server",
         "mcpDesc": "Server Model Context Protocol",
+        "extensions": "Skills & MCP",
+        "extensionsDesc": "Những gì mỗi CLI nạp khi chạy ngầm",
         "telegram": "Telegram",
         "telegramDesc": "Chuyển yêu cầu của agent tới Telegram"
       }
@@ -819,6 +821,59 @@
         },
         "rotate": "Xoay vòng combo theo phiên",
         "rotateHint": "Mỗi phiên agent ở yên một model của combo (cache prompt luôn trúng); phiên mới bắt đầu ở model khác nên quota của mọi provider đều được dùng. Tắt: 9router đổi model sau mỗi lần gọi."
+      }
+    },
+    "extensions": {
+      "loading": "Đang đọc những gì CLI đã cài…",
+      "loadError": "Không đọc được danh sách skill và MCP server đã cài.",
+      "cliLabel": "CLI",
+      "intro": "Chỉ áp dụng cho các lượt chạy ngầm của HiveDeck (agent của card và thuyền trưởng). Cấu hình riêng của CLI không bị sửa, nên khi bạn tự mở CLI vẫn có đủ mọi thứ.",
+      "readOnly": "Chỉ để xem; HiveDeck chưa tắt được các mục này cho CLI này.",
+      "readOnlyTag": "Chỉ xem",
+      "save": {
+        "saving": "Đang lưu…",
+        "saved": "Đã lưu",
+        "error": "Không lưu được"
+      },
+      "savings": {
+        "title": "Tiết kiệm token",
+        "description": "Những cách cắt giảm không làm mất khả năng nào.",
+        "cache": "System prompt thân thiện với cache",
+        "cacheHint": "Đưa thông tin riêng của máy (thư mục, git status) ra khỏi system prompt để cache được dùng lại giữa các lượt chạy.",
+        "budget": "Giới hạn chi phí mỗi lượt",
+        "budgetHint": "Dừng một lượt chạy khi đã tiêu đến mức này (theo ước tính của CLI). Để trống = không giới hạn.",
+        "hooks": "Chạy hook của tôi",
+        "hooksHint": "{{count}} hook ở {{events}} sự kiện. Chúng chạy ở mỗi lần gọi công cụ và mỗi lượt; tắt nếu chỉ dùng cho phiên của bạn.",
+        "noHooks": "Chưa cài hook nào.",
+        "bundled": "Skill có sẵn của CLI",
+        "bundledHint": "Các skill đi kèm bản thân CLI. Skill bạn tự cài bên dưới không bị ảnh hưởng."
+      },
+      "skills": {
+        "title": "Skill",
+        "description": "\"Chỉ tên\" vẫn cho dùng skill nhưng bỏ phần mô tả khỏi mỗi prompt.",
+        "empty": "Chưa cài skill nào.",
+        "mode": {
+          "on": "Bật",
+          "name_only": "Chỉ tên",
+          "off": "Tắt"
+        },
+        "modeHint": {
+          "on": "Liệt kê kèm mô tả",
+          "name_only": "Chỉ liệt kê tên: vẫn dùng được, rẻ hơn",
+          "off": "Không đưa vào lượt chạy ngầm"
+        }
+      },
+      "mcp": {
+        "title": "MCP server",
+        "description": "Server bị tắt sẽ không khởi động trong lượt chạy ngầm. Server riêng của HiveDeck cho thuyền trưởng luôn bật. Thêm hoặc sửa server ở mục MCP server.",
+        "empty": "Chưa cài MCP server nào."
+      },
+      "plugins": {
+        "title": "Plugin"
+      },
+      "subagents": {
+        "title": "Subagent",
+        "description": "Các subagent tự định nghĩa mà CLI có thể giao việc."
       }
     }
   },

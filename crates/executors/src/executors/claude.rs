@@ -863,16 +863,16 @@ pub const CAPTAIN_MCP_CONFIG_ENV: &str = "HIVEDECK_CLAUDE_CAPTAIN_MCP_CONFIG";
 pub const CAPTAIN_ALLOWED_TOOLS: &str = "mcp__hivedeck,Read,Glob,Grep";
 
 /// Extra flags for a captain run. Headless runs take the prompt on stdin, so
-/// nothing positional can be swallowed; `--mcp-config` still uses the `=`
-/// form.
+/// nothing positional can be swallowed. The captain's `--mcp-config` is
+/// added by [`crate::extensions::claude_args`], which folds it into a strict
+/// MCP config when the owner switched servers off.
 fn captain_args(env: &ExecutionEnv) -> Vec<String> {
     let mut args = Vec::new();
     if let Some(agents) = env.vars.get(CAPTAIN_AGENTS_ENV) {
         args.push("--agents".to_string());
         args.push(agents.clone());
     }
-    if let Some(mcp) = env.vars.get(CAPTAIN_MCP_CONFIG_ENV) {
-        args.push(format!("--mcp-config={mcp}"));
+    if env.vars.contains_key(CAPTAIN_MCP_CONFIG_ENV) {
         args.push(format!("--allowedTools={CAPTAIN_ALLOWED_TOOLS}"));
     }
     args
@@ -1024,6 +1024,14 @@ impl ClaudeCode {
             args.retain(|a| a != "--dangerously-skip-permissions");
         }
         args.extend(captain);
+        // The owner's per-CLI choices for headless runs (skills, MCP, hooks,
+        // budget); see ADR-038.
+        let prefs = crate::extensions::ExtensionPrefs::load().for_cli("CLAUDE_CODE");
+        args.extend(crate::extensions::claude_args(
+            &prefs,
+            current_dir,
+            env.vars.get(CAPTAIN_MCP_CONFIG_ENV).map(String::as_str),
+        ));
         let combined_prompt = self.append_prompt.combine_prompt(prompt);
 
         let mut command = Command::new(program_path);
@@ -4095,7 +4103,7 @@ mod captain_args_tests {
     }
 
     #[test]
-    fn captain_env_adds_agents_mcp_and_allowlist() {
+    fn captain_env_adds_agents_and_allowlist() {
         let mut env = ExecutionEnv::new(RepoContext::default(), false, String::new());
         env.insert(CAPTAIN_AGENTS_ENV, "{\"a\":1}");
         env.insert(CAPTAIN_MCP_CONFIG_ENV, "{\"m\":1}");
@@ -4104,7 +4112,6 @@ mod captain_args_tests {
             vec![
                 "--agents".to_string(),
                 "{\"a\":1}".to_string(),
-                "--mcp-config={\"m\":1}".to_string(),
                 "--allowedTools=mcp__hivedeck,Read,Glob,Grep".to_string(),
             ]
         );

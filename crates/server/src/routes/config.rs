@@ -44,6 +44,10 @@ pub fn router() -> Router<DeploymentImpl> {
         .route("/config", put(update_config))
         .route("/sounds/{sound}", get(get_sound))
         .route("/mcp-config", get(get_mcp_servers).post(update_mcp_servers))
+        .route(
+            "/agent-extensions",
+            get(get_agent_extensions).put(update_agent_extensions),
+        )
         .route("/profiles", get(get_profiles).put(update_profiles))
         .route("/export", get(export_config))
         .route("/import", post(import_config))
@@ -190,6 +194,53 @@ pub struct GetMcpServerResponse {
 #[derive(TS, Debug, Serialize, Deserialize)]
 pub struct UpdateMcpServersBody {
     servers: HashMap<String, Value>,
+}
+
+/// One CLI's installed skills/MCP/hooks/plugins plus the owner's choices
+/// for HiveDeck's headless runs (ADR-038).
+#[derive(Debug, Serialize, TS)]
+pub struct AgentExtensionsEntry {
+    pub inventory: executors::extensions::CliInventory,
+    pub prefs: executors::extensions::CliExtensionPrefs,
+}
+
+#[derive(Debug, Serialize, TS)]
+pub struct AgentExtensionsResponse {
+    pub clis: Vec<AgentExtensionsEntry>,
+}
+
+#[derive(Debug, Deserialize, TS)]
+pub struct UpdateAgentExtensionsRequest {
+    pub cli: String,
+    pub prefs: executors::extensions::CliExtensionPrefs,
+}
+
+async fn get_agent_extensions() -> ResponseJson<ApiResponse<AgentExtensionsResponse>> {
+    let saved = executors::extensions::ExtensionPrefs::load();
+    let clis = executors::extensions::SUPPORTED_CLIS
+        .iter()
+        .filter_map(|cli| {
+            Some(AgentExtensionsEntry {
+                inventory: executors::extensions::inventory(cli)?,
+                prefs: saved.for_cli(cli),
+            })
+        })
+        .collect();
+    ResponseJson(ApiResponse::success(AgentExtensionsResponse { clis }))
+}
+
+async fn update_agent_extensions(
+    Json(req): Json<UpdateAgentExtensionsRequest>,
+) -> Result<ResponseJson<ApiResponse<executors::extensions::CliExtensionPrefs>>, ApiError> {
+    if !executors::extensions::SUPPORTED_CLIS.contains(&req.cli.as_str()) {
+        return Ok(ResponseJson(ApiResponse::error("Unsupported CLI")));
+    }
+    let mut saved = executors::extensions::ExtensionPrefs::load();
+    saved.clis.insert(req.cli.clone(), req.prefs.clone());
+    saved
+        .save()
+        .map_err(|e| ApiError::BadRequest(format!("could not save: {e}")))?;
+    Ok(ResponseJson(ApiResponse::success(req.prefs)))
 }
 
 async fn get_mcp_servers(
