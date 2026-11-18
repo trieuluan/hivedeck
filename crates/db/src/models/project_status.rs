@@ -150,19 +150,18 @@ mod tests {
     }
 
     fn partial_migrator(from_version: i64, to_version: i64) -> Migrator {
-        let full = sqlx::migrate!("./migrations");
-        let subset: Vec<_> = full
+        // Start from the full migrator and narrow it, rather than building
+        // `Migrator` field by field (its fields change between sqlx versions).
+        let mut migrator = sqlx::migrate!("./migrations");
+        let subset: Vec<_> = migrator
             .migrations
             .iter()
             .filter(|m| m.version >= from_version && m.version < to_version)
             .cloned()
             .collect();
-        Migrator {
-            migrations: Cow::Owned(subset),
-            ignore_missing: true,
-            locking: true,
-            no_tx: false,
-        }
+        migrator.migrations = Cow::Owned(subset);
+        migrator.ignore_missing = true;
+        migrator
     }
 
     async fn insert_legacy_status(

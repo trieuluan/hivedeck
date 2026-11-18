@@ -2714,6 +2714,7 @@ mod tests {
                     "threadId": "thread-1",
                     "turnId": "turn-1",
                     "itemId": call_id,
+                    "startedAtMs": 1,
                     "approvalId": "approval-1",
                     "command": "git push"
                 }
@@ -2811,6 +2812,7 @@ mod tests {
                 "params": {
                     "threadId": "thread-1",
                     "turnId": "turn-1",
+                    "completedAtMs": 1,
                     "item": {
                         "type": "dynamicToolCall",
                         "id": call_id,

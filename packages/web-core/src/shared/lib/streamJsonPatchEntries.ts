@@ -173,18 +173,33 @@ export function streamJsonPatchEntries<E = unknown>(
 }
 
 /**
- * Dedupe multiple ops that touch the same path within a batch.
- * Last write for a path wins, while preserving the overall left-to-right
- * order of the *kept* final operations.
+ * Collapse ops that touch the same path within one batch, so a streaming
+ * entry updated many times in a frame is applied once.
+ *
+ * - Paths keep the order they first appeared in, so a new entry that is
+ *   updated later in the batch is still inserted before entries added after
+ *   it (keeping indices right).
+ * - `add` then `replace` on a path becomes one `add` with the final value.
+ * - A batch with `remove`, `move` or `copy` is returned unchanged: those
+ *   shift indices, so merging by path would be unsafe.
  *
  * Example:
- *   add /entries/4, replace /entries/4  -> keep only the final replace
+ *   add /e/1 a, add /e/2 b, replace /e/1 c  ->  add /e/1 c, add /e/2 b
  */
-function dedupeOps(ops: Operation[]): Operation[] {
-  const lastIndexByPath = new Map<string, number>();
-  ops.forEach((op, i) => lastIndexByPath.set(op.path, i));
-
-  // Keep only the last op for each path, in ascending order of their final index
-  const keptIndices = [...lastIndexByPath.values()].sort((a, b) => a - b);
-  return keptIndices.map((i) => ops[i]!);
+export function dedupeOps(ops: Operation[]): Operation[] {
+  if (ops.some((op) => op.op !== 'add' && op.op !== 'replace')) {
+    return ops;
+  }
+  const byPath = new Map<string, Operation>();
+  for (const op of ops) {
+    const previous = byPath.get(op.path);
+    if (previous && previous.op === 'add' && op.op === 'replace') {
+      byPath.set(op.path, { ...previous, value: op.value });
+    } else {
+      // First write, or a later add/replace that supersedes it. Map keeps the
+      // first-seen insertion order of the key.
+      byPath.set(op.path, op);
+    }
+  }
+  return [...byPath.values()];
 }
