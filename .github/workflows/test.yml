@@ -240,6 +240,12 @@ jobs:
       - name: Run Cargo tests
         run: cargo nextest run --workspace --exclude hivedeck-tauri
 
+      - name: Run isolated MCP server probe
+        env:
+          SQLX_OFFLINE: "true"
+          CARGO_TARGET_DIR: target
+        run: python3 scripts/probe-isolated-mcp.py
+
   tauri-checks:
     needs: changes
     if: always() && (needs.changes.outputs.tauri == 'true' || needs.changes.result == 'skipped')

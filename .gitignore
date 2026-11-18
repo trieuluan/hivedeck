@@ -105,3 +105,4 @@ Caddyfile.dev
 
 IMPLEMENTATION_PLAN.md
 .codemap
+.target-isolated/
