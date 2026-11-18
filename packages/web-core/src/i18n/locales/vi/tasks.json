@@ -203,10 +203,24 @@
     "unableToRenderDiff": "Không hiển thị được diff.",
     "work": {
       "worked": "Đã làm việc",
-      "steps_one": "{{count}} bước",
-      "steps_other": "{{count}} bước",
-      "files_one": "sửa {{count}} file",
-      "files_other": "sửa {{count}} file"
+      "kind": {
+        "read_one": "đọc {{count}} file",
+        "read_other": "đọc {{count}} file",
+        "search_one": "tìm {{count}} lần",
+        "search_other": "tìm {{count}} lần",
+        "web_one": "mở {{count}} trang web",
+        "web_other": "mở {{count}} trang web",
+        "command_one": "chạy {{count}} lệnh",
+        "command_other": "chạy {{count}} lệnh",
+        "edit_one": "sửa {{count}} file",
+        "edit_other": "sửa {{count}} file",
+        "agent_one": "giao {{count}} việc cho subagent",
+        "agent_other": "giao {{count}} việc cho subagent",
+        "tool_one": "dùng {{count}} công cụ",
+        "tool_other": "dùng {{count}} công cụ",
+        "thinking_one": "suy nghĩ",
+        "thinking_other": "suy nghĩ"
+      }
     },
     "agentWorking": "Agent đang làm việc…",
     "waitingForModel": "Đang chờ model phản hồi…"

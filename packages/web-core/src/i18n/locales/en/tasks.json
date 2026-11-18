@@ -203,10 +203,24 @@
     "unableToRenderDiff": "Unable to render diff.",
     "work": {
       "worked": "Worked",
-      "steps_one": "{{count}} step",
-      "steps_other": "{{count}} steps",
-      "files_one": "{{count}} file edited",
-      "files_other": "{{count}} files edited"
+      "kind": {
+        "read_one": "read {{count}} file",
+        "read_other": "read {{count}} files",
+        "search_one": "searched {{count}} time",
+        "search_other": "searched {{count}} times",
+        "web_one": "fetched {{count}} page",
+        "web_other": "fetched {{count}} pages",
+        "command_one": "ran {{count}} command",
+        "command_other": "ran {{count}} commands",
+        "edit_one": "edited {{count}} file",
+        "edit_other": "edited {{count}} files",
+        "agent_one": "delegated {{count}} task",
+        "agent_other": "delegated {{count}} tasks",
+        "tool_one": "used {{count}} tool",
+        "tool_other": "used {{count}} tools",
+        "thinking_one": "thought",
+        "thinking_other": "thought"
+      }
     },
     "agentWorking": "Agent is working…",
     "waitingForModel": "Waiting for the model to respond…"

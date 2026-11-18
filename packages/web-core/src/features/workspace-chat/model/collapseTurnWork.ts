@@ -6,10 +6,11 @@ import { isAgentErrorText } from './describeAgentError';
 import { isAutoTickMessage } from './autoTick';
 
 /**
- * Collapse the work inside finished turns (tool calls, thinking, notes the
- * agent wrote between steps) into one row, so a turn reads as: your message,
- * "worked · 12 steps · 3 files", the final answer. The running turn stays
- * expanded so you can follow it live.
+ * Group the agent's tool work the way Claude Code does: every message the
+ * agent writes stays visible, and each run of two or more steps between
+ * those messages (reads, searches, commands, edits, thinking) becomes one
+ * "worked · 5 steps · 2 files" row. While a turn is running, the run it is
+ * still adding to stays expanded so you can follow it live.
  */
 
 type Kind = 'user' | 'answer' | 'visible' | 'work';
@@ -117,10 +118,6 @@ export function collapseTurnWork(
   const result: DisplayEntry[] = [];
   turns.forEach((turn, turnIndex) => {
     const settled = turnIndex < turns.length - 1 || options.collapseLastTurn;
-    if (!settled) {
-      result.push(...turn);
-      return;
-    }
 
     // An older automatic captain turn folds whole (its report included):
     // only the newest report matters, the rest is history.
@@ -130,18 +127,11 @@ export function collapseTurnWork(
       head?.type === 'NORMALIZED_ENTRY' &&
       head.content.entry_type.type === 'user_message' &&
       isAutoTickMessage(head.content.content);
-    if (isOlderTick && turn.length > 1) {
+    if (settled && isOlderTick && turn.length > 1) {
       result.push(head);
       result.push(makeGroup(turn.slice(1) as WorkItem[]));
       return;
     }
-
-    // The last answer stays visible; earlier answers are progress notes.
-    let lastAnswer = -1;
-    turn.forEach((entry, index) => {
-      if (kindOf(entry) === 'answer') lastAnswer = index;
-    });
-    const workEnd = lastAnswer === -1 ? turn.length : lastAnswer;
 
     let run: WorkItem[] = [];
     const flush = () => {
@@ -149,18 +139,17 @@ export function collapseTurnWork(
       else result.push(...run);
       run = [];
     };
-    turn.forEach((entry, index) => {
-      const kind = kindOf(entry);
-      const collapsible =
-        index < workEnd && (kind === 'work' || kind === 'answer');
-      if (collapsible) {
+    for (const entry of turn) {
+      if (kindOf(entry) === 'work') {
         run.push(entry as WorkItem);
       } else {
         flush();
         result.push(entry);
       }
-    });
-    flush();
+    }
+    // The run a live turn is still adding to stays open.
+    if (settled) flush();
+    else result.push(...run);
   });
   return result;
 }

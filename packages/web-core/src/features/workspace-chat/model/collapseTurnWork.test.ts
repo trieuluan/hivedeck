@@ -53,27 +53,37 @@ describe('collapseTurnWork', () => {
     expect(group.editedFiles).toBe(2);
   });
 
-  it('keeps the running turn expanded', () => {
-    const entries = [user(), tool(), tool(), answer('first'), user(), tool()];
-    const later = [...entries, tool()];
-    const out = collapseTurnWork(later, { collapseLastTurn: false });
+  it('groups closed runs in a live turn, keeps the open run expanded', () => {
+    const entries = [user(), tool(), tool(), answer('first'), tool(), tool()];
+    const out = collapseTurnWork(entries, { collapseLastTurn: false });
     expect(types(out)).toEqual([
       'user_message',
       'AGGREGATED_WORK_GROUP',
       'assistant_message',
-      'user_message',
       'tool_use',
       'tool_use',
     ]);
   });
 
-  it('treats earlier answers in a turn as progress notes', () => {
+  it('keeps every agent message visible between groups of steps', () => {
     const out = collapseTurnWork(
-      [user(), answer('looking'), tool(), answer('final')],
+      [
+        user(),
+        answer('looking'),
+        tool(),
+        tool(),
+        answer('found it'),
+        edit('a.ts'),
+        edit('b.ts'),
+        answer('final'),
+      ],
       { collapseLastTurn: true }
     );
     expect(types(out)).toEqual([
       'user_message',
+      'assistant_message',
+      'AGGREGATED_WORK_GROUP',
+      'assistant_message',
       'AGGREGATED_WORK_GROUP',
       'assistant_message',
     ]);

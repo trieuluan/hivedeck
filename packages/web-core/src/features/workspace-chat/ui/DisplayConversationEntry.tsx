@@ -1572,10 +1572,14 @@ const DisplayConversationEntrySpaced = (props: Props) => {
   const { isEntryGreyed } = useMessageEditContext();
   const isGreyed = isEntryGreyed(props.expansionKey);
 
+  // Tight rhythm inside a turn; a new message from you opens with more air,
+  // so turns read as sections.
+  const startsTurn = props.entry?.entry_type.type === 'user_message';
   return (
     <div
       className={cn(
-        'py-base px-double',
+        'ship-row px-double',
+        startsTurn ? 'pt-5 pb-1.5' : 'py-1',
         isGreyed && 'opacity-50 pointer-events-none'
       )}
     >

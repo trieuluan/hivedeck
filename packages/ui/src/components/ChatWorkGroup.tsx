@@ -1,9 +1,9 @@
 import { useId, type ReactNode } from 'react';
-import { CaretRightIcon } from '@phosphor-icons/react';
+import { CaretRightIcon, StackSimpleIcon } from '@phosphor-icons/react';
 import { cn } from '../lib/cn';
 
 interface ChatWorkGroupProps {
-  /** One-line summary, e.g. "Worked · 12 steps · 3 files". */
+  /** One-line summary, e.g. "Read 3 files, ran 2 commands". */
   label: string;
   expanded: boolean;
   onToggle: () => void;
@@ -13,8 +13,9 @@ interface ChatWorkGroupProps {
 }
 
 /**
- * The work an agent did in a finished turn, collapsed into one quiet line
- * above its answer. Expanding shows every step in place.
+ * A run of steps between two of the agent's messages (reads, searches,
+ * commands, edits), folded into one quiet line. Expanding shows each step
+ * on a thin rail, in place.
  */
 export function ChatWorkGroup({
   label,
@@ -32,22 +33,23 @@ export function ChatWorkGroup({
         aria-expanded={expanded}
         aria-controls={bodyId}
         data-scroll-anchor-target=""
-        className="group/work flex min-h-7 w-fit items-center gap-1.5 rounded-sm text-sm text-low hover:text-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        className="group/work -mx-1.5 flex min-h-7 w-fit max-w-full items-center gap-2 rounded-md px-1.5 text-[13px] text-low transition-colors hover:bg-secondary/70 hover:text-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
       >
+        <StackSimpleIcon aria-hidden="true" className="size-3.5 shrink-0" />
+        <span className="truncate">{label}</span>
         <CaretRightIcon
           aria-hidden="true"
           weight="bold"
           className={cn(
-            'size-3 shrink-0 transition-transform duration-150 motion-reduce:transition-none',
-            expanded && 'rotate-90'
+            'size-2.5 shrink-0 opacity-0 transition-[transform,opacity] duration-150 group-hover/work:opacity-100 group-focus-visible/work:opacity-100 motion-reduce:transition-none',
+            expanded && 'rotate-90 opacity-100'
           )}
         />
-        <span>{label}</span>
       </button>
       {expanded && (
         <div
           id={bodyId}
-          className="mt-1 flex flex-col gap-2 border-l border-border pl-3 animate-in fade-in-0 slide-in-from-top-1 duration-150 motion-reduce:animate-none"
+          className="ship-work-body ml-[6px] mt-0.5 flex flex-col border-l border-border pl-3.5 animate-in fade-in-0 slide-in-from-top-1 duration-150 motion-reduce:animate-none"
         >
           {children}
         </div>

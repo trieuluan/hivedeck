@@ -45,6 +45,7 @@ import {
   type PersistKey,
 } from '@/shared/stores/useUiPreferencesStore';
 import { useConversationHistory } from '../model/hooks/useConversationHistory';
+import { summarizeWork, WORK_KIND_ORDER } from '../model/summarizeWork';
 import { useSetTokenUsageInfo } from '../model/contexts/EntriesContext';
 import type { WorkspaceWithSession } from '@/shared/types/attempt';
 import type { RepoWithTargetBranch } from 'shared/types';
@@ -72,7 +73,7 @@ const ALWAYS_UNVIRTUALIZED_TAIL_ROWS = 8;
 const WAITING_FOR_MODEL_MS = 30_000;
 const STREAMING_UNVIRTUALIZED_BUFFER_ROWS = 24;
 
-/** A finished turn's steps, collapsed to one line above its answer. */
+/** A run of steps between two agent messages, folded to one line. */
 function WorkGroupRow({
   group,
   attempt,
@@ -89,16 +90,14 @@ function WorkGroupRow({
     `work:${group.patchKey}` as PersistKey,
     false
   );
-  const parts = [t('conversation.work.worked')];
-  if (group.toolCount > 0) {
-    parts.push(t('conversation.work.steps', { count: group.toolCount }));
-  }
-  if (group.editedFiles > 0) {
-    parts.push(t('conversation.work.files', { count: group.editedFiles }));
-  }
+  const counts = summarizeWork(group.entries);
+  const parts = WORK_KIND_ORDER.filter((kind) => counts[kind]).map((kind) =>
+    t(`conversation.work.kind.${kind}`, { count: counts[kind] })
+  );
+  const label = parts.length ? parts.join(', ') : t('conversation.work.worked');
   return (
     <ChatWorkGroup
-      label={parts.join(' · ')}
+      label={label.charAt(0).toUpperCase() + label.slice(1)}
       expanded={expanded}
       onToggle={() => toggle()}
     >
@@ -119,12 +118,14 @@ function renderRowContent(
 ): React.ReactNode {
   if (isAggregatedWorkGroup(entry)) {
     return (
-      <WorkGroupRow
-        group={entry}
-        attempt={attempt}
-        resetAction={resetAction}
-        repos={repos}
-      />
+      <div className="ship-row px-double py-1">
+        <WorkGroupRow
+          group={entry}
+          attempt={attempt}
+          resetAction={resetAction}
+          repos={repos}
+        />
+      </div>
     );
   }
 

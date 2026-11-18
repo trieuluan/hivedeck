@@ -8,12 +8,15 @@
   line-height: 1.6;
 }
 
+/* Rows set the rhythm (see DisplayConversationEntry); messages add none. */
 .ship-chat .ship-message {
-  margin-block: 12px;
+  margin-block: 0;
 }
 
-.ship-chat .ship-message--assistant {
-  margin-block: 8px 16px;
+/* Steps inside an expanded work group sit on its rail, tightly. */
+.ship-chat .ship-work-body .ship-row {
+  padding-inline: 0;
+  padding-block: 2px;
 }
 
 .ship-chat .ship-message-body .wysiwyg {
@@ -21,15 +24,25 @@
   line-height: 1.6;
 }
 
-.ship-chat .ship-message-body p {
-  margin-block: 0.5em;
+.ship-chat .ship-message-body :where(p, ul, ol, pre, blockquote, table) {
+  margin-block: 0.55em;
 }
 
-.ship-chat .ship-message-body :where(p:first-child) {
+.ship-chat .ship-message-body :where(li + li) {
+  margin-top: 0.2em;
+}
+
+.ship-chat .ship-message-body :where(h1, h2, h3, h4) {
+  margin-block: 0.9em 0.35em;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.ship-chat .ship-message-body :where(:first-child) {
   margin-top: 0;
 }
 
-.ship-chat .ship-message-body :where(p:last-child) {
+.ship-chat .ship-message-body :where(:last-child) {
   margin-bottom: 0;
 }
 

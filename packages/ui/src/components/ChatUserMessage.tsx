@@ -40,7 +40,7 @@ export function ChatUserMessage({
   return (
     <div
       className={cn(
-        'ship-message ship-message--user group/msg ml-auto flex w-fit min-w-0 max-w-[min(85%,40rem)] flex-col items-end',
+        'ship-message ship-message--user group/msg relative ml-auto flex w-fit min-w-0 max-w-[min(85%,40rem)] flex-col items-end',
         isGreyed && 'opacity-50 pointer-events-none',
         className
       )}
@@ -54,7 +54,9 @@ export function ChatUserMessage({
         </ChatMessageBody>
       </article>
       {!isGreyed && (onReset || onEdit || timestamp) && (
-        <div className="mt-1 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/msg:opacity-100 focus-within:opacity-100 motion-reduce:transition-none">
+        // Floats beside the bubble on hover, so it takes no room in the
+        // transcript.
+        <div className="absolute bottom-0 right-full mr-1 flex items-center gap-0.5 whitespace-nowrap opacity-0 transition-opacity group-hover/msg:opacity-100 focus-within:opacity-100 motion-reduce:transition-none">
           <ChatTimestamp timestamp={timestamp} />
           {onReset && (
             <Tooltip content={t('conversation.actions.resetTooltip')}>

@@ -9,6 +9,7 @@ export interface ChatAssistantMessageRenderProps {
 interface ChatAssistantMessageProps {
   content: string;
   workspaceId?: string;
+  /** Kept for callers; not shown (the transcript stays compact). */
   timestamp?: string | null;
   renderMarkdown: (props: ChatAssistantMessageRenderProps) => ReactNode;
 }
@@ -17,12 +18,11 @@ interface ChatAssistantMessageProps {
 export function ChatAssistantMessage({
   content,
   workspaceId,
-  timestamp,
   renderMarkdown,
 }: ChatAssistantMessageProps) {
   return (
     <article className="ship-message ship-message--assistant group/msg min-w-0 max-w-full text-high">
-      <ChatMessageBody timestamp={timestamp} timestampAlign="start">
+      <ChatMessageBody>
         {renderMarkdown({ content, workspaceId })}
       </ChatMessageBody>
     </article>
