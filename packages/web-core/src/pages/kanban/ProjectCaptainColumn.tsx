@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import type { KeyboardEvent, PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
   CaretDoubleLeftIcon,
+  CaretDoubleRightIcon,
   GitBranchIcon,
   LighthouseIcon,
 } from '@phosphor-icons/react';
@@ -32,6 +34,31 @@ function loadOpen(projectId: string): boolean {
 function saveOpen(projectId: string, open: boolean) {
   try {
     localStorage.setItem(STORAGE_PREFIX + projectId, open ? 'open' : 'closed');
+  } catch {
+    // not persisted; fine
+  }
+}
+
+const MIN_WIDTH = 320;
+const MAX_WIDTH = 800;
+const DEFAULT_WIDTH = 420;
+const KEY_STEP = 24;
+
+const clampWidth = (width: number) =>
+  Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.round(width)));
+
+function loadWidth(projectId: string): number {
+  try {
+    const raw = Number(localStorage.getItem(`${STORAGE_PREFIX}${projectId}.w`));
+    return raw ? clampWidth(raw) : DEFAULT_WIDTH;
+  } catch {
+    return DEFAULT_WIDTH;
+  }
+}
+
+function saveWidth(projectId: string, width: number) {
+  try {
+    localStorage.setItem(`${STORAGE_PREFIX}${projectId}.w`, String(width));
   } catch {
     // not persisted; fine
   }
@@ -126,6 +153,45 @@ export function ProjectCaptainColumn({
     saveOpen(projectId, next);
   };
 
+  const [width, setWidth] = useState(() => loadWidth(projectId));
+  const drag = useRef<{
+    startX: number;
+    startWidth: number;
+    latest: number;
+  } | null>(null);
+  const commitWidth = (next: number) => {
+    const clamped = clampWidth(next);
+    setWidth(clamped);
+    saveWidth(projectId, clamped);
+  };
+  const onResizeStart = (event: PointerEvent<HTMLDivElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    drag.current = {
+      startX: event.clientX,
+      startWidth: width,
+      latest: width,
+    };
+  };
+  const onResizeMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (!drag.current) return;
+    drag.current.latest = clampWidth(
+      drag.current.startWidth + event.clientX - drag.current.startX
+    );
+    setWidth(drag.current.latest);
+  };
+  const onResizeEnd = () => {
+    if (!drag.current) return;
+    saveWidth(projectId, drag.current.latest);
+    drag.current = null;
+  };
+  const onResizeKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'ArrowLeft') commitWidth(width - KEY_STEP);
+    else if (event.key === 'ArrowRight') commitWidth(width + KEY_STEP);
+    else if (event.key === 'Home') commitWidth(DEFAULT_WIDTH);
+    else return;
+    event.preventDefault();
+  };
+
   const { data: status } = useQuery({
     queryKey: orchestratorStatusKey(projectId),
     queryFn: () => workspacesApi.orchestratorStatus(projectId),
@@ -151,7 +217,8 @@ export function ProjectCaptainColumn({
         aria-label={t('captain.show')}
         title={t('captain.show')}
       >
-        <LighthouseIcon className="size-icon-base" weight="fill" />
+        <LighthouseIcon className="size-icon-base text-brand" weight="fill" />
+        <CaretDoubleRightIcon className="size-icon-sm" weight="bold" />
         {status?.active && (
           <span className="size-2 rounded-full bg-success" aria-hidden />
         )}
@@ -164,7 +231,8 @@ export function ProjectCaptainColumn({
 
   return (
     <aside
-      className="ship-chat flex h-full w-[420px] max-w-full shrink-0 flex-col border-r border-border bg-secondary"
+      className="ship-chat relative flex h-full max-w-[60%] shrink-0 flex-col border-r border-border bg-secondary"
+      style={{ width }}
       aria-label={t('captain.title')}
     >
       <header className="flex items-center gap-2 border-b border-border px-base py-half">
@@ -250,6 +318,22 @@ export function ProjectCaptainColumn({
           </div>
         )}
       </div>
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={t('captain.resize')}
+        aria-valuemin={MIN_WIDTH}
+        aria-valuemax={MAX_WIDTH}
+        aria-valuenow={width}
+        tabIndex={0}
+        onPointerDown={onResizeStart}
+        onPointerMove={onResizeMove}
+        onPointerUp={onResizeEnd}
+        onPointerCancel={onResizeEnd}
+        onKeyDown={onResizeKey}
+        onDoubleClick={() => commitWidth(DEFAULT_WIDTH)}
+        className="absolute inset-y-0 right-0 w-1 cursor-col-resize touch-none hover:bg-brand/50 focus-visible:bg-brand/50 active:bg-brand/50"
+      />
     </aside>
   );
 }

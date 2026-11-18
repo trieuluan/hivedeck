@@ -621,6 +621,7 @@
   },
   "captain": {
     "title": "Captain",
+    "resize": "Resize the captain (drag, or ← → keys)",
     "show": "Show the captain",
     "hide": "Hide the captain",
     "running": "Running",

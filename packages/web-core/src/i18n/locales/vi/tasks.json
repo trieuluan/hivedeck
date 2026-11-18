@@ -621,6 +621,7 @@
   },
   "captain": {
     "title": "Thuyền trưởng",
+    "resize": "Đổi độ rộng thuyền trưởng (kéo, hoặc phím ← →)",
     "show": "Hiện thuyền trưởng",
     "hide": "Ẩn thuyền trưởng",
     "running": "Đang chạy",
