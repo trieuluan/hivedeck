@@ -410,11 +410,30 @@ limit_window: string | null,
  * For a limited provider: when it comes back, as the provider said it
  * (e.g. `4d 13h`), when no exact time is known.
  */
-resets_in: string | null, };
+resets_in: string | null, 
+/**
+ * What 9router recorded and priced for this provider (ADR-042).
+ */
+spend: ProviderSpend | null, };
 
 export type ProviderBilling = "subscription" | "pay_as_you_go" | "free" | "unknown";
 
 export type QuotaWindow = { name: string, remaining_percent: number, reset_at: string | null, };
+
+export type ProviderSpend = { today_requests: bigint, today_usd: number, month_requests: bigint, 
+/**
+ * Last 30 days.
+ */
+month_usd: number, 
+/**
+ * Tokens in the last 30 days (input + output), for providers 9router
+ * has no price for.
+ */
+month_tokens: bigint, 
+/**
+ * 9router had a price for this provider's models (some cost > 0).
+ */
+priced: boolean, };
 
 export type ChainSlot = "primary" | "standby" | "backup";
 

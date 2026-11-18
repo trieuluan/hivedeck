@@ -721,7 +721,8 @@
           "error": "Cần xử lý",
           "inactive": "Đã tắt",
           "unknown": "Không rõ quota",
-          "limited": "Tạm hết lượt"
+          "limited": "Tạm hết lượt",
+          "payAsYouGo": "Không hạn mức"
         },
         "consent": {
           "title": "Cho HiveDeck quản lý 9router",
@@ -809,6 +810,13 @@
           "noUsage": "Không báo mức dùng",
           "unreachable": "Không kết nối được provider",
           "openCodeAppOnly": "Model miễn phí: chỉ chạy trong ứng dụng OpenCode"
+        },
+        "spend": {
+          "paid": "Đã tiêu hôm nay {{today}} · 30 ngày {{month}}",
+          "plan": "≈ {{month}} theo giá API · 30 ngày",
+          "unpriced": "{{tokens}} token · 30 ngày (9router chưa có giá)",
+          "hint": "Ước tính của 9router theo bảng giá của nó; hoá đơn thật xem ở trang thanh toán của provider.",
+          "planHint": "Số tiền nếu trả theo giá API cho cùng mức dùng. Gói thuê bao của bạn đã bao gồm."
         }
       },
       "version": "Phiên bản",

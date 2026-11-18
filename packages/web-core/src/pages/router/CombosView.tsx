@@ -18,6 +18,7 @@ import type {
   ProviderBilling,
   ProviderHealth,
   ProviderHealthStatus,
+  ProviderSpend,
   QuotaWindow,
   RoleSuggestion,
 } from 'shared/types';
@@ -189,6 +190,67 @@ function QuotaMeter({ q }: { q: QuotaWindow }) {
   );
 }
 
+function formatUsd(value: number, locale: string): string {
+  if (value > 0 && value < 0.01) return '<$0.01';
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: value >= 100 ? 0 : 2,
+  }).format(value);
+}
+
+function formatTokens(value: number, locale: string): string {
+  return new Intl.NumberFormat(locale, { notation: 'compact' }).format(value);
+}
+
+/**
+ * What the provider cost recently, as 9router priced it (ADR-042). For a
+ * pay-as-you-go provider that is money spent; for a plan it is what the
+ * same use would have cost at API prices.
+ */
+function SpendText({
+  spend,
+  billing,
+}: {
+  spend: ProviderSpend;
+  billing: ProviderBilling;
+}) {
+  const { t, i18n } = useTranslation('settings');
+  const locale = i18n.resolvedLanguage ?? i18n.language;
+  if (!spend.priced) {
+    return (
+      <span className="text-low" title={t('settings.router.combos.spend.hint')}>
+        {t('settings.router.combos.spend.unpriced', {
+          tokens: formatTokens(Number(spend.month_tokens), locale),
+        })}
+      </span>
+    );
+  }
+  if (billing === 'pay_as_you_go') {
+    return (
+      <span
+        className="whitespace-nowrap text-normal"
+        title={t('settings.router.combos.spend.hint')}
+      >
+        {t('settings.router.combos.spend.paid', {
+          today: formatUsd(spend.today_usd, locale),
+          month: formatUsd(spend.month_usd, locale),
+        })}
+      </span>
+    );
+  }
+  return (
+    <span
+      className="whitespace-nowrap text-low"
+      title={t('settings.router.combos.spend.planHint')}
+    >
+      {t('settings.router.combos.spend.plan', {
+        month: formatUsd(spend.month_usd, locale),
+      })}
+    </span>
+  );
+}
+
 const BILLING_TONE: Record<ProviderBilling, string> = {
   subscription: 'border-border text-low',
   pay_as_you_go: 'border-brand/40 text-brand',
@@ -211,7 +273,10 @@ function ProviderRow({
     exhausted: t('settings.router.combos.health.exhausted'),
     error: t('settings.router.combos.health.error'),
     inactive: t('settings.router.combos.health.inactive'),
-    unknown: t('settings.router.combos.health.unknown'),
+    unknown:
+      p.billing === 'pay_as_you_go'
+        ? t('settings.router.combos.health.payAsYouGo')
+        : t('settings.router.combos.health.unknown'),
   };
   const broken = p.status === 'error' || p.status === 'inactive';
   const windowLabel = (w: string | null) => {
@@ -248,7 +313,7 @@ function ProviderRow({
         </button>
       </span>
     );
-  } else if (p.quotas.length === 0) {
+  } else if (p.quotas.length === 0 && p.billing !== 'pay_as_you_go') {
     detail = (
       <span className="text-low">
         {p.billing === 'free'
@@ -289,6 +354,9 @@ function ProviderRow({
         </span>
         {!broken && p.quotas.map((q) => <QuotaMeter key={q.name} q={q} />)}
         {detail}
+        {p.spend && !broken && (
+          <SpendText spend={p.spend} billing={p.billing} />
+        )}
         <span className="ml-auto shrink-0 tabular-nums text-low">
           {t('settings.router.combos.modelCount', { count: p.model_count })}
         </span>

@@ -24,7 +24,8 @@ mod versions;
 
 pub use advisor::{
     ChainSlot, ComboRole, ComboSuggestions, ExcludedModel, ModelCheck, ProviderBilling,
-    ProviderHealth, ProviderHealthStatus, QuotaWindow, RoleSuggestion, SuggestedModel,
+    ProviderHealth, ProviderHealthStatus, ProviderSpend, QuotaWindow, RoleSuggestion,
+    SuggestedModel,
 };
 
 use std::{
@@ -943,6 +944,26 @@ pub async fn suggestions(
     }
     for h in health.values_mut() {
         h.classify_billing();
+    }
+    // What each provider cost recently, from 9router's own usage records.
+    let (today, month) = tokio::join!(
+        client.usage_by_provider("today"),
+        client.usage_by_provider("30d")
+    );
+    let (today, month) = (today.unwrap_or_default(), month.unwrap_or_default());
+    for (provider, h) in health.iter_mut() {
+        let t = today.get(provider).cloned().unwrap_or_default();
+        let m = month.get(provider).cloned().unwrap_or_default();
+        if t.requests > 0 || m.requests > 0 {
+            h.spend = Some(ProviderSpend {
+                today_requests: t.requests,
+                today_usd: t.cost,
+                month_requests: m.requests,
+                month_usd: m.cost,
+                month_tokens: m.prompt_tokens + m.completion_tokens,
+                priced: t.cost > 0.0 || m.cost > 0.0,
+            });
+        }
     }
 
     // Exclusions: models in cooldown on every account, plus models HiveDeck

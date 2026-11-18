@@ -83,6 +83,7 @@ fn generate_types_content() -> String {
         services::services::nine_router::ProviderHealth::decl(),
         services::services::nine_router::ProviderBilling::decl(),
         services::services::nine_router::QuotaWindow::decl(),
+        services::services::nine_router::ProviderSpend::decl(),
         services::services::nine_router::ChainSlot::decl(),
         services::services::nine_router::SuggestedModel::decl(),
         services::services::nine_router::RoleSuggestion::decl(),

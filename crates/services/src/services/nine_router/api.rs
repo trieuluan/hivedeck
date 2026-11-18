@@ -196,6 +196,40 @@ fn parse_connection(v: &Value) -> Option<Connection> {
     })
 }
 
+/// Totals for one provider in 9router's usage stats.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ProviderUsage {
+    pub requests: u64,
+    pub prompt_tokens: u64,
+    pub completion_tokens: u64,
+    pub cached_tokens: u64,
+    /// USD, as 9router priced it (0 when it has no price for the model).
+    pub cost: f64,
+}
+
+fn parse_usage_by_provider(v: &Value) -> std::collections::HashMap<String, ProviderUsage> {
+    let num = |o: &Value, k: &str| o.get(k).and_then(Value::as_f64).unwrap_or(0.0);
+    v.get("byProvider")
+        .and_then(Value::as_object)
+        .map(|m| {
+            m.iter()
+                .map(|(provider, o)| {
+                    (
+                        provider.clone(),
+                        ProviderUsage {
+                            requests: num(o, "requests") as u64,
+                            prompt_tokens: num(o, "promptTokens") as u64,
+                            completion_tokens: num(o, "completionTokens") as u64,
+                            cached_tokens: num(o, "cachedTokens") as u64,
+                            cost: num(o, "cost"),
+                        },
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn parse_usage(v: &Value) -> Usage {
     let mut quotas = Vec::new();
     if let Some(map) = v.get("quotas").and_then(Value::as_object) {
@@ -297,6 +331,20 @@ impl Client {
         }
     }
 
+    /// 9router's own usage totals per provider for `period` (`today`,
+    /// `24h`, `7d`, `30d`…), with the cost it priced from its pricing table.
+    pub async fn usage_by_provider(
+        &self,
+        period: &str,
+    ) -> Result<std::collections::HashMap<String, ProviderUsage>, ApiError> {
+        let req = self
+            .http
+            .get(self.url("/api/usage/stats"))
+            .query(&[("period", period)]);
+        let body = self.send(req).await?;
+        Ok(parse_usage_by_provider(&body))
+    }
+
     pub async fn model_locks(&self) -> Result<Vec<ModelLock>, ApiError> {
         let body = self
             .send(self.http.get(self.url("/api/models/availability")))
@@ -391,6 +439,22 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_usage_by_provider() {
+        let v = serde_json::json!({
+            "totalCost": 1.5,
+            "byProvider": {
+                "gemini": {"requests": 12, "promptTokens": 1000, "completionTokens": 200, "cachedTokens": 800, "cost": 0.42},
+                "deepseek": {"requests": 3}
+            }
+        });
+        let m = parse_usage_by_provider(&v);
+        assert_eq!(m["gemini"].requests, 12);
+        assert!((m["gemini"].cost - 0.42).abs() < 1e-9);
+        assert_eq!(m["deepseek"].cost, 0.0);
+        assert!(parse_usage_by_provider(&serde_json::json!({})).is_empty());
+    }
 
     #[test]
     fn token_matches_9router_derivation() {

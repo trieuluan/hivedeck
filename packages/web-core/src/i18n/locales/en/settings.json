@@ -721,7 +721,8 @@
           "error": "Needs attention",
           "inactive": "Disabled",
           "unknown": "No quota data",
-          "limited": "Out for now"
+          "limited": "Out for now",
+          "payAsYouGo": "No quota"
         },
         "consent": {
           "title": "Let HiveDeck manage 9router",
@@ -809,6 +810,13 @@
           "noUsage": "Usage not reported",
           "unreachable": "Provider unreachable",
           "openCodeAppOnly": "Free model: works only inside the OpenCode app"
+        },
+        "spend": {
+          "paid": "Spent today {{today}} · 30 days {{month}}",
+          "plan": "≈ {{month}} at API prices · 30 days",
+          "unpriced": "{{tokens}} tokens · 30 days (no price in 9router)",
+          "hint": "9router's estimate from its pricing table; check your provider's billing page for the real bill.",
+          "planHint": "What the same use would have cost at API prices. Your plan covers it."
         }
       },
       "version": "Version",

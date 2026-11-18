@@ -159,6 +159,24 @@ pub struct ProviderHealth {
     /// For a limited provider: when it comes back, as the provider said it
     /// (e.g. `4d 13h`), when no exact time is known.
     pub resets_in: Option<String>,
+    /// What 9router recorded and priced for this provider (ADR-042).
+    pub spend: Option<ProviderSpend>,
+}
+
+/// Recent use of a provider as 9router recorded it. Costs are 9router's
+/// estimate from its pricing table, not the provider's bill.
+#[derive(Clone, Debug, Default, Serialize, TS)]
+pub struct ProviderSpend {
+    pub today_requests: u64,
+    pub today_usd: f64,
+    pub month_requests: u64,
+    /// Last 30 days.
+    pub month_usd: f64,
+    /// Tokens in the last 30 days (input + output), for providers 9router
+    /// has no price for.
+    pub month_tokens: u64,
+    /// 9router had a price for this provider's models (some cost > 0).
+    pub priced: bool,
 }
 
 impl ProviderHealth {
@@ -177,6 +195,7 @@ impl ProviderHealth {
             quotas: Vec::new(),
             limit_window: None,
             resets_in: None,
+            spend: None,
         }
     }
 
@@ -277,7 +296,9 @@ pub fn is_temporary_limit(raw: &str) -> bool {
 /// `(weekly, resets in 4d 13h)` → (`weekly`, `4d 13h`).
 pub fn parse_limit_note(raw: &str) -> (Option<String>, Option<String>) {
     let lower = raw.to_lowercase();
-    let window = ["5-hour", "5h", "hourly", "daily", "weekly", "monthly"]
+    // Longest windows first, and no bare "5h": it also appears in the
+    // reset time itself ("resets in 4d 5h").
+    let window = ["monthly", "weekly", "daily", "5-hour", "hourly"]
         .iter()
         .find(|w| lower.contains(*w))
         .map(|w| w.to_string());
@@ -1735,6 +1756,10 @@ mod tests {
         assert_eq!(
             parse_limit_note(raw),
             (Some("weekly".into()), Some("4d 13h".into()))
+        );
+        assert_eq!(
+            parse_limit_note("Go usage limit reached (weekly, resets in 4d 5h)").0,
+            Some("weekly".into())
         );
         assert!(!is_temporary_limit(
             "[429]: usage limit reached: insufficient balance (1008)"
