@@ -81,7 +81,7 @@ export function ChatMessageBody({
       <div
         id={bodyId}
         className={cn(
-          'min-w-0 max-w-full overflow-x-auto rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current',
+          'min-w-0 max-w-full overflow-x-clip rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current',
           collapsed &&
             'max-h-[320px] overflow-y-hidden [mask-image:linear-gradient(to_bottom,black_75%,transparent)]'
         )}
