@@ -27,7 +27,16 @@ const BACKUP_LEN: usize = 2;
 const MAX_PER_PROVIDER: usize = 2;
 /// Providers billed per token from a prepaid balance: always available while
 /// the balance lasts, so they belong at the end of every chain.
-pub const PAY_AS_YOU_GO_PROVIDERS: &[&str] = &["deepseek", "openrouter"];
+pub const PAY_AS_YOU_GO_PROVIDERS: &[&str] = &["deepseek", "openrouter", "gemini"];
+/// The cheapest pay-as-you-go provider with the best caching: always last.
+const LAST_RESORT_PROVIDER: &str = "deepseek";
+/// A model already heading another role's combo is pushed down, and so is
+/// its provider (one quota pool), so roles start on different models and
+/// pools (ADR-041).
+const SAME_HEAD_PENALTY: f64 = 0.3;
+const SAME_HEAD_POOL_PENALTY: f64 = 0.12;
+/// Frontier models too slow for an agent loop (tens of seconds per call).
+const SLOW_TOKENS: &[&str] = &["carbon"];
 /// Free models are rate-limited and change often; rank them lower.
 const FREE_PENALTY: f64 = 0.12;
 /// Free models in a chain's primary part, at most.
@@ -200,6 +209,20 @@ pub const AGENT_BLOCKED_FREE: &str = "Free model: OpenCode app only";
 /// return `FreeUsageLimitError` to Claude Code and Codex.
 pub fn agent_blocked(id: &str, provider: &str, has_key: bool) -> Option<&'static str> {
     (provider == "opencode" && (!has_key || id.ends_with("-free"))).then_some(AGENT_BLOCKED_FREE)
+}
+
+/// Out for longer than a rate-limit window: exhausted, or a usage limit that
+/// resets in days. A short rate limit keeps a model where it is; 9router
+/// skips it for a moment and comes back to it.
+fn long_outage(h: &ProviderHealth) -> bool {
+    match h.status {
+        ProviderHealthStatus::Exhausted => true,
+        ProviderHealthStatus::Limited => {
+            matches!(h.limit_window.as_deref(), Some("weekly" | "monthly"))
+                || h.resets_in.as_deref().is_some_and(|r| r.contains('d'))
+        }
+        _ => false,
+    }
 }
 
 pub fn is_pay_as_you_go(provider: &str) -> bool {
@@ -448,6 +471,8 @@ pub fn is_permanent_failure(raw: &str) -> bool {
         // with a 429, but waiting won't help).
         "credits_required",
         "usage credits are required",
+        // A provider whose backend won't start (e.g. MiMo "bootstrap failed").
+        "bootstrap failed",
         // OpenCode's free models answer only inside the OpenCode app.
         "free usage limit reached",
         "freeusagelimiterror",
@@ -660,7 +685,13 @@ enum Effort {
 const FAST_TOKENS: &[&str] = &[
     "haiku", "flash", "mini", "nano", "lite", "small", "tiny", "fast", "instant", "air", "spark",
 ];
-const FRONTIER_TOKENS: &[&str] = &["opus", "fable", "pro", "ultra", "max", "o3", "o4"];
+const FRONTIER_TOKENS: &[&str] = &[
+    "opus", "fable", "pro", "ultra", "max", "o3", "o4", "sol", "argon", "carbon",
+];
+/// Balanced "everyday" tiers of lines that otherwise read as frontier.
+const MID_TOKENS: &[&str] = &["terra", "hydrogen"];
+/// "Fast and affordable" tiers.
+const LIGHT_TOKENS: &[&str] = &["luna"];
 const STRONG_TOKENS: &[&str] = &[
     "sonnet", "codex", "coder", "code", "kimi", "glm", "qwen", "deepseek", "minimax", "mimo",
     "grok", "gemini", "gpt", "llama", "mistral", "devstral", "nemotron", "claude",
@@ -786,8 +817,11 @@ impl ModelName {
     }
 
     fn tier(&self) -> Tier {
-        if self.has(FAST_TOKENS) || self.size_b().is_some_and(|b| b <= 32) {
+        if self.has(FAST_TOKENS) || self.has(LIGHT_TOKENS) || self.size_b().is_some_and(|b| b <= 32)
+        {
             Tier::Fast
+        } else if self.has(MID_TOKENS) {
+            Tier::Strong
         } else if self.has(FRONTIER_TOKENS)
             || self.thinking
             || (self.has(&["gpt"]) && self.version.first().is_some_and(|v| *v >= 5))
@@ -887,8 +921,10 @@ impl Candidate<'_> {
     /// coder prefers strong mid-tier models over the slowest frontier ones.
     fn strength(&self, role: ComboRole) -> f64 {
         let tier = match (role, self.tier) {
+            // Coding agents loop many times: a mid tier does the volume,
+            // frontier models are kept for planning and review.
             (ComboRole::Coder, Tier::Strong) => 1.0,
-            (ComboRole::Coder, Tier::Frontier) => 0.85,
+            (ComboRole::Coder, Tier::Frontier) => 0.7,
             (_, Tier::Frontier) => 1.0,
             (_, Tier::Strong) => 0.75,
             (_, Tier::Unknown) => 0.45,
@@ -905,11 +941,13 @@ impl Candidate<'_> {
             0.0
         };
         let free = if self.is_free() { FREE_PENALTY } else { 0.0 };
-        0.8 * tier + 0.2 * self.recency - unstable - legacy - free
+        let slow = if self.name.has(SLOW_TOKENS) { 0.1 } else { 0.0 };
+        0.8 * tier + 0.2 * self.recency - unstable - legacy - free - slow
     }
 
     fn is_free(&self) -> bool {
         self.model.id.ends_with("-free")
+            || self.model.id.ends_with(":free")
             || self.provider.contains("free")
             || self
                 .health
@@ -917,16 +955,17 @@ impl Candidate<'_> {
     }
 
     fn is_backup(&self) -> bool {
-        is_pay_as_you_go(&self.provider)
-            || self
-                .health
-                .is_some_and(|h| h.billing == ProviderBilling::PayAsYouGo)
+        !self.is_free()
+            && (is_pay_as_you_go(&self.provider)
+                || self
+                    .health
+                    .is_some_and(|h| h.billing == ProviderBilling::PayAsYouGo))
     }
 
     fn slot(&self) -> ChainSlot {
         if self.is_backup() {
             ChainSlot::Backup
-        } else if self.health.is_some_and(|h| h.status.temporary()) {
+        } else if self.health.is_some_and(long_outage) {
             ChainSlot::Standby
         } else {
             ChainSlot::Primary
@@ -1036,7 +1075,11 @@ impl Candidate<'_> {
                     + 0.1 * reasoning
                     + if self.name.review { 0.06 } else { 0.0 }
             }
-            ComboRole::Fast => 0.5 * self.speed() + 0.3 * self.quota() + 0.15 * self.recency + 0.05,
+            ComboRole::Fast => {
+                // A 1M-context variant buys nothing for short calls.
+                let long = if self.name.long_context { 0.05 } else { 0.0 };
+                0.5 * self.speed() + 0.3 * self.quota() + 0.15 * self.recency + 0.05 - long
+            }
         };
         base + self.effort_fit(role)
     }
@@ -1088,8 +1131,11 @@ impl Candidate<'_> {
 ///    so the combo picks it up again on its own;
 /// 3. backup — pay-as-you-go providers, last, so they are only billed when
 ///    everything else is out.
-fn chain(ranked: &[(f64, &Candidate<'_>)]) -> Vec<SuggestedModel> {
-    let mut picks: Vec<&Candidate<'_>> = Vec::new();
+fn chain<'a>(
+    ranked: &[(f64, &'a Candidate<'a>)],
+    head: Option<&'a Candidate<'a>>,
+) -> Vec<SuggestedModel> {
+    let mut picks: Vec<&Candidate<'_>> = head.into_iter().collect();
     let same_model = |picks: &[&Candidate<'_>], c: &Candidate<'_>| {
         picks
             .iter()
@@ -1099,34 +1145,42 @@ fn chain(ranked: &[(f64, &Candidate<'_>)]) -> Vec<SuggestedModel> {
         picks.iter().filter(|p| p.provider == c.provider).count()
     };
 
+    // Free models (rate-limited, often a daily cap) only after every
+    // paid-for primary model.
     let primary: Vec<&Candidate<'_>> = ranked
         .iter()
         .map(|(_, c)| *c)
         .filter(|c| c.slot() == ChainSlot::Primary)
         .collect();
-    for distinct_pass in [true, false] {
-        for c in &primary {
-            if picks.len() >= PRIMARY_LEN {
-                break;
+    for free_group in [false, true] {
+        for distinct_pass in [true, false] {
+            for c in primary.iter().filter(|c| c.is_free() == free_group) {
+                if picks.len() >= PRIMARY_LEN {
+                    break;
+                }
+                let n = count_of(&picks, c);
+                let free = picks.iter().filter(|p| p.is_free()).count();
+                if same_model(&picks, c)
+                    || (distinct_pass && n > 0)
+                    || n >= MAX_PER_PROVIDER
+                    || (c.is_free() && free >= MAX_FREE)
+                {
+                    continue;
+                }
+                picks.push(c);
             }
-            let n = count_of(&picks, c);
-            let free = picks.iter().filter(|p| p.is_free()).count();
-            if same_model(&picks, c)
-                || (distinct_pass && n > 0)
-                || n >= MAX_PER_PROVIDER
-                || (c.is_free() && free >= MAX_FREE)
-            {
-                continue;
-            }
-            picks.push(c);
         }
     }
-    for (slot, cap) in [
-        (ChainSlot::Standby, STANDBY_LEN),
-        (ChainSlot::Backup, BACKUP_LEN),
+    // Pay-as-you-go backups: the last-resort provider goes after the others.
+    let mut backups: Vec<&(f64, &Candidate<'_>)> = ranked.iter().collect();
+    backups.sort_by_key(|(_, c)| c.provider == LAST_RESORT_PROVIDER);
+    let standby: Vec<&(f64, &Candidate<'_>)> = ranked.iter().collect();
+    for (slot, cap, list) in [
+        (ChainSlot::Standby, STANDBY_LEN, &standby),
+        (ChainSlot::Backup, BACKUP_LEN, &backups),
     ] {
         let mut added = 0;
-        for (_, c) in ranked {
+        for (_, c) in list.iter().copied() {
             if added >= cap {
                 break;
             }
@@ -1182,11 +1236,15 @@ pub fn suggest(
         .collect();
 
     let mut coder_family: Option<String> = None;
+    let mut heads: HashSet<String> = HashSet::new();
+    let mut head_pools: HashSet<String> = HashSet::new();
     let mut out = Vec::new();
-    // Coder first so the reviewer can prefer a different family.
+    // The strongest role picks first; each later role starts on a model (and
+    // quota pool) not already heading another combo. Coder before reviewer
+    // so the reviewer can prefer a different family.
     let order = [
-        ComboRole::Coder,
         ComboRole::Planner,
+        ComboRole::Coder,
         ComboRole::Reviewer,
         ComboRole::Fast,
     ];
@@ -1203,9 +1261,38 @@ pub fn suggest(
             })
             .collect();
         ranked.sort_by(|a, b| b.0.total_cmp(&a.0).then(a.1.model.id.cmp(&b.1.model.id)));
-        let models = chain(&ranked);
+        // The head: best primary model not heading another role, preferring
+        // another quota pool; never a free model while a paid-for one exists.
+        let head_score = |s: f64, c: &Candidate<'_>| {
+            if heads.contains(&c.model.id) {
+                s - SAME_HEAD_PENALTY
+            } else if head_pools.contains(&c.provider) {
+                s - SAME_HEAD_POOL_PENALTY
+            } else {
+                s
+            }
+        };
+        let primary_heads = || {
+            ranked
+                .iter()
+                .filter(|(_, c)| c.slot() == ChainSlot::Primary)
+                .map(|(s, c)| (head_score(*s, c), *c))
+        };
+        let head = primary_heads()
+            .filter(|(_, c)| !c.is_free())
+            .max_by(|a, b| a.0.total_cmp(&b.0))
+            .or_else(|| primary_heads().max_by(|a, b| a.0.total_cmp(&b.0)))
+            .map(|(_, c)| c);
+        let models = chain(&ranked, head);
+        if let Some(head) = models.first() {
+            heads.insert(head.id.clone());
+            head_pools.insert(head.provider.clone());
+        }
         if role == ComboRole::Coder {
-            coder_family = ranked.first().map(|(_, c)| c.family.clone());
+            coder_family = models
+                .first()
+                .and_then(|m| candidates.iter().find(|c| c.model.id == m.id))
+                .map(|c| c.family.clone());
         }
 
         let name = role.combo_name();
@@ -1381,7 +1468,14 @@ mod tests {
         // "gemini" must not match the "mini" fast token.
         assert_eq!(tier("ag/gemini-3.1-pro-high"), Tier::Frontier);
         assert_eq!(tier("ag/gemini-3.8-flash"), Tier::Fast);
-        assert_eq!(tier("ag/gemini-4-argon-medium"), Tier::Strong);
+        // Google: Argon/Carbon frontier, Hydrogen the everyday model.
+        assert_eq!(tier("ag/gemini-4-argon-medium"), Tier::Frontier);
+        assert_eq!(tier("gemini/gemini-4-carbon"), Tier::Frontier);
+        assert_eq!(tier("gemini/gemini-4-hydrogen"), Tier::Strong);
+        // Codex lines: sol frontier, terra balanced, luna fast.
+        assert_eq!(tier("cx/gpt-6.1-sol"), Tier::Frontier);
+        assert_eq!(tier("cx/gpt-6.1-terra"), Tier::Strong);
+        assert_eq!(tier("cx/gpt-6-luna"), Tier::Fast);
         assert_eq!(tier("cc/claude-sonnet-5"), Tier::Strong);
         assert_eq!(tier("cx/gpt-6-astra"), Tier::Frontier);
         assert_eq!(tier("ollama/gpt-oss:120b"), Tier::Strong);
@@ -1468,9 +1562,20 @@ mod tests {
         );
         let planner = &roles[0];
         assert_eq!(tier(&planner.models[0].id), Tier::Frontier);
-        // Coder leads with a coding model; review variants stay out of it.
+        // Coder leads with a mid-tier or coding model from another quota
+        // pool than the planner's head; review variants stay out of it.
         let coder = &roles[1];
-        assert!(coder.models[0].id.contains("codex"), "{:?}", coder.models);
+        let head = &coder.models[0];
+        assert!(
+            tier(&head.id) == Tier::Strong || head.id.contains("codex"),
+            "{:?}",
+            coder.models
+        );
+        assert_ne!(
+            head.provider, planner.models[0].provider,
+            "{:?}",
+            coder.models
+        );
         assert!(
             roles[..2]
                 .iter()
@@ -1514,7 +1619,7 @@ mod tests {
         let mut limited = conn(
             "codex",
             true,
-            Some("[429]: The usage limit has been reached"),
+            Some("[429]: usage limit reached (weekly, resets in 4d 2h)"),
         );
         limited.id = "cx".into();
         let mut health = provider_health(&[
@@ -1560,6 +1665,67 @@ mod tests {
                 .iter()
                 .any(|m| m.provider == "codex" && m.slot == ChainSlot::Standby)
         );
+    }
+
+    #[test]
+    fn a_short_rate_limit_keeps_the_provider_primary() {
+        let health = provider_health(&[
+            (conn("claude", true, Some("[429]: rate limit")), None),
+            (conn("codex", true, None), Some(usage(0.9))),
+        ]);
+        assert_eq!(health["claude"].status, ProviderHealthStatus::Limited);
+        let roles = suggest(&catalog(), &health, &[], &HashSet::new());
+        let planner = &roles[0];
+        assert!(
+            planner
+                .models
+                .iter()
+                .any(|m| m.provider == "claude" && m.slot == ChainSlot::Primary),
+            "{:?}",
+            planner.models
+        );
+    }
+
+    #[test]
+    fn roles_start_on_different_models() {
+        let roles = suggest(&catalog(), &HashMap::new(), &[], &HashSet::new());
+        let heads: HashSet<_> = roles
+            .iter()
+            .filter_map(|r| r.models.first().map(|m| m.id.clone()))
+            .collect();
+        assert_eq!(heads.len(), roles.len());
+    }
+
+    #[test]
+    fn free_models_are_never_paid_backups_and_deepseek_is_last() {
+        let mut models = catalog();
+        models.push(model(
+            "openrouter/nvidia/nemotron-3-ultra:free",
+            "openrouter",
+            true,
+            true,
+            200_000,
+        ));
+        models.push(model(
+            "gemini/gemini-4-hydrogen",
+            "gemini",
+            true,
+            true,
+            1_000_000,
+        ));
+        models.push(model("ds/deepseek-v4-pro", "ds", true, true, 1_000_000));
+        let roles = suggest(&models, &HashMap::new(), &[], &HashSet::new());
+        for role in &roles {
+            let backups: Vec<_> = role
+                .models
+                .iter()
+                .filter(|m| m.slot == ChainSlot::Backup)
+                .collect();
+            assert!(backups.iter().all(|m| !m.id.ends_with(":free")));
+            if backups.iter().any(|m| m.provider == "deepseek") {
+                assert_eq!(role.models.last().unwrap().provider, "deepseek");
+            }
+        }
     }
 
     #[test]
