@@ -69,6 +69,9 @@ pub struct ShipWorkspaceRequest {
     /// Push the target branch to its remote after merging.
     #[serde(default)]
     pub push: bool,
+    /// Delete non-pinned workspace, its worktree, and its git branch after merging.
+    #[serde(default)]
+    pub cleanup: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS)]
@@ -375,7 +378,20 @@ pub async fn ship_workspace(
         response.push_error = (!errors.is_empty()).then(|| errors.join("; "));
     }
 
-    if !workspace.pinned
+    if request.cleanup && !workspace.pinned {
+        if let Err(e) =
+            super::core::delete_workspace_and_cleanup(&deployment, workspace.clone(), true).await
+        {
+            tracing::warn!(
+                "Shipped workspace {} but failed to delete it ({}); archiving instead",
+                workspace.id,
+                e
+            );
+            if let Err(err) = deployment.container().archive_workspace(workspace.id).await {
+                tracing::error!("Failed to archive workspace {}: {}", workspace.id, err);
+            }
+        }
+    } else if !workspace.pinned
         && let Err(e) = deployment.container().archive_workspace(workspace.id).await
     {
         tracing::error!("Failed to archive workspace {}: {}", workspace.id, e);

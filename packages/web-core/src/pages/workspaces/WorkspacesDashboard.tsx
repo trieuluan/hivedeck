@@ -1,6 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowSquareOutIcon, FolderSimpleIcon } from '@phosphor-icons/react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  ArrowSquareOutIcon,
+  FolderSimpleIcon,
+  TrashIcon,
+} from '@phosphor-icons/react';
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { categorizeWorkspacesForDashboard } from '@/shared/lib/workspaceStatus/workspaceStatus';
@@ -8,6 +13,9 @@ import type { SidebarWorkspace } from '@/shared/hooks/useWorkspaces';
 import { useWorkspaceProjectMembership } from '@/shared/hooks/useWorkspaceProjectMembership';
 import { useProjects } from '@/shared/hooks/useProjects';
 import { useUiPreferencesStore } from '@/shared/stores/useUiPreferencesStore';
+import { workspaceSummaryKeys } from '@/shared/hooks/workspaceSummaryKeys';
+import { workspacesApi } from '@/shared/lib/api';
+import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
 import { WorkspaceStatusIcons } from '@vibe/ui/components/WorkspaceStatusIcons';
 import { cn } from '@/shared/lib/utils';
 
@@ -91,6 +99,75 @@ export function WorkspacesDashboard() {
   const setProjectId = useUiPreferencesStore(
     (s) => s.setWorkspacesDashboardProjectId
   );
+  const queryClient = useQueryClient();
+  const [isCleaningFinished, setIsCleaningFinished] = useState(false);
+
+  const { data: cleanupPreview, refetch: refetchCleanupPreview } = useQuery({
+    queryKey: ['workspaces', 'cleanup-finished-preview', projectId ?? 'all'],
+    queryFn: () =>
+      workspacesApi.cleanupFinished({
+        project_id: projectId ?? null,
+        dry_run: true,
+      }),
+  });
+  const cleanableFinishedCount = cleanupPreview?.deleted_count ?? 0;
+
+  const handleCleanupFinished = async () => {
+    if (cleanableFinishedCount === 0 || isCleaningFinished) return;
+    const confirmed = await ConfirmDialog.show({
+      title: t('kanban.cleanupFinishedConfirmTitle', {
+        count: cleanableFinishedCount,
+        defaultValue: 'Clean up {{count}} finished workspace(s)?',
+      }),
+      message: t('kanban.cleanupFinishedConfirmMessage', {
+        count: cleanableFinishedCount,
+        defaultValue:
+          'This deletes {{count}} non-pinned workspace(s) linked to Done or Cancelled cards, including their worktrees and git branches. Pinned workspaces are kept.',
+      }),
+      confirmText: t('kanban.cleanupFinishedConfirmButton', {
+        defaultValue: 'Clean up',
+      }),
+      cancelText: t('buttons.cancel'),
+      variant: 'destructive',
+    });
+    if (confirmed !== 'confirmed') return;
+
+    setIsCleaningFinished(true);
+    try {
+      const res = await workspacesApi.cleanupFinished({
+        project_id: projectId ?? null,
+        dry_run: false,
+      });
+      await refetchCleanupPreview();
+      queryClient.invalidateQueries({ queryKey: workspaceSummaryKeys.all });
+      if (res.skipped_running_count > 0) {
+        await ConfirmDialog.show({
+          title: t('kanban.cleanupFinishedPartialTitle', {
+            defaultValue: 'Cleanup completed with skipped workspaces',
+          }),
+          message: t('kanban.cleanupFinishedPartialMessage', {
+            deleted: res.deleted_count,
+            skipped: res.skipped_running_count,
+            defaultValue:
+              'Deleted {{deleted}} workspace(s). Skipped {{skipped}} workspace(s) with running processes.',
+          }),
+          confirmText: t('ok'),
+          showCancelButton: false,
+          variant: 'info',
+        });
+      }
+    } catch (error) {
+      await ConfirmDialog.show({
+        title: t('error'),
+        message: error instanceof Error ? error.message : String(error),
+        confirmText: t('ok'),
+        showCancelButton: false,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCleaningFinished(false);
+    }
+  };
 
   // When a project filter is active, narrow to workspaces whose membership
   // includes that project. A workspace with no membership row is "unassigned"
@@ -137,37 +214,53 @@ export function WorkspacesDashboard() {
           <h1 className="text-xl font-semibold leading-tight text-high">
             {t('workspaces.dashboard.title')}
           </h1>
-          {/* All-vs-project switch. */}
-          <div className="flex items-center gap-1 rounded-md border border-border bg-overlay p-0.5 text-sm">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setProjectId(null)}
-              className={cn(
-                'rounded-sm px-2 py-0.5 transition-colors',
-                !projectId
-                  ? 'bg-tertiary text-high'
-                  : 'text-low hover:text-normal'
-              )}
+              disabled={cleanableFinishedCount === 0 || isCleaningFinished}
+              onClick={() => void handleCleanupFinished()}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-overlay px-2.5 py-1 text-xs font-medium text-normal transition-colors hover:border-border-strong hover:bg-surface/60 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {t('workspaces.dashboard.filterAll')}
+              <TrashIcon className="size-3.5" />
+              <span>
+                {t('workspaces.dashboard.cleanupFinished', {
+                  count: cleanableFinishedCount,
+                  defaultValue: 'Clean up finished ({{count}})',
+                })}
+              </span>
             </button>
-            <button
-              type="button"
-              onClick={() => projectId && setProjectId(projectId)}
-              disabled={!projectId}
-              className={cn(
-                'rounded-sm px-2 py-0.5 transition-colors',
-                projectId
-                  ? 'bg-tertiary text-high'
-                  : 'text-low opacity-50 cursor-not-allowed'
-              )}
-            >
-              {filterProjectName
-                ? t('workspaces.dashboard.filterProject', {
-                    name: filterProjectName,
-                  })
-                : t('workspaces.dashboard.filterProjectNone')}
-            </button>
+            {/* All-vs-project switch. */}
+            <div className="flex items-center gap-1 rounded-md border border-border bg-overlay p-0.5 text-sm">
+              <button
+                type="button"
+                onClick={() => setProjectId(null)}
+                className={cn(
+                  'rounded-sm px-2 py-0.5 transition-colors',
+                  !projectId
+                    ? 'bg-tertiary text-high'
+                    : 'text-low hover:text-normal'
+                )}
+              >
+                {t('workspaces.dashboard.filterAll')}
+              </button>
+              <button
+                type="button"
+                onClick={() => projectId && setProjectId(projectId)}
+                disabled={!projectId}
+                className={cn(
+                  'rounded-sm px-2 py-0.5 transition-colors',
+                  projectId
+                    ? 'bg-tertiary text-high'
+                    : 'text-low opacity-50 cursor-not-allowed'
+                )}
+              >
+                {filterProjectName
+                  ? t('workspaces.dashboard.filterProject', {
+                      name: filterProjectName,
+                    })
+                  : t('workspaces.dashboard.filterProjectNone')}
+              </button>
+            </div>
           </div>
         </div>
         <p className="text-sm text-muted">

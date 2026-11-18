@@ -57,6 +57,8 @@ import {
   MergeWorkspaceRequest,
   ShipWorkspaceRequest,
   ShipWorkspaceResponse,
+  CleanupFinishedWorkspacesRequest,
+  CleanupFinishedWorkspacesResponse,
   CommitWorkspaceRequest,
   CommitWorkspaceResponse,
   PushWorkspaceRequest,
@@ -695,6 +697,16 @@ export const workspacesApi = {
     return handleApiResponseAsResult<ShipWorkspaceResponse, GitOperationError>(
       response
     );
+  },
+
+  cleanupFinished: async (
+    data: CleanupFinishedWorkspacesRequest
+  ): Promise<CleanupFinishedWorkspacesResponse> => {
+    const response = await makeRequest('/api/workspaces/cleanup-finished', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return handleApiResponse<CleanupFinishedWorkspacesResponse>(response);
   },
 
   merge: async (

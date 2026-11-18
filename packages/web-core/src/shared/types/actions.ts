@@ -4,6 +4,7 @@ import type {
   EditorType,
   ExecutionProcess,
   Workspace,
+  WorkspaceKind,
   PatchType,
 } from 'shared/types';
 import type { Workspace as RemoteWorkspace } from 'shared/remote-types';
@@ -56,13 +57,19 @@ export interface ProjectMutations {
    * comment, and archive their workspaces (branches are kept). Resolves to
    * false when the project has no Cancelled column.
    */
-  cancelIssues: (issueIds: string[], reason: string) => Promise<boolean>;
+  cancelIssues: (
+    issueIds: string[],
+    reason: string,
+    deleteWorkspaces?: boolean
+  ) => Promise<boolean>;
 }
 
 // Workspace type for sidebar (minimal subset needed for workspace selection)
 interface SidebarWorkspace {
   id: string;
   isRunning?: boolean;
+  isPinned?: boolean;
+  kind?: WorkspaceKind | null;
 }
 
 // Context provided to action executors (from React hooks)
@@ -73,6 +80,7 @@ export interface ActionExecutorContext {
   queryClient: QueryClient;
   selectWorkspace: (workspaceId: string) => void;
   activeWorkspaces: SidebarWorkspace[];
+  archivedWorkspaces: SidebarWorkspace[];
   currentWorkspaceId: string | null;
   containerRef: string | null;
   runningDevServers: ExecutionProcess[];

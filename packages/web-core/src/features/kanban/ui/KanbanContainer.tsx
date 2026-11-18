@@ -34,12 +34,14 @@ import {
   CaretLeftIcon,
   PlusIcon,
   DotsThreeIcon,
+  TrashIcon,
 } from '@phosphor-icons/react';
 import {
   isDoneStatus,
   useCollapsedStatuses,
   isCancelledStatusName,
 } from '../model/useCollapsedStatuses';
+import { findFinishedCleanableWorkspaceIds } from '../model/finishedWorkspaces';
 import { useFlipCards } from '../model/useFlipCards';
 import { Actions } from '@/shared/actions';
 import {
@@ -66,6 +68,8 @@ import {
 } from './ShipIssueButton';
 import { KanbanWorkspaceDispatch } from '@vibe/ui/components/KanbanWorkspaceDispatch';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
+import { ConfirmCheckboxDialog } from '@/shared/dialogs/shared/ConfirmCheckboxDialog';
+import { workspaceSummaryKeys } from '@/shared/hooks/workspaceSummaryKeys';
 import { useQueryClient } from '@tanstack/react-query';
 import { workspacesApi } from '@/shared/lib/api';
 import {
@@ -224,7 +228,7 @@ export function KanbanContainer() {
 
   // Flat projects layer.
   const { data: projects } = useProjects();
-  const { activeWorkspaces } = useWorkspaceContext();
+  const { activeWorkspaces, archivedWorkspaces } = useWorkspaceContext();
   const { workspaces: remoteWorkspaces } = useWorkspacesContext();
 
   // Get project name by finding the project matching current projectId
@@ -687,6 +691,86 @@ export function KanbanContainer() {
   }, [remoteWorkspaces]);
 
   const queryClient = useQueryClient();
+  const [isCleaningFinished, setIsCleaningFinished] = useState(false);
+
+  const finishedCleanableWorkspaceIds = useMemo(
+    () =>
+      findFinishedCleanableWorkspaceIds({
+        issues,
+        statuses,
+        remoteWorkspaces,
+        localWorkspaces: [...activeWorkspaces, ...archivedWorkspaces],
+      }),
+    [issues, statuses, remoteWorkspaces, activeWorkspaces, archivedWorkspaces]
+  );
+
+  const refreshWorkspaceCaches = useCallback(() => {
+    refreshShapeSource(PROJECT_WORKSPACES_SHAPE, { project_id: projectId });
+    queryClient.invalidateQueries({ queryKey: workspaceSummaryKeys.all });
+  }, [projectId, queryClient]);
+
+  const handleCleanupFinishedWorkspaces = useCallback(async () => {
+    const count = finishedCleanableWorkspaceIds.length;
+    if (count === 0 || isCleaningFinished) return;
+    const confirmed = await ConfirmDialog.show({
+      title: t('kanban.cleanupFinishedConfirmTitle', {
+        count,
+        defaultValue: 'Clean up {{count}} finished workspace(s)?',
+      }),
+      message: t('kanban.cleanupFinishedConfirmMessage', {
+        count,
+        defaultValue:
+          'This deletes {{count}} non-pinned workspace(s) linked to Done or Cancelled cards, including their worktrees and git branches. Pinned workspaces are kept.',
+      }),
+      confirmText: t('kanban.cleanupFinishedConfirmButton', {
+        defaultValue: 'Clean up',
+      }),
+      cancelText: t('common:buttons.cancel'),
+      variant: 'destructive',
+    });
+    if (confirmed !== 'confirmed') return;
+
+    setIsCleaningFinished(true);
+    try {
+      const res = await workspacesApi.cleanupFinished({
+        project_id: projectId,
+        dry_run: false,
+      });
+      refreshWorkspaceCaches();
+      if (res.skipped_running_count > 0) {
+        await ConfirmDialog.show({
+          title: t('kanban.cleanupFinishedPartialTitle', {
+            defaultValue: 'Cleanup completed with skipped workspaces',
+          }),
+          message: t('kanban.cleanupFinishedPartialMessage', {
+            deleted: res.deleted_count,
+            skipped: res.skipped_running_count,
+            defaultValue:
+              'Deleted {{deleted}} workspace(s). Skipped {{skipped}} workspace(s) with running processes.',
+          }),
+          confirmText: t('common:ok'),
+          showCancelButton: false,
+          variant: 'info',
+        });
+      }
+    } catch (error) {
+      await ConfirmDialog.show({
+        title: t('common:error'),
+        message: error instanceof Error ? error.message : String(error),
+        confirmText: t('common:ok'),
+        showCancelButton: false,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCleaningFinished(false);
+    }
+  }, [
+    finishedCleanableWorkspaceIds.length,
+    isCleaningFinished,
+    projectId,
+    refreshWorkspaceCaches,
+    t,
+  ]);
 
   // Every dispatchable workspace (active, with a local id) for the per-card
   // quick-dispatch dropdown. Orchestrator/recurrent workspaces are excluded:
@@ -778,6 +862,51 @@ export function KanbanContainer() {
       statuses.find((s) => s.name.trim().toLowerCase() === 'done')?.id ?? null,
     [statuses]
   );
+  const handleAcceptFindings = useCallback(
+    async (issueId: string, localWorkspaceId: string, isPinned: boolean) => {
+      if (!doneStatusId) return;
+      const result = await ConfirmCheckboxDialog.show({
+        title: t('tasks:ship.acceptConfirmTitle', {
+          defaultValue: 'Accept findings & complete card?',
+        }),
+        message: t('tasks:ship.acceptConfirmMessage', {
+          defaultValue: 'Moves the card to Done without running git merge.',
+        }),
+        confirmText: t('tasks:ship.acceptFindings'),
+        cancelText: t('common:buttons.cancel'),
+        checkboxLabel: t('tasks:ship.cleanupWorkspaceLabel', {
+          defaultValue: 'Delete workspace and git branch',
+        }),
+        checkboxDefaultChecked: !isPinned,
+        checkboxDisabled: isPinned,
+        checkboxHint: isPinned
+          ? t('tasks:ship.pinnedWorkspaceKept', {
+              defaultValue: 'Pinned workspace will be kept.',
+            })
+          : undefined,
+      });
+      if (result.action !== 'confirmed') return;
+
+      if (!isPinned && result.checked) {
+        try {
+          await workspacesApi.delete(localWorkspaceId, true);
+          refreshWorkspaceCaches();
+        } catch (error) {
+          await ConfirmDialog.show({
+            title: t('common:error'),
+            message: error instanceof Error ? error.message : String(error),
+            confirmText: t('common:ok'),
+            showCancelButton: false,
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+
+      updateIssue(issueId, { status_id: doneStatusId });
+    },
+    [doneStatusId, refreshWorkspaceCaches, t, updateIssue]
+  );
   const renderShipButton = (issue: { id: string; status_id: string }) => {
     if (!reviewStatusId || !doneStatusId) return null;
     if (issue.status_id !== reviewStatusId) return null;
@@ -795,7 +924,13 @@ export function KanbanContainer() {
     if (action === 'accept') {
       return (
         <AcceptFindingsButton
-          onAccept={() => updateIssue(issue.id, { status_id: doneStatusId })}
+          onAccept={() =>
+            void handleAcceptFindings(
+              issue.id,
+              localId,
+              Boolean(localWorkspace?.isPinned)
+            )
+          }
         />
       );
     }
@@ -803,8 +938,10 @@ export function KanbanContainer() {
     return (
       <ShipIssueButton
         workspaceId={localId}
+        isPinned={Boolean(localWorkspace?.isPinned)}
         onShipped={() => updateIssue(issue.id, { status_id: doneStatusId })}
         onOpenWorkspace={() => openIssueWorkspace(issue.id, localId)}
+        onCleanup={refreshWorkspaceCaches}
       />
     );
   };
@@ -1277,6 +1414,18 @@ export function KanbanContainer() {
               >
                 {t('kanban.editProjectSettings', 'Edit project settings')}
               </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={
+                  finishedCleanableWorkspaceIds.length === 0 ||
+                  isCleaningFinished
+                }
+                onClick={() => void handleCleanupFinishedWorkspaces()}
+              >
+                {t('kanban.cleanupFinishedMenuItem', {
+                  count: finishedCleanableWorkspaceIds.length,
+                  defaultValue: 'Clean up finished workspaces ({{count}})',
+                })}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -1455,6 +1604,38 @@ export function KanbanContainer() {
                             />
                           </button>
                         )}
+                        {(statusIsDone || isCancelledStatusName(status.name)) &&
+                          finishedCleanableWorkspaceIds.length > 0 && (
+                            <button
+                              type="button"
+                              disabled={isCleaningFinished}
+                              onClick={() =>
+                                void handleCleanupFinishedWorkspaces()
+                              }
+                              className={cn(
+                                'absolute top-1/2 -translate-y-1/2 inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-xs bg-secondary text-low hover:text-normal hover:bg-panel transition disabled:opacity-50',
+                                statusIsDone ? 'right-16' : 'right-9'
+                              )}
+                              aria-label={t('kanban.cleanupFinishedMenuItem', {
+                                count: finishedCleanableWorkspaceIds.length,
+                                defaultValue:
+                                  'Clean up finished workspaces ({{count}})',
+                              })}
+                              title={t('kanban.cleanupFinishedMenuItem', {
+                                count: finishedCleanableWorkspaceIds.length,
+                                defaultValue:
+                                  'Clean up finished workspaces ({{count}})',
+                              })}
+                            >
+                              <TrashIcon
+                                className="size-icon-xs"
+                                weight="bold"
+                              />
+                              <span className="tabular-nums">
+                                {finishedCleanableWorkspaceIds.length}
+                              </span>
+                            </button>
+                          )}
                         {!parentIssueId && (
                           <button
                             type="button"

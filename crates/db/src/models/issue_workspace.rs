@@ -1,7 +1,9 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
+use sqlx::{FromRow, SqlitePool};
 use uuid::Uuid;
+
+use super::workspace::Workspace;
 
 /// Local link between a kanban issue (card) and a workspace launched from it.
 /// Backed by the `issue_workspaces` table. `workspace_id` is unique, so a
@@ -27,6 +29,14 @@ pub struct LinkedWorkspaceRow {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub current_pipeline_stage: Option<i64>,
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct NonPinnedLinkedWorkspace {
+    #[sqlx(flatten)]
+    pub workspace: Workspace,
+    pub status_name: String,
+    pub status_is_terminal: bool,
 }
 
 impl IssueWorkspace {
@@ -154,6 +164,41 @@ impl IssueWorkspace {
                JOIN workspaces w ON w.id = iw.workspace_id
                ORDER BY w.created_at DESC"#
         )
+        .fetch_all(pool)
+        .await
+    }
+
+    pub async fn list_workspaces_by_issue(
+        pool: &SqlitePool,
+        issue_id: Uuid,
+    ) -> Result<Vec<Workspace>, sqlx::Error> {
+        sqlx::query_as::<_, Workspace>(
+            r#"SELECT w.*
+               FROM workspaces w
+               JOIN issue_workspaces iw ON iw.workspace_id = w.id
+               WHERE iw.issue_id = $1
+               ORDER BY w.created_at DESC"#,
+        )
+        .bind(issue_id)
+        .fetch_all(pool)
+        .await
+    }
+
+    pub async fn list_non_pinned_linked_with_status(
+        pool: &SqlitePool,
+        project_id: Option<Uuid>,
+    ) -> Result<Vec<NonPinnedLinkedWorkspace>, sqlx::Error> {
+        sqlx::query_as::<_, NonPinnedLinkedWorkspace>(
+            r#"SELECT w.*, ps.name AS status_name, ps.is_terminal AS status_is_terminal
+               FROM workspaces w
+               JOIN issue_workspaces iw ON iw.workspace_id = w.id
+               JOIN issues i ON i.id = iw.issue_id
+               JOIN project_statuses ps ON ps.id = i.status_id
+               WHERE w.pinned = 0
+                 AND ($1 IS NULL OR i.project_id = $1)
+               ORDER BY w.created_at DESC"#,
+        )
+        .bind(project_id)
         .fetch_all(pool)
         .await
     }
@@ -399,5 +444,72 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+
+    #[tokio::test]
+    async fn list_non_pinned_linked_with_status_excludes_pinned_and_filters_project() {
+        let pool = pool().await;
+        let (project_a, todo_a) = seed_project_status(&pool).await;
+        let (project_b, todo_b) = seed_project_status(&pool).await;
+        let done_a = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO project_statuses (id, project_id, name, color, is_terminal) VALUES (?, ?, 'Done', '#0f0', 1)",
+        )
+        .bind(done_a)
+        .bind(project_a)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let issue_a_done = seed_issue(&pool, project_a, done_a, 1).await;
+        let issue_a_todo = seed_issue(&pool, project_a, todo_a, 2).await;
+        let issue_b = seed_issue(&pool, project_b, todo_b, 1).await;
+
+        let ws_free = seed_workspace(&pool).await;
+        let ws_pinned = seed_workspace(&pool).await;
+        sqlx::query("UPDATE workspaces SET pinned = 1 WHERE id = ?")
+            .bind(ws_pinned)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let ws_todo = seed_workspace(&pool).await;
+        let ws_b = seed_workspace(&pool).await;
+
+        IssueWorkspace::link(&pool, issue_a_done, ws_free)
+            .await
+            .unwrap();
+        IssueWorkspace::link(&pool, issue_a_done, ws_pinned)
+            .await
+            .unwrap();
+        IssueWorkspace::link(&pool, issue_a_todo, ws_todo)
+            .await
+            .unwrap();
+        IssueWorkspace::link(&pool, issue_b, ws_b).await.unwrap();
+
+        let by_issue = IssueWorkspace::list_workspaces_by_issue(&pool, issue_a_done)
+            .await
+            .unwrap();
+        assert_eq!(by_issue.len(), 2);
+
+        let scoped = IssueWorkspace::list_non_pinned_linked_with_status(&pool, Some(project_a))
+            .await
+            .unwrap();
+        let scoped_ids: Vec<Uuid> = scoped.iter().map(|r| r.workspace.id).collect();
+        assert!(scoped_ids.contains(&ws_free));
+        assert!(scoped_ids.contains(&ws_todo));
+        assert!(!scoped_ids.contains(&ws_pinned));
+        assert!(!scoped_ids.contains(&ws_b));
+        assert!(
+            scoped
+                .iter()
+                .find(|r| r.workspace.id == ws_free)
+                .unwrap()
+                .status_is_terminal
+        );
+
+        let all = IssueWorkspace::list_non_pinned_linked_with_status(&pool, None)
+            .await
+            .unwrap();
+        assert_eq!(all.len(), 3);
     }
 }

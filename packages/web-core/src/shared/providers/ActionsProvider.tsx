@@ -41,8 +41,13 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
   const hostId = useHostId();
   const queryClient = useQueryClient();
   // Get workspace context (ActionsProvider is nested inside WorkspaceProvider)
-  const { selectWorkspace, activeWorkspaces, workspaceId, workspace } =
-    useWorkspaceContext();
+  const {
+    selectWorkspace,
+    activeWorkspaces,
+    archivedWorkspaces,
+    workspaceId,
+    workspace,
+  } = useWorkspaceContext();
   // Get remote workspaces (optional — not available on all routes)
   const workspacesCtx = useContext(WorkspacesContext);
   const projectCtx = useContext(ProjectContext);
@@ -185,6 +190,7 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
       queryClient,
       selectWorkspace,
       activeWorkspaces,
+      archivedWorkspaces,
       currentWorkspaceId: workspaceId ?? null,
       containerRef: workspace?.container_ref ?? null,
       runningDevServers,
@@ -216,6 +222,7 @@ export function ActionsProvider({ children }: ActionsProviderProps) {
     queryClient,
     selectWorkspace,
     activeWorkspaces,
+    archivedWorkspaces,
     workspaceId,
     workspace?.container_ref,
     runningDevServers,

@@ -123,6 +123,8 @@ fn generate_types_content() -> String {
         server::routes::workspaces::git::MergeWorkspaceRequest::decl(),
         server::routes::workspaces::git::ShipWorkspaceRequest::decl(),
         server::routes::workspaces::git::ShipWorkspaceResponse::decl(),
+        server::routes::workspaces::core::CleanupFinishedWorkspacesRequest::decl(),
+        server::routes::workspaces::core::CleanupFinishedWorkspacesResponse::decl(),
         server::routes::workspaces::git::CommitWorkspaceRequest::decl(),
         server::routes::workspaces::git::CommitWorkspaceResponse::decl(),
         server::routes::workspaces::git::PushWorkspaceRequest::decl(),

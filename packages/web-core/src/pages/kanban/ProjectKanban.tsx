@@ -1,9 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { type IssuePriority, type Project } from 'shared/remote-types';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  PROJECT_WORKSPACES_SHAPE,
+  type IssuePriority,
+  type Project,
+} from 'shared/remote-types';
 import { useProjects } from '@/shared/hooks/useProjects';
 import { useWorkspacesContext } from '@/shared/hooks/useWorkspacesContext';
+import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
+import { workspaceSummaryKeys } from '@/shared/hooks/workspaceSummaryKeys';
 import { workspacesApi } from '@/shared/lib/api';
+import { refreshShapeSource } from '@/shared/lib/electric/collections';
 import { makeRequest as makeRemoteRequest } from '@/shared/lib/remoteApi';
 import { isCancelledStatusName } from '@/features/kanban/model/useCollapsedStatuses';
 import { useProjectsContext } from '@/shared/providers/ProjectProvider';
@@ -53,6 +61,13 @@ function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
   const { workspaces: remoteWorkspaces } = useWorkspacesContext();
   const remoteWorkspacesRef = useRef(remoteWorkspaces);
   remoteWorkspacesRef.current = remoteWorkspaces;
+  const { activeWorkspaces, archivedWorkspaces } = useWorkspaceContext();
+  const localWorkspacesRef = useRef([
+    ...activeWorkspaces,
+    ...archivedWorkspaces,
+  ]);
+  localWorkspacesRef.current = [...activeWorkspaces, ...archivedWorkspaces];
+  const queryClient = useQueryClient();
 
   // Use ref to always access latest issues (avoid stale closure)
   const issuesRef = useRef(issues);
@@ -173,11 +188,15 @@ function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
       removeIssue: (id) => {
         removeIssue(id);
       },
-      cancelIssues: async (issueIds, reason) => {
+      cancelIssues: async (issueIds, reason, deleteWorkspaces = false) => {
         const cancelled = statuses.find(
           (s) => s.is_terminal && isCancelledStatusName(s.name)
         );
         if (!cancelled) return false;
+        const localById = new Map(
+          localWorkspacesRef.current.map((w) => [w.id, w])
+        );
+        let deletedAnyWorkspace = false;
         for (const issueId of issueIds) {
           updateIssue(issueId, { status_id: cancelled.id });
           if (reason) {
@@ -192,15 +211,43 @@ function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
               console.error('Failed to note cancel reason', error)
             );
           }
-          // Archive the card's workspaces; their branches stay.
+          // Delete non-pinned workspaces + git branches when requested;
+          // otherwise archive them so branches stay.
           for (const link of remoteWorkspacesRef.current) {
             if (link.issue_id !== issueId || !link.local_workspace_id) continue;
-            await workspacesApi
-              .update(link.local_workspace_id, { archived: true })
-              .catch((error: unknown) =>
-                console.error('Failed to archive workspace', error)
-              );
+            const local = localById.get(link.local_workspace_id);
+            const canDelete =
+              deleteWorkspaces &&
+              local &&
+              !local.isPinned &&
+              local.kind !== 'orchestrator' &&
+              local.kind !== 'recurrent';
+            if (canDelete) {
+              try {
+                await workspacesApi.delete(link.local_workspace_id, true);
+                deletedAnyWorkspace = true;
+              } catch (error) {
+                console.error('Failed to delete workspace on cancel', error);
+                await workspacesApi
+                  .update(link.local_workspace_id, { archived: true })
+                  .catch(() => {});
+              }
+            } else {
+              await workspacesApi
+                .update(link.local_workspace_id, { archived: true })
+                .catch((error: unknown) =>
+                  console.error('Failed to archive workspace', error)
+                );
+            }
           }
+        }
+        if (deletedAnyWorkspace) {
+          refreshShapeSource(PROJECT_WORKSPACES_SHAPE, {
+            project_id: projectId,
+          });
+          queryClient.invalidateQueries({
+            queryKey: workspaceSummaryKeys.all,
+          });
         }
         return true;
       },
@@ -248,6 +295,8 @@ function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
     openCreateIssue,
     statuses,
     updateIssue,
+    projectId,
+    queryClient,
     t,
   ]);
 

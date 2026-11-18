@@ -57,6 +57,10 @@ import { workspaceRepoKeys } from '@/shared/hooks/useWorkspaceRepo';
 import { repoBranchKeys } from '@/shared/hooks/useRepoBranches';
 import { workspaceSummaryKeys } from '@/shared/hooks/workspaceSummaryKeys';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
+import { ConfirmCheckboxDialog } from '@/shared/dialogs/shared/ConfirmCheckboxDialog';
+import { collectLinkedWorkspaceCleanups } from '@/features/kanban/model/finishedWorkspaces';
+import { refreshShapeSource } from '@/shared/lib/electric/collections';
+import { PROJECT_WORKSPACES_SHAPE } from 'shared/remote-types';
 import { ChangeTargetDialog } from '@vibe/ui/components/ChangeTargetDialog';
 import { DeleteWorkspaceDialog } from '@vibe/ui/components/DeleteWorkspaceDialog';
 import { RebaseDialog } from '@/shared/dialogs/command-bar/RebaseDialog';
@@ -1366,9 +1370,27 @@ export const Actions = {
         issueIds.length === 1
           ? (mutations.getIssue(issueIds[0]!)?.simple_id ?? '')
           : `${issueIds.length}`;
-      const result = await CancelIssueDialog.show({ subject });
+      const localById = new Map(
+        [...ctx.activeWorkspaces, ...ctx.archivedWorkspaces].map((w) => [
+          w.id,
+          w,
+        ])
+      );
+      const { cleanableIds } = collectLinkedWorkspaceCleanups({
+        issueIds,
+        remoteWorkspaces: ctx.remoteWorkspaces,
+        localWorkspacesById: localById,
+      });
+      const result = await CancelIssueDialog.show({
+        subject,
+        cleanableWorkspaceCount: cleanableIds.length,
+      });
       if (!result) return;
-      const ok = await mutations.cancelIssues(issueIds, result.reason);
+      const ok = await mutations.cancelIssues(
+        issueIds,
+        result.reason,
+        result.deleteWorkspaces
+      );
       if (!ok) {
         await ConfirmDialog.show({
           title: 'No Cancelled column',
@@ -1390,19 +1412,90 @@ export const Actions = {
     requiresTarget: ActionTargetType.ISSUE,
     isVisible: (ctx) =>
       ctx.layoutMode === 'kanban' && ctx.hasSelectedKanbanIssue,
-    execute: async (ctx, _projectId, issueIds) => {
+    execute: async (ctx, projectId, issueIds) => {
       const count = issueIds.length;
-      const result = await ConfirmDialog.show({
-        title: count === 1 ? 'Delete Issue' : `Delete ${count} Issues`,
-        message:
-          count === 1
-            ? 'Are you sure you want to delete this issue? This action cannot be undone.'
-            : `Are you sure you want to delete these ${count} issues? This action cannot be undone.`,
-        confirmText: 'Delete',
-        cancelText: 'Cancel',
-        variant: 'destructive',
+      const localById = new Map(
+        [...ctx.activeWorkspaces, ...ctx.archivedWorkspaces].map((w) => [
+          w.id,
+          w,
+        ])
+      );
+      const { cleanableIds, pinnedCount } = collectLinkedWorkspaceCleanups({
+        issueIds,
+        remoteWorkspaces: ctx.remoteWorkspaces,
+        localWorkspacesById: localById,
       });
-      if (result === 'confirmed' && ctx.projectMutations?.removeIssue) {
+      const title = count === 1 ? 'Delete Issue' : `Delete ${count} Issues`;
+      const message =
+        count === 1
+          ? 'Are you sure you want to delete this issue? This action cannot be undone.'
+          : `Are you sure you want to delete these ${count} issues? This action cannot be undone.`;
+
+      let shouldDelete = false;
+      let deleteWorkspaces = false;
+
+      if (cleanableIds.length > 0) {
+        const result = await ConfirmCheckboxDialog.show({
+          title,
+          message,
+          confirmText: 'Delete',
+          cancelText: 'Cancel',
+          variant: 'destructive',
+          checkboxLabel:
+            cleanableIds.length === 1
+              ? 'Also delete 1 linked workspace and its git branch'
+              : `Also delete ${cleanableIds.length} linked workspaces and their git branches`,
+          checkboxDefaultChecked: true,
+          checkboxHint:
+            pinnedCount > 0
+              ? `${pinnedCount} pinned workspace(s) will be kept.`
+              : undefined,
+        });
+        shouldDelete = result.action === 'confirmed';
+        deleteWorkspaces = result.checked;
+      } else {
+        const hint =
+          pinnedCount > 0
+            ? ` (${pinnedCount} pinned workspace(s) will be kept.)`
+            : '';
+        const result = await ConfirmDialog.show({
+          title,
+          message: `${message}${hint}`,
+          confirmText: 'Delete',
+          cancelText: 'Cancel',
+          variant: 'destructive',
+        });
+        shouldDelete = result === 'confirmed';
+      }
+
+      if (!shouldDelete) return;
+
+      if (deleteWorkspaces && cleanableIds.length > 0) {
+        try {
+          for (const wsId of cleanableIds) {
+            await workspacesApi.delete(wsId, true);
+          }
+          if (projectId) {
+            refreshShapeSource(PROJECT_WORKSPACES_SHAPE, {
+              project_id: projectId,
+            });
+          }
+          ctx.queryClient.invalidateQueries({
+            queryKey: workspaceSummaryKeys.all,
+          });
+        } catch (err) {
+          await ConfirmDialog.show({
+            title: 'Failed to delete workspace',
+            message: err instanceof Error ? err.message : String(err),
+            confirmText: 'OK',
+            showCancelButton: false,
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+
+      if (ctx.projectMutations?.removeIssue) {
         for (const issueId of issueIds) {
           ctx.projectMutations.removeIssue(issueId);
         }

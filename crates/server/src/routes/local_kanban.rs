@@ -1020,10 +1020,38 @@ async fn bulk_issues(
     Ok(mutation(out))
 }
 
+#[derive(Debug, Deserialize)]
+pub(crate) struct DeleteIssueQuery {
+    #[serde(default)]
+    pub(crate) delete_workspaces: bool,
+}
+
+pub(crate) async fn delete_issue_workspaces(
+    deployment: &DeploymentImpl,
+    issue_id: Uuid,
+) -> Result<(), ApiError> {
+    let workspaces = db::models::issue_workspace::IssueWorkspace::list_workspaces_by_issue(
+        &deployment.db().pool,
+        issue_id,
+    )
+    .await?;
+    for workspace in workspaces {
+        if workspace.pinned || workspace.kind.is_some_and(|k| k.is_no_worktree()) {
+            continue;
+        }
+        super::workspaces::core::delete_workspace_and_cleanup(deployment, workspace, true).await?;
+    }
+    Ok(())
+}
+
 async fn delete_issue(
     State(deployment): State<DeploymentImpl>,
     Path(id): Path<Uuid>,
+    Query(query): Query<DeleteIssueQuery>,
 ) -> Result<ResponseJson<DeleteResponse>, ApiError> {
+    if query.delete_workspaces {
+        delete_issue_workspaces(&deployment, id).await?;
+    }
     DbIssue::delete(&deployment.db().pool, id).await?;
     Ok(deleted())
 }

@@ -351,6 +351,18 @@ pub fn is_cancelled_status_name(name: &str) -> bool {
         || n == "đã hủy"
 }
 
+/// A column that collects completed work ("Done", "Completed", "Closed", ...).
+pub fn is_done_status_name(name: &str) -> bool {
+    matches!(
+        name.trim().to_lowercase().as_str(),
+        "done" | "complete" | "completed" | "close" | "closed" | "resolved" | "finished"
+    )
+}
+
+pub fn is_finished_status(name: &str, is_terminal: bool) -> bool {
+    is_terminal || is_done_status_name(name) || is_cancelled_status_name(name)
+}
+
 /// Give a project a terminal "Cancelled" column if it has columns but none
 /// for dropped work (projects created before it was a default). Returns
 /// whether one was added.
@@ -566,6 +578,24 @@ mod tests {
         }
         for name in ["Done", "In Review", "Todo"] {
             assert!(!is_cancelled_status_name(name), "{name}");
+        }
+    }
+
+    #[test]
+    fn recognises_finished_statuses() {
+        for name in [
+            "Done",
+            "done",
+            "Completed",
+            "Closed",
+            "Cancelled",
+            "Rejected",
+        ] {
+            assert!(is_finished_status(name, false), "{name}");
+        }
+        assert!(is_finished_status("Shipped", true));
+        for name in ["Todo", "In Progress", "In Review"] {
+            assert!(!is_finished_status(name, false), "{name}");
         }
     }
 

@@ -158,7 +158,8 @@
       "summary": "{{active}} đang hoạt động · {{archived}} lưu trữ · {{running}} đang chạy · {{attention}} cần chú ý",
       "filterAll": "Tất cả",
       "filterProject": "Project: {{name}}",
-      "filterProjectNone": "Project"
+      "filterProjectNone": "Project",
+      "cleanupFinished": "Dọn workspace đã xong ({{count}})"
     },
     "outliner": {
       "attention": "Cần chú ý"
@@ -329,6 +330,12 @@
     "noCommands": "Agent này không có lệnh nào."
   },
   "kanban": {
+    "cleanupFinishedMenuItem": "Dọn workspace đã xong ({{count}})",
+    "cleanupFinishedConfirmTitle": "Dọn {{count}} workspace đã hoàn tất?",
+    "cleanupFinishedConfirmMessage": "Thao tác này xoá {{count}} workspace không ghim thuộc card Done hoặc Cancelled, bao gồm worktree và nhánh git. Workspace đang ghim được giữ lại.",
+    "cleanupFinishedConfirmButton": "Dọn sạch",
+    "cleanupFinishedPartialTitle": "Đã dọn xong (có workspace bị bỏ qua)",
+    "cleanupFinishedPartialMessage": "Đã xoá {{deleted}} workspace. Bỏ qua {{skipped}} workspace đang có tiến trình chạy.",
     "noVisibleStatuses": "Tất cả trạng thái đang bị ẩn. Dùng cài đặt hiển thị hoặc chuyển tab khác để xem issue.",
     "noProjectFound": "Không tìm thấy project",
     "noTagsAvailable": "Chưa có tag",
@@ -813,6 +820,7 @@
     "reasonPlaceholder": "Vì sao không cần làm nữa (không bắt buộc)",
     "keep": "Giữ lại",
     "confirm": "Huỷ card",
-    "comment": "Đã huỷ: {{reason}}"
+    "comment": "Đã huỷ: {{reason}}",
+    "deleteWorkspacesLabel": "Xoá luôn {{count}} workspace liên kết và nhánh git"
   }
 }

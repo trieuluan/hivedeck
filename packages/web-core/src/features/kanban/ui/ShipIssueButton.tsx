@@ -2,6 +2,7 @@ import { useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckIcon, GitMergeIcon, SpinnerIcon } from '@phosphor-icons/react';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
+import { ConfirmCheckboxDialog } from '@/shared/dialogs/shared/ConfirmCheckboxDialog';
 import { workspacesApi } from '@/shared/lib/api';
 
 export type InReviewAction = 'merge' | 'accept';
@@ -40,10 +41,14 @@ export function AcceptFindingsButton({ onAccept }: AcceptFindingsButtonProps) {
 export interface ShipIssueButtonProps {
   /** Local workspace (attempt) whose changes get merged. */
   workspaceId: string;
+  /** Pinned workspaces are kept instead of deleted after merge. */
+  isPinned?: boolean;
   /** Moves the card to Done once the merge succeeded. */
   onShipped: () => void;
   /** Opens the workspace (to resolve conflicts with the agent). */
   onOpenWorkspace: () => void;
+  /** Called when the workspace was deleted during ship. */
+  onCleanup?: () => void;
 }
 
 /**
@@ -53,8 +58,10 @@ export interface ShipIssueButtonProps {
  */
 export function ShipIssueButton({
   workspaceId,
+  isPinned = false,
   onShipped,
   onOpenWorkspace,
+  onCleanup,
 }: ShipIssueButtonProps) {
   const { t } = useTranslation('tasks');
   const [busy, setBusy] = useState(false);
@@ -62,17 +69,26 @@ export function ShipIssueButton({
   const ship = async (e: MouseEvent) => {
     e.stopPropagation();
     if (busy) return;
-    const confirmed = await ConfirmDialog.show({
+    const confirmation = await ConfirmCheckboxDialog.show({
       title: t('ship.confirmTitle'),
       message: t('ship.confirmMessage'),
       confirmText: t('ship.confirm'),
       cancelText: t('common:buttons.cancel'),
+      checkboxLabel: t('ship.cleanupWorkspaceLabel'),
+      checkboxDefaultChecked: !isPinned,
+      checkboxDisabled: isPinned,
+      checkboxHint: isPinned ? t('ship.pinnedWorkspaceKept') : undefined,
     });
-    if (confirmed !== 'confirmed') return;
+    if (confirmation.action !== 'confirmed') return;
+
+    const shouldCleanup = !isPinned && confirmation.checked;
 
     setBusy(true);
     try {
-      const result = await workspacesApi.ship(workspaceId, { push: true });
+      const result = await workspacesApi.ship(workspaceId, {
+        push: true,
+        cleanup: shouldCleanup,
+      });
       if (!result.success) {
         if (result.error?.type === 'merge_conflicts') {
           const open = await ConfirmDialog.show({
@@ -102,6 +118,9 @@ export function ShipIssueButton({
       }
 
       onShipped();
+      if (shouldCleanup) {
+        onCleanup?.();
+      }
       if (result.data.push_error) {
         await ConfirmDialog.show({
           title: t('ship.pushFailedTitle'),

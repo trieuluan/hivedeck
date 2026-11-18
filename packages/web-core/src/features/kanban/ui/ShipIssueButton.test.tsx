@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MouseEvent, PointerEvent, ReactElement } from 'react';
 
-const { shipMock } = vi.hoisted(() => ({ shipMock: vi.fn() }));
+const { shipMock, checkboxConfirmMock } = vi.hoisted(() => ({
+  shipMock: vi.fn(),
+  checkboxConfirmMock: vi.fn(),
+}));
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -20,11 +23,19 @@ vi.mock('@vibe/ui/components/ConfirmDialog', () => ({
   ConfirmDialog: { show: vi.fn() },
 }));
 
+vi.mock('@/shared/dialogs/shared/ConfirmCheckboxDialog', () => ({
+  ConfirmCheckboxDialog: { show: checkboxConfirmMock },
+}));
+
 vi.mock('@/shared/lib/api', () => ({
   workspacesApi: { ship: shipMock },
 }));
 
-import { AcceptFindingsButton, resolveInReviewAction } from './ShipIssueButton';
+import {
+  AcceptFindingsButton,
+  ShipIssueButton,
+  resolveInReviewAction,
+} from './ShipIssueButton';
 
 describe('resolveInReviewAction', () => {
   it('returns null while diff summary is loading', () => {
@@ -68,5 +79,106 @@ describe('AcceptFindingsButton', () => {
       stopPropagation: stopPointer,
     } as unknown as PointerEvent<HTMLButtonElement>);
     expect(stopPointer).toHaveBeenCalledTimes(1);
+  });
+});
+
+vi.mock('react', async () => {
+  const actual = await vi.importActual<typeof import('react')>('react');
+  return {
+    ...actual,
+    useState: <T,>(init: T) => [init, vi.fn()] as const,
+  };
+});
+
+describe('ShipIssueButton', () => {
+  beforeEach(() => {
+    shipMock.mockReset();
+    checkboxConfirmMock.mockReset();
+  });
+
+  it('passes cleanup=true when confirmed with cleanup checked for non-pinned workspace', async () => {
+    checkboxConfirmMock.mockResolvedValue({
+      action: 'confirmed',
+      checked: true,
+    });
+    shipMock.mockResolvedValue({
+      success: true,
+      data: {
+        merged_repos: ['r'],
+        unchanged_repos: [],
+        pushed: true,
+        push_error: null,
+      },
+    });
+    const onShipped = vi.fn();
+    const onCleanup = vi.fn();
+    const el = ShipIssueButton({
+      workspaceId: 'ws-1',
+      isPinned: false,
+      onShipped,
+      onOpenWorkspace: vi.fn(),
+      onCleanup,
+    }) as ReactElement<{
+      onClick: (e: MouseEvent<HTMLButtonElement>) => Promise<void>;
+    }>;
+
+    await el.props.onClick({
+      stopPropagation: vi.fn(),
+    } as unknown as MouseEvent<HTMLButtonElement>);
+
+    expect(checkboxConfirmMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        checkboxDefaultChecked: true,
+        checkboxDisabled: false,
+      })
+    );
+    expect(shipMock).toHaveBeenCalledWith('ws-1', {
+      push: true,
+      cleanup: true,
+    });
+    expect(onShipped).toHaveBeenCalledTimes(1);
+    expect(onCleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it('forces cleanup=false when workspace is pinned', async () => {
+    checkboxConfirmMock.mockResolvedValue({
+      action: 'confirmed',
+      checked: true,
+    });
+    shipMock.mockResolvedValue({
+      success: true,
+      data: {
+        merged_repos: ['r'],
+        unchanged_repos: [],
+        pushed: true,
+        push_error: null,
+      },
+    });
+    const onCleanup = vi.fn();
+    const el = ShipIssueButton({
+      workspaceId: 'ws-2',
+      isPinned: true,
+      onShipped: vi.fn(),
+      onOpenWorkspace: vi.fn(),
+      onCleanup,
+    }) as ReactElement<{
+      onClick: (e: MouseEvent<HTMLButtonElement>) => Promise<void>;
+    }>;
+
+    await el.props.onClick({
+      stopPropagation: vi.fn(),
+    } as unknown as MouseEvent<HTMLButtonElement>);
+
+    expect(checkboxConfirmMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        checkboxDefaultChecked: false,
+        checkboxDisabled: true,
+      })
+    );
+    expect(shipMock).toHaveBeenCalledWith('ws-2', {
+      push: true,
+      cleanup: false,
+    });
+    expect(onCleanup).not.toHaveBeenCalled();
   });
 });

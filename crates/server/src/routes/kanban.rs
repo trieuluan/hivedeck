@@ -53,7 +53,10 @@ use std::str::FromStr;
 use utils::response::ApiResponse;
 use uuid::Uuid;
 
-use super::local_kanban::{create_issue_record, update_issue_and_stop_if_cancelled};
+use super::local_kanban::{
+    DeleteIssueQuery, create_issue_record, delete_issue_workspaces,
+    update_issue_and_stop_if_cancelled,
+};
 use crate::{
     DeploymentImpl,
     error::ApiError,
@@ -618,7 +621,11 @@ async fn update_issue(
 async fn delete_issue(
     State(deployment): State<DeploymentImpl>,
     Path(id): Path<Uuid>,
+    Query(query): Query<DeleteIssueQuery>,
 ) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
+    if query.delete_workspaces {
+        delete_issue_workspaces(&deployment, id).await?;
+    }
     DbIssue::delete(&deployment.db().pool, id).await?;
     Ok(ok(()))
 }

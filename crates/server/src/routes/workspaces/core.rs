@@ -7,13 +7,16 @@ use axum::{
 use db::models::{
     coding_agent_turn::CodingAgentTurn,
     execution_process::{ExecutionProcess, ExecutionProcessStatus},
+    issue_workspace::IssueWorkspace,
     workspace::{Workspace, WorkspaceError},
 };
 use deployment::Deployment;
-use serde::Deserialize;
-use services::services::container::ContainerService;
+use serde::{Deserialize, Serialize};
+use services::services::{container::ContainerService, project_config};
 use sqlx::Error as SqlxError;
+use ts_rs::TS;
 use utils::response::ApiResponse;
+use uuid::Uuid;
 use workspace_manager::WorkspaceManager;
 
 use crate::{DeploymentImpl, error::ApiError};
@@ -22,6 +25,20 @@ use crate::{DeploymentImpl, error::ApiError};
 pub struct DeleteWorkspaceQuery {
     #[serde(default)]
     pub delete_branches: bool,
+}
+
+#[derive(Debug, Deserialize, TS)]
+pub struct CleanupFinishedWorkspacesRequest {
+    #[serde(default)]
+    pub project_id: Option<Uuid>,
+    #[serde(default)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Serialize, TS)]
+pub struct CleanupFinishedWorkspacesResponse {
+    pub deleted_count: usize,
+    pub skipped_running_count: usize,
 }
 
 pub async fn get_workspaces(
@@ -93,6 +110,15 @@ pub async fn delete_workspace(
     State(deployment): State<DeploymentImpl>,
     Query(query): Query<DeleteWorkspaceQuery>,
 ) -> Result<(StatusCode, ResponseJson<ApiResponse<()>>), ApiError> {
+    delete_workspace_and_cleanup(&deployment, workspace, query.delete_branches).await?;
+    Ok((StatusCode::ACCEPTED, ResponseJson(ApiResponse::success(()))))
+}
+
+pub(crate) async fn delete_workspace_and_cleanup(
+    deployment: &DeploymentImpl,
+    workspace: Workspace,
+    delete_branches: bool,
+) -> Result<(), ApiError> {
     let pool = &deployment.db().pool;
     let workspace_manager = deployment.workspace_manager();
     let workspace_id = workspace.id;
@@ -138,9 +164,58 @@ pub async fn delete_workspace(
         return Err(ApiError::Database(SqlxError::RowNotFound));
     }
 
-    WorkspaceManager::spawn_workspace_deletion_cleanup(deletion_context, query.delete_branches);
+    WorkspaceManager::spawn_workspace_deletion_cleanup(deletion_context, delete_branches);
+    Ok(())
+}
 
-    Ok((StatusCode::ACCEPTED, ResponseJson(ApiResponse::success(()))))
+pub async fn cleanup_finished_workspaces(
+    State(deployment): State<DeploymentImpl>,
+    Json(request): Json<CleanupFinishedWorkspacesRequest>,
+) -> Result<ResponseJson<ApiResponse<CleanupFinishedWorkspacesResponse>>, ApiError> {
+    let pool = &deployment.db().pool;
+    let candidates =
+        IssueWorkspace::list_non_pinned_linked_with_status(pool, request.project_id).await?;
+
+    let mut deleted_count = 0usize;
+    let mut skipped_running_count = 0usize;
+
+    for row in candidates {
+        if row.workspace.kind.is_some_and(|k| k.is_no_worktree()) {
+            continue;
+        }
+        if !project_config::is_finished_status(&row.status_name, row.status_is_terminal) {
+            continue;
+        }
+
+        if request.dry_run {
+            if ExecutionProcess::has_running_non_dev_server_processes_for_workspace(
+                pool,
+                row.workspace.id,
+            )
+            .await?
+            {
+                skipped_running_count += 1;
+            } else {
+                deleted_count += 1;
+            }
+            continue;
+        }
+
+        match delete_workspace_and_cleanup(&deployment, row.workspace, true).await {
+            Ok(()) => deleted_count += 1,
+            Err(ApiError::Conflict(_)) => skipped_running_count += 1,
+            Err(err) => {
+                tracing::warn!("Failed to clean up finished workspace: {}", err);
+            }
+        }
+    }
+
+    Ok(ResponseJson(ApiResponse::success(
+        CleanupFinishedWorkspacesResponse {
+            deleted_count,
+            skipped_running_count,
+        },
+    )))
 }
 
 #[axum::debug_handler]

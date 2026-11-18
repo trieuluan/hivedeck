@@ -593,7 +593,11 @@ export type ShipWorkspaceRequest = {
 /**
  * Push the target branch to its remote after merging.
  */
-push: boolean, };
+push: boolean, 
+/**
+ * Delete non-pinned workspace, its worktree, and its git branch after merging.
+ */
+cleanup: boolean, };
 
 export type ShipWorkspaceResponse = { 
 /**
@@ -612,6 +616,10 @@ pushed: boolean,
  * Why pushing failed, if it did. The merge itself stands.
  */
 push_error: string | null, };
+
+export type CleanupFinishedWorkspacesRequest = { project_id: string | null, dry_run: boolean, };
+
+export type CleanupFinishedWorkspacesResponse = { deleted_count: number, skipped_running_count: number, };
 
 export type CommitWorkspaceRequest = { repo_id: string, };
 

@@ -158,7 +158,8 @@
       "summary": "{{active}} active · {{archived}} archived · {{running}} running · {{attention}} need attention",
       "filterAll": "All",
       "filterProject": "Project: {{name}}",
-      "filterProjectNone": "Project"
+      "filterProjectNone": "Project",
+      "cleanupFinished": "Clean up finished ({{count}})"
     },
     "outliner": {
       "attention": "Attention"
@@ -329,6 +330,12 @@
     "noCommands": "No commands available for this agent."
   },
   "kanban": {
+    "cleanupFinishedMenuItem": "Clean up finished workspaces ({{count}})",
+    "cleanupFinishedConfirmTitle": "Clean up {{count}} finished workspace(s)?",
+    "cleanupFinishedConfirmMessage": "This deletes {{count}} non-pinned workspace(s) linked to Done or Cancelled cards, including their worktrees and git branches. Pinned workspaces are kept.",
+    "cleanupFinishedConfirmButton": "Clean up",
+    "cleanupFinishedPartialTitle": "Cleanup completed with skipped workspaces",
+    "cleanupFinishedPartialMessage": "Deleted {{deleted}} workspace(s). Skipped {{skipped}} workspace(s) with running processes.",
     "noVisibleStatuses": "All statuses are hidden. Use display settings or switch to another tab to view issues.",
     "noProjectFound": "No project found",
     "noTagsAvailable": "No tags available",
@@ -813,6 +820,7 @@
     "reasonPlaceholder": "Why it's no longer needed (optional)",
     "keep": "Keep it",
     "confirm": "Cancel card",
-    "comment": "Cancelled: {{reason}}"
+    "comment": "Cancelled: {{reason}}",
+    "deleteWorkspacesLabel": "Also delete {{count}} linked workspace(s) and git branch(es)"
   }
 }

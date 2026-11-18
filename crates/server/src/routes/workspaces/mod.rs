@@ -59,6 +59,7 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
             "/summaries",
             post(workspace_summary::get_workspace_summaries),
         )
+        .route("/cleanup-finished", post(core::cleanup_finished_workspaces))
         .nest("/{id}", workspace_id_router)
         .nest("/{id}/attachments", attachments::router(deployment))
         .nest("/{id}/links", links::router(deployment));
