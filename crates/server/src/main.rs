@@ -76,6 +76,14 @@ async fn main() -> Result<(), HiveDeckError> {
         .backfill_repo_names()
         .await
         .map_err(DeploymentError::from)?;
+    // Every project gets a "Cancelled" column for dropped cards (once).
+    match services::services::project_config::backfill_cancelled_statuses(&deployment.db().pool)
+        .await
+    {
+        Ok(0) => {}
+        Ok(n) => tracing::info!("added a Cancelled column to {n} project(s)"),
+        Err(e) => tracing::warn!("could not add Cancelled columns: {e}"),
+    }
 
     // CLI subcommands for the static config: `export [path]` / `import [path]`.
     // These run against the DB and exit without starting the HTTP server. An

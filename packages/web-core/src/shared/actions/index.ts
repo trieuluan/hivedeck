@@ -1346,6 +1346,39 @@ export const Actions = {
     },
   } satisfies IssueActionDefinition,
 
+  CancelIssue: {
+    id: 'cancel-issue',
+    label: 'Cancel Issue',
+    icon: ProhibitIcon,
+    shortcut: 'I Z',
+    requiresTarget: ActionTargetType.ISSUE,
+    isVisible: (ctx) =>
+      ctx.layoutMode === 'kanban' && ctx.hasSelectedKanbanIssue,
+    execute: async (ctx, _projectId, issueIds) => {
+      const mutations = ctx.projectMutations;
+      if (!mutations) return;
+      const { CancelIssueDialog } = await import(
+        '@/shared/dialogs/kanban/CancelIssueDialog'
+      );
+      const subject =
+        issueIds.length === 1
+          ? (mutations.getIssue(issueIds[0]!)?.simple_id ?? '')
+          : `${issueIds.length}`;
+      const result = await CancelIssueDialog.show({ subject });
+      if (!result) return;
+      const ok = await mutations.cancelIssues(issueIds, result.reason);
+      if (!ok) {
+        await ConfirmDialog.show({
+          title: 'No Cancelled column',
+          message:
+            'This project has no Cancelled column yet. Restart HiveDeck to add it, or add a terminal column named "Cancelled".',
+          confirmText: 'OK',
+          showCancelButton: false,
+        });
+      }
+    },
+  } satisfies IssueActionDefinition,
+
   DeleteIssue: {
     id: 'delete-issue',
     label: 'Delete Issue',

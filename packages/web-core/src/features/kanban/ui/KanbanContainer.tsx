@@ -38,6 +38,7 @@ import {
 import {
   isDoneStatus,
   useCollapsedStatuses,
+  isCancelledStatusName,
 } from '../model/useCollapsedStatuses';
 import { useFlipCards } from '../model/useFlipCards';
 import { Actions } from '@/shared/actions';
@@ -1496,6 +1497,8 @@ export function KanbanContainer() {
                             name={issue.title}
                             className={cn(
                               'group',
+                              isCancelledStatusName(status.name) &&
+                                'opacity-60 hover:opacity-100',
                               keyboardIssueId === issue.id &&
                                 'ring-2 ring-brand/60 ring-offset-1 ring-offset-primary'
                             )}

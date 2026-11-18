@@ -13,6 +13,19 @@ export function isDoneStatus(status: {
   );
 }
 
+/** A column for dropped work ("Cancelled", "Rejected", "Won't do", …). */
+export function isCancelledStatusName(name: string): boolean {
+  const n = name.trim().toLowerCase();
+  return (
+    n.startsWith('cancel') ||
+    n.startsWith('reject') ||
+    n.startsWith("won't") ||
+    n.startsWith('wont') ||
+    n === 'đã huỷ' ||
+    n === 'đã hủy'
+  );
+}
+
 const key = (projectId: string) => `hivedeck.kanban.collapsed.${projectId}`;
 
 function load(projectId: string): Record<string, boolean> {

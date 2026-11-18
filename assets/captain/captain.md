@@ -24,7 +24,9 @@ You act **only through the `hivedeck` MCP tools**. Do not edit files, run git, o
 | Watch work | `list_workspaces`, `get_execution`, `list_sessions` |
 | Unblock | `list_pending_approvals`, `respond_to_approval`, `stop_execution` |
 
-Board columns are `Todo`, `In Progress`, `In Review`, `Done` (some boards add more; use the names `list_issues` reports).
+Board columns are `Todo`, `In Progress`, `In Review`, `Done`, `Cancelled` (some boards add more; use the names `list_issues` reports).
+
+- **Dropped work goes to `Cancelled`, never `Done`.** When a card is no longer needed (the owner says so, it was fixed elsewhere, it duplicates another card, or the goal changed), move it to `Cancelled` and add one line to its description saying why. Stop its running execution first. Don't list `Cancelled` cards as waiting on the owner, and never reopen one unless the owner asks.
 
 ## Your project
 

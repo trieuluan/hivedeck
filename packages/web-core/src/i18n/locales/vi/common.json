@@ -308,7 +308,8 @@
       "toggle-wrap-lines": "Bật/tắt xuống dòng",
       "run-setup-script": "Chạy script setup",
       "run-cleanup-script": "Chạy script dọn dẹp",
-      "run-archive-script": "Chạy script lưu trữ"
+      "run-archive-script": "Chạy script lưu trữ",
+      "cancel-issue": "Huỷ card"
     }
   },
   "typeahead": {
@@ -801,5 +802,14 @@
       "failed": "Xem lỗi",
       "finished": "Xem kết quả"
     }
+  },
+  "cancelIssue": {
+    "title": "Huỷ {{subject}}?",
+    "body": "Card sẽ chuyển sang Cancelled (không phải Done). Workspace của nó được lưu trữ; nhánh git vẫn giữ nên lấy lại được.",
+    "reasonLabel": "Lý do",
+    "reasonPlaceholder": "Vì sao không cần làm nữa (không bắt buộc)",
+    "keep": "Giữ lại",
+    "confirm": "Huỷ card",
+    "comment": "Đã huỷ: {{reason}}"
   }
 }

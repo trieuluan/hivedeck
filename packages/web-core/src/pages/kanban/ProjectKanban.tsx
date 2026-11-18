@@ -2,6 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { type IssuePriority, type Project } from 'shared/remote-types';
 import { useProjects } from '@/shared/hooks/useProjects';
+import { useWorkspacesContext } from '@/shared/hooks/useWorkspacesContext';
+import { workspacesApi } from '@/shared/lib/api';
+import { makeRequest as makeRemoteRequest } from '@/shared/lib/remoteApi';
+import { isCancelledStatusName } from '@/features/kanban/model/useCollapsedStatuses';
 import { useProjectsContext } from '@/shared/providers/ProjectProvider';
 import { ProjectProvider } from '@/shared/providers/remote/ProjectProvider';
 import { useProjectContext } from '@/shared/hooks/useProjectContext';
@@ -45,6 +49,10 @@ function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
     updateIssue,
     removeIssue,
   } = useProjectContext();
+
+  const { workspaces: remoteWorkspaces } = useWorkspacesContext();
+  const remoteWorkspacesRef = useRef(remoteWorkspaces);
+  remoteWorkspacesRef.current = remoteWorkspaces;
 
   // Use ref to always access latest issues (avoid stale closure)
   const issuesRef = useRef(issues);
@@ -165,6 +173,37 @@ function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
       removeIssue: (id) => {
         removeIssue(id);
       },
+      cancelIssues: async (issueIds, reason) => {
+        const cancelled = statuses.find(
+          (s) => s.is_terminal && isCancelledStatusName(s.name)
+        );
+        if (!cancelled) return false;
+        for (const issueId of issueIds) {
+          updateIssue(issueId, { status_id: cancelled.id });
+          if (reason) {
+            await makeRemoteRequest('/v1/issue_comments', {
+              method: 'POST',
+              body: JSON.stringify({
+                issue_id: issueId,
+                parent_id: null,
+                message: t('cancelIssue.comment', { reason }),
+              }),
+            }).catch((error: unknown) =>
+              console.error('Failed to note cancel reason', error)
+            );
+          }
+          // Archive the card's workspaces; their branches stay.
+          for (const link of remoteWorkspacesRef.current) {
+            if (link.issue_id !== issueId || !link.local_workspace_id) continue;
+            await workspacesApi
+              .update(link.local_workspace_id, { archived: true })
+              .catch((error: unknown) =>
+                console.error('Failed to archive workspace', error)
+              );
+          }
+        }
+        return true;
+      },
       duplicateIssue: (issueId) => {
         const issue = getIssue(issueId);
         if (!issue) return;
@@ -207,6 +246,9 @@ function ProjectMutationsRegistration({ children }: { children: ReactNode }) {
     insertIssue,
     getIssue,
     openCreateIssue,
+    statuses,
+    updateIssue,
+    t,
   ]);
 
   return <>{children}</>;

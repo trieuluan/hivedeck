@@ -308,7 +308,8 @@
       "toggle-wrap-lines": "Toggle line wrapping",
       "run-setup-script": "Run setup script",
       "run-cleanup-script": "Run cleanup script",
-      "run-archive-script": "Run archive script"
+      "run-archive-script": "Run archive script",
+      "cancel-issue": "Cancel issue"
     }
   },
   "typeahead": {
@@ -801,5 +802,14 @@
       "failed": "See error",
       "finished": "Review"
     }
+  },
+  "cancelIssue": {
+    "title": "Cancel {{subject}}?",
+    "body": "The card moves to Cancelled (not Done). Its workspace is archived; the branch is kept, so the work can come back.",
+    "reasonLabel": "Reason",
+    "reasonPlaceholder": "Why it's no longer needed (optional)",
+    "keep": "Keep it",
+    "confirm": "Cancel card",
+    "comment": "Cancelled: {{reason}}"
   }
 }

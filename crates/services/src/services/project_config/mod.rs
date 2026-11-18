@@ -30,7 +30,10 @@ use toml_edit::{Array, ArrayOfTables, Document, Item, Table, value};
 use uuid::Uuid;
 
 const DEFAULT_PROJECT_COLOR: &str = "#6366f1";
-const DEFAULT_STATUSES: &[&str] = &["Todo", "In Progress", "In Review", "Done"];
+const DEFAULT_STATUSES: &[&str] = &["Todo", "In Progress", "In Review", "Done", "Cancelled"];
+/// Columns that end a card's life: finished, or dropped without doing it.
+const TERMINAL_STATUSES: &[&str] = &["Done", "Cancelled"];
+const CANCELLED_COLOR: &str = "#64748b";
 const STATUS_PALETTE: &[&str] = &["#94a3b8", "#3b82f6", "#a855f7", "#22c55e", "#f59e0b"];
 
 /// Top-level shape of an exported/imported config document.
@@ -330,11 +333,56 @@ pub async fn seed_default_statuses(pool: &SqlitePool, project_id: Uuid) -> anyho
             color,
             idx as i64,
             false,
-            idx == DEFAULT_STATUSES.len() - 1,
+            TERMINAL_STATUSES.contains(name),
         )
         .await?;
     }
     Ok(())
+}
+
+/// A column for dropped work ("Cancelled", "Rejected", "Won't do", …).
+pub fn is_cancelled_status_name(name: &str) -> bool {
+    let n = name.trim().to_lowercase();
+    n.starts_with("cancel")
+        || n.starts_with("reject")
+        || n.starts_with("won't")
+        || n.starts_with("wont")
+        || n == "đã huỷ"
+        || n == "đã hủy"
+}
+
+/// Give a project a terminal "Cancelled" column if it has columns but none
+/// for dropped work (projects created before it was a default). Returns
+/// whether one was added.
+pub async fn ensure_cancelled_status(pool: &SqlitePool, project_id: Uuid) -> anyhow::Result<bool> {
+    let statuses = ProjectStatus::list_by_project(pool, project_id).await?;
+    if statuses.is_empty() || statuses.iter().any(|s| is_cancelled_status_name(&s.name)) {
+        return Ok(false);
+    }
+    let next = statuses.iter().map(|s| s.sort_order).max().unwrap_or(0) + 1;
+    ProjectStatus::create(
+        pool,
+        Uuid::new_v4(),
+        project_id,
+        "Cancelled",
+        CANCELLED_COLOR,
+        next,
+        false,
+        true,
+    )
+    .await?;
+    Ok(true)
+}
+
+/// Startup backfill: every project gets a "Cancelled" column once.
+pub async fn backfill_cancelled_statuses(pool: &SqlitePool) -> anyhow::Result<usize> {
+    let mut added = 0;
+    for project in db::models::project::Project::find_all(pool).await? {
+        if ensure_cancelled_status(pool, project.id).await? {
+            added += 1;
+        }
+    }
+    Ok(added)
 }
 
 // ---------------------------------------------------------------------------
@@ -491,6 +539,83 @@ mod tests {
             .unwrap();
         sqlx::migrate!("../db/migrations").run(&pool).await.unwrap();
         pool
+    }
+
+    async fn test_project(pool: &SqlitePool) -> Uuid {
+        Project::create(
+            pool,
+            NewProject {
+                id: Uuid::new_v4(),
+                name: "Board",
+                key: Some("BRD"),
+                color: "#123456",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: None,
+            },
+        )
+        .await
+        .unwrap()
+        .id
+    }
+
+    #[test]
+    fn recognises_cancelled_column_names() {
+        for name in ["Cancelled", "canceled", "Rejected", "Won't do", "Đã huỷ"] {
+            assert!(is_cancelled_status_name(name), "{name}");
+        }
+        for name in ["Done", "In Review", "Todo"] {
+            assert!(!is_cancelled_status_name(name), "{name}");
+        }
+    }
+
+    #[tokio::test]
+    async fn new_projects_get_terminal_done_and_cancelled() {
+        let pool = pool().await;
+        let project = test_project(&pool).await;
+        seed_default_statuses(&pool, project).await.unwrap();
+        let statuses = ProjectStatus::list_by_project(&pool, project)
+            .await
+            .unwrap();
+        let terminal: Vec<_> = statuses
+            .iter()
+            .filter(|s| s.is_terminal)
+            .map(|s| s.name.as_str())
+            .collect();
+        assert_eq!(terminal, ["Done", "Cancelled"]);
+        // Nothing to add afterwards.
+        assert!(!ensure_cancelled_status(&pool, project).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn backfill_adds_cancelled_once_after_existing_columns() {
+        let pool = pool().await;
+        let project = test_project(&pool).await;
+        for (i, name) in ["Todo", "Done"].iter().enumerate() {
+            ProjectStatus::create(
+                &pool,
+                Uuid::new_v4(),
+                project,
+                name,
+                "#000",
+                i as i64,
+                false,
+                *name == "Done",
+            )
+            .await
+            .unwrap();
+        }
+        assert!(ensure_cancelled_status(&pool, project).await.unwrap());
+        assert!(!ensure_cancelled_status(&pool, project).await.unwrap());
+        let last = ProjectStatus::list_by_project(&pool, project)
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+        assert_eq!(
+            (last.name.as_str(), last.is_terminal, last.sort_order),
+            ("Cancelled", true, 2)
+        );
     }
 
     /// Exported config must be valid TOML: top-level scalar keys

@@ -51,6 +51,12 @@ export interface ProjectMutations {
    * which is mounted INSIDE `ProjectProvider`.
    */
   createIssue: (options?: ProjectIssueCreateOptions) => Promise<string | null>;
+  /**
+   * Move cards to the project's Cancelled column, note the reason as a
+   * comment, and archive their workspaces (branches are kept). Resolves to
+   * false when the project has no Cancelled column.
+   */
+  cancelIssues: (issueIds: string[], reason: string) => Promise<boolean>;
 }
 
 // Workspace type for sidebar (minimal subset needed for workspace selection)
