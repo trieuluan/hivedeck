@@ -86,10 +86,11 @@ export function OutlinerLeafNode({
             <DropdownMenuTrigger asChild>
               <button
                 aria-label={t('sidebar.workspaceActions', 'Workspace actions')}
+                title={t('sidebar.workspaceActions', 'Workspace actions')}
                 onClick={(e) => e.stopPropagation()}
                 onPointerDown={(e) => e.stopPropagation()}
                 className={cn(
-                  'shrink-0 rounded-sm p-0.5 text-low hover:bg-tertiary hover:text-high',
+                  '-m-1.5 flex size-8 shrink-0 items-center justify-center rounded-sm text-low hover:bg-tertiary hover:text-high',
                   'opacity-0 focus:opacity-100 focus:outline-none group-hover/leaf:opacity-100 data-[state=open]:opacity-100'
                 )}
               >

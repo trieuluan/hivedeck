@@ -54,6 +54,7 @@ export function TasksSectionNode({
         {onOpenProjectPage && (
           <button
             aria-label={t('sidebar.openProjectPage', 'Open project board')}
+            title={t('sidebar.openProjectPage', 'Open project board')}
             onClick={(e) => {
               e.stopPropagation();
               onOpenProjectPage(section.projectId);
@@ -62,7 +63,7 @@ export function TasksSectionNode({
               e.stopPropagation();
             }}
             className={cn(
-              'shrink-0 rounded-sm p-0.5',
+              '-m-1.5 flex size-8 shrink-0 items-center justify-center rounded-sm',
               'text-low hover:text-high hover:bg-tertiary',
               'transition-opacity focus:outline-none'
             )}

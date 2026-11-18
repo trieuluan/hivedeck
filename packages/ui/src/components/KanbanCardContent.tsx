@@ -211,7 +211,9 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
     <button
       type="button"
       onClick={(e) => e.stopPropagation()}
-      className="flex items-center gap-half cursor-pointer hover:bg-secondary rounded-sm transition-colors"
+      aria-label={t('kanban.tags')}
+      title={t('kanban.tags')}
+      className="relative after:absolute after:left-1/2 after:top-1/2 after:size-8 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] flex items-center gap-half cursor-pointer hover:bg-secondary rounded-sm transition-colors"
     >
       {tagsDisplay}
     </button>
@@ -232,7 +234,9 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
               type="button"
               onClick={onPriorityClick}
               onMouseDown={(e) => e.stopPropagation()}
-              className="flex shrink-0 items-center cursor-pointer hover:bg-secondary rounded-sm transition-colors"
+              aria-label={t('kanban.priority')}
+              title={t('kanban.priority')}
+              className="relative after:absolute after:left-1/2 after:top-1/2 after:size-8 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] flex shrink-0 items-center cursor-pointer hover:bg-secondary rounded-sm transition-colors"
             >
               <PriorityIcon priority={priority} />
               {!priority && (
@@ -251,7 +255,7 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
           {isLoading && <RunningDots />}
         </div>
         {tagEditProps && tags.length === 0 && !isMobile && (
-          <div className="ml-auto invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity">
+          <div className="ml-auto opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto transition-opacity">
             {tagEditProps.renderTagEditor?.({
               allTags: tagEditProps.allTags,
               selectedTagIds: tagEditProps.selectedTagIds,
@@ -270,10 +274,10 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
             }}
             onMouseDown={(e) => e.stopPropagation()}
             className={cn(
-              'p-half -m-half rounded-sm text-low hover:text-normal hover:bg-secondary shrink-0',
+              "relative after:absolute after:left-1/2 after:top-1/2 after:size-8 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] p-half -m-half rounded-sm text-low hover:text-normal hover:bg-secondary shrink-0",
               isMobile
                 ? ''
-                : 'invisible opacity-0 group-hover:visible group-hover:opacity-100',
+                : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto',
               'transition-[opacity,color,background-color]'
             )}
             aria-label={t('common:ui.moreActions')}
@@ -365,7 +369,7 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
                 aria-label={t('kanban.subIssuesCount', {
                   count: subIssueCount,
                 })}
-                className="flex items-center gap-half -m-half px-half rounded-sm text-low hover:text-normal hover:bg-secondary transition-colors"
+                className="relative after:absolute after:left-1/2 after:top-1/2 after:size-8 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] flex items-center gap-half -m-half px-half rounded-sm text-low hover:text-normal hover:bg-secondary transition-colors"
               >
                 <CaretRightIcon
                   className={cn(
@@ -388,7 +392,7 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
                 onMouseDown={(e) => e.stopPropagation()}
                 aria-label={t('kanban.subIssueBoardTitle')}
                 title={t('kanban.subIssueBoardTitle')}
-                className="-m-half ml-auto flex items-center p-half rounded-sm text-low hover:text-normal hover:bg-secondary transition-colors"
+                className="relative after:absolute after:left-1/2 after:top-1/2 after:size-8 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] -m-half ml-auto flex items-center p-half rounded-sm text-low hover:text-normal hover:bg-secondary transition-colors"
               >
                 <KanbanIcon className="size-icon-xs" weight="bold" />
               </button>

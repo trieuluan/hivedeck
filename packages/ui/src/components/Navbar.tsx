@@ -70,7 +70,7 @@ function NavbarIconButton({
     <button
       type="button"
       className={cn(
-        'flex items-center justify-center rounded-sm',
+        'flex min-h-8 min-w-8 items-center justify-center rounded-sm',
         'text-low hover:text-normal',
         isActive && 'text-normal',
         className
@@ -251,9 +251,10 @@ export function Navbar({
                 ? onNavigateBack && (
                     <button
                       type="button"
-                      className="flex items-center justify-center text-low hover:text-normal"
+                      className="flex min-h-8 min-w-8 items-center justify-center text-low hover:text-normal"
                       onClick={onNavigateBack}
                       aria-label={t('common:ui.back')}
+                      title={t('common:ui.back')}
                     >
                       <CaretLeftIcon className="size-icon-base" />
                     </button>
@@ -261,7 +262,7 @@ export function Navbar({
                 : onOpenDrawer && (
                     <button
                       type="button"
-                      className="flex items-center justify-center text-low hover:text-normal"
+                      className="flex min-h-8 min-w-8 items-center justify-center text-low hover:text-normal"
                       onClick={onOpenDrawer}
                       aria-label={t('common:ui.openMenu')}
                     >
@@ -278,9 +279,10 @@ export function Navbar({
                 <>
                   <button
                     type="button"
-                    className="flex items-center justify-center px-1.5 py-1 text-low hover:text-normal"
+                    className="flex min-h-8 min-w-8 items-center justify-center px-1.5 py-1 text-low hover:text-normal"
                     onClick={onNavigateBack}
                     aria-label={t('common:ui.back')}
+                    title={t('common:ui.back')}
                   >
                     <CaretLeftIcon className="size-icon-sm" />
                   </button>
@@ -291,9 +293,10 @@ export function Navbar({
                   <>
                     <button
                       type="button"
-                      className="flex items-center justify-center px-1.5 py-1 text-low hover:text-normal"
+                      className="flex min-h-8 min-w-8 items-center justify-center px-1.5 py-1 text-low hover:text-normal"
                       onClick={onOpenDrawer}
                       aria-label={t('common:ui.projects')}
+                      title={t('common:ui.projects')}
                     >
                       <KanbanIcon className="size-icon-sm" />
                     </button>
@@ -365,9 +368,10 @@ export function Navbar({
             {onReload && (
               <button
                 type="button"
-                className="flex items-center justify-center text-low hover:text-normal"
+                className="flex min-h-8 min-w-8 items-center justify-center text-low hover:text-normal"
                 onClick={onReload}
                 aria-label={t('common:ui.reload')}
+                title={t('common:ui.reload')}
               >
                 <ArrowClockwiseIcon className="size-icon-sm" />
               </button>
@@ -375,9 +379,10 @@ export function Navbar({
             {!isOnProjectPage && onOpenSettings && (
               <button
                 type="button"
-                className="flex items-center justify-center text-low hover:text-normal"
+                className="flex min-h-8 min-w-8 items-center justify-center text-low hover:text-normal"
                 onClick={onOpenSettings}
                 aria-label={t('common:ui.settings')}
+                title={t('common:ui.settings')}
               >
                 <GearIcon className="size-icon-sm" />
               </button>
@@ -385,9 +390,10 @@ export function Navbar({
             {!isOnProjectPage && onOpenCommandBar && (
               <button
                 type="button"
-                className="flex items-center justify-center text-low hover:text-normal"
+                className="flex min-h-8 min-w-8 items-center justify-center text-low hover:text-normal"
                 onClick={onOpenCommandBar}
                 aria-label={t('common:ui.commandBar2')}
+                title={t('common:ui.commandBar2')}
               >
                 <ListIcon className="size-icon-sm" />
               </button>

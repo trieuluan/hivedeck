@@ -200,7 +200,7 @@ function ProjectTreeNode(
               e.stopPropagation();
             }}
             className={cn(
-              'shrink-0 rounded-sm p-0.5',
+              '-m-1.5 flex size-8 shrink-0 items-center justify-center rounded-sm',
               'text-low hover:text-high hover:bg-tertiary',
               'transition-opacity focus:outline-none'
             )}
@@ -211,6 +211,7 @@ function ProjectTreeNode(
         {showOpenIcon && (
           <button
             aria-label={t('sidebar.openProjectPage', 'Open project board')}
+            title={t('sidebar.openProjectPage', 'Open project board')}
             onClick={(e) => {
               e.stopPropagation();
               onOpenProjectPage!(project.id);
@@ -222,7 +223,7 @@ function ProjectTreeNode(
               e.stopPropagation();
             }}
             className={cn(
-              'shrink-0 rounded-sm p-0.5',
+              '-m-1.5 flex size-8 shrink-0 items-center justify-center rounded-sm',
               'text-low hover:text-high hover:bg-tertiary',
               'transition-opacity focus:outline-none'
             )}
@@ -235,6 +236,7 @@ function ProjectTreeNode(
             <DropdownMenuTrigger asChild>
               <button
                 aria-label={t('sidebar.projectActions', 'Project actions')}
+                title={t('sidebar.projectActions', 'Project actions')}
                 onClick={(e) => {
                   e.stopPropagation();
                 }}
@@ -251,7 +253,7 @@ function ProjectTreeNode(
                   e.stopPropagation();
                 }}
                 className={cn(
-                  'shrink-0 rounded-sm p-0.5',
+                  '-m-1.5 flex size-8 shrink-0 items-center justify-center rounded-sm',
                   'text-low hover:text-high hover:bg-tertiary',
                   'transition-opacity focus:outline-none'
                 )}
@@ -342,6 +344,7 @@ function SectionTreeNode(
         {onOpenWorkspacesPage && projectId && (
           <button
             aria-label={t('sidebar.openWorkspacesPage', 'Open workspaces')}
+            title={t('sidebar.openWorkspacesPage', 'Open workspaces')}
             onClick={(e) => {
               e.stopPropagation();
               onOpenWorkspacesPage(projectId);
@@ -350,7 +353,7 @@ function SectionTreeNode(
               e.stopPropagation();
             }}
             className={cn(
-              'shrink-0 rounded-sm p-0.5',
+              '-m-1.5 flex size-8 shrink-0 items-center justify-center rounded-sm',
               'text-low hover:text-high hover:bg-tertiary',
               'transition-opacity focus:outline-none'
             )}
@@ -469,7 +472,7 @@ function CaptainTreeNode(
               e.stopPropagation();
               onSelectOrchestratorPrompt(data.projectId);
             }}
-            className="shrink-0 rounded-sm p-0.5 text-low opacity-0 hover:bg-tertiary hover:text-high focus-visible:opacity-100 group-hover/captain:opacity-100"
+            className="-m-1.5 flex size-8 shrink-0 items-center justify-center rounded-sm text-low opacity-0 hover:bg-tertiary hover:text-high focus-visible:opacity-100 group-hover/captain:opacity-100"
           >
             <PencilSimpleIcon className="size-3.5" weight="bold" />
           </button>

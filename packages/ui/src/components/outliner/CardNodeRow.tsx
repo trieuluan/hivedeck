@@ -96,6 +96,7 @@ export function CardNodeRow({
         {hasChildren && onSelectIssue && (
           <button
             aria-label={t('sidebar.openIssuePage', 'Open task')}
+            title={t('sidebar.openIssuePage', 'Open task')}
             onClick={(e) => {
               e.stopPropagation();
               onSelectIssue(issue.projectId, issue.id, issue.parentIssueId);
@@ -107,7 +108,7 @@ export function CardNodeRow({
               e.stopPropagation();
             }}
             className={cn(
-              'shrink-0 rounded-sm p-0.5',
+              '-m-1.5 flex size-8 shrink-0 items-center justify-center rounded-sm',
               'text-low hover:text-high hover:bg-tertiary',
               'transition-opacity focus:outline-none'
             )}

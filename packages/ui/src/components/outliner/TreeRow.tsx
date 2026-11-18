@@ -153,11 +153,12 @@ export function TreeRow({
           type="button"
           aria-label={node.isOpen ? t('sidebar.collapse') : t('sidebar.expand')}
           aria-expanded={node.isOpen}
+          title={node.isOpen ? t('sidebar.collapse') : t('sidebar.expand')}
           onClick={(event) => {
             event.stopPropagation();
             node.toggle();
           }}
-          className="relative flex size-2.5 shrink-0 cursor-pointer items-center justify-center rounded-sm text-low after:absolute after:-inset-1.5 after:content-[''] hover:bg-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          className="flex size-8 -m-[11px] shrink-0 cursor-pointer items-center justify-center rounded-sm text-low hover:bg-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
         >
           <CaretRightIcon
             className={cn(
