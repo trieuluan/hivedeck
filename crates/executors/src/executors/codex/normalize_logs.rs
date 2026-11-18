@@ -90,6 +90,9 @@ struct CommandState {
     exit_code: Option<i32>,
     awaiting_approval: bool,
     call_id: String,
+    /// Output deltas are raw bytes; keep characters cut between deltas.
+    stdout_decoder: workspace_utils::utf8_stream::Utf8ChunkDecoder,
+    stderr_decoder: workspace_utils::utf8_stream::Utf8ChunkDecoder,
 }
 
 impl ToNormalizedEntry for CommandState {
@@ -1766,6 +1769,7 @@ pub fn normalize_logs(
                             exit_code: None,
                             awaiting_approval: false,
                             call_id: call_id.clone(),
+                            ..Default::default()
                         },
                     );
                     let command_state = state.commands.get_mut(&call_id).unwrap();
@@ -1782,7 +1786,10 @@ pub fn normalize_logs(
                     chunk,
                 }) => {
                     if let Some(command_state) = state.commands.get_mut(&call_id) {
-                        let chunk = String::from_utf8_lossy(&chunk);
+                        let chunk = match stream {
+                            ExecOutputStream::Stdout => command_state.stdout_decoder.decode(&chunk),
+                            ExecOutputStream::Stderr => command_state.stderr_decoder.decode(&chunk),
+                        };
                         if chunk.is_empty() {
                             continue;
                         }

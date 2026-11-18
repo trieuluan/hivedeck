@@ -155,7 +155,7 @@ describe('collapseTurnWork', () => {
     expect(second[1]).toBe(first[1]);
   });
 
-  it('folds older automatic captain turns whole, keeps the newest report', () => {
+  it('keeps every captain report visible, older ticks included', () => {
     const tick = () =>
       entry(
         { type: 'user_message' },
@@ -175,7 +175,8 @@ describe('collapseTurnWork', () => {
     );
     expect(types(out)).toEqual([
       'user_message',
-      'AGGREGATED_WORK_GROUP',
+      'tool_use',
+      'assistant_message',
       'user_message',
       'AGGREGATED_WORK_GROUP',
       'assistant_message',

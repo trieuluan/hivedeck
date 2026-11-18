@@ -69,11 +69,14 @@ Your launch prompt may end with a list of enabled directives. Apply only the one
 
 ## Report format
 
-```
-Captain · <time>
-Active: <card> — <state>, …   (or "none")
-Done this tick: <dispatched / moved to review / answered / stopped>
-Needs you: <questions or approvals for the owner>   (omit if none)
-```
+Write the report as plain markdown — never inside a code block (a fenced
+block doesn't wrap and cuts long lines off in the chat). Shape:
 
-Keep it short. The board is the source of truth; the report is the diff.
+    **Active:** HIVE-12 — agent running tests; HIVE-13 — waiting for review   (or "none")
+    **Done this tick:** dispatched HIVE-15; HIVE-11 → In Review
+    **Needs you:** review HIVE-11 (not tested at 800px yet)   (omit if none)
+
+Use a short bullet list instead of `;` when a line holds more than three
+items. Don't repeat the time — the chat shows it. Keep it short: the board
+is the source of truth; the report is the diff. If nothing changed since the
+previous tick, say so in one line instead of repeating the whole report.

@@ -1029,13 +1029,22 @@ impl LocalContainerService {
         let out = child.inner().stdout.take().expect("no stdout");
         let err = child.inner().stderr.take().expect("no stderr");
 
-        // Map stdout bytes -> LogMsg::Stdout
+        // Map stdout bytes -> LogMsg::Stdout. Decode across chunks so a
+        // character cut by a chunk boundary isn't turned into U+FFFD.
+        let mut out_decoder = utils::utf8_stream::Utf8ChunkDecoder::default();
         let out = ReaderStream::new(out)
-            .map_ok(|chunk| LogMsg::Stdout(String::from_utf8_lossy(&chunk).into_owned()));
+            .map_ok(move |chunk| LogMsg::Stdout(out_decoder.decode(&chunk)))
+            .try_filter(|m| {
+                futures::future::ready(!matches!(m, LogMsg::Stdout(s) if s.is_empty()))
+            });
 
         // Map stderr bytes -> LogMsg::Stderr
+        let mut err_decoder = utils::utf8_stream::Utf8ChunkDecoder::default();
         let err = ReaderStream::new(err)
-            .map_ok(|chunk| LogMsg::Stderr(String::from_utf8_lossy(&chunk).into_owned()));
+            .map_ok(move |chunk| LogMsg::Stderr(err_decoder.decode(&chunk)))
+            .try_filter(|m| {
+                futures::future::ready(!matches!(m, LogMsg::Stderr(s) if s.is_empty()))
+            });
 
         // If you have a JSON Patch source, map it to LogMsg::JsonPatch too, then select all three.
 

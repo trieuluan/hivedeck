@@ -2308,7 +2308,10 @@ impl ClaudeLogProcessor {
                 } else if matches!(subtype.as_deref(), Some("success"))
                     && let Some(text) = result.as_ref().and_then(|v| v.as_str())
                     && (self.last_assistant_message.is_none()
-                        || matches!(&self.last_assistant_message, Some(message) if !message.contains(text)))
+                        || matches!(&self.last_assistant_message, Some(message)
+                            // A copy damaged in transport (U+FFFD) is still
+                            // the same final message, not a new one.
+                            if !message.contains(text) && !text.contains('\u{FFFD}')))
                 {
                     let entry = NormalizedEntry {
                         timestamp: None,

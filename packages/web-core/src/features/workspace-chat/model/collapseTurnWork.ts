@@ -3,7 +3,6 @@ import type {
   DisplayEntry,
 } from '@/shared/hooks/useConversationHistory/types';
 import { isAgentErrorText } from './describeAgentError';
-import { isAutoTickMessage } from './autoTick';
 import { isImageRead } from '@/shared/lib/imagePath';
 
 /**
@@ -124,20 +123,6 @@ export function collapseTurnWork(
   const result: DisplayEntry[] = [];
   turns.forEach((turn, turnIndex) => {
     const settled = turnIndex < turns.length - 1 || options.collapseLastTurn;
-
-    // An older automatic captain turn folds whole (its report included):
-    // only the newest report matters, the rest is history.
-    const head = turn[0];
-    const isOlderTick =
-      turnIndex < turns.length - 1 &&
-      head?.type === 'NORMALIZED_ENTRY' &&
-      head.content.entry_type.type === 'user_message' &&
-      isAutoTickMessage(head.content.content);
-    if (settled && isOlderTick && turn.length > 1) {
-      result.push(head);
-      result.push(makeGroup(turn.slice(1) as WorkItem[]));
-      return;
-    }
 
     let run: WorkItem[] = [];
     const flush = () => {

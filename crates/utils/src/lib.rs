@@ -23,6 +23,7 @@ pub mod telegram_config;
 pub mod telegram_topics;
 pub mod text;
 pub mod tokio;
+pub mod utf8_stream;
 pub mod version;
 
 /// Cache for WSL2 detection result
