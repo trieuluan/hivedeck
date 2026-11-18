@@ -4,6 +4,7 @@ import {
   TerminalWindowIcon,
   FileTextIcon,
   GlobeIcon,
+  ImageIcon,
 } from '@phosphor-icons/react';
 import { cn } from '../lib/cn';
 import { ToolStatusDot, type ToolStatusLike } from './ToolStatusDot';
@@ -52,6 +53,7 @@ export const ChatToolSummary = forwardRef<
 
   // Determine icon based on action type or tool name
   const getIcon = () => {
+    if (toolName === 'view_image') return ImageIcon;
     if (toolName === 'Bash') return TerminalWindowIcon;
     switch (actionType) {
       case 'file_read':

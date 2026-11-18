@@ -6,6 +6,7 @@ import type {
   AggregatedThinkingGroup,
   ToolAggregationType,
 } from '@/shared/hooks/useConversationHistory/types';
+import { isImageRead } from './imagePath';
 
 /**
  * Checks if a patch entry is a user_message entry.
@@ -53,7 +54,12 @@ function getAggregationType(
   if (entryType.type !== 'tool_use') return null;
 
   const { action_type } = entryType;
-  if (action_type.action === 'file_read') return 'file_read';
+  if (action_type.action === 'file_read') {
+    // image reads render their own inline preview row.
+    if (isImageRead(entryType.tool_name, 'file_read', action_type.path))
+      return null;
+    return 'file_read';
+  }
   if (action_type.action === 'search') return 'search';
   if (action_type.action === 'web_fetch') return 'web_fetch';
 

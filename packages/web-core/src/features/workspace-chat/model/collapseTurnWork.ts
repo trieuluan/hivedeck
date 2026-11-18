@@ -4,6 +4,7 @@ import type {
 } from '@/shared/hooks/useConversationHistory/types';
 import { isAgentErrorText } from './describeAgentError';
 import { isAutoTickMessage } from './autoTick';
+import { isImageRead } from '@/shared/lib/imagePath';
 
 /**
  * Group the agent's tool work the way Claude Code does: every message the
@@ -42,6 +43,11 @@ function kindOf(entry: DisplayEntry): Kind {
       if (status.status === 'pending_approval') return 'visible';
       if (action_type.action === 'plan_presentation') return 'visible';
       if (SCRIPT_TOOL_NAMES.has(tool_name)) return 'visible';
+      if (
+        action_type.action === 'file_read' &&
+        isImageRead(tool_name, action_type.action, action_type.path)
+      )
+        return 'visible';
       return 'work';
     }
     default:

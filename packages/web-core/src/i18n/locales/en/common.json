@@ -56,7 +56,12 @@
     },
     "loadingEarlierMessages": "Loading earlier messages",
     "emptyTitle": "The conversation is quiet",
-    "emptyDescription": "Send a message to begin."
+    "emptyDescription": "Send a message to begin.",
+    "viewImage": {
+      "openImage": "Open image",
+      "loadError": "Could not load image",
+      "unsafePath": "Invalid image path"
+    }
   },
   "folderPicker": {
     "legend": "Click folder names to navigate • Use action buttons to select",

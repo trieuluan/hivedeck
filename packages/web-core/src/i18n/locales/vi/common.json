@@ -56,7 +56,12 @@
     },
     "loadingEarlierMessages": "Đang tải tin nhắn cũ hơn",
     "emptyTitle": "Cuộc trò chuyện còn trống",
-    "emptyDescription": "Gửi tin nhắn đầu tiên để bắt đầu."
+    "emptyDescription": "Gửi tin nhắn đầu tiên để bắt đầu.",
+    "viewImage": {
+      "openImage": "Mở ảnh",
+      "loadError": "Không tải được ảnh",
+      "unsafePath": "Đường dẫn ảnh không hợp lệ"
+    }
   },
   "folderPicker": {
     "legend": "Bấm tên thư mục để di chuyển • Dùng các nút để chọn",

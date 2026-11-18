@@ -21,6 +21,11 @@ import { getFileIcon } from '@/shared/lib/fileTypeIcon';
 import { useUserSystem } from '@/shared/hooks/useUserSystem';
 import { useTheme } from '@/shared/hooks/useTheme';
 import WYSIWYGEditor from '@/shared/components/WYSIWYGEditor';
+import {
+  hasParentSegment,
+  isImageRead,
+  workspaceImageUrl,
+} from '@/shared/lib/imagePath';
 import { useMessageEditContext } from '../model/contexts/MessageEditContext';
 import type { UseResetProcessResult } from '../model/hooks/useResetProcess';
 import { useChangesViewActions } from '@/shared/hooks/useChangesView';
@@ -177,6 +182,94 @@ function getToolCommand(
 }
 
 /**
+ * Inline image preview for the view_image tool.
+ */
+function ViewImageEntry({
+  path,
+  toolName,
+  status,
+  workspaceId,
+  sessionId,
+}: {
+  path: string;
+  toolName: string;
+  status: ToolStatus;
+  workspaceId: string;
+  sessionId: string | undefined;
+}) {
+  const { t } = useTranslation('common');
+  const [loadError, setLoadError] = useState(false);
+
+  const imageUrl = useMemo(
+    () =>
+      workspaceId && sessionId && !hasParentSegment(path)
+        ? workspaceImageUrl(workspaceId, sessionId, path)
+        : null,
+    [workspaceId, sessionId, path]
+  );
+  const isSafePath = !hasParentSegment(path);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <ChatToolSummary
+        summary={t('conversation.toolSummary.read', { path })}
+        expanded
+        status={status}
+        toolName={toolName}
+        actionType="file_read"
+      />
+      {imageUrl && isSafePath && (
+        <div className="flex flex-col gap-1.5 pl-7">
+          {loadError ? (
+            <div className="text-xs text-destructive">
+              {t('conversation.viewImage.loadError')}
+              {' — '}
+              <a
+                href={imageUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="underline"
+              >
+                {t('conversation.viewImage.openImage')}
+              </a>
+            </div>
+          ) : (
+            <>
+              <a
+                href={imageUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="group relative inline-block max-w-fit overflow-hidden rounded-md border border-border"
+              >
+                <img
+                  src={imageUrl}
+                  alt={path}
+                  className="max-h-64 max-w-full object-contain"
+                  onError={() => setLoadError(true)}
+                />
+              </a>
+              <a
+                href={imageUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-low hover:text-normal hover:underline"
+              >
+                {t('conversation.viewImage.openImage')}
+              </a>
+            </>
+          )}
+        </div>
+      )}
+      {!isSafePath && (
+        <div className="pl-7 text-xs text-destructive">
+          {t('conversation.viewImage.unsafePath')}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * Render tool_use entry types with appropriate components
  */
 function renderToolUseEntry(
@@ -205,6 +298,23 @@ function renderToolUseEntry(
           />
         ))}
       </>
+    );
+  }
+
+  if (
+    status.status === 'success' &&
+    action_type.action === 'file_read' &&
+    isImageRead(entryType.tool_name, action_type.action, action_type.path)
+  ) {
+    return (
+      <ViewImageEntry
+        key={`${workspaceWithSession.id}:${sessionId}:${action_type.path}`}
+        path={action_type.path}
+        toolName={entryType.tool_name}
+        status={status}
+        workspaceId={workspaceWithSession.id}
+        sessionId={sessionId}
+      />
     );
   }
 

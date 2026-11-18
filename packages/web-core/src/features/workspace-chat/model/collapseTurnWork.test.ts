@@ -38,6 +38,31 @@ const types = (entries: DisplayEntry[]) =>
   );
 
 describe('collapseTurnWork', () => {
+  it.each(['view_image', 'Read'])(
+    'keeps %s images outside folded work',
+    (toolName) => {
+      const image = entry({
+        type: 'tool_use',
+        tool_name: toolName,
+        action_type: { action: 'file_read', path: '/tmp/screenshot.png' },
+        status: { status: 'success' },
+      });
+      const result = collapseTurnWork(
+        [user(), tool(), thinking(), image, tool(), thinking(), answer()],
+        {
+          collapseLastTurn: true,
+        }
+      );
+      expect(result).toContain(image);
+      expect(types(result)).toEqual([
+        'user_message',
+        'AGGREGATED_WORK_GROUP',
+        'tool_use',
+        'AGGREGATED_WORK_GROUP',
+        'assistant_message',
+      ]);
+    }
+  );
   it('collapses a finished turn to message, work, answer', () => {
     const turn = [user(), thinking(), tool(), edit('a.ts'), edit('b.ts')];
     const out = collapseTurnWork([...turn, answer()], {
