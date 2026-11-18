@@ -27,11 +27,23 @@ same test found that every Claude Code request to DeepSeek failed with 400:
 DeepSeek rejects the JSON-schema `pattern` of Claude Code's claude.ai
 `Artifact` tools.
 
+Later the same day: OpenCode reached without a key (9router's public
+account) answers HiveDeck's tiny test request but refuses every real agent
+request from Claude Code or Codex with `FreeUsageLimitError` ("Free models
+work in OpenCode"); `mmf/mimo-auto` failed with 502. With Codex back,
+`cx/gpt-6-astra` cached ~99% from the 2nd request through Claude Code
+(~12k input); through Codex the Codex backend reported ~108–112k input per
+request, cached only from the 3rd request — outside HiveDeck's control.
+
 ## Decision
 
 - Disabling session rotation deletes the rotation combos and keeps 9router
   on `fallback`; it never switches to round-robin. Rotation stays available
   as an opt-in.
+- OpenCode models without a keyed connection (and any `-free` OpenCode
+  model) are excluded from suggestions as "OpenCode app only", recorded in
+  the blocklist; `FreeUsageLimitError` counts as a permanent failure. A
+  model the owner restores is remembered and not hidden again.
 - Headless Claude runs always pass
   `--disallowedTools=Artifact,ArtifactComments,ArtifactData` (plus
   `AskUserQuestion` when not in plan/approval mode).

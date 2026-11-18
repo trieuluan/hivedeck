@@ -807,7 +807,8 @@
           "rateLimited": "Bị giới hạn tốc độ",
           "quotaExhausted": "Hết quota",
           "noUsage": "Không báo mức dùng",
-          "unreachable": "Không kết nối được provider"
+          "unreachable": "Không kết nối được provider",
+          "openCodeAppOnly": "Model miễn phí: chỉ chạy trong ứng dụng OpenCode"
         }
       },
       "version": "Phiên bản",

@@ -112,6 +112,7 @@ function Consent({ onAllow }: { onAllow: () => void }) {
 /** The backend's English one-line summaries, in the UI language. */
 const SUMMARY_KEYS: Record<string, string> = {
   'Out of credits': 'outOfCredits',
+  'Free model: OpenCode app only': 'openCodeAppOnly',
   'API key expired': 'keyExpired',
   'Not available with a ChatGPT login': 'chatgptLogin',
   'Model not available on this account': 'notOnAccount',
@@ -364,7 +365,7 @@ function ExcludedList({
               className="flex flex-wrap items-center gap-x-base gap-y-1 px-base py-2 text-xs"
             >
               <span className="break-all font-mono text-normal">{e.id}</span>
-              <span className="text-error">{e.reason}</span>
+              <span className="text-error">{summaryText(e.reason, t)}</span>
               <span className="ml-auto flex items-center gap-2 text-low">
                 {e.permanent ? (
                   <>

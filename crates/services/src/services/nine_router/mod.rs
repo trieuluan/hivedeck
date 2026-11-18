@@ -950,6 +950,31 @@ pub async fn suggestions(
     let mut blocklist = read_blocklist().await;
     let mut excluded = advisor::locked_models(&models, &locks, &connections);
     let mut learned = false;
+    // Models known to refuse agent requests, unless the owner restored them.
+    let allowed = read_allowlist().await;
+    let keyed: std::collections::HashSet<&str> = connections
+        .iter()
+        .filter(|c| c.is_active)
+        .map(|c| c.provider.as_str())
+        .collect();
+    for m in &models {
+        let provider = advisor::provider_for_alias(&m.owned_by);
+        let has_key = keyed.contains(provider.as_str());
+        if let Some(reason) = advisor::agent_blocked(&m.id, &provider, has_key)
+            && !allowed.contains(&m.id)
+            && !blocklist.contains_key(&m.id)
+        {
+            blocklist.insert(
+                m.id.clone(),
+                BlockedModel {
+                    reason: reason.to_string(),
+                    added_at: chrono::Utc::now().to_rfc3339(),
+                    until: None,
+                },
+            );
+            learned = true;
+        }
+    }
     for e in excluded.iter().filter(|e| e.permanent) {
         if !blocklist.contains_key(&e.id) {
             blocklist.insert(
@@ -1087,6 +1112,25 @@ struct BlockedModel {
 /// suggestions (matches 9router's typical cooldown).
 const TEST_FAILURE_COOLDOWN: chrono::Duration = chrono::Duration::minutes(30);
 
+fn allowlist_path() -> PathBuf {
+    runtime_dir().join("model-allowlist.json")
+}
+
+/// Models the owner restored by hand; policy exclusions skip them.
+async fn read_allowlist() -> std::collections::HashSet<String> {
+    tokio::fs::read_to_string(allowlist_path())
+        .await
+        .ok()
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_default()
+}
+
+async fn write_allowlist(list: &std::collections::HashSet<String>) -> std::io::Result<()> {
+    tokio::fs::create_dir_all(runtime_dir()).await?;
+    let raw = serde_json::to_string_pretty(list).map_err(std::io::Error::other)?;
+    tokio::fs::write(allowlist_path(), raw).await
+}
+
 fn blocklist_path() -> PathBuf {
     runtime_dir().join("model-blocklist.json")
 }
@@ -1205,6 +1249,11 @@ pub async fn unblock_model(settings: &NineRouterSettings, id: &str) -> Result<()
     if list.remove(id).is_some() {
         write_blocklist(&list).await?;
         log_line(&format!("model {id} shown again")).await;
+    }
+    // Don't hide it again by policy (agent_blocked) once the owner chose it.
+    let mut allowed = read_allowlist().await;
+    if allowed.insert(id.to_string()) {
+        write_allowlist(&allowed).await?;
     }
     Ok(())
 }

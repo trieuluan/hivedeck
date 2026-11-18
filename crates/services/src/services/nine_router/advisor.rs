@@ -190,6 +190,18 @@ impl ProviderHealth {
     }
 }
 
+/// Why a free model can't serve agents (shown in the excluded list).
+pub const AGENT_BLOCKED_FREE: &str = "Free model: OpenCode app only";
+
+/// Models that answer a tiny test request but refuse real agent requests
+/// (tools, long prompts) from outside their own app, so they would only
+/// add a failing hop to every fallback (ADR-040). OpenCode reached without
+/// a key (9router's public account) serves only its free models, and those
+/// return `FreeUsageLimitError` to Claude Code and Codex.
+pub fn agent_blocked(id: &str, provider: &str, has_key: bool) -> Option<&'static str> {
+    (provider == "opencode" && (!has_key || id.ends_with("-free"))).then_some(AGENT_BLOCKED_FREE)
+}
+
 pub fn is_pay_as_you_go(provider: &str) -> bool {
     PAY_AS_YOU_GO_PROVIDERS.contains(&provider)
 }
@@ -221,6 +233,8 @@ pub fn is_temporary_limit(raw: &str) -> bool {
         "payment",
         "credits_required",
         "usage credits are required",
+        "free usage limit reached",
+        "freeusagelimiterror",
     ];
     if billing.iter().any(|w| lower.contains(w)) {
         return false;
@@ -434,6 +448,9 @@ pub fn is_permanent_failure(raw: &str) -> bool {
         // with a 429, but waiting won't help).
         "credits_required",
         "usage credits are required",
+        // OpenCode's free models answer only inside the OpenCode app.
+        "free usage limit reached",
+        "freeusagelimiterror",
     ]
     .iter()
     .any(|n| lower.contains(n))
@@ -503,6 +520,10 @@ pub fn locked_models(
 pub fn summarize_message(raw: &str) -> String {
     let lower = raw.to_lowercase();
     let known = [
+        (
+            &["free usage limit reached", "freeusagelimiterror"][..],
+            AGENT_BLOCKED_FREE,
+        ),
         (
             &["credits_required", "usage credits are required"][..],
             "Model not available on this account",
@@ -1553,6 +1574,14 @@ mod tests {
             "[429]: usage limit reached: insufficient balance (1008)"
         ));
         assert!(!is_temporary_limit("[402]: Add usage credits"));
+        let free = r#"[429]: {"type":"error","error":{"type":"FreeUsageLimitError","message":"Free usage limit reached. Free models work in OpenCode"}}"#;
+        assert!(is_permanent_failure(free));
+        assert!(!is_temporary_limit(free));
+        assert_eq!(summarize_message(free), AGENT_BLOCKED_FREE);
+        assert!(agent_blocked("oc/nemotron-3.5-lightning-free", "opencode", true).is_some());
+        assert!(agent_blocked("oc/big-pickle", "opencode", false).is_some());
+        assert!(agent_blocked("oc/big-pickle", "opencode", true).is_none());
+        assert!(agent_blocked("ocg/glm-5.3", "opencode-go", false).is_none());
         let credits = r#"[429]: {"error":{"type":"rate_limit_error","message":"Usage credits are required for this model.","details":{"error_code":"credits_required"}}}"#;
         assert!(!is_temporary_limit(credits));
         assert!(is_permanent_failure(credits));

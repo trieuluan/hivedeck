@@ -807,7 +807,8 @@
           "rateLimited": "Rate limited",
           "quotaExhausted": "Quota exhausted",
           "noUsage": "Usage not reported",
-          "unreachable": "Provider unreachable"
+          "unreachable": "Provider unreachable",
+          "openCodeAppOnly": "Free model: works only inside the OpenCode app"
         }
       },
       "version": "Version",
