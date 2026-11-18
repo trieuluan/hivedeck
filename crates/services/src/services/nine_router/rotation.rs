@@ -27,6 +27,8 @@ pub const ROTATED_ROLES: [super::ComboRole; 2] =
 
 /// Suffix of a rotation combo: `coder-r2`.
 const SUFFIX: &str = "-r";
+/// Enough starting points to spread sessions; more only adds combos.
+const MAX_ROTATIONS: usize = 4;
 
 /// Combo name → number of rotations kept in 9router (0 = none, use as is).
 fn known() -> &'static Mutex<HashMap<String, usize>> {
@@ -44,10 +46,36 @@ pub fn is_rotation_name(name: &str) -> bool {
         .is_some_and(|(base, n)| !base.is_empty() && n.parse::<usize>().is_ok_and(|n| n > 0))
 }
 
-/// The models of rotation `index`: the list started at `index`.
+/// A pay-as-you-go model (`ds/…`): billed per token, so it stays last.
+fn is_backup(model: &str) -> bool {
+    model.split_once('/').is_some_and(|(alias, _)| {
+        super::advisor::is_pay_as_you_go(&super::advisor::provider_for_alias(alias))
+    })
+}
+
+/// Split a chain into the part that rotates and the pay-as-you-go tail.
+fn split_backup(models: &[String]) -> (Vec<String>, Vec<String>) {
+    models.iter().cloned().partition(|m| !is_backup(m))
+}
+
+/// How many rotations a chain gets (0 = nothing to rotate).
+pub fn rotation_count(models: &[String]) -> usize {
+    let (head, _) = split_backup(models);
+    if head.len() > 1 {
+        head.len().min(MAX_ROTATIONS)
+    } else {
+        0
+    }
+}
+
+/// The models of rotation `index`: the chain started at `index`, with the
+/// pay-as-you-go backups kept at the end of every rotation.
 pub fn rotate(models: &[String], index: usize) -> Vec<String> {
-    let n = models.len();
-    (0..n).map(|i| models[(index + i) % n].clone()).collect()
+    let (head, tail) = split_backup(models);
+    let n = head.len();
+    let mut out: Vec<String> = (0..n).map(|i| head[(index + i) % n].clone()).collect();
+    out.extend(tail);
+    out
 }
 
 /// Which rotation a session uses. Stable for the session's lifetime, so its
@@ -72,8 +100,7 @@ pub async fn sync(
             continue;
         };
         let models = &base.models;
-        // One model: nothing to rotate.
-        let n = if models.len() > 1 { models.len() } else { 0 };
+        let n = rotation_count(models);
         for index in 0..n {
             let name = rotation_name(combo, index);
             let wanted = rotate(models, index);
@@ -158,6 +185,17 @@ mod tests {
         assert_eq!(rotate(&m, 0), models(&["a", "b", "c"]));
         assert_eq!(rotate(&m, 1), models(&["b", "c", "a"]));
         assert_eq!(rotate(&m, 2), models(&["c", "a", "b"]));
+    }
+
+    #[test]
+    fn pay_as_you_go_backups_stay_last_and_rotations_are_capped() {
+        let m = models(&["cc/a", "oc/b", "cx/c", "ocg/d", "mmg/e", "ds/backup"]);
+        assert_eq!(rotation_count(&m), 4);
+        assert_eq!(
+            rotate(&m, 1),
+            models(&["oc/b", "cx/c", "ocg/d", "mmg/e", "cc/a", "ds/backup"])
+        );
+        assert_eq!(rotation_count(&models(&["cc/a", "ds/backup"])), 0);
     }
 
     #[test]

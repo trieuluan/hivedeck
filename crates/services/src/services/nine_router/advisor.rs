@@ -3,9 +3,10 @@
 //! Scores every chat model 9router exposes for four agent roles, using the
 //! model's capabilities (`/v1/models`), a name-based strength heuristic, and
 //! the live quota/health of the provider connection behind it. Each role gets
-//! a fallback chain of up to four models spread across providers, so one
-//! exhausted provider never takes a role down. Pure functions; I/O lives in
-//! the parent module.
+//! a three-part fallback chain (ADR-039): primary models from every healthy
+//! subscription/free provider, then standby models from providers that are
+//! only out until their quota resets, then a pay-as-you-go backup that never
+//! runs out. Pure functions; I/O lives in the parent module.
 
 use std::collections::{HashMap, HashSet};
 
@@ -17,8 +18,22 @@ use super::{
     api::{Combo, Connection, ModelLock, Usage},
 };
 
-const CHAIN_LEN: usize = 4;
+/// Primary models: healthy providers, best first.
+const PRIMARY_LEN: usize = 5;
+/// Standby models: one per provider that is out until its quota resets.
+const STANDBY_LEN: usize = 3;
+/// Pay-as-you-go backups at the very end.
+const BACKUP_LEN: usize = 2;
 const MAX_PER_PROVIDER: usize = 2;
+/// Providers billed per token from a prepaid balance: always available while
+/// the balance lasts, so they belong at the end of every chain.
+pub const PAY_AS_YOU_GO_PROVIDERS: &[&str] = &["deepseek", "openrouter"];
+/// Free models are rate-limited and change often; rank them lower.
+const FREE_PENALTY: f64 = 0.12;
+/// Free models in a chain's primary part, at most.
+const MAX_FREE: usize = 1;
+/// Legacy aliases that now point at another model (e.g. `deepseek-reasoner`).
+const LEGACY_TOKENS: &[&str] = &["reasoner", "chat"];
 const EXHAUSTED_BELOW: f64 = 0.02;
 const LOW_BELOW: f64 = 0.20;
 /// A reviewer from the coder's own model family tends to miss the same
@@ -57,6 +72,8 @@ pub enum ProviderHealthStatus {
     Ok,
     /// Usable, but under 20% of its tightest quota window is left.
     Low,
+    /// Out of quota right now (usage or rate limit); comes back on reset.
+    Limited,
     Exhausted,
     /// Credentials or connection test failing.
     Error,
@@ -70,6 +87,43 @@ impl ProviderHealthStatus {
     fn usable(self) -> bool {
         matches!(self, Self::Ok | Self::Low | Self::Unknown)
     }
+
+    /// Out only until a quota window resets.
+    fn temporary(self) -> bool {
+        matches!(self, Self::Limited | Self::Exhausted)
+    }
+}
+
+/// How a provider is paid for.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderBilling {
+    /// A plan with usage windows (5h / weekly / monthly).
+    Subscription,
+    /// Per token from a prepaid balance.
+    PayAsYouGo,
+    /// Free models, rate-limited.
+    Free,
+    Unknown,
+}
+
+/// One usage window of a provider, e.g. `weekly (7d)` at 61%.
+#[derive(Clone, Debug, Serialize, TS)]
+pub struct QuotaWindow {
+    pub name: String,
+    pub remaining_percent: u8,
+    pub reset_at: Option<String>,
+}
+
+/// Where a model sits in a combo's fallback chain.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ChainSlot {
+    Primary,
+    /// Its provider is out until a reset; kept so it comes back on its own.
+    Standby,
+    /// Pay-as-you-go, last resort.
+    Backup,
 }
 
 #[derive(Clone, Debug, Serialize, TS)]
@@ -88,6 +142,117 @@ pub struct ProviderHealth {
     /// One-line, human summary of `message` (e.g. "API key expired").
     pub summary: Option<String>,
     pub model_count: usize,
+    pub billing: ProviderBilling,
+    /// Every usage window, shortest first (5h, daily, weekly, monthly…).
+    pub quotas: Vec<QuotaWindow>,
+    /// For a limited provider: which window ran out, e.g. `weekly`.
+    pub limit_window: Option<String>,
+    /// For a limited provider: when it comes back, as the provider said it
+    /// (e.g. `4d 13h`), when no exact time is known.
+    pub resets_in: Option<String>,
+}
+
+impl ProviderHealth {
+    pub fn unknown(provider: &str) -> Self {
+        Self {
+            provider: provider.to_string(),
+            alias: String::new(),
+            status: ProviderHealthStatus::Unknown,
+            remaining_percent: None,
+            quota_name: None,
+            reset_at: None,
+            message: None,
+            summary: None,
+            model_count: 0,
+            billing: ProviderBilling::Unknown,
+            quotas: Vec::new(),
+            limit_window: None,
+            resets_in: None,
+        }
+    }
+
+    /// Decide how the provider is paid for, from its name and quota windows.
+    pub fn classify_billing(&mut self) {
+        let named = |w: &str| self.provider.contains(w);
+        let balance = self.quotas.iter().any(|q| {
+            let n = q.name.to_lowercase();
+            n.contains("balance") || n.contains("credit")
+        });
+        self.billing = if is_pay_as_you_go(&self.provider) || balance {
+            ProviderBilling::PayAsYouGo
+        } else if named("free") {
+            ProviderBilling::Free
+        } else if !self.quotas.is_empty() || self.status.temporary() {
+            ProviderBilling::Subscription
+        } else {
+            ProviderBilling::Unknown
+        };
+    }
+}
+
+pub fn is_pay_as_you_go(provider: &str) -> bool {
+    PAY_AS_YOU_GO_PROVIDERS.contains(&provider)
+}
+
+/// Sort key for quota windows: shortest window first.
+fn window_order(name: &str) -> u8 {
+    let n = name.to_lowercase();
+    if n.contains("5h") || n.contains("session") || n.contains("hour") {
+        0
+    } else if n.contains("day") || n.contains("daily") || n.contains("24h") {
+        1
+    } else if n.contains("week") || n.contains("7d") {
+        2
+    } else if n.contains("month") || n.contains("30d") {
+        3
+    } else {
+        4
+    }
+}
+
+/// A usage/rate limit that ends on its own (as opposed to bad credentials or
+/// an empty balance).
+pub fn is_temporary_limit(raw: &str) -> bool {
+    let lower = raw.to_lowercase();
+    let billing = [
+        "insufficient balance",
+        "402",
+        "add usage credits",
+        "payment",
+        "credits_required",
+        "usage credits are required",
+    ];
+    if billing.iter().any(|w| lower.contains(w)) {
+        return false;
+    }
+    [
+        "429",
+        "usage limit",
+        "rate limit",
+        "rate_limit",
+        "too many requests",
+        "resets in",
+    ]
+    .iter()
+    .any(|w| lower.contains(w))
+}
+
+/// `(weekly, resets in 4d 13h)` → (`weekly`, `4d 13h`).
+pub fn parse_limit_note(raw: &str) -> (Option<String>, Option<String>) {
+    let lower = raw.to_lowercase();
+    let window = ["5-hour", "5h", "hourly", "daily", "weekly", "monthly"]
+        .iter()
+        .find(|w| lower.contains(*w))
+        .map(|w| w.to_string());
+    let resets = lower.find("resets in ").map(|i| {
+        lower[i + "resets in ".len()..]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == ' ')
+            .collect::<String>()
+            .trim()
+            .to_string()
+    });
+    (window, resets.filter(|r| !r.is_empty()))
 }
 
 #[derive(Clone, Debug, Serialize, TS)]
@@ -95,6 +260,7 @@ pub struct SuggestedModel {
     pub id: String,
     pub provider: String,
     pub reason: String,
+    pub slot: ChainSlot,
 }
 
 #[derive(Clone, Debug, Serialize, TS)]
@@ -131,6 +297,9 @@ pub struct ModelCheck {
     pub latency_ms: Option<u64>,
     pub error: Option<String>,
     pub permanent: bool,
+    /// Failed only because the provider is out of quota for now: fine for a
+    /// standby model, which the chain uses again after the reset.
+    pub limited: bool,
 }
 
 #[derive(Clone, Debug, Serialize, TS)]
@@ -182,23 +351,30 @@ pub fn provider_health(
 }
 
 fn connection_health(conn: &Connection, usage: Option<&Usage>) -> ProviderHealth {
-    let mut h = ProviderHealth {
-        provider: conn.provider.clone(),
-        alias: String::new(),
-        status: ProviderHealthStatus::Unknown,
-        remaining_percent: None,
-        quota_name: None,
-        reset_at: None,
-        message: None,
-        summary: None,
-        model_count: 0,
-    };
+    let mut h = ProviderHealth::unknown(&conn.provider);
     if !conn.is_active {
         h.status = ProviderHealthStatus::Inactive;
         return h;
     }
+    if let Some(usage) = usage {
+        h.quotas = usage
+            .quotas
+            .iter()
+            .map(|q| QuotaWindow {
+                name: q.name.clone(),
+                remaining_percent: (q.remaining * 100.0).round() as u8,
+                reset_at: q.reset_at.clone(),
+            })
+            .collect();
+        h.quotas.sort_by_key(|q| window_order(&q.name));
+    }
     if let Some(err) = &conn.error {
-        h.status = ProviderHealthStatus::Error;
+        if is_temporary_limit(err) {
+            h.status = ProviderHealthStatus::Limited;
+            (h.limit_window, h.resets_in) = parse_limit_note(err);
+        } else {
+            h.status = ProviderHealthStatus::Error;
+        }
         h.summary = Some(summarize_message(err));
         h.message = Some(err.clone());
         return h;
@@ -254,6 +430,10 @@ pub fn is_permanent_failure(raw: &str) -> bool {
         "no such model",
         "not available on your plan",
         "unsupported model",
+        // Paid-credit models on a subscription account (Anthropic answers
+        // with a 429, but waiting won't help).
+        "credits_required",
+        "usage credits are required",
     ]
     .iter()
     .any(|n| lower.contains(n))
@@ -323,6 +503,14 @@ pub fn locked_models(
 pub fn summarize_message(raw: &str) -> String {
     let lower = raw.to_lowercase();
     let known = [
+        (
+            &["credits_required", "usage credits are required"][..],
+            "Model not available on this account",
+        ),
+        (
+            &["insufficient balance", "add usage credits", "402"][..],
+            "Out of credits",
+        ),
         (
             &["api_key_expired", "key has expired", "key expired"][..],
             "API key expired",
@@ -405,9 +593,10 @@ pub fn summarize_message(raw: &str) -> String {
 
 fn rank(status: ProviderHealthStatus) -> u8 {
     match status {
-        ProviderHealthStatus::Ok => 5,
-        ProviderHealthStatus::Unknown => 4,
-        ProviderHealthStatus::Low => 3,
+        ProviderHealthStatus::Ok => 6,
+        ProviderHealthStatus::Unknown => 5,
+        ProviderHealthStatus::Low => 4,
+        ProviderHealthStatus::Limited => 3,
         ProviderHealthStatus::Exhausted => 2,
         ProviderHealthStatus::Error => 1,
         ProviderHealthStatus::Inactive => 0,
@@ -428,17 +617,7 @@ fn best_connection_health(
                 .cmp(&rank(b.status))
                 .then(a.remaining_percent.cmp(&b.remaining_percent))
         })
-        .unwrap_or_else(|| ProviderHealth {
-            provider: provider.to_string(),
-            alias: String::new(),
-            status: ProviderHealthStatus::Unknown,
-            remaining_percent: None,
-            quota_name: None,
-            reset_at: None,
-            message: None,
-            summary: None,
-            model_count: 0,
-        })
+        .unwrap_or_else(|| ProviderHealth::unknown(provider))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -699,7 +878,38 @@ impl Candidate<'_> {
         } else {
             0.0
         };
-        0.8 * tier + 0.2 * self.recency - unstable
+        let legacy = if self.name.version.is_empty() && self.name.has(LEGACY_TOKENS) {
+            0.25
+        } else {
+            0.0
+        };
+        let free = if self.is_free() { FREE_PENALTY } else { 0.0 };
+        0.8 * tier + 0.2 * self.recency - unstable - legacy - free
+    }
+
+    fn is_free(&self) -> bool {
+        self.model.id.ends_with("-free")
+            || self.provider.contains("free")
+            || self
+                .health
+                .is_some_and(|h| h.billing == ProviderBilling::Free)
+    }
+
+    fn is_backup(&self) -> bool {
+        is_pay_as_you_go(&self.provider)
+            || self
+                .health
+                .is_some_and(|h| h.billing == ProviderBilling::PayAsYouGo)
+    }
+
+    fn slot(&self) -> ChainSlot {
+        if self.is_backup() {
+            ChainSlot::Backup
+        } else if self.health.is_some_and(|h| h.status.temporary()) {
+            ChainSlot::Standby
+        } else {
+            ChainSlot::Primary
+        }
     }
 
     fn speed(&self) -> f64 {
@@ -850,27 +1060,59 @@ impl Candidate<'_> {
     }
 }
 
-/// Build a fallback chain: best first, spread across providers (a provider
-/// appears at most twice and only after every other usable provider had a
-/// chance), one variant per model.
+/// Build a fallback chain (ADR-039), in three parts:
+/// 1. primary — healthy subscription/free providers, best first, spread
+///    across providers (each once before any twice, at most twice);
+/// 2. standby — the best model of each provider that is out until a reset,
+///    so the combo picks it up again on its own;
+/// 3. backup — pay-as-you-go providers, last, so they are only billed when
+///    everything else is out.
 fn chain(ranked: &[(f64, &Candidate<'_>)]) -> Vec<SuggestedModel> {
     let mut picks: Vec<&Candidate<'_>> = Vec::new();
+    let same_model = |picks: &[&Candidate<'_>], c: &Candidate<'_>| {
+        picks
+            .iter()
+            .any(|p| p.provider == c.provider && p.name.base == c.name.base)
+    };
+    let count_of = |picks: &[&Candidate<'_>], c: &Candidate<'_>| {
+        picks.iter().filter(|p| p.provider == c.provider).count()
+    };
+
+    let primary: Vec<&Candidate<'_>> = ranked
+        .iter()
+        .map(|(_, c)| *c)
+        .filter(|c| c.slot() == ChainSlot::Primary)
+        .collect();
     for distinct_pass in [true, false] {
-        for (_, c) in ranked {
-            if picks.len() >= CHAIN_LEN {
+        for c in &primary {
+            if picks.len() >= PRIMARY_LEN {
                 break;
             }
-            if picks
-                .iter()
-                .any(|p| p.provider == c.provider && p.name.base == c.name.base)
+            let n = count_of(&picks, c);
+            let free = picks.iter().filter(|p| p.is_free()).count();
+            if same_model(&picks, c)
+                || (distinct_pass && n > 0)
+                || n >= MAX_PER_PROVIDER
+                || (c.is_free() && free >= MAX_FREE)
             {
                 continue;
             }
-            let same_provider = picks.iter().filter(|p| p.provider == c.provider).count();
-            if (distinct_pass && same_provider > 0) || same_provider >= MAX_PER_PROVIDER {
-                continue;
-            }
             picks.push(c);
+        }
+    }
+    for (slot, cap) in [
+        (ChainSlot::Standby, STANDBY_LEN),
+        (ChainSlot::Backup, BACKUP_LEN),
+    ] {
+        let mut added = 0;
+        for (_, c) in ranked {
+            if added >= cap {
+                break;
+            }
+            if c.slot() == slot && count_of(&picks, c) == 0 {
+                picks.push(c);
+                added += 1;
+            }
         }
     }
     picks
@@ -879,6 +1121,7 @@ fn chain(ranked: &[(f64, &Candidate<'_>)]) -> Vec<SuggestedModel> {
             id: c.model.id.clone(),
             provider: c.provider.clone(),
             reason: c.reason(),
+            slot: c.slot(),
         })
         .collect()
 }
@@ -894,7 +1137,10 @@ pub fn suggest(
         .filter(|m| is_chat_model(m) && !excluded.contains(&m.id))
         .filter_map(|m| {
             let provider = provider_for_alias(&m.owned_by);
-            if health.get(&provider).is_some_and(|h| !h.status.usable()) {
+            if health
+                .get(&provider)
+                .is_some_and(|h| !h.status.usable() && !h.status.temporary())
+            {
                 return None;
             }
             Some((m, parse_name(&m.id), provider))
@@ -1182,7 +1428,7 @@ mod tests {
             ComboRole::ALL.to_vec()
         );
         for r in &roles {
-            assert!(r.models.len() <= CHAIN_LEN);
+            assert!(r.models.len() <= PRIMARY_LEN + STANDBY_LEN + BACKUP_LEN);
             // First three picks come from three different providers.
             let firsts: Vec<_> = r.models.iter().take(3).map(|m| &m.provider).collect();
             let mut uniq = firsts.clone();
@@ -1229,7 +1475,91 @@ mod tests {
         ]);
         assert_eq!(health["claude"].status, ProviderHealthStatus::Exhausted);
         let roles = suggest(&catalog(), &health, &[], &HashSet::new());
-        assert!(roles[1].models.iter().all(|m| m.provider != "claude"));
+        // An exhausted provider leaves the primary part but stays on standby,
+        // so the combo uses it again after the reset.
+        let coder = &roles[1];
+        assert!(coder.models[0].provider != "claude");
+        let claude: Vec<_> = coder
+            .models
+            .iter()
+            .filter(|m| m.provider == "claude")
+            .collect();
+        assert_eq!(claude.len(), 1);
+        assert_eq!(claude[0].slot, ChainSlot::Standby);
+    }
+
+    #[test]
+    fn pay_as_you_go_goes_last_and_limits_are_standby() {
+        let mut limited = conn(
+            "codex",
+            true,
+            Some("[429]: The usage limit has been reached"),
+        );
+        limited.id = "cx".into();
+        let mut health = provider_health(&[
+            (conn("claude", true, None), Some(usage(0.6))),
+            (limited, None),
+            (
+                conn("deepseek", true, None),
+                Some(Usage {
+                    quotas: vec![Quota {
+                        name: "Balance (USD)".into(),
+                        remaining: 1.0,
+                        reset_at: None,
+                    }],
+                    message: None,
+                }),
+            ),
+        ]);
+        for h in health.values_mut() {
+            h.classify_billing();
+        }
+        assert_eq!(health["codex"].status, ProviderHealthStatus::Limited);
+        assert_eq!(health["deepseek"].billing, ProviderBilling::PayAsYouGo);
+        let mut models = catalog();
+        models.push(model("ds/deepseek-v4-pro", "ds", true, true, 1_000_000));
+        let roles = suggest(&models, &health, &[], &HashSet::new());
+        for role in &roles {
+            let slots: Vec<_> = role.models.iter().map(|m| m.slot).collect();
+            // Primary, then standby, then backup — never out of order.
+            let mut sorted = slots.clone();
+            sorted.sort_by_key(|s| match s {
+                ChainSlot::Primary => 0,
+                ChainSlot::Standby => 1,
+                ChainSlot::Backup => 2,
+            });
+            assert_eq!(slots, sorted, "{:?}", role.models);
+            if let Some(last) = role.models.last().filter(|m| m.provider == "deepseek") {
+                assert_eq!(last.slot, ChainSlot::Backup);
+            }
+        }
+        assert!(
+            roles[1]
+                .models
+                .iter()
+                .any(|m| m.provider == "codex" && m.slot == ChainSlot::Standby)
+        );
+    }
+
+    #[test]
+    fn limit_notes_are_parsed_and_billing_errors_are_not_temporary() {
+        let raw = "OpenCode Go usage limit reached (weekly, resets in 4d 13h). To keep going";
+        assert!(is_temporary_limit(raw));
+        assert_eq!(
+            parse_limit_note(raw),
+            (Some("weekly".into()), Some("4d 13h".into()))
+        );
+        assert!(!is_temporary_limit(
+            "[429]: usage limit reached: insufficient balance (1008)"
+        ));
+        assert!(!is_temporary_limit("[402]: Add usage credits"));
+        let credits = r#"[429]: {"error":{"type":"rate_limit_error","message":"Usage credits are required for this model.","details":{"error_code":"credits_required"}}}"#;
+        assert!(!is_temporary_limit(credits));
+        assert!(is_permanent_failure(credits));
+        assert_eq!(
+            summarize_message(credits),
+            "Model not available on this account"
+        );
     }
 
     #[test]

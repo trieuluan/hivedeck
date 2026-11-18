@@ -10,12 +10,15 @@ import {
   XCircleIcon,
 } from '@phosphor-icons/react';
 import type {
+  ChainSlot,
   ComboRole,
   ComboSuggestions,
   ExcludedModel,
   ModelCheck,
+  ProviderBilling,
   ProviderHealth,
   ProviderHealthStatus,
+  QuotaWindow,
   RoleSuggestion,
 } from 'shared/types';
 import { Button } from '@vibe/ui/components/Button';
@@ -28,6 +31,7 @@ const CONFIRM_REMOVALS = 3;
 const HEALTH_TEXT: Record<ProviderHealthStatus, string> = {
   ok: 'text-success',
   low: 'text-warning',
+  limited: 'text-warning',
   exhausted: 'text-error',
   error: 'text-error',
   inactive: 'text-low',
@@ -37,6 +41,7 @@ const HEALTH_TEXT: Record<ProviderHealthStatus, string> = {
 const HEALTH_BAR: Record<ProviderHealthStatus, string> = {
   ok: 'bg-success',
   low: 'bg-warning',
+  limited: 'bg-warning',
   exhausted: 'bg-error',
   error: 'bg-error',
   inactive: 'bg-low',
@@ -104,32 +109,91 @@ function Consent({ onAllow }: { onAllow: () => void }) {
   );
 }
 
-function QuotaBar({ p }: { p: ProviderHealth }) {
-  const { t } = useTranslation();
-  const pct = p.remaining_percent;
+/** The backend's English one-line summaries, in the UI language. */
+const SUMMARY_KEYS: Record<string, string> = {
+  'Out of credits': 'outOfCredits',
+  'API key expired': 'keyExpired',
+  'Not available with a ChatGPT login': 'chatgptLogin',
+  'Model not available on this account': 'notOnAccount',
+  'Model not supported': 'notSupported',
+  'Temporarily unavailable': 'unavailable',
+  'Sign-in expired — reconnect': 'signInExpired',
+  'Credentials rejected': 'credentials',
+  'Rate limited': 'rateLimited',
+  'Quota exhausted': 'quotaExhausted',
+  'Usage not reported': 'noUsage',
+  'Provider unreachable': 'unreachable',
+};
+
+function summaryText(
+  summary: string | null,
+  t: (key: string) => string
+): string | null {
+  if (!summary) return null;
+  const key = SUMMARY_KEYS[summary];
+  return key ? t(`settings.router.combos.summaries.${key}`) : summary;
+}
+
+/** Bar colour for one window: by how much is left. */
+function windowTone(pct: number): string {
+  if (pct < 2) return 'bg-error';
+  if (pct < 20) return 'bg-warning';
+  return 'bg-success';
+}
+
+/** "session (5h)" → the i18n key of its window, or null for unknown names. */
+function windowKey(name: string): string | null {
+  const n = name.toLowerCase();
+  if (n.includes('balance') || n.includes('credit')) return 'balance';
+  if (n.includes('5h') || n.includes('session') || n.includes('hour'))
+    return 'session';
+  if (n.includes('day') || n.includes('daily')) return 'daily';
+  if (n.includes('week') || n.includes('7d')) return 'weekly';
+  if (n.includes('month')) return 'monthly';
+  return null;
+}
+
+function QuotaMeter({ q }: { q: QuotaWindow }) {
+  const { t } = useTranslation('settings');
+  const key = windowKey(q.name);
+  const label = key ? t(`settings.router.combos.windows.${key}`) : q.name;
+  const reset = relativeTime(q.reset_at, true);
+  const pct = q.remaining_percent;
   return (
-    <div className="flex items-center gap-2">
-      <div
-        className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-panel"
+    <span
+      className="inline-flex items-center gap-1.5 whitespace-nowrap"
+      title={q.name}
+    >
+      <span className="text-low">{label}</span>
+      <span
+        className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-panel"
         role="meter"
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={pct ?? undefined}
-        aria-label={t('common:ui.quotaRemaining')}
+        aria-valuenow={pct}
+        aria-label={label}
       >
-        {pct !== null && (
-          <div
-            className={cn('h-full rounded-full', HEALTH_BAR[p.status])}
-            style={{ width: `${Math.max(pct, 2)}%` }}
-          />
-        )}
-      </div>
-      <span className="w-9 shrink-0 text-right text-xs tabular-nums text-normal">
-        {pct !== null ? `${pct}%` : '—'}
+        <span
+          className={cn('block h-full rounded-full', windowTone(pct))}
+          style={{ width: `${Math.max(pct, 2)}%` }}
+        />
       </span>
-    </div>
+      <span className="tabular-nums text-normal">{pct}%</span>
+      {reset && key !== 'balance' && (
+        <span className="text-low">
+          · {t('settings.router.combos.resetsIn', { time: reset })}
+        </span>
+      )}
+    </span>
   );
 }
+
+const BILLING_TONE: Record<ProviderBilling, string> = {
+  subscription: 'border-border text-low',
+  pay_as_you_go: 'border-brand/40 text-brand',
+  free: 'border-border text-low',
+  unknown: 'hidden',
+};
 
 function ProviderRow({
   p,
@@ -142,77 +206,92 @@ function ProviderRow({
   const labels: Record<ProviderHealthStatus, string> = {
     ok: t('settings.router.combos.health.ok'),
     low: t('settings.router.combos.health.low'),
+    limited: t('settings.router.combos.health.limited'),
     exhausted: t('settings.router.combos.health.exhausted'),
     error: t('settings.router.combos.health.error'),
     inactive: t('settings.router.combos.health.inactive'),
     unknown: t('settings.router.combos.health.unknown'),
   };
-  const reset = relativeTime(p.reset_at, true);
   const broken = p.status === 'error' || p.status === 'inactive';
+  const windowLabel = (w: string | null) => {
+    const key = w ? windowKey(w.replace('5-hour', '5h')) : null;
+    return key ? t(`settings.router.combos.windows.${key}`) : w;
+  };
 
   let detail: React.ReactNode = null;
-  if (broken) {
+  if (p.status === 'limited') {
+    const w = windowLabel(p.limit_window);
+    detail = (
+      <span className="text-warning" title={p.message ?? undefined}>
+        {w
+          ? t('settings.router.combos.limitedWindow', {
+              window: w.toLowerCase(),
+            })
+          : t('settings.router.combos.limited')}
+        {p.resets_in &&
+          ` · ${t('settings.router.combos.backIn', { time: p.resets_in })}`}
+      </span>
+    );
+  } else if (broken) {
     detail = (
       <span className="flex min-w-0 items-center gap-2">
         <span className="truncate text-error" title={p.message ?? undefined}>
-          {p.summary ?? labels[p.status]}
+          {summaryText(p.summary, t) ?? labels[p.status]}
         </span>
         <button
           type="button"
           onClick={onOpenDashboard}
-          className="shrink-0 text-xs text-brand underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          className="shrink-0 text-brand underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
         >
           {t('settings.router.combos.fixInDashboard')}
         </button>
       </span>
     );
-  } else if (p.quota_name || reset) {
+  } else if (p.quotas.length === 0) {
     detail = (
-      <span className="truncate text-low">
-        {[
-          p.quota_name,
-          reset && t('settings.router.combos.resetsIn', { time: reset }),
-        ]
-          .filter(Boolean)
-          .join(' · ')}
-      </span>
-    );
-  } else if (p.status === 'unknown') {
-    detail = (
-      <span className="truncate text-low">
-        {t('settings.router.combos.noQuotaApi')}
+      <span className="text-low">
+        {p.billing === 'free'
+          ? t('settings.router.combos.freeNoQuota')
+          : t('settings.router.combos.noQuotaApi')}
       </span>
     );
   }
 
   return (
-    <li className="grid grid-cols-[minmax(0,10rem)_7rem_6.5rem_minmax(0,1fr)] items-center gap-x-base px-base py-2 text-sm max-md:grid-cols-[minmax(0,1fr)_auto] max-md:gap-y-1">
-      <span className="flex min-w-0 items-baseline gap-1.5 whitespace-nowrap">
+    <li className="flex flex-col gap-1.5 px-base py-2.5 text-sm md:flex-row md:items-start md:gap-base">
+      <div className="flex min-w-0 items-center gap-2 md:w-60 md:shrink-0">
+        <span
+          aria-hidden="true"
+          className={cn('size-2 shrink-0 rounded-full', HEALTH_BAR[p.status])}
+        />
         <span className="truncate font-medium text-high">{p.provider}</span>
         {p.alias && p.alias !== p.provider && (
           <span className="font-mono text-xs text-low">{p.alias}/</span>
         )}
-      </span>
-      <span
-        className={cn(
-          'whitespace-nowrap text-xs font-medium',
-          HEALTH_TEXT[p.status]
-        )}
-      >
-        {labels[p.status]}
-      </span>
-      <span className="max-md:hidden">
-        <QuotaBar p={p} />
-      </span>
-      <span className="flex min-w-0 items-center gap-2 text-xs max-md:col-span-2">
-        <span className="md:hidden">
-          <QuotaBar p={p} />
+        <span
+          className={cn(
+            'ml-auto shrink-0 rounded-full border px-1.5 text-[11px] leading-4 md:ml-0',
+            BILLING_TONE[p.billing]
+          )}
+        >
+          {t(`settings.router.combos.billing.${p.billing}`)}
         </span>
+      </div>
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+        <span
+          className={cn(
+            'w-24 shrink-0 whitespace-nowrap font-medium',
+            HEALTH_TEXT[p.status]
+          )}
+        >
+          {labels[p.status]}
+        </span>
+        {!broken && p.quotas.map((q) => <QuotaMeter key={q.name} q={q} />)}
         {detail}
         <span className="ml-auto shrink-0 tabular-nums text-low">
           {t('settings.router.combos.modelCount', { count: p.model_count })}
         </span>
-      </span>
+      </div>
     </li>
   );
 }
@@ -232,10 +311,18 @@ function CheckResult({ check }: { check: ModelCheck | undefined }) {
       </span>
     );
   }
+  if (check.limited) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] text-warning">
+        <XCircleIcon className="size-icon-2xs" weight="fill" />
+        {t('settings.router.combos.check.limited')}
+      </span>
+    );
+  }
   return (
     <span className="inline-flex items-center gap-1 text-[11px] text-error">
       <XCircleIcon className="size-icon-2xs" weight="fill" />
-      {check.error ?? t('settings.router.combos.check.failed')}
+      {summaryText(check.error, t) ?? t('settings.router.combos.check.failed')}
       <span className="text-low">
         ·{' '}
         {check.permanent
@@ -302,6 +389,30 @@ function ExcludedList({
         })}
       </ul>
     </details>
+  );
+}
+
+function SlotHeading({ slot, first }: { slot: ChainSlot; first: boolean }) {
+  const { t } = useTranslation('settings');
+  return (
+    <div
+      className={cn(
+        'flex items-baseline gap-2 text-[11px]',
+        !first && 'border-t border-border/60 pt-2'
+      )}
+    >
+      <span
+        className={cn(
+          'font-semibold uppercase tracking-wide',
+          slot === 'backup' ? 'text-brand' : 'text-low'
+        )}
+      >
+        {t(`settings.router.combos.slots.${slot}`)}
+      </span>
+      <span className="text-low">
+        {t(`settings.router.combos.slotHints.${slot}`)}
+      </span>
+    </div>
   );
 }
 
@@ -417,24 +528,33 @@ function RoleCard({
         <ol className="space-y-2">
           {role.models.map((m, i) => {
             const added = !diff.isNew && diff.added.has(m.id);
+            const startsSlot = i === 0 || role.models[i - 1]!.slot !== m.slot;
             return (
-              <li key={m.id} className="flex gap-2 text-xs">
-                <span className="w-4 shrink-0 pt-px text-right tabular-nums text-low">
-                  {i + 1}
-                </span>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-baseline gap-x-2">
-                    <span className="break-all font-mono text-normal">
-                      {m.id}
-                    </span>
-                    {added && (
-                      <span className="text-[11px] font-medium text-success">
-                        {t('settings.router.combos.added')}
+              <li key={m.id} className="space-y-1.5">
+                {startsSlot && <SlotHeading slot={m.slot} first={i === 0} />}
+                <div className="flex gap-2 text-xs">
+                  <span className="w-4 shrink-0 pt-px text-right tabular-nums text-low">
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-baseline gap-x-2">
+                      <span
+                        className={cn(
+                          'break-all font-mono',
+                          m.slot === 'primary' ? 'text-normal' : 'text-low'
+                        )}
+                      >
+                        {m.id}
                       </span>
-                    )}
-                    <CheckResult check={checks[m.id]} />
+                      {added && (
+                        <span className="text-[11px] font-medium text-success">
+                          {t('settings.router.combos.added')}
+                        </span>
+                      )}
+                      <CheckResult check={checks[m.id]} />
+                    </div>
+                    <div className="text-low">{m.reason}</div>
                   </div>
-                  <div className="text-low">{m.reason}</div>
                 </div>
               </li>
             );

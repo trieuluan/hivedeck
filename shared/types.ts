@@ -375,7 +375,7 @@ export type NineRouterLogs = { lines: Array<string>, log_path: string, };
 
 export type ComboRole = "planner" | "coder" | "reviewer" | "fast";
 
-export type ProviderHealthStatus = "ok" | "low" | "exhausted" | "error" | "inactive" | "unknown";
+export type ProviderHealthStatus = "ok" | "low" | "limited" | "exhausted" | "error" | "inactive" | "unknown";
 
 export type ProviderHealth = { 
 /**
@@ -397,9 +397,28 @@ message: string | null,
 /**
  * One-line, human summary of `message` (e.g. "API key expired").
  */
-summary: string | null, model_count: number, };
+summary: string | null, model_count: number, billing: ProviderBilling, 
+/**
+ * Every usage window, shortest first (5h, daily, weekly, monthly…).
+ */
+quotas: Array<QuotaWindow>, 
+/**
+ * For a limited provider: which window ran out, e.g. `weekly`.
+ */
+limit_window: string | null, 
+/**
+ * For a limited provider: when it comes back, as the provider said it
+ * (e.g. `4d 13h`), when no exact time is known.
+ */
+resets_in: string | null, };
 
-export type SuggestedModel = { id: string, provider: string, reason: string, };
+export type ProviderBilling = "subscription" | "pay_as_you_go" | "free" | "unknown";
+
+export type QuotaWindow = { name: string, remaining_percent: number, reset_at: string | null, };
+
+export type ChainSlot = "primary" | "standby" | "backup";
+
+export type SuggestedModel = { id: string, provider: string, reason: string, slot: ChainSlot, };
 
 export type RoleSuggestion = { role: ComboRole, combo_name: string, models: Array<SuggestedModel>, 
 /**
@@ -444,7 +463,12 @@ until: string | null,
  */
 permanent: boolean, };
 
-export type ModelCheck = { id: string, ok: boolean, latency_ms: bigint | null, error: string | null, permanent: boolean, };
+export type ModelCheck = { id: string, ok: boolean, latency_ms: bigint | null, error: string | null, permanent: boolean, 
+/**
+ * Failed only because the provider is out of quota for now: fine for a
+ * standby model, which the chain uses again after the reset.
+ */
+limited: boolean, };
 
 export type TelegramTestResponse = { ok: boolean, error: string | null, };
 

@@ -720,7 +720,8 @@
           "exhausted": "Exhausted",
           "error": "Needs attention",
           "inactive": "Disabled",
-          "unknown": "No quota data"
+          "unknown": "No quota data",
+          "limited": "Out for now"
         },
         "consent": {
           "title": "Let HiveDeck manage 9router",
@@ -754,7 +755,8 @@
           "okNoTime": "OK",
           "failed": "Failed",
           "hidden": "hidden from suggestions",
-          "cooldown": "skipped for 30 min"
+          "cooldown": "skipped for 30 min",
+          "limited": "out of quota — kept as standby"
         },
         "excluded": {
           "title": "Excluded models",
@@ -765,7 +767,48 @@
           "cooldown": "Cooldown · {{time}} left",
           "cooldownNoTime": "Cooldown"
         },
-        "excludedAfterTest": "{{count}} model(s) failed the test and were taken out of suggestions; chains updated."
+        "excludedAfterTest": "{{count}} model(s) failed the test and were taken out of suggestions; chains updated.",
+        "billing": {
+          "subscription": "Plan",
+          "pay_as_you_go": "Pay as you go",
+          "free": "Free",
+          "unknown": "—"
+        },
+        "windows": {
+          "session": "5h",
+          "daily": "Day",
+          "weekly": "Week",
+          "monthly": "Month",
+          "balance": "Balance"
+        },
+        "limited": "Usage limit reached",
+        "limitedWindow": "Used up its {{window}} quota",
+        "backIn": "back in {{time}}",
+        "freeNoQuota": "Free models, rate-limited",
+        "slots": {
+          "primary": "Primary",
+          "standby": "Standby",
+          "backup": "Backup"
+        },
+        "slotHints": {
+          "primary": "healthy providers, best first",
+          "standby": "out until their quota resets; used again on their own",
+          "backup": "pay as you go, only when everything above is out"
+        },
+        "summaries": {
+          "outOfCredits": "Out of credits",
+          "keyExpired": "API key expired",
+          "chatgptLogin": "Not available with a ChatGPT login",
+          "notOnAccount": "Model not available on this account",
+          "notSupported": "Model not supported",
+          "unavailable": "Temporarily unavailable",
+          "signInExpired": "Sign-in expired — reconnect",
+          "credentials": "Credentials rejected",
+          "rateLimited": "Rate limited",
+          "quotaExhausted": "Quota exhausted",
+          "noUsage": "Usage not reported",
+          "unreachable": "Provider unreachable"
+        }
       },
       "version": "Version",
       "pinned": "HiveDeck installs v{{version}}",

@@ -23,8 +23,8 @@ pub mod routing;
 mod versions;
 
 pub use advisor::{
-    ComboRole, ComboSuggestions, ExcludedModel, ModelCheck, ProviderHealth, ProviderHealthStatus,
-    RoleSuggestion, SuggestedModel,
+    ChainSlot, ComboRole, ComboSuggestions, ExcludedModel, ModelCheck, ProviderBilling,
+    ProviderHealth, ProviderHealthStatus, QuotaWindow, RoleSuggestion, SuggestedModel,
 };
 
 use std::{
@@ -937,19 +937,12 @@ pub async fn suggestions(
         let provider = advisor::provider_for_alias(&m.owned_by);
         let h = health
             .entry(provider.clone())
-            .or_insert_with(|| ProviderHealth {
-                provider: provider.clone(),
-                alias: String::new(),
-                status: ProviderHealthStatus::Unknown,
-                remaining_percent: None,
-                quota_name: None,
-                reset_at: None,
-                message: None,
-                summary: None,
-                model_count: 0,
-            });
+            .or_insert_with(|| ProviderHealth::unknown(&provider));
         h.alias = m.owned_by.clone();
         h.model_count += 1;
+    }
+    for h in health.values_mut() {
+        h.classify_billing();
     }
 
     // Exclusions: models in cooldown on every account, plus models HiveDeck
@@ -1044,11 +1037,12 @@ pub async fn apply_combo(
             "unknown model {unknown}"
         )));
     }
-    // Never write a chain with a model that fails right now.
+    // Never write a chain with a model that is broken. A model that is only
+    // out of quota until a reset is fine: it is a standby (ADR-039).
     let checks = verify_with(&client, models).await?;
     let failed: Vec<String> = checks
         .iter()
-        .filter(|c| !c.ok)
+        .filter(|c| !c.ok && !c.limited)
         .map(|c| format!("{} ({})", c.id, c.error.as_deref().unwrap_or("failed")))
         .collect();
     if !failed.is_empty() {
@@ -1134,6 +1128,7 @@ async fn verify_with(
         let ping = ping?;
         let raw = ping.error.clone().unwrap_or_default();
         let permanent = !ping.ok && advisor::is_permanent_failure(&raw);
+        let limited = !ping.ok && !permanent && advisor::is_temporary_limit(&raw);
         checks.push(ModelCheck {
             id: id.clone(),
             ok: ping.ok,
@@ -1146,6 +1141,7 @@ async fn verify_with(
                 }
             }),
             permanent,
+            limited,
         });
     }
     // Failed models leave suggestions: for good when the failure is
@@ -1156,6 +1152,11 @@ async fn verify_with(
     for c in &checks {
         if c.ok {
             changed |= list.remove(&c.id).is_some_and(|b| b.until.is_some());
+            continue;
+        }
+        // Out of quota is not the model's fault: it stays in chains as a
+        // standby and 9router skips it until the reset.
+        if c.limited {
             continue;
         }
         let until = (!c.permanent).then(|| (now + TEST_FAILURE_COOLDOWN).to_rfc3339());

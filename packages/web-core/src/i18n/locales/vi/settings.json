@@ -720,7 +720,8 @@
           "exhausted": "Hết quota",
           "error": "Cần xử lý",
           "inactive": "Đã tắt",
-          "unknown": "Không có dữ liệu quota"
+          "unknown": "Không rõ quota",
+          "limited": "Tạm hết lượt"
         },
         "consent": {
           "title": "Cho HiveDeck quản lý 9router",
@@ -754,7 +755,8 @@
           "okNoTime": "OK",
           "failed": "Lỗi",
           "hidden": "đã ẩn khỏi gợi ý",
-          "cooldown": "bỏ qua trong 30 phút"
+          "cooldown": "bỏ qua trong 30 phút",
+          "limited": "tạm hết lượt — giữ ở nhóm chờ"
         },
         "excluded": {
           "title": "Model bị loại",
@@ -765,7 +767,48 @@
           "cooldown": "Tạm nghỉ · còn {{time}}",
           "cooldownNoTime": "Tạm nghỉ"
         },
-        "excludedAfterTest": "{{count}} model thử không qua và đã bị loại khỏi gợi ý; các chuỗi đã được cập nhật."
+        "excludedAfterTest": "{{count}} model thử không qua và đã bị loại khỏi gợi ý; các chuỗi đã được cập nhật.",
+        "billing": {
+          "subscription": "Thuê bao",
+          "pay_as_you_go": "Trả theo lượt",
+          "free": "Miễn phí",
+          "unknown": "—"
+        },
+        "windows": {
+          "session": "5 giờ",
+          "daily": "Ngày",
+          "weekly": "Tuần",
+          "monthly": "Tháng",
+          "balance": "Số dư"
+        },
+        "limited": "Đã hết lượt",
+        "limitedWindow": "Hết lượt {{window}}",
+        "backIn": "mở lại sau {{time}}",
+        "freeNoQuota": "Model miễn phí, có giới hạn tốc độ",
+        "slots": {
+          "primary": "Chính",
+          "standby": "Chờ",
+          "backup": "Dự phòng"
+        },
+        "slotHints": {
+          "primary": "provider đang ổn, tốt nhất trước",
+          "standby": "đang hết lượt, tự dùng lại khi reset",
+          "backup": "trả theo lượt, chỉ dùng khi mọi thứ ở trên đều hết"
+        },
+        "summaries": {
+          "outOfCredits": "Hết tiền trong tài khoản",
+          "keyExpired": "API key đã hết hạn",
+          "chatgptLogin": "Không dùng được với tài khoản ChatGPT",
+          "notOnAccount": "Tài khoản không có model này",
+          "notSupported": "Model không được hỗ trợ",
+          "unavailable": "Tạm thời không khả dụng",
+          "signInExpired": "Phiên đăng nhập hết hạn — kết nối lại",
+          "credentials": "Thông tin đăng nhập bị từ chối",
+          "rateLimited": "Bị giới hạn tốc độ",
+          "quotaExhausted": "Hết quota",
+          "noUsage": "Không báo mức dùng",
+          "unreachable": "Không kết nối được provider"
+        }
       },
       "version": "Phiên bản",
       "pinned": "HiveDeck cài v{{version}}",
