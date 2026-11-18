@@ -412,13 +412,19 @@ fn front_matter(text: &str) -> (Option<String>, Option<String>) {
 /// Extra flags for a headless Claude Code run. `extra_mcp` is a JSON
 /// `--mcp-config` the run adds on its own (the captain's HiveDeck server);
 /// it is folded in so a strict MCP config still includes it.
-pub fn claude_args(prefs: &CliExtensionPrefs, cwd: &Path, extra_mcp: Option<&str>) -> Vec<String> {
+pub fn claude_args(
+    prefs: &CliExtensionPrefs,
+    cwd: &Path,
+    extra_mcp: Option<&str>,
+    model_overrides: &Map<String, Value>,
+) -> Vec<String> {
     let home = dirs::home_dir().unwrap_or_default();
     claude_args_with(
         prefs,
         &read_json(&home.join(".claude.json")),
         cwd,
         extra_mcp,
+        model_overrides,
     )
 }
 
@@ -427,6 +433,7 @@ fn claude_args_with(
     claude_json: &Value,
     cwd: &Path,
     extra_mcp: Option<&str>,
+    model_overrides: &Map<String, Value>,
 ) -> Vec<String> {
     let mut args = Vec::new();
     if prefs.cache_friendly_prompt {
@@ -466,6 +473,12 @@ fn claude_args_with(
     if prefs.disable_bundled_skills {
         settings.insert("disableBundledSkills".into(), Value::Bool(true));
     }
+    if !model_overrides.is_empty() {
+        settings.insert(
+            "modelOverrides".into(),
+            Value::Object(model_overrides.clone()),
+        );
+    }
     if !settings.is_empty() {
         args.push(format!("--settings={}", Value::Object(settings)));
     }
@@ -504,6 +517,56 @@ fn claude_args_with(
     args
 }
 
+/// `modelOverrides` for a run whose model names are gateway aliases (9router
+/// combos such as `planner`). Claude Code doesn't recognise those, prints a
+/// `[claude-code:unrecognized_model]` diagnostic, and guesses the model's
+/// window and features; mapping a real Claude model ID to each alias makes it
+/// treat the alias as that model (ADR-040). `main_model` is the run's
+/// `--model`; `env` holds the `ANTHROPIC_DEFAULT_*_MODEL` aliases.
+pub fn gateway_model_overrides(
+    main_model: Option<&str>,
+    env: &std::collections::HashMap<String, String>,
+) -> Map<String, Value> {
+    let custom = |m: &str| {
+        let m = m.trim();
+        !m.is_empty()
+            && !m.starts_with("claude-")
+            && !["opus", "sonnet", "haiku", "fable", "best", "default"]
+                .iter()
+                .any(|a| m.eq_ignore_ascii_case(a) || m.starts_with(&format!("{a}[")))
+    };
+    let mut out = Map::new();
+    let mut add = |claude_id: &str, alias: &str| {
+        if custom(alias) && !out.contains_key(claude_id) && !out.values().any(|v| v == alias) {
+            out.insert(claude_id.to_string(), Value::String(alias.to_string()));
+        }
+    };
+    for (var, claude_id) in [
+        ("ANTHROPIC_DEFAULT_OPUS_MODEL", "claude-opus-5-5"),
+        ("ANTHROPIC_DEFAULT_FABLE_MODEL", "claude-fable-5-2"),
+        ("ANTHROPIC_DEFAULT_SONNET_MODEL", "claude-sonnet-5-5"),
+        ("ANTHROPIC_DEFAULT_HAIKU_MODEL", "claude-haiku-5-5"),
+    ] {
+        if let Some(alias) = env.get(var) {
+            add(claude_id, alias);
+        }
+    }
+    if let Some(main) = main_model {
+        let lower = main.to_lowercase();
+        let like = if lower.contains("fast") || lower.contains("haiku") {
+            ["claude-haiku-5-5", "claude-haiku-4-5"]
+        } else if lower.contains("plan") || lower.contains("review") || lower.contains("opus") {
+            ["claude-opus-5-5", "claude-opus-5"]
+        } else {
+            ["claude-sonnet-5-5", "claude-sonnet-5"]
+        };
+        for id in like {
+            add(id, main);
+        }
+    }
+    out
+}
+
 /// Codex config overrides (`thread/start` config) for the owner's choices.
 pub fn codex_config_overrides(prefs: &CliExtensionPrefs) -> Vec<(String, Value)> {
     prefs
@@ -525,6 +588,7 @@ mod tests {
             &Value::Null,
             Path::new("/x"),
             None,
+            &Map::new(),
         );
         assert_eq!(args, vec!["--exclude-dynamic-system-prompt-sections"]);
     }
@@ -535,7 +599,13 @@ mod tests {
             cache_friendly_prompt: false,
             ..Default::default()
         };
-        let args = claude_args_with(&prefs, &Value::Null, Path::new("/x"), Some("{\"a\":1}"));
+        let args = claude_args_with(
+            &prefs,
+            &Value::Null,
+            Path::new("/x"),
+            Some("{\"a\":1}"),
+            &Map::new(),
+        );
         assert_eq!(args, vec!["--mcp-config={\"a\":1}"]);
     }
 
@@ -551,7 +621,7 @@ mod tests {
             .insert("impeccable".into(), SkillMode::NameOnly);
         prefs.skills.insert("superset".into(), SkillMode::Off);
         prefs.skills.insert("kept".into(), SkillMode::On);
-        let args = claude_args_with(&prefs, &Value::Null, Path::new("/x"), None);
+        let args = claude_args_with(&prefs, &Value::Null, Path::new("/x"), None, &Map::new());
         assert!(args.contains(&"--max-budget-usd=2.5".to_string()));
         let settings = args
             .iter()
@@ -573,7 +643,13 @@ mod tests {
             "projects": { "/repo": { "mcpServers": { "proj": {"command": "c"} } } }
         });
         let captain = r#"{"mcpServers":{"hivedeck":{"type":"http","url":"u"}}}"#;
-        let args = claude_args_with(&prefs, &claude_json, Path::new("/repo"), Some(captain));
+        let args = claude_args_with(
+            &prefs,
+            &claude_json,
+            Path::new("/repo"),
+            Some(captain),
+            &Map::new(),
+        );
         assert!(args.contains(&"--strict-mcp-config".to_string()));
         let config = args
             .iter()
@@ -621,6 +697,30 @@ mod tests {
             .collect();
         assert_eq!(names, vec!["pack:browser", "solo"]);
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn gateway_aliases_map_to_claude_models() {
+        let env: std::collections::HashMap<String, String> = [
+            ("ANTHROPIC_DEFAULT_OPUS_MODEL", "planner"),
+            ("ANTHROPIC_DEFAULT_FABLE_MODEL", "planner"),
+            ("ANTHROPIC_DEFAULT_SONNET_MODEL", "coder"),
+            ("ANTHROPIC_DEFAULT_HAIKU_MODEL", "fast"),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+        let o = gateway_model_overrides(Some("reviewer"), &env);
+        assert_eq!(o["claude-opus-5-5"], "planner");
+        assert!(o.get("claude-fable-5-2").is_none(), "one entry per alias");
+        assert_eq!(o["claude-sonnet-5-5"], "coder");
+        assert_eq!(o["claude-haiku-5-5"], "fast");
+        // The run's own combo gets a free Claude ID of the same kind.
+        assert_eq!(o["claude-opus-5"], "reviewer");
+        // Real Claude IDs and aliases are left alone.
+        let none =
+            gateway_model_overrides(Some("claude-sonnet-5-5"), &std::collections::HashMap::new());
+        assert!(none.is_empty());
     }
 
     #[test]

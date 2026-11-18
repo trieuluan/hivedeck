@@ -44,6 +44,12 @@ request, cached only from the 3rd request — outside HiveDeck's control.
   model) are excluded from suggestions as "OpenCode app only", recorded in
   the blocklist; `FreeUsageLimitError` counts as a permanent failure. A
   model the owner restores is remembered and not hidden again.
+- Headless Claude runs routed through 9router get `modelOverrides` in their
+  `--settings` mapping a real Claude ID to each combo alias (`planner` ↔
+  Opus 5.5, `coder` ↔ Sonnet 5.5, `fast` ↔ Haiku 5.5, the run's own combo
+  ↔ a spare ID of its kind). Claude Code then treats the alias as that
+  model (window, thinking, effort) and stops printing
+  `[claude-code:unrecognized_model]`.
 - Headless Claude runs always pass
   `--disallowedTools=Artifact,ArtifactComments,ArtifactData` (plus
   `AskUserQuestion` when not in plan/approval mode).

@@ -1045,10 +1045,18 @@ impl ClaudeCode {
         // The owner's per-CLI choices for headless runs (skills, MCP, hooks,
         // budget); see ADR-038.
         let prefs = crate::extensions::ExtensionPrefs::load().for_cli("CLAUDE_CODE");
+        let main_model = args
+            .iter()
+            .position(|a| a == "--model")
+            .and_then(|i| args.get(i + 1))
+            .cloned();
+        let model_overrides =
+            crate::extensions::gateway_model_overrides(main_model.as_deref(), &env.vars);
         args.extend(crate::extensions::claude_args(
             &prefs,
             current_dir,
             env.vars.get(CAPTAIN_MCP_CONFIG_ENV).map(String::as_str),
+            &model_overrides,
         ));
         let combined_prompt = self.append_prompt.combine_prompt(prompt);
 
