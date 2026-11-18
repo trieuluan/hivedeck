@@ -301,7 +301,7 @@ const CreateIssueDialogImpl = NiceModal.create<CreateIssueDialogProps>(
 
     return (
       <Dialog open={modal.visible} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh]">
+        <DialogContent className="sm:max-w-2xl max-h-[calc(85vh-3rem-2px)]">
           <DialogHeader>
             <DialogTitle>{t('createIssueDialog.title')}</DialogTitle>
             {parentHint ? (

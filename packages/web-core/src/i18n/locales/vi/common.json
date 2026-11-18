@@ -522,9 +522,7 @@
     "cancel": "Huỷ",
     "close": "Đóng",
     "parentHint": "Issue cha: {{id}}",
-    "saveToAddWorkspaces": "Lưu issue để thêm workspace.",
-    "saveToAddRelationships": "Lưu issue để thêm quan hệ.",
-    "saveToAddSubIssues": "Lưu issue để thêm issue con.",
+    "saveToAddLinked": "Lưu issue rồi thêm workspace, quan hệ, issue con.",
     "errorCreateFailed": "Không tạo được issue. Vui lòng thử lại."
   },
   "appBar": {

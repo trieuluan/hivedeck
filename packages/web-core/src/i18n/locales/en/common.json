@@ -522,9 +522,7 @@
     "cancel": "Cancel",
     "close": "Close",
     "parentHint": "Parent: {{id}}",
-    "saveToAddWorkspaces": "Save the issue to add workspaces.",
-    "saveToAddRelationships": "Save the issue to add relationships.",
-    "saveToAddSubIssues": "Save the issue to add sub-issues.",
+    "saveToAddLinked": "Save the issue, then add workspaces, relationships, sub-issues.",
     "errorCreateFailed": "Failed to create the issue. Please try again."
   },
   "appBar": {
