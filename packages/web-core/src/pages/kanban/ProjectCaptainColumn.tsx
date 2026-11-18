@@ -129,7 +129,9 @@ export function ProjectCaptainColumn({
   const { data: status } = useQuery({
     queryKey: orchestratorStatusKey(projectId),
     queryFn: () => workspacesApi.orchestratorStatus(projectId),
-    refetchInterval: 5000,
+    // Same query as the sidebar's captain row; starting or stopping the
+    // captain invalidates it, so a slow poll is enough.
+    refetchInterval: 10_000,
   });
   const { data: repos } = useQuery({
     queryKey: ['projects', projectId, 'repos'],
