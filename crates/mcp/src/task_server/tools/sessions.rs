@@ -649,20 +649,8 @@ impl McpServer {
             updated_at: session.updated_at.to_rfc3339(),
             is_orchestrator_session,
             latest_execution_id: session.latest_execution_id.map(|id| id.to_string()),
-            latest_execution_status: session.latest_execution_status.map(|s| {
-                serde_json::to_value(s)
-                    .unwrap()
-                    .as_str()
-                    .unwrap()
-                    .to_string()
-            }),
-            latest_execution_run_reason: session.latest_execution_run_reason.map(|r| {
-                serde_json::to_value(r)
-                    .unwrap()
-                    .as_str()
-                    .unwrap()
-                    .to_string()
-            }),
+            latest_execution_status: session.latest_execution_status.map(|s| serde_json::to_value(s).unwrap().as_str().unwrap().to_string()),
+            latest_execution_run_reason: session.latest_execution_run_reason.map(|r| serde_json::to_value(r).unwrap().as_str().unwrap().to_string()),
         }
     }
 
