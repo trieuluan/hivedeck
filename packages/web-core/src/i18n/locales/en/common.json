@@ -97,6 +97,7 @@
     "date": "Date",
     "label": "Label"
   },
+  "documents": { "title": "Documents" },
   "workspaces": {
     "title": "Workspaces",
     "searchPlaceholder": "Search...",

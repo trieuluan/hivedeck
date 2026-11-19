@@ -19,6 +19,7 @@ import { IssueCommentsSectionContainer } from './IssueCommentsSectionContainer';
 import { IssueSubIssuesSectionContainer } from './IssueSubIssuesSectionContainer';
 import { IssueRelationshipsSectionContainer } from './IssueRelationshipsSectionContainer';
 import { IssueWorkspacesSectionContainer } from './IssueWorkspacesSectionContainer';
+import { IssueDocumentsSection } from './IssueDocumentsSection';
 import { IssueIntakeSection } from './IssueIntakeSection';
 import {
   PipelineSection,
@@ -1188,7 +1189,10 @@ export function KanbanIssuePanelContainer({
           : undefined
       }
       renderWorkspacesSection={(issueId) => (
-        <IssueWorkspacesSectionContainer issueId={issueId} />
+        <>
+          <IssueWorkspacesSectionContainer issueId={issueId} />
+          <IssueDocumentsSection issueId={issueId} />
+        </>
       )}
       renderRelationshipsSection={(issueId) => (
         <IssueRelationshipsSectionContainer issueId={issueId} />

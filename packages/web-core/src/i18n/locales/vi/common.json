@@ -97,6 +97,7 @@
     "date": "Ngày",
     "label": "Nhãn"
   },
+  "documents": { "title": "Tài liệu" },
   "workspaces": {
     "title": "Workspace",
     "searchPlaceholder": "Tìm kiếm...",
