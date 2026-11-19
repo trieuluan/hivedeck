@@ -8,6 +8,7 @@ import { McpConfigStrategyGeneral } from '@/shared/lib/mcpStrategies';
 import { removeMcpOAuthSecrets } from '@/shared/lib/mcpSync';
 import { cn } from '@/shared/lib/utils';
 import { toPrettyCase } from '@/shared/lib/string';
+import { handleApiResponse } from '@/shared/lib/api';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +26,29 @@ import {
 } from './SettingsComponents';
 import { useSettingsDirty } from './SettingsDirtyContext';
 import { useSettingsMachineClient } from './SettingsHostContext';
+
+type RegistryInput = {
+  name?: string;
+  value?: string;
+  default?: string;
+  isRequired?: boolean;
+  type?: string;
+};
+type RegistryPackage = {
+  registryType: string;
+  identifier: string;
+  version?: string;
+  runtimeArguments?: RegistryInput[];
+  packageArguments?: RegistryInput[];
+  environmentVariables?: RegistryInput[];
+};
+type RegistryServer = {
+  name: string;
+  description?: string;
+  repository?: string;
+  packages: RegistryPackage[];
+  remotes: { type: string; url: string; headers?: RegistryInput[] }[];
+};
 
 function MultiCliMcp({
   onSaved,
@@ -50,6 +74,127 @@ function MultiCliMcp({
   const [duplicates, setDuplicates] = useState<string[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [presets, setPresets] = useState<Record<string, JsonValue>>({});
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<RegistryServer[]>([]);
+  const [registryError, setRegistryError] = useState('');
+  const [source, setSource] = useState<RegistryServer | null>(null);
+  const [required, setRequired] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!query.trim()) {
+      setResults([]);
+      setRegistryError('');
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetch(
+        `/api/mcp-registry/servers?${new URLSearchParams({ q: query.trim() })}`,
+        { signal: controller.signal }
+      )
+        .then((response) =>
+          handleApiResponse<{ servers: RegistryServer[] }>(response)
+        )
+        .then((data) => {
+          setResults(data.servers);
+          setRegistryError('');
+        })
+        .catch((error: unknown) => {
+          if (!controller.signal.aborted) {
+            setResults([]);
+            setRegistryError(String(error));
+          }
+        });
+    }, 350);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [query]);
+
+  const useRegistryServer = (server: RegistryServer) => {
+    const remote = server.remotes.find(
+      (item) => item.type === 'streamable-http'
+    );
+    const pkg = server.packages.find((item) =>
+      ['npm', 'pypi', 'oci'].includes(item.registryType)
+    );
+    if (!remote && !pkg) return;
+    setSource(server);
+    setName(server.name.split('/').pop() || server.name);
+    if (remote) {
+      setRequired(
+        (remote.headers || [])
+          .filter((item) => item.isRequired && item.name)
+          .map((item) => item.name!)
+      );
+      setKind('http');
+      setEndpoint(remote.url);
+      setArgs('');
+      setPairs(
+        (remote.headers || [])
+          .filter((item) => item.isRequired && item.name)
+          .map((item) => `${item.name}=`)
+          .join('\n')
+      );
+    } else if (pkg) {
+      setRequired(
+        (pkg.environmentVariables || [])
+          .filter((item) => item.isRequired && item.name)
+          .map((item) => item.name!)
+      );
+      setKind('stdio');
+      setEndpoint(
+        pkg.registryType === 'npm'
+          ? 'npx'
+          : pkg.registryType === 'pypi'
+            ? 'uvx'
+            : 'docker'
+      );
+      const runtime = (pkg.runtimeArguments || []).flatMap((item) => [
+        ...(item.type === 'named' && item.name ? [item.name] : []),
+        ...(item.value || item.default
+          ? [item.value || item.default || '']
+          : item.isRequired
+            ? ['<required>']
+            : []),
+      ]);
+      const packageArgs = (pkg.packageArguments || []).flatMap((item) => [
+        ...(item.type === 'named' && item.name ? [item.name] : []),
+        ...(item.value || item.default
+          ? [item.value || item.default || '']
+          : item.isRequired
+            ? ['<required>']
+            : []),
+      ]);
+      const identifier =
+        pkg.registryType === 'npm' && pkg.version
+          ? `${pkg.identifier}@${pkg.version}`
+          : pkg.registryType === 'oci' && pkg.version
+            ? `${pkg.identifier}:${pkg.version}`
+            : pkg.identifier;
+      setArgs(
+        [
+          ...(pkg.registryType === 'npm'
+            ? runtime.includes('-y') || runtime.includes('--yes')
+              ? []
+              : ['-y']
+            : pkg.registryType === 'oci'
+              ? ['run', '-i', '--rm']
+              : []),
+          ...runtime,
+          identifier,
+          ...packageArgs,
+        ].join('\n')
+      );
+      setPairs(
+        (pkg.environmentVariables || [])
+          .filter((item) => item.isRequired && item.name)
+          .map((item) => `${item.name}=`)
+          .join('\n')
+      );
+    }
+  };
 
   useEffect(() => {
     if (!client) return;
@@ -111,6 +256,8 @@ function MultiCliMcp({
     run(async () => {
       if (!name.trim() || !endpoint.trim() || (!claude && !codex))
         throw new Error(t('settings.mcp.multi.invalid'));
+      if (kind === 'stdio' && args.split('\n').includes('<required>'))
+        throw new Error('Điền tham số bắt buộc trước khi lưu.');
       const values: Record<string, string> = {};
       for (const line of pairs.split('\n').filter((item) => item.trim())) {
         const index = line.indexOf('=');
@@ -118,6 +265,8 @@ function MultiCliMcp({
           throw new Error(t('settings.mcp.multi.invalidPairs'));
         values[line.slice(0, index).trim()] = line.slice(index + 1);
       }
+      if (required.some((key) => !values[key]?.trim()))
+        throw new Error(`Điền các giá trị bắt buộc: ${required.join(', ')}`);
       if (kind === 'http') {
         const url = new URL(endpoint.trim());
         if (!['http:', 'https:'].includes(url.protocol))
@@ -165,6 +314,8 @@ function MultiCliMcp({
   const usePreset = (key: string) => {
     const server = presets[key];
     if (!server || typeof server !== 'object' || Array.isArray(server)) return;
+    setSource(null);
+    setRequired([]);
     const http = server.type === 'http';
     setName(key);
     setKind(http ? 'http' : 'stdio');
@@ -184,6 +335,88 @@ function MultiCliMcp({
       title={t('settings.mcp.multi.title')}
       description={t('settings.mcp.multi.description')}
     >
+      <SettingsField label="Tìm trong MCP Registry">
+        <SettingsInput
+          ariaLabel="Tìm trong MCP Registry"
+          value={query}
+          onChange={setQuery}
+          placeholder="playwright, github…"
+        />
+      </SettingsField>
+      <p className="text-sm text-warning">
+        Server bên thứ ba chạy trên máy bạn với quyền của agent
+      </p>
+      {registryError && (
+        <p role="alert" className="text-sm text-warning">
+          {registryError}
+        </p>
+      )}
+      {results.length > 0 && (
+        <div className="max-h-64 overflow-y-auto space-y-2">
+          {results.map((server) => (
+            <div
+              key={server.name}
+              className="rounded-sm border border-border p-2"
+            >
+              <button
+                type="button"
+                className="text-left w-full"
+                onClick={() => useRegistryServer(server)}
+                disabled={
+                  !server.remotes.some(
+                    (item) => item.type === 'streamable-http'
+                  ) && !server.packages.length
+                }
+              >
+                <span className="font-medium">{server.name}</span>
+                <span className="block text-sm text-low">
+                  {server.description}
+                </span>
+                <span className="text-xs">
+                  {[
+                    ...server.remotes.map((item) => `remote: ${item.type}`),
+                    ...server.packages.map((item) =>
+                      item.registryType === 'oci' ? 'docker' : item.registryType
+                    ),
+                  ].join(', ')}
+                </span>
+              </button>
+              {server.repository && /^https?:\/\//i.test(server.repository) && (
+                <a
+                  className="block text-sm underline"
+                  href={server.repository}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Repository
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {source && (
+        <p className="text-sm">
+          Nguồn:{' '}
+          {kind === 'http'
+            ? 'remote'
+            : endpoint === 'npx'
+              ? 'npm'
+              : endpoint === 'uvx'
+                ? 'pypi'
+                : 'docker'}{' '}
+          {source.repository && /^https?:\/\//i.test(source.repository) && (
+            <a
+              className="underline"
+              href={source.repository}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Repository
+            </a>
+          )}
+        </p>
+      )}
       <SettingsField label={t('settings.mcp.multi.popular')}>
         <select
           aria-label={t('settings.mcp.multi.popular')}
@@ -246,6 +479,16 @@ function MultiCliMcp({
             rows={3}
           />
         </SettingsField>
+      )}
+      {kind === 'stdio' && endpoint && (
+        <p className="text-sm break-all">
+          Lệnh sẽ chạy:{' '}
+          <code>
+            {[endpoint, ...args.split('\n').filter(Boolean)]
+              .map((part) => JSON.stringify(part))
+              .join(' ')}
+          </code>
+        </p>
       )}
       <SettingsField
         label={t(
