@@ -28,21 +28,12 @@ pub enum RegistryTransport {
 
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
-pub enum RegistryCli {
-    ClaudeCode,
-    Codex,
-    Opencode,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, TS)]
-#[serde(rename_all = "snake_case")]
 pub enum RegistryRole {
     Captain,
     Crew,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
-#[serde(deny_unknown_fields)]
 pub struct RegistryEntry {
     pub name: String,
     pub transport: RegistryTransport,
@@ -54,7 +45,6 @@ pub struct RegistryEntry {
     pub headers: BTreeMap<String, String>,
     #[serde(default)]
     pub env: BTreeMap<String, String>,
-    pub clis: Vec<RegistryCli>,
     pub roles: Vec<RegistryRole>,
     #[serde(default)]
     pub boards: Vec<String>,
@@ -201,11 +191,6 @@ async fn import_from(
             url,
             headers: BTreeMap::new(),
             env: BTreeMap::new(),
-            clis: vec![if request.source == "codex" {
-                RegistryCli::Codex
-            } else {
-                RegistryCli::ClaudeCode
-            }],
             roles: vec![RegistryRole::Crew],
             boards: vec![],
             oauth,

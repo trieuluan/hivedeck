@@ -1,14 +1,11 @@
-//! Utilities for reading and writing external agent config files (not the server's own config).
+//! Utilities for reading external agent config files (not the server's own config).
 //!
 //! These helpers abstract over JSON vs TOML vs JSONC formats used by different agents.
-//! JSONC (JSON with Comments) is supported with comment preservation using jsonc-parser's CST.
+//! JSONC (JSON with Comments) is supported by jsonc-parser.
 
-use std::{collections::HashMap, io::Write, path::Path, sync::LazyLock};
+use std::{collections::HashMap, path::Path, sync::LazyLock};
 
-use jsonc_parser::{
-    ParseOptions,
-    cst::{CstObject, CstRootNode},
-};
+use jsonc_parser::ParseOptions;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use tokio::fs;
@@ -87,167 +84,6 @@ pub async fn read_agent_config(
         } else {
             Ok(serde_json::from_str(&file_content)?)
         }
-    }
-}
-
-pub async fn write_agent_config(
-    config_path: &std::path::Path,
-    mcp_config: &McpConfig,
-    config: &Value,
-) -> Result<(), ExecutorError> {
-    let current = match fs::read_to_string(config_path).await {
-        Ok(content) => Some(content),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-        Err(error) => return Err(error.into()),
-    };
-    let output = if mcp_config.is_toml_config {
-        let toml_value: toml::Value = serde_json::from_str(&serde_json::to_string(config)?)?;
-        let serialized = toml::to_string_pretty(&toml_value)?;
-        let parse = |content: &str| {
-            content
-                .parse::<toml_edit::Document>()
-                .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))
-        };
-        let mut document = parse(current.as_deref().unwrap_or(""))?;
-        let desired = parse(&serialized)?;
-        let old: Value = if let Some(content) = current.as_deref().filter(|s| !s.trim().is_empty())
-        {
-            serde_json::to_value(toml::from_str::<toml::Value>(content)?)?
-        } else {
-            serde_json::json!({})
-        };
-        merge_toml(document.as_table_mut(), desired.as_table(), &old, config);
-        document.to_string()
-    } else if is_jsonc_file(config_path) {
-        update_jsonc_content(current.as_deref().unwrap_or("{}"), config)
-    } else {
-        serde_json::to_string_pretty(config)?
-    };
-    atomic_write(config_path, output.as_bytes())
-}
-
-fn merge_toml(
-    current: &mut toml_edit::Table,
-    desired: &toml_edit::Table,
-    old: &Value,
-    new: &Value,
-) {
-    current.retain(|key, _| desired.contains_key(key));
-    for (key, replacement) in desired.iter() {
-        if old.get(key) == new.get(key) && current.contains_key(key) {
-            continue;
-        }
-        if let (Some(existing), Some(replacement_table)) =
-            (current.get_mut(key), replacement.as_table())
-            && let Some(existing_table) = existing.as_table_mut()
-        {
-            merge_toml(existing_table, replacement_table, &old[key], &new[key]);
-        } else {
-            let mut replacement = replacement.clone();
-            if let (Some(previous), Some(next)) = (
-                current.get(key).and_then(toml_edit::Item::as_value),
-                replacement.as_value_mut(),
-            ) {
-                *next.decor_mut() = previous.decor().clone();
-            }
-            current.insert(key, replacement);
-        }
-    }
-}
-
-fn atomic_write(path: &Path, content: &[u8]) -> Result<(), ExecutorError> {
-    let parent = path
-        .parent()
-        .filter(|p| !p.as_os_str().is_empty())
-        .unwrap_or(Path::new("."));
-    let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
-    match std::fs::metadata(path) {
-        Ok(metadata) => {
-            temporary
-                .as_file()
-                .set_permissions(metadata.permissions())?;
-            let mut backup = path.as_os_str().to_os_string();
-            backup.push(".hivedeck.bak");
-            std::fs::copy(path, backup)?;
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error.into()),
-    }
-    temporary.write_all(content)?;
-    temporary.as_file().sync_all()?;
-    temporary.persist(path).map_err(|error| error.error)?;
-    Ok(())
-}
-
-fn update_jsonc_content(current_content: &str, new_config: &Value) -> String {
-    let root = CstRootNode::parse(current_content, &ParseOptions::default())
-        .unwrap_or_else(|_| CstRootNode::parse("{}", &ParseOptions::default()).unwrap());
-
-    let root_obj = root.object_value_or_set();
-
-    if let Some(obj) = new_config.as_object() {
-        deep_merge_cst_object(&root_obj, obj);
-    }
-
-    root.to_string()
-}
-
-/// Recursively merges a serde_json Map into an existing CST object.
-/// This preserves comments by navigating into existing nested objects rather than replacing them.
-fn deep_merge_cst_object(cst_obj: &CstObject, new_obj: &Map<String, Value>) {
-    let existing_keys: Vec<String> = cst_obj
-        .properties()
-        .iter()
-        .filter_map(|p| p.name().and_then(|n| n.decoded_value().ok()))
-        .collect();
-
-    for key in &existing_keys {
-        if !new_obj.contains_key(key)
-            && let Some(prop) = cst_obj.get(key)
-        {
-            prop.remove();
-        }
-    }
-
-    for (key, new_value) in new_obj {
-        if let Some(prop) = cst_obj.get(key) {
-            if let (Some(existing_obj), Some(new_obj_map)) =
-                (prop.object_value(), new_value.as_object())
-            {
-                deep_merge_cst_object(&existing_obj, new_obj_map);
-            } else {
-                prop.set_value(serde_json_to_cst_input(new_value));
-            }
-        } else {
-            cst_obj.append(key, serde_json_to_cst_input(new_value));
-        }
-    }
-}
-
-fn serde_json_to_cst_input(value: &Value) -> jsonc_parser::cst::CstInputValue {
-    use jsonc_parser::cst::CstInputValue;
-
-    match value {
-        Value::Null => CstInputValue::Null,
-        Value::Bool(b) => CstInputValue::Bool(*b),
-        Value::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                CstInputValue::Number(i.to_string())
-            } else if let Some(f) = n.as_f64() {
-                CstInputValue::Number(f.to_string())
-            } else {
-                CstInputValue::Number(n.to_string())
-            }
-        }
-        Value::String(s) => CstInputValue::String(s.clone()),
-        Value::Array(arr) => {
-            CstInputValue::Array(arr.iter().map(serde_json_to_cst_input).collect())
-        }
-        Value::Object(obj) => CstInputValue::Object(
-            obj.iter()
-                .map(|(k, v)| (k.clone(), serde_json_to_cst_input(v)))
-                .collect(),
-        ),
     }
 }
 
@@ -512,56 +348,5 @@ mod write_tests {
         assert!(result["web"].get("type").is_none());
         assert_eq!(result["local"]["env"]["KEY"], "value");
         assert!(result["local"].get("type").is_none());
-    }
-
-    #[tokio::test]
-    async fn preserves_toml_and_backs_up_all_formats() {
-        for (filename, original, is_toml) in [
-            (
-                "config.toml",
-                "# header\nunknown = 'keep' # inline\n\n[mcp_servers.old]\ncommand = 'old' # command\n",
-                true,
-            ),
-            (
-                "config.jsonc",
-                "{\n  // keep\n  \"unknown\": \"keep\",\n  \"mcp_servers\": {}\n}",
-                false,
-            ),
-            (
-                "config.json",
-                "{\"unknown\":\"keep\",\"mcp_servers\":{}}",
-                false,
-            ),
-        ] {
-            let directory = tempfile::tempdir().unwrap();
-            let path = directory.path().join(filename);
-            fs::write(&path, original).await.unwrap();
-            let config = McpConfig::new(
-                vec![],
-                serde_json::json!({}),
-                serde_json::json!({}),
-                is_toml,
-            );
-            let mut value = read_agent_config(&path, &config).await.unwrap();
-            value["mcp_servers"]["new"] = serde_json::json!({"command": "new"});
-            write_agent_config(&path, &config, &value).await.unwrap();
-            let output = fs::read_to_string(&path).await.unwrap();
-            assert_eq!(
-                fs::read_to_string(directory.path().join(format!("{filename}.hivedeck.bak")))
-                    .await
-                    .unwrap(),
-                original
-            );
-            assert_eq!(read_agent_config(&path, &config).await.unwrap(), value);
-            if is_toml {
-                assert!(
-                    output.contains("# header")
-                        && output.contains("unknown = 'keep' # inline")
-                        && output.contains("# command")
-                );
-            } else if filename.ends_with("jsonc") {
-                assert!(output.contains("// keep"));
-            }
-        }
     }
 }

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import type {
   AgentExtensionsResponse,
   JsonValue,
-  RegistryCli,
   RegistryEntry,
   RegistryRole,
   RegistrySecretStatus,
@@ -21,11 +20,6 @@ import {
 
 type Candidate = { name: string; exists: boolean };
 type Pair = { key: string; reference: string; value: string };
-const clis: [RegistryCli, string][] = [
-  ['claude_code', 'Claude Code'],
-  ['codex', 'Codex'],
-  ['opencode', 'OpenCode'],
-];
 const roles: RegistryRole[] = ['captain', 'crew'];
 const empty = (): RegistryEntry => ({
   name: '',
@@ -35,7 +29,6 @@ const empty = (): RegistryEntry => ({
   url: '',
   headers: {},
   env: {},
-  clis: ['claude_code'],
   roles: ['crew'],
   boards: [],
   oauth: false,
@@ -139,11 +132,8 @@ export function HiveDeckMcp() {
     );
   };
   const clashes = (entry: RegistryEntry) =>
-    inventory?.clis.some(
-      ({ inventory: item }) =>
-        entry.clis.includes(
-          item.cli === 'CLAUDE_CODE' ? 'claude_code' : 'codex'
-        ) && item.mcp_servers.some((server) => server.name === entry.name)
+    inventory?.clis.some(({ inventory: item }) =>
+      item.mcp_servers.some((server) => server.name === entry.name)
     );
   const warning = (name: string) => (
     <p key={name} className="text-sm text-warning">
@@ -155,12 +145,8 @@ export function HiveDeckMcp() {
       if (!draft) return;
       if (draft.name === 'hivedeck')
         throw new Error('Tên hivedeck được dành riêng cho HiveDeck.');
-      if (
-        !/^[A-Za-z0-9_-]+$/.test(draft.name) ||
-        !draft.clis.length ||
-        !draft.roles.length
-      )
-        throw new Error('Tên, CLI và vai trò không hợp lệ.');
+      if (!/^[A-Za-z0-9_-]+$/.test(draft.name) || !draft.roles.length)
+        throw new Error('Tên và vai trò không hợp lệ.');
       if (
         pairs.some((pair) => !pair.key.trim()) ||
         new Set(pairs.map((pair) => pair.key.trim().toLowerCase())).size !==
@@ -232,7 +218,7 @@ export function HiveDeckMcp() {
   return (
     <SettingsCard
       title="HiveDeck MCP"
-      description="Server dùng riêng trong run HiveDeck; không ghi vào config CLI."
+      description="Server ở đây chạy trên mọi CLI trong run HiveDeck; không sửa config của CLI."
     >
       {error && (
         <p role="alert" className="text-sm text-error">
@@ -281,11 +267,7 @@ export function HiveDeckMcp() {
             </div>
           </div>
           <p className="text-sm text-low">
-            {entry.transport} ·{' '}
-            {entry.clis
-              .map((cli) => clis.find(([id]) => id === cli)?.[1] || cli)
-              .join(', ')}{' '}
-            · {entry.roles.join(', ')} ·{' '}
+            {entry.transport} · {entry.roles.join(', ')} ·{' '}
             {entry.boards.length
               ? entry.boards
                   .map(
@@ -308,6 +290,24 @@ export function HiveDeckMcp() {
         <button type="button" className={button} onClick={() => edit(null)}>
           Thêm entry
         </button>
+      </div>
+      <details
+        className="space-y-2"
+        onToggle={(event) => {
+          if (event.currentTarget.open)
+            void run(async () => {
+              setCandidates(
+                await request<Candidate[]>(
+                  `mcp-registry/import-candidates/${source}`
+                )
+              );
+              setSelected([]);
+            });
+        }}
+      >
+        <summary className="cursor-pointer text-sm text-low underline">
+          Lấy từ config CLI có sẵn
+        </summary>
         <button
           type="button"
           className={button}
@@ -323,7 +323,7 @@ export function HiveDeckMcp() {
             })
           }
         >
-          Import từ CLI
+          Xem server
         </button>
         <select
           aria-label="CLI import"
@@ -337,50 +337,50 @@ export function HiveDeckMcp() {
           <option value="claude_code">Claude Code</option>
           <option value="codex">Codex</option>
         </select>
-      </div>
-      {candidates && (
-        <div className="space-y-2">
-          <p className="text-sm text-normal">Chọn server cần import</p>
-          {candidates.map((candidate) => (
-            <SettingsCheckbox
-              key={candidate.name}
-              id={`import-${candidate.name}`}
-              label={`${candidate.name}${candidate.exists ? ' (đã tồn tại)' : ''}`}
-              checked={selected.includes(candidate.name)}
-              onChange={(checked) =>
-                setSelected(
-                  checked
-                    ? [...selected, candidate.name]
-                    : selected.filter((name) => name !== candidate.name)
-                )
+        {candidates && (
+          <div className="space-y-2">
+            <p className="text-sm text-normal">Chọn server cần import</p>
+            {candidates.map((candidate) => (
+              <SettingsCheckbox
+                key={candidate.name}
+                id={`import-${candidate.name}`}
+                label={`${candidate.name}${candidate.exists ? ' (đã tồn tại)' : ''}`}
+                checked={selected.includes(candidate.name)}
+                onChange={(checked) =>
+                  setSelected(
+                    checked
+                      ? [...selected, candidate.name]
+                      : selected.filter((name) => name !== candidate.name)
+                  )
+                }
+              />
+            ))}
+            <button
+              type="button"
+              className={button}
+              disabled={busy || !selected.length}
+              onClick={() =>
+                void run(async () => {
+                  const result = await request<{
+                    imported: string[];
+                    skipped: string[];
+                  }>(
+                    'mcp-registry/import',
+                    json('POST', { source, names: selected })
+                  );
+                  await reload();
+                  setCandidates(null);
+                  setMessage(
+                    `Đã import: ${result.imported.join(', ') || 'không có'}. Bỏ qua: ${result.skipped.join(', ') || 'không có'}.`
+                  );
+                })
               }
-            />
-          ))}
-          <button
-            type="button"
-            className={button}
-            disabled={busy || !selected.length}
-            onClick={() =>
-              void run(async () => {
-                const result = await request<{
-                  imported: string[];
-                  skipped: string[];
-                }>(
-                  'mcp-registry/import',
-                  json('POST', { source, names: selected })
-                );
-                await reload();
-                setCandidates(null);
-                setMessage(
-                  `Đã import: ${result.imported.join(', ') || 'không có'}. Bỏ qua: ${result.skipped.join(', ') || 'không có'}.`
-                );
-              })
-            }
-          >
-            Import đã chọn
-          </button>
-        </div>
-      )}
+            >
+              Import đã chọn
+            </button>
+          </div>
+        )}
+      </details>
       {draft && (
         <div className="space-y-4 rounded-sm border border-border p-4">
           <h4 className="text-sm font-medium text-high">
@@ -465,25 +465,6 @@ export function HiveDeckMcp() {
               />
             </SettingsField>
           )}
-          <fieldset className="space-y-2">
-            <legend className="text-sm text-normal">CLI</legend>
-            {clis.map(([id, label]) => (
-              <SettingsCheckbox
-                key={id}
-                id={`cli-${id}`}
-                label={label}
-                checked={draft.clis.includes(id)}
-                onChange={(checked) =>
-                  setDraft({
-                    ...draft,
-                    clis: checked
-                      ? [...draft.clis, id]
-                      : draft.clis.filter((item) => item !== id),
-                  })
-                }
-              />
-            ))}
-          </fieldset>
           <fieldset className="space-y-2">
             <legend className="text-sm text-normal">Vai trò</legend>
             {roles.map((role) => (

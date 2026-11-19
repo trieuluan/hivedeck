@@ -563,15 +563,11 @@ supports: CliSupports, };
 
 export type CliSupports = { skill_modes: boolean, mcp: boolean, plugins: boolean, hooks: boolean, bundled_skills: boolean, cache_friendly_prompt: boolean, max_budget: boolean, };
 
-export type UpdateMcpServersBody = { servers: { [key in string]?: JsonValue }, };
-
 export type RegistryTransport = "stdio" | "http";
-
-export type RegistryCli = "claude_code" | "codex" | "opencode";
 
 export type RegistryRole = "captain" | "crew";
 
-export type RegistryEntry = { name: string, transport: RegistryTransport, command: string | null, args: Array<string>, url: string | null, headers: { [key in string]?: string }, env: { [key in string]?: string }, clis: Array<RegistryCli>, roles: Array<RegistryRole>, boards: Array<string>, oauth: boolean, };
+export type RegistryEntry = { name: string, transport: RegistryTransport, command: string | null, args: Array<string>, url: string | null, headers: { [key in string]?: string }, env: { [key in string]?: string }, roles: Array<RegistryRole>, boards: Array<string>, oauth: boolean, };
 
 export type SetRegistrySecret = { value: string, };
 

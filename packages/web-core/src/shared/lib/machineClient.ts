@@ -4,7 +4,6 @@ import type {
   GitBranch,
   McpServerQuery,
   Repo,
-  UpdateMcpServersBody,
   UpdateRepo,
   UserSystemInfo,
 } from 'shared/types';
@@ -44,14 +43,6 @@ export interface MachineClient {
   loadProfiles: () => Promise<{ content: string; path: string }>;
   saveProfiles: (content: string) => Promise<string>;
   loadMcpServers: (query: McpServerQuery) => Promise<GetMcpServerResponse>;
-  saveMcpServers: (
-    query: McpServerQuery,
-    data: UpdateMcpServersBody
-  ) => Promise<void>;
-  installMcpServers: (
-    query: McpServerQuery,
-    data: UpdateMcpServersBody
-  ) => Promise<void>;
 }
 
 function getMachineRequestOptions(
@@ -149,28 +140,6 @@ export function createMachineClient(target: MachineTarget): MachineClient {
       const params = new URLSearchParams(query);
       return handleApiResponse<GetMcpServerResponse>(
         await makeMachineRequest(target, `/api/mcp-config?${params.toString()}`)
-      );
-    },
-    saveMcpServers: async (query, data) => {
-      const params = new URLSearchParams(query);
-      await handleApiResponse<void>(
-        await makeMachineRequest(
-          target,
-          `/api/mcp-config?${params.toString()}`,
-          {
-            method: 'POST',
-            body: JSON.stringify(data),
-          }
-        )
-      );
-    },
-    installMcpServers: async (query, data) => {
-      const params = new URLSearchParams(query);
-      await handleApiResponse<void>(
-        await makeMachineRequest(target, `/api/mcp-install?${params}`, {
-          method: 'POST',
-          body: JSON.stringify(data),
-        })
       );
     },
   };

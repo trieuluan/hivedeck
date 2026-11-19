@@ -3,8 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-11-19
 
-Superseded in part by ADR-044. Default path is per-run injection; writing CLI
-config is the fallback.
+Superseded by ADR-044 (install into CLI removed).
 
 ## Context
 

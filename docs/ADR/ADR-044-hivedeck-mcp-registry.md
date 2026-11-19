@@ -32,7 +32,7 @@ through `OPENCODE_CONFIG_CONTENT` (`opencode.rs`).
 - HiveDeck keeps its **own MCP registry** in its asset dir, next to
   `agent_extensions.json`. Each entry holds a name, transport (stdio or
   streamable HTTP), command/args or URL, headers/env, and a scope.
-- **v1 scope**: by CLI and role (captain / crew) and by board. Per-card
+- **v1 scope**: by role (captain / crew) and by board. Every entry runs on every supported CLI. Per-card
   filtering is deferred.
 - At spawn, HiveDeck adds the matching entries to that run only, in the CLI's
   format: Claude Code through the run's `--mcp-config`, Codex through
@@ -55,14 +55,13 @@ through `OPENCODE_CONFIG_CONTENT` (`opencode.rs`).
 - **UI v1**: a "HiveDeck MCP" section is added to the existing MCP page, with
   scope checkboxes per entry. Merging the two Settings pages (MCP and Skills &
   MCP) is deferred.
-- The "install into CLI" action (writes the CLI's own config, ADR-043) is kept
-  as a fallback, not the default path. When used, it backs up the file first.
+- The "install into CLI" action is removed; HiveDeck never writes CLI config.
 - A registry entry with the same name as a server the CLI already has
   overrides it for that run, and the UI shows the clash.
 
 ## Consequences
 
-- One place to set up MCP servers for HiveDeck's runs, with per-card scope,
+- One place to set up MCP servers for HiveDeck's runs, with role and board scope,
   so heavy servers cost tokens only where they are used.
 - ADR-038's rule "never edit the CLI's own config" holds for the default path.
 - **OAuth-only remote servers are not solved.** Each CLI stores its own OAuth

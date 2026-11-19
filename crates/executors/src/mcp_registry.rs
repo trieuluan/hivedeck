@@ -15,7 +15,6 @@ pub struct RegistryEntry {
     pub headers: BTreeMap<String, String>,
     #[serde(default)]
     pub env: BTreeMap<String, String>,
-    pub clis: Vec<String>,
     pub roles: Vec<String>,
     #[serde(default)]
     pub boards: Vec<String>,
@@ -35,7 +34,7 @@ pub struct InjectedMcpServer {
 pub fn select(
     entries: Vec<RegistryEntry>,
     secrets: &BTreeMap<String, String>,
-    cli: &str,
+    _cli: &str,
     role: &str,
     board: Option<&str>,
 ) -> Result<(Vec<InjectedMcpServer>, HashMap<String, String>), String> {
@@ -44,7 +43,6 @@ pub fn select(
     let mut references = HashMap::new();
     for entry in entries {
         if entry.name == "hivedeck"
-            || !entry.clis.iter().any(|item| item == cli)
             || !entry.roles.iter().any(|item| item == role)
             || (!entry.boards.is_empty()
                 && !board.is_some_and(|board| entry.boards.iter().any(|item| item == board)))
@@ -328,7 +326,6 @@ mod tests {
             url: Some("https://example.test/mcp".into()),
             headers: BTreeMap::from([("Authorization".into(), "probe-key".into())]),
             env: BTreeMap::new(),
-            clis: vec!["claude_code".into(), "codex".into(), "opencode".into()],
             roles: vec!["crew".into()],
             boards: vec!["board-a".into()],
         }
@@ -338,7 +335,6 @@ mod tests {
     fn scope_and_secret_references() {
         let secrets = BTreeMap::from([("probe-key".into(), "top-secret".into())]);
         for (cli, role, board) in [
-            ("other", "crew", Some("board-a")),
             ("codex", "captain", Some("board-a")),
             ("codex", "crew", Some("board-b")),
             ("codex", "crew", None),
@@ -352,6 +348,15 @@ mod tests {
         }
         let (servers, vars) =
             select(vec![entry()], &secrets, "codex", "crew", Some("board-a")).unwrap();
+        for cli in ["claude_code", "codex", "opencode"] {
+            assert_eq!(
+                select(vec![entry()], &secrets, cli, "crew", Some("board-a"))
+                    .unwrap()
+                    .0
+                    .len(),
+                1
+            );
+        }
         assert_eq!(vars["HIVEDECK_MCP_PROBE_KEY_TOKEN"], "top-secret");
         let claude = claude_config(
             &servers,

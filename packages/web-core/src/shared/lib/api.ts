@@ -23,9 +23,6 @@ import {
   TagSearchParams,
   UpdateTag,
   UserSystemInfo,
-  McpServerQuery,
-  UpdateMcpServersBody,
-  GetMcpServerResponse,
   AttachmentResponse,
   GitOperationError,
   ApprovalResponse,
@@ -1501,51 +1498,6 @@ export const tagsApi = {
       method: 'DELETE',
     });
     return handleApiResponse<void>(response);
-  },
-};
-
-// MCP Servers APIs
-export const mcpServersApi = {
-  load: async (
-    query: McpServerQuery,
-    hostId?: string | null
-  ): Promise<GetMcpServerResponse> => {
-    const params = new URLSearchParams(query);
-    const response = await makeHostAwareRequest(
-      `/api/mcp-config?${params.toString()}`,
-      hostId
-    );
-    return handleApiResponse<GetMcpServerResponse>(response);
-  },
-  save: async (
-    query: McpServerQuery,
-    data: UpdateMcpServersBody,
-    hostId?: string | null
-  ): Promise<void> => {
-    const params = new URLSearchParams(query);
-    // params.set('profile', profile);
-    const response = await makeHostAwareRequest(
-      `/api/mcp-config?${params.toString()}`,
-      hostId,
-      {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }
-    );
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('[API Error] Failed to save MCP servers', {
-        message: errorData.message,
-        status: response.status,
-        response,
-        timestamp: new Date().toISOString(),
-      });
-      throw new ApiError(
-        errorData.message || 'Failed to save MCP servers',
-        response.status,
-        response
-      );
-    }
   },
 };
 
