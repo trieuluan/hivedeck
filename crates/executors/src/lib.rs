@@ -10,5 +10,6 @@ pub mod logs;
 pub mod mcp_config;
 pub mod mcp_registry;
 pub mod model_selector;
+pub mod plugins;
 pub mod profile;
 pub mod stdout_dup;

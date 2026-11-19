@@ -170,10 +170,30 @@ pub fn opencode_config(servers: &[InjectedMcpServer], existing: Option<&str>) ->
     config.to_string()
 }
 
+fn valid_env_ident(name: &str) -> bool {
+    let mut bytes = name.bytes();
+    bytes
+        .next()
+        .is_some_and(|first| first.is_ascii_alphabetic() || first == b'_')
+        && bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+}
+
+fn codex_server_key(name: &str) -> String {
+    if !name.is_empty()
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
+    {
+        name.to_string()
+    } else {
+        toml::Value::String(name.to_string()).to_string()
+    }
+}
+
 pub fn codex_args(servers: &[InjectedMcpServer]) -> Vec<String> {
     let mut args = Vec::new();
     for server in servers {
-        let prefix = format!("mcp_servers.{}", toml::Value::String(server.name.clone()));
+        let prefix = format!("mcp_servers.{}", codex_server_key(&server.name));
         let mut fields = toml::map::Map::new();
         let mut push = |field: &str, value: toml::Value| {
             fields.insert(field.to_string(), value);
@@ -197,6 +217,39 @@ pub fn codex_args(servers: &[InjectedMcpServer]) -> Vec<String> {
             if !headers.is_empty() {
                 push("env_http_headers", toml::Value::Table(headers));
             }
+        } else if cfg!(unix)
+            && !server.env.is_empty()
+            && server.command.is_some()
+            && server
+                .env
+                .iter()
+                .all(|(key, var)| valid_env_ident(key) && valid_env_ident(var))
+        {
+            let command = server.command.as_ref().unwrap();
+            let mut script = String::new();
+            let mut forwarded = std::collections::BTreeSet::new();
+            for (key, var) in &server.env {
+                script.push_str(&format!("export {key}=\"${var}\"; "));
+                forwarded.insert(var.clone());
+            }
+            for var in &forwarded {
+                if !server.env.contains_key(var) {
+                    script.push_str(&format!("unset {var}; "));
+                }
+            }
+            script.push_str("exec \"$0\" \"$@\"");
+            let mut wrapped_args = vec![
+                toml::Value::String("-c".into()),
+                toml::Value::String(script),
+                toml::Value::String(command.clone()),
+            ];
+            wrapped_args.extend(server.args.iter().cloned().map(toml::Value::String));
+            push("command", toml::Value::String("/bin/sh".into()));
+            push("args", toml::Value::Array(wrapped_args));
+            push(
+                "env_vars",
+                toml::Value::Array(forwarded.into_iter().map(toml::Value::String).collect()),
+            );
         } else {
             if let Some(command) = &server.command {
                 push("command", toml::Value::String(command.clone()));
@@ -240,10 +293,7 @@ pub fn codex_disable_args(names: &[String]) -> Vec<String> {
         .flat_map(|name| {
             [
                 "-c".to_string(),
-                format!(
-                    "mcp_servers.{}.enabled=false",
-                    toml::Value::String(name.clone())
-                ),
+                format!("mcp_servers.{}.enabled=false", codex_server_key(name)),
             ]
         })
         .collect()
@@ -410,7 +460,18 @@ mod tests {
         assert!(claude.contains("${HIVEDECK_MCP_PROBE_KEY_TOKEN}"));
         assert_eq!(
             config["mcp_servers"]["probe"]["env_vars"][0].as_str(),
-            Some("API_KEY")
+            Some("HIVEDECK_MCP_PROBE_KEY_TOKEN")
+        );
+        assert_eq!(
+            config["mcp_servers"]["probe"]["command"].as_str(),
+            Some("/bin/sh")
+        );
+        assert!(
+            config["mcp_servers"]["probe"]["args"][1]
+                .as_str()
+                .is_some_and(
+                    |script| script.contains("export API_KEY=\"$HIVEDECK_MCP_PROBE_KEY_TOKEN\"")
+                )
         );
         assert!(opencode.contains("{env:HIVEDECK_MCP_PROBE_KEY_TOKEN}"));
         assert!(!format!("{claude}{codex}{opencode}").contains("top-secret"));

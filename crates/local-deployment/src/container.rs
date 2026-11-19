@@ -652,6 +652,7 @@ impl LocalContainerService {
         // session that exited while a tool approval was pending) so the headed
         // bridge's blocked HTTP request returns promptly rather than timing out.
         self.approvals.cancel_for_execution_process(exec_id);
+        executors::plugins::cleanup_run_skills(&utils::assets::asset_dir(), &exec_id.to_string());
 
         if !ExecutionProcess::was_stopped(&db.pool, exec_id).await
             && let Err(e) =
@@ -1696,6 +1697,11 @@ impl LocalContainerService {
                 );
                 let position = argv.len().saturating_sub(1);
                 argv.insert(position, format!("--mcp-config={config}"));
+            }
+
+            for dir in &env.skill_dirs {
+                let position = argv.len().saturating_sub(1);
+                argv.insert(position, format!("--add-dir={}", dir.display()));
             }
 
             // Inject the approval hook via `--settings <json>` (two tokens before
@@ -2761,7 +2767,12 @@ impl ContainerService for LocalContainerService {
             };
             let secrets = serde_json::from_slice(&secret_bytes)
                 .map_err(|_| anyhow!("Invalid MCP secrets"))?;
+            let plugins = executors::plugins::read_plugins(&dir)
+                .map_err(|error| anyhow!("Invalid plugins registry: {error}"))?;
+            let plugin_secrets = executors::plugins::read_plugin_secrets(&dir)
+                .map_err(|error| anyhow!("Invalid plugin secrets: {error}"))?;
             let captain = workspace.kind == Some(WorkspaceKind::Orchestrator);
+            let role = if captain { "captain" } else { "crew" };
             let board = if captain {
                 Workspace::captain_project_id(&self.db.pool, workspace.id).await?
             } else {
@@ -2770,16 +2781,34 @@ impl ContainerService for LocalContainerService {
                     .map(|(_, project)| project)
             }
             .map(|id| id.to_string());
-            let (servers, secrets) = executors::mcp_registry::select(
+            let (servers, secrets) = executors::plugins::select_mcp_for_run(
+                &dir,
                 entries,
                 &secrets,
+                &plugins,
+                &plugin_secrets,
                 cli,
-                if captain { "captain" } else { "crew" },
+                role,
                 board.as_deref(),
             )
             .map_err(|error| anyhow!(error))?;
             env.mcp_servers = servers;
             env.merge(&secrets);
+
+            let selected_skills = executors::plugins::select_skills_for_run(
+                &dir,
+                &plugins,
+                cli,
+                role,
+                board.as_deref(),
+            );
+            env.skill_dirs = executors::plugins::materialize_run_skills(
+                &dir,
+                &execution_process.id.to_string(),
+                cli,
+                &selected_skills,
+            )
+            .map_err(|error| anyhow!("Failed to materialize plugin skills: {error}"))?;
         }
 
         // Telegram channel: hand Claude Code agents their per-branch channel
@@ -2887,16 +2916,30 @@ impl ContainerService for LocalContainerService {
         }
 
         // Create the child and stream, add to execution tracker with timeout
-        let mut spawned = tokio::time::timeout(
+        let spawned_res = tokio::time::timeout(
             Duration::from_secs(30),
             executor_action.spawn(&current_dir, approvals_service, &env),
         )
-        .await
-        .map_err(|_| {
-            ContainerError::Other(anyhow!(
-                "Timeout: process took more than 30 seconds to start"
-            ))
-        })??;
+        .await;
+        let mut spawned = match spawned_res {
+            Ok(Ok(child)) => child,
+            Ok(Err(err)) => {
+                executors::plugins::cleanup_run_skills(
+                    &utils::assets::asset_dir(),
+                    &execution_process.id.to_string(),
+                );
+                return Err(err.into());
+            }
+            Err(_) => {
+                executors::plugins::cleanup_run_skills(
+                    &utils::assets::asset_dir(),
+                    &execution_process.id.to_string(),
+                );
+                return Err(ContainerError::Other(anyhow!(
+                    "Timeout: process took more than 30 seconds to start"
+                )));
+            }
+        };
 
         if let Err(e) = self
             .track_child_msgs_in_store(execution_process.id, &mut spawned.child)
@@ -2967,6 +3010,10 @@ impl ContainerService for LocalContainerService {
             }
 
             self.update_after_head_commits(execution_process.id).await;
+            executors::plugins::cleanup_run_skills(
+                &utils::assets::asset_dir(),
+                &execution_process.id.to_string(),
+            );
             tracing::debug!(
                 "Detached execution {} stopped successfully",
                 execution_process.id

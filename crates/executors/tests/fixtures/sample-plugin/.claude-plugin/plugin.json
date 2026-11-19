@@ -1,0 +1,8 @@
+{
+  "name": "sample-plugin",
+  "version": "1.0.0",
+  "description": "Fixture plugin with MCP server, skill, and unsupported hooks",
+  "mcpServers": "./.mcp.json",
+  "skills": "./skills",
+  "hooks": "./hooks/hooks.json"
+}

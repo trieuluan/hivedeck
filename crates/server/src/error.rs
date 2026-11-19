@@ -63,6 +63,8 @@ pub enum ApiError {
     EditorOpen(#[from] EditorOpenError),
     #[error("Bad request: {0}")]
     BadRequest(String),
+    #[error("Not found: {0}")]
+    NotFound(String),
     #[error("Conflict: {0}")]
     Conflict(String),
     #[error("Conflict payload")]
@@ -346,6 +348,7 @@ impl IntoResponse for ApiError {
             ApiError::Pty(_) => ErrorInfo::internal("PtyError"),
 
             ApiError::BadRequest(msg) => ErrorInfo::bad_request("BadRequest", msg.clone()),
+            ApiError::NotFound(msg) => ErrorInfo::not_found("NotFound", msg.clone()),
             ApiError::Conflict(msg) => ErrorInfo::conflict("ConflictError", msg.clone()),
             ApiError::ConflictPayload(payload) => {
                 // Derive BOTH `message` and `error_type` from the payload's

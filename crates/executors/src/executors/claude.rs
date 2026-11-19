@@ -1066,6 +1066,9 @@ impl ClaudeCode {
             mcp_config.as_deref(),
             &model_overrides,
         ));
+        for dir in &env.skill_dirs {
+            args.push(format!("--add-dir={}", dir.display()));
+        }
         let combined_prompt = self.append_prompt.combine_prompt(prompt);
 
         let mut command = Command::new(program_path);

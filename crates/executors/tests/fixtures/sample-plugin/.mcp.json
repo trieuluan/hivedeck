@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "fixture-tool": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-server.mjs"],
+      "env": {
+        "FIXTURE_TOKEN": "${FIXTURE_API_KEY}"
+      }
+    }
+  }
+}

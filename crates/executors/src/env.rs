@@ -79,6 +79,7 @@ impl RepoContext {
 pub struct ExecutionEnv {
     pub vars: HashMap<String, String>,
     pub mcp_servers: Vec<crate::mcp_registry::InjectedMcpServer>,
+    pub skill_dirs: Vec<PathBuf>,
     pub repo_context: RepoContext,
     pub commit_reminder: bool,
     pub commit_reminder_prompt: String,
@@ -105,6 +106,7 @@ impl ExecutionEnv {
         Self {
             vars: HashMap::new(),
             mcp_servers: Vec::new(),
+            skill_dirs: Vec::new(),
             repo_context,
             commit_reminder,
             commit_reminder_prompt,

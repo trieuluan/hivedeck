@@ -140,6 +140,13 @@ impl Opencode {
             );
             env.insert("OPENCODE_CONFIG_CONTENT", config);
         }
+        if !env.skill_dirs.is_empty() {
+            let config = crate::plugins::opencode_skills_config(
+                &env.skill_dirs,
+                env.get("OPENCODE_CONFIG_CONTENT").map(String::as_str),
+            );
+            env.insert("OPENCODE_CONFIG_CONTENT", config);
+        }
         env.apply_to_command(&mut command);
 
         let child = command.group_spawn_no_window()?;
@@ -920,6 +927,11 @@ impl OpencodeHeaded {
             merged
         } else {
             crate::mcp_registry::opencode_config(&env.mcp_servers, Some(&merged))
+        };
+        let merged = if env.skill_dirs.is_empty() {
+            merged
+        } else {
+            crate::plugins::opencode_skills_config(&env.skill_dirs, Some(&merged))
         };
         let mut env = env;
         env.insert("OPENCODE_CONFIG_CONTENT", &merged);
