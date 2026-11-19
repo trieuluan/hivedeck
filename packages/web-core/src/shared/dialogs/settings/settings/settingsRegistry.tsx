@@ -7,6 +7,7 @@ import {
   FlowArrowIcon,
   ClockCountdownIcon,
   PuzzlePieceIcon,
+  PackageIcon,
 } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 import { GeneralSettingsSection } from './GeneralSettingsSection';
@@ -14,6 +15,7 @@ import { PipelineSettingsSection } from './PipelineSettingsSection';
 import { RecurrentSettingsSection } from './RecurrentSettingsSection';
 import { ReposSettingsSection } from './ReposSettingsSection';
 import { AgentsSettingsSection } from './AgentsSettingsSection';
+import { PluginsSettingsSection } from './PluginsSettingsSection';
 import { McpSettingsSection } from './McpSettingsSection';
 import { ExtensionsSettingsSection } from './ExtensionsSettingsSection';
 import { TelegramSettingsSection } from './TelegramSettingsSection';
@@ -26,6 +28,7 @@ export type SettingsSectionType =
   | 'recurrent'
   | 'repos'
   | 'agents'
+  | 'plugins'
   | 'mcp'
   | 'extensions'
   | 'telegram';
@@ -38,6 +41,7 @@ export type SettingsSectionInitialState = {
   recurrent: undefined;
   repos: { repoId?: string } | undefined;
   agents: { executor?: string; variant?: string } | undefined;
+  plugins: undefined;
   mcp: undefined;
   extensions: undefined;
   telegram: undefined;
@@ -55,6 +59,7 @@ export const SETTINGS_SECTION_DEFINITIONS: SettingsSectionDefinition[] = [
   { id: 'recurrent', icon: ClockCountdownIcon, group: 'host' },
   { id: 'repos', icon: GitBranchIcon, group: 'host' },
   { id: 'agents', icon: CpuIcon, group: 'host' },
+  { id: 'plugins', icon: PackageIcon, group: 'host' },
   { id: 'mcp', icon: PlugIcon, group: 'host' },
   { id: 'extensions', icon: PuzzlePieceIcon, group: 'host' },
   { id: 'telegram', icon: TelegramLogoIcon, group: 'host' },
@@ -89,6 +94,8 @@ export function renderSettingsSection(
       );
     case 'agents':
       return <AgentsSettingsSection />;
+    case 'plugins':
+      return <PluginsSettingsSection />;
     case 'mcp':
       return <McpSettingsSection />;
     case 'extensions':

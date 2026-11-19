@@ -132,7 +132,7 @@ pub struct InstalledPlugin {
 
 pub type PluginsSecrets = BTreeMap<String, BTreeMap<String, BTreeMap<String, String>>>;
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, TS)]
 pub struct InstallPluginRequest {
     pub source: String,
     #[serde(default)]
@@ -153,7 +153,7 @@ pub struct InstallPluginRequest {
     pub secrets: BTreeMap<String, BTreeMap<String, String>>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, TS)]
 pub struct UpgradePluginRequest {
     #[serde(default)]
     pub source: Option<String>,
@@ -1299,6 +1299,63 @@ pub fn install_plugin(
     }
 
     Ok(installed)
+}
+
+pub fn latest_tag(dir: &Path, name: &str) -> Result<Option<String>, PluginError> {
+    let plugin = read_plugins(dir)?
+        .into_iter()
+        .find(|p| p.name == name)
+        .ok_or_else(|| PluginError::NotFound(format!("Plugin '{name}' not found")))?;
+    if !is_remote_source(plugin.source.trim()) {
+        return Ok(None);
+    }
+    let out = Command::new("git")
+        .args(["ls-remote", "--tags", "--refs", "--sort=-v:refname"])
+        .arg(plugin.source.trim())
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .output()?;
+    if !out.status.success() {
+        return Err(PluginError::BadRequest(format!(
+            "Failed to list tags: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        )));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .find_map(|line| {
+            line.split_once("refs/tags/")
+                .map(|(_, tag)| tag.to_string())
+        }))
+}
+
+pub fn preview_plugin(req: InstallPluginRequest) -> Result<InstalledPlugin, PluginError> {
+    let roles = req.roles.unwrap_or_else(default_roles);
+    let boards = req.boards.unwrap_or_default();
+    let skill_clis = req.skill_clis.unwrap_or_default();
+    validate_roles(&roles)?;
+    validate_clis(&skill_clis)?;
+    let (_staging, staged_root, commit, tag) =
+        stage_source(&req.source, req.commit.as_deref(), req.tag.as_deref())?;
+    let parsed = parse_manifest(
+        &staged_root,
+        req.version.as_deref(),
+        &roles,
+        &boards,
+        &skill_clis,
+    )?;
+    Ok(InstalledPlugin {
+        name: parsed.name,
+        version: parsed.version,
+        source: req.source,
+        commit,
+        tag,
+        enabled: true,
+        asset_hash: compute_dir_hash(&staged_root)?,
+        mcp: parsed.mcp,
+        skills: parsed.skills,
+        unsupported: parsed.unsupported,
+        notes: Vec::new(),
+    })
 }
 
 pub fn upgrade_plugin(

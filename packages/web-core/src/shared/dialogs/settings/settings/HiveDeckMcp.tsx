@@ -18,11 +18,6 @@ import {
   SettingsTextarea,
 } from './SettingsComponents';
 
-type Candidate = {
-  name: string;
-  sources: ('claude_code' | 'codex')[];
-  exists: boolean;
-};
 type Pair = { key: string; reference: string; value: string };
 const roles: RegistryRole[] = ['captain', 'crew'];
 const empty = (): RegistryEntry => ({
@@ -60,8 +55,6 @@ export function HiveDeckMcp() {
   const [draft, setDraft] = useState<RegistryEntry | null>(null);
   const [original, setOriginal] = useState<string | null>(null);
   const [pairs, setPairs] = useState<Pair[]>([]);
-  const [candidates, setCandidates] = useState<Candidate[] | null>(null);
-  const [selected, setSelected] = useState<string[]>([]);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -294,103 +287,6 @@ export function HiveDeckMcp() {
           Thêm entry
         </button>
       </div>
-      <details
-        className="space-y-2"
-        onToggle={(event) => {
-          if (event.currentTarget.open)
-            void run(async () => {
-              setCandidates(
-                await request<Candidate[]>('mcp-registry/import-candidates')
-              );
-              setSelected([]);
-            });
-        }}
-      >
-        <summary className="cursor-pointer text-sm text-low underline">
-          Lấy từ config CLI có sẵn
-        </summary>
-        <button
-          type="button"
-          className={button}
-          disabled={busy}
-          onClick={() =>
-            void run(async () => {
-              setCandidates(
-                await request<Candidate[]>('mcp-registry/import-candidates')
-              );
-              setSelected([]);
-            })
-          }
-        >
-          Xem server
-        </button>
-        {candidates && (
-          <div className="space-y-2">
-            <p className="text-sm text-normal">Chọn server cần import</p>
-            <SettingsCheckbox
-              id="import-all"
-              label="Chọn tất cả"
-              checked={
-                candidates.some((candidate) => !candidate.exists) &&
-                candidates
-                  .filter((candidate) => !candidate.exists)
-                  .every((candidate) => selected.includes(candidate.name))
-              }
-              disabled={!candidates.some((candidate) => !candidate.exists)}
-              onChange={(checked) =>
-                setSelected(
-                  checked
-                    ? candidates
-                        .filter((candidate) => !candidate.exists)
-                        .map((candidate) => candidate.name)
-                    : []
-                )
-              }
-            />
-            {candidates.map((candidate) => (
-              <SettingsCheckbox
-                key={candidate.name}
-                id={`import-${candidate.name}`}
-                label={`${candidate.name}${candidate.exists ? ' (đã tồn tại)' : ''}`}
-                description={candidate.sources
-                  .map((source) =>
-                    source === 'claude_code' ? 'Claude Code' : 'Codex'
-                  )
-                  .join(', ')}
-                disabled={candidate.exists}
-                checked={selected.includes(candidate.name)}
-                onChange={(checked) =>
-                  setSelected(
-                    checked
-                      ? [...selected, candidate.name]
-                      : selected.filter((name) => name !== candidate.name)
-                  )
-                }
-              />
-            ))}
-            <button
-              type="button"
-              className={button}
-              disabled={busy || !selected.length}
-              onClick={() =>
-                void run(async () => {
-                  const result = await request<{
-                    imported: string[];
-                    skipped: string[];
-                  }>('mcp-registry/import', json('POST', { names: selected }));
-                  await reload();
-                  setCandidates(null);
-                  setMessage(
-                    `Đã import: ${result.imported.join(', ') || 'không có'}. Bỏ qua: ${result.skipped.join(', ') || 'không có'}.`
-                  );
-                })
-              }
-            >
-              Import đã chọn
-            </button>
-          </div>
-        )}
-      </details>
       {draft && (
         <div className="space-y-4 rounded-sm border border-border p-4">
           <h4 className="text-sm font-medium text-high">

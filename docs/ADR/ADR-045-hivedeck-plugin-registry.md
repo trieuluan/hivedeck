@@ -105,3 +105,18 @@ against local loopback mock LLM endpoints with isolated `HOME`:
 - **OpenCode 1.19.6**: `opencode --pure debug skill` listed `fixture-skill`;
   `opencode --pure run` completed `initialize` and `tools/list` with
   `FIXTURE_TOKEN` verified inside the MCP process.
+
+## UI (2026-11-20)
+
+- Settings section **Tiện ích** (`settings/PluginsSettingsSection.tsx`, nav id
+  `plugins`) lists installed plugins with enable/disable, details, upgrade and
+  remove. The old "Xem server" import button is gone; the "Lấy từ config CLI có
+  sẵn" link now lives in this section (`plugins/ImportFromCli.tsx`, reuses
+  `/api/mcp-registry/import*`).
+- Add dialog previews via new `POST /api/plugins/preview` (stages the source,
+  parses the manifest, installs nothing) and marks each MCP/skill as
+  compatible / needs secret or OAuth / unsupported. Install sends secrets in the
+  POST body; they are never returned (`secret_status` carries only `has_value`).
+- `GET /api/plugins/{name}/latest-tag` backs the Upgrade button for
+  tag-pinned remote sources (`git ls-remote`).
+- Types (`InstalledPlugin`, `PluginView`, requests) are generated from Rust.

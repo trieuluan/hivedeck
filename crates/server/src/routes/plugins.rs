@@ -14,25 +14,26 @@ use executors::plugins::{
     PluginsSecrets, UpgradePluginRequest,
 };
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 use utils::response::ApiResponse;
 
 use crate::{DeploymentImpl, error::ApiError};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, TS)]
 pub struct PluginMcpSecretStatus {
     pub mcp: String,
     pub name: String,
     pub has_value: bool,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, TS)]
 pub struct PluginView {
     #[serde(flatten)]
     pub plugin: InstalledPlugin,
     pub secret_status: Vec<PluginMcpSecretStatus>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, TS)]
 pub struct PluginSecretStatus {
     pub plugin: String,
     pub mcp: String,
@@ -40,7 +41,7 @@ pub struct PluginSecretStatus {
     pub has_value: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, TS)]
 pub struct SetPluginSecretRequest {
     pub value: String,
 }
@@ -142,6 +143,31 @@ async fn install(
     let installed = plugins::install_plugin(&dir, req).map_err(map_err)?;
     let secrets = plugins::read_plugin_secrets(&dir).map_err(map_err)?;
     Ok(Json(ApiResponse::success(build_view(installed, &secrets))))
+}
+
+async fn preview(
+    req: Result<Json<InstallPluginRequest>, axum::extract::rejection::JsonRejection>,
+) -> Result<Json<ApiResponse<InstalledPlugin>>, ApiError> {
+    let Json(req) = req.map_err(|_| ApiError::BadRequest("Invalid preview request".into()))?;
+    let plugin = tokio::task::spawn_blocking(move || plugins::preview_plugin(req))
+        .await
+        .map_err(|err| ApiError::Io(std::io::Error::other(err)))?
+        .map_err(map_err)?;
+    Ok(Json(ApiResponse::success(plugin)))
+}
+
+async fn latest_tag(
+    Extension(dir): Extension<PathBuf>,
+    RoutePath(name): RoutePath<String>,
+) -> Result<Json<ApiResponse<Option<String>>>, ApiError> {
+    if !plugins::valid_name(&name) {
+        return Err(ApiError::BadRequest("Invalid plugin name".into()));
+    }
+    let tag = tokio::task::spawn_blocking(move || plugins::latest_tag(&dir, &name))
+        .await
+        .map_err(|err| ApiError::Io(std::io::Error::other(err)))?
+        .map_err(map_err)?;
+    Ok(Json(ApiResponse::success(tag)))
 }
 
 async fn upgrade(
@@ -266,10 +292,12 @@ pub(crate) fn router_for_dir<S: Clone + Send + Sync + 'static>(dir: &Path) -> Ro
     Router::new()
         .route("/plugins", get(list))
         .route("/plugins/install", post(install))
+        .route("/plugins/preview", post(preview))
         .route("/plugins/{name}", get(get_one).delete(uninstall))
         .route("/plugins/{name}/enable", post(enable))
         .route("/plugins/{name}/disable", post(disable))
         .route("/plugins/{name}/upgrade", post(upgrade))
+        .route("/plugins/{name}/latest-tag", get(latest_tag))
         .route("/plugins/{name}/skills/{skill}", put(update_skill))
         .route("/plugins/{name}/mcp/{mcp}", put(update_mcp))
         .route(
@@ -314,6 +342,14 @@ mod tests {
         let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../executors/tests/fixtures/sample-plugin");
         let app = router_for_dir::<()>(dir.path());
+
+        let preview_body = serde_json::json!({ "source": fixture.to_string_lossy() }).to_string();
+        let (status, body) = request(&app, "POST", "/plugins/preview", &preview_body).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(body.contains("sample-plugin"));
+        let (status, body) = request(&app, "GET", "/plugins", "").await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(body.contains("\"data\":[]"), "preview must not install");
 
         // Initially empty.
         let (status, body) = request(&app, "GET", "/plugins", "").await;

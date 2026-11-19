@@ -573,6 +573,28 @@ export type SetRegistrySecret = { value: string, };
 
 export type RegistrySecretStatus = { name: string, has_value: boolean, };
 
+export type ConflictPolicy = "abort" | "skip" | "overwrite";
+
+export type PluginConflict = { kind: string, name: string, against: string, action?: string | null, };
+
+export type PluginMcpEntry = { name: string, transport: string, command?: string | null, args: Array<string>, url?: string | null, headers: { [key in string]?: string }, env: { [key in string]?: string }, roles: Array<string>, boards: Array<string>, oauth: boolean, enabled: boolean, };
+
+export type PluginSkillEntry = { name: string, path: string, roles: Array<string>, boards: Array<string>, clis: Array<string>, enabled: boolean, };
+
+export type InstalledPlugin = { name: string, version: string, source: string, commit?: string | null, tag?: string | null, enabled: boolean, asset_hash: string, mcp: Array<PluginMcpEntry>, skills: Array<PluginSkillEntry>, unsupported: Array<string>, notes: Array<PluginConflict>, };
+
+export type InstallPluginRequest = { source: string, version: string | null, commit: string | null, tag: string | null, roles: Array<string> | null, boards: Array<string> | null, skill_clis: Array<string> | null, conflict_policy: ConflictPolicy, secrets: { [key in string]?: { [key in string]?: string } }, };
+
+export type UpgradePluginRequest = { source: string | null, version: string | null, commit: string | null, tag: string | null, conflict_policy: ConflictPolicy, };
+
+export type PluginMcpSecretStatus = { mcp: string, name: string, has_value: boolean, };
+
+export type PluginView = { secret_status: Array<PluginMcpSecretStatus>, name: string, version: string, source: string, commit?: string | null, tag?: string | null, enabled: boolean, asset_hash: string, mcp: Array<PluginMcpEntry>, skills: Array<PluginSkillEntry>, unsupported: Array<string>, notes: Array<PluginConflict>, };
+
+export type PluginSecretStatus = { plugin: string, mcp: string, name: string, has_value: boolean, };
+
+export type SetPluginSecretRequest = { value: string, };
+
 export type GetMcpServerResponse = { mcp_config: McpConfig, config_path: string, };
 
 export type CheckEditorAvailabilityQuery = { editor_type: EditorType, };
