@@ -5,7 +5,6 @@ use sqlx::{FromRow, SqlitePool};
 use thiserror::Error;
 use ts_rs::TS;
 use uuid::Uuid;
-use super::execution_process::{ExecutionProcessRunReason, ExecutionProcessStatus};
 
 use super::workspace_repo::WorkspaceRepo;
 
