@@ -631,7 +631,9 @@
     "rebaseInProgress": "A rebase is already in progress in this workspace. Finish or abort it there first.",
     "failedTitle": "Merge failed",
     "pushFailedTitle": "Merged, but the push failed",
-    "pushFailedMessage": "The changes are merged locally and the card is Done. Push it yourself when you can: {{error}}"
+    "pushFailedMessage": "The changes are merged locally and the card is Done. Push it yourself when you can: {{error}}",
+    "openSubIssuesTitle": "Cannot move to Done while sub-issues are open",
+    "openSubIssuesMessage": "Finish or cancel these sub-issues first:\n{{list}}"
   },
   "captain": {
     "title": "Captain",

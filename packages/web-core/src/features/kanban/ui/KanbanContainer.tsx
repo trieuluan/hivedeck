@@ -42,6 +42,10 @@ import {
   isCancelledStatusName,
 } from '../model/useCollapsedStatuses';
 import { findFinishedCleanableWorkspaceIds } from '../model/finishedWorkspaces';
+import {
+  getOpenSubIssuesForDoneMove,
+  showOpenSubIssuesBlockedDialog,
+} from '../model/subIssueDoneGuard';
 import { useFlipCards } from '../model/useFlipCards';
 import { Actions } from '@/shared/actions';
 import {
@@ -865,6 +869,16 @@ export function KanbanContainer() {
   const handleAcceptFindings = useCallback(
     async (issueId: string, localWorkspaceId: string, isPinned: boolean) => {
       if (!doneStatusId) return;
+      const openSubIssues = getOpenSubIssuesForDoneMove(
+        issueId,
+        doneStatusId,
+        issues,
+        statuses
+      );
+      if (openSubIssues.length > 0) {
+        await showOpenSubIssuesBlockedDialog(openSubIssues, t);
+        return;
+      }
       const result = await ConfirmCheckboxDialog.show({
         title: t('tasks:ship.acceptConfirmTitle', {
           defaultValue: 'Accept findings & complete card?',
@@ -905,7 +919,7 @@ export function KanbanContainer() {
 
       updateIssue(issueId, { status_id: doneStatusId });
     },
-    [doneStatusId, refreshWorkspaceCaches, t, updateIssue]
+    [doneStatusId, issues, refreshWorkspaceCaches, statuses, t, updateIssue]
   );
   const renderShipButton = (issue: { id: string; status_id: string }) => {
     if (!reviewStatusId || !doneStatusId) return null;
@@ -939,6 +953,19 @@ export function KanbanContainer() {
       <ShipIssueButton
         workspaceId={localId}
         isPinned={Boolean(localWorkspace?.isPinned)}
+        onBeforeShip={async () => {
+          const openSubIssues = getOpenSubIssuesForDoneMove(
+            issue.id,
+            doneStatusId,
+            issues,
+            statuses
+          );
+          if (openSubIssues.length > 0) {
+            await showOpenSubIssuesBlockedDialog(openSubIssues, t);
+            return false;
+          }
+          return true;
+        }}
         onShipped={() => updateIssue(issue.id, { status_id: doneStatusId })}
         onOpenWorkspace={() => openIssueWorkspace(issue.id, localId)}
         onCleanup={refreshWorkspaceCaches}
@@ -1121,6 +1148,18 @@ export function KanbanContainer() {
       //       here so the commit short-circuits before the gate holds
       //       and the backend round-trips a no-op (P5-E1).
       if (from === to && (move.index === undefined || !isManualSort)) return;
+      if (from !== to) {
+        const openSubIssues = getOpenSubIssuesForDoneMove(
+          move.issueId,
+          to,
+          issues,
+          statuses
+        );
+        if (openSubIssues.length > 0) {
+          void showOpenSubIssuesBlockedDialog(openSubIssues, t);
+          return;
+        }
+      }
 
       // P4-B1: under non-manual sort, the column is ordered by a
       // non-positional field (priority/created_at/title). The custom
@@ -1150,6 +1189,9 @@ export function KanbanContainer() {
       applyKanbanMove,
       issueMap,
       isManualSort,
+      issues,
+      statuses,
+      t,
     ]
   );
 

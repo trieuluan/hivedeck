@@ -49,7 +49,9 @@ For each actionable request:
      Reserve `urgent`/`high` for explicit user urgency or production breakage.
 3. **Create it:** `create_issue(project_id, title, description, priority)`. Use
    `parent_issue_id` only when the requester explicitly frames it as a subtask of
-   a known issue.
+   a known epic/parent issue (not for sequential dependencies — use
+   `create_issue_relationship` with `relationship_type: "blocking"` for step 1 →
+   step 2 ordering; a parent card cannot move to `Done` while sub-issues remain open).
 4. **Confirm:** reply in the channel with the issue's `simple_id`, the final
    title, the project, and the priority you chose — one tight line. Example:
    `Filed #VK-142 "Add CSV export" in hivedeck (medium).`

@@ -181,4 +181,24 @@ describe('ShipIssueButton', () => {
     });
     expect(onCleanup).not.toHaveBeenCalled();
   });
+
+  it('aborts without confirming or merging when onBeforeShip returns false', async () => {
+    const onShipped = vi.fn();
+    const el = ShipIssueButton({
+      workspaceId: 'ws-3',
+      onBeforeShip: async () => false,
+      onShipped,
+      onOpenWorkspace: vi.fn(),
+    }) as ReactElement<{
+      onClick: (e: MouseEvent<HTMLButtonElement>) => Promise<void>;
+    }>;
+
+    await el.props.onClick({
+      stopPropagation: vi.fn(),
+    } as unknown as MouseEvent<HTMLButtonElement>);
+
+    expect(checkboxConfirmMock).not.toHaveBeenCalled();
+    expect(shipMock).not.toHaveBeenCalled();
+    expect(onShipped).not.toHaveBeenCalled();
+  });
 });

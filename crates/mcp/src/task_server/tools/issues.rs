@@ -1957,6 +1957,104 @@ mod tests {
                 "an outer None must omit the parent_issue_id key entirely: {untouched_json}"
             );
         }
+
+        #[tokio::test]
+        async fn update_issue_surfaces_400_error_message() {
+            let issue = issue_fixture(None, None);
+            let issue_json = serde_json::to_value(&issue).expect("issue serializes");
+            let done_id = Uuid::new_v4();
+            let error_msg =
+                "Cannot move issue to Done while sub-issues are still open: HIVE-50 (In Progress)";
+
+            let listener = TcpListener::bind("127.0.0.1:0")
+                .await
+                .expect("bind loopback listener");
+            let port = listener
+                .local_addr()
+                .expect("listener has a local addr")
+                .port();
+
+            let stub = tokio::spawn(async move {
+                for _ in 0..3 {
+                    let (mut stream, _) = listener.accept().await.expect("accept");
+                    let mut buf = Vec::new();
+                    let mut chunk = [0u8; 4096];
+                    let header_end = loop {
+                        let n = stream.read(&mut chunk).await.expect("read");
+                        buf.extend_from_slice(&chunk[..n]);
+                        if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                            break pos;
+                        }
+                    };
+                    let headers = String::from_utf8_lossy(&buf[..header_end]);
+                    let req_line = headers.lines().next().unwrap_or("");
+                    let mut parts = req_line.split_whitespace();
+                    let method = parts.next().unwrap_or("");
+                    let path = parts.next().unwrap_or("").split('?').next().unwrap_or("");
+
+                    let (status_line, body) = match (method, path) {
+                        ("GET", p) if p.starts_with("/api/issues/") => {
+                            ("200 OK", envelope(issue_json.clone()))
+                        }
+                        ("GET", "/api/project-statuses") => (
+                            "200 OK",
+                            envelope(serde_json::json!({
+                                "project_statuses": [{
+                                    "id": done_id,
+                                    "project_id": issue.project_id,
+                                    "name": "Done",
+                                    "color": "#22c55e",
+                                    "sort_order": 2,
+                                    "hidden": false,
+                                    "is_terminal": true,
+                                    "created_at": "2026-07-01T00:00:00Z"
+                                }]
+                            })),
+                        ),
+                        ("PATCH", p) if p.starts_with("/api/issues/") => (
+                            "400 Bad Request",
+                            serde_json::json!({
+                                "success": false,
+                                "data": null,
+                                "message": error_msg
+                            }),
+                        ),
+                        _ => panic!("unexpected request: {method} {path}"),
+                    };
+                    let payload = serde_json::to_vec(&body).unwrap();
+                    let head = format!(
+                        "HTTP/1.1 {status_line}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        payload.len()
+                    );
+                    stream.write_all(head.as_bytes()).await.unwrap();
+                    stream.write_all(&payload).await.unwrap();
+                    stream.shutdown().await.ok();
+                }
+            });
+
+            let server = McpServer {
+                client: reqwest::Client::new(),
+                base_url: format!("http://127.0.0.1:{port}"),
+                tool_router: ToolRouter::default(),
+                context: None,
+                mode: McpMode::Global,
+                headed_local_control: false,
+            };
+
+            let request: McpUpdateIssueRequest = serde_json::from_value(serde_json::json!({
+                "issue_id": issue.id.to_string(),
+                "status": "Done",
+            }))
+            .unwrap();
+            let result = server.update_issue(Parameters(request)).await.unwrap();
+            assert_eq!(result.is_error, Some(true));
+            let text = match &result.content[0].raw {
+                rmcp::model::RawContent::Text(t) => &t.text,
+                other => panic!("expected text content, got {other:?}"),
+            };
+            assert!(text.contains(error_msg), "expected error message in {text}");
+            stub.await.unwrap();
+        }
     }
 
     /// Round-trip: `create_issue` -> `list_issues` (filtered by `parent_issue_id`)

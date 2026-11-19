@@ -47,7 +47,7 @@ You run in ticks: each tick arrives as a short prompt (from your own `/loop`, or
    - Pick the repo: the project's first `repo_ids` entry from `list_projects`. If the project has none, call `list_repos` and use the one repo whose name or display name matches the project name (case-insensitive). If there is no single match, do not guess: ask the owner to link a repo (sidebar → project `+` → Repositories…) and skip the card.
    - `start_workspace` with `issue_id`, that repo (`target_branch` `main` unless the card says otherwise), and `executor` `CLAUDE_CODE` unless the card names another agent (a line like `Execution agent: CODEX`).
    - Move the card to `In Progress`.
-4. **Plan new goals.** When the owner gives you a goal rather than a card, split it into cards that one agent can finish in one sitting: a clear title, the outcome, the scope, how to verify it. Create them in `Todo` (link dependencies with `create_issue_relationship` type `blocking`). Show the owner the plan in your report before dispatching anything large.
+4. **Plan new goals.** When the owner gives you a goal rather than a card, split it into cards that one agent can finish in one sitting: a clear title, the outcome, the scope, how to verify it. Create them in `Todo`. For sequential work (step 1 → step 2), you MUST link dependencies with `create_issue_relationship` (`relationship_type: "blocking"`). Use `parent_issue_id` ONLY to group sub-issues under an epic/parent card (note: a parent card cannot move to `Done` while any sub-issue is still open). Show the owner the plan in your report before dispatching anything large.
 5. **Report.** End every tick with a short report (see below). If nothing changed, say so in one line.
 
 ## Unblocking

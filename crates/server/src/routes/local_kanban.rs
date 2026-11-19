@@ -884,6 +884,56 @@ async fn stop_issue_agents(deployment: &DeploymentImpl, issue_id: Uuid) {
     }
 }
 
+async fn validate_sub_issues_closed_for_done(
+    pool: &SqlitePool,
+    issue_id: Uuid,
+    target_status_id: Uuid,
+) -> Result<(), ApiError> {
+    let Some((target_name, target_is_terminal)) = sqlx::query_as::<_, (String, bool)>(
+        "SELECT name, is_terminal FROM project_statuses WHERE id = $1",
+    )
+    .bind(target_status_id)
+    .fetch_optional(pool)
+    .await?
+    else {
+        return Ok(());
+    };
+
+    let is_done_target = project_config::is_finished_status(&target_name, target_is_terminal)
+        && !project_config::is_cancelled_status_name(&target_name);
+    if !is_done_target {
+        return Ok(());
+    }
+
+    let sub_issues = sqlx::query_as::<_, (String, String, bool)>(
+        "SELECT i.simple_id, ps.name, ps.is_terminal
+         FROM issues i
+         JOIN project_statuses ps ON ps.id = i.status_id
+         WHERE i.parent_issue_id = $1
+         ORDER BY i.issue_number ASC",
+    )
+    .bind(issue_id)
+    .fetch_all(pool)
+    .await?;
+
+    let open: Vec<String> = sub_issues
+        .into_iter()
+        .filter(|(_, status_name, is_terminal)| {
+            !project_config::is_finished_status(status_name, *is_terminal)
+        })
+        .map(|(simple_id, status_name, _)| format!("{simple_id} ({status_name})"))
+        .collect();
+
+    if open.is_empty() {
+        return Ok(());
+    }
+
+    Err(ApiError::BadRequest(format!(
+        "Cannot move issue to Done while sub-issues are still open: {}",
+        open.join(", ")
+    )))
+}
+
 pub(crate) async fn merge_and_update_issue(
     pool: &sqlx::SqlitePool,
     id: Uuid,
@@ -893,6 +943,11 @@ pub(crate) async fn merge_and_update_issue(
         return Ok(None);
     };
     let status_id = req.status_id.unwrap_or(existing.status_id);
+    if let Some(target_status_id) = req.status_id
+        && target_status_id != existing.status_id
+    {
+        validate_sub_issues_closed_for_done(pool, id, target_status_id).await?;
+    }
     let title = req.title.unwrap_or(existing.title);
     let description = match req.description {
         Some(v) => v,
@@ -2083,5 +2138,131 @@ mod tests {
             .unwrap()
             .expect("grandchild survives");
         assert_eq!(grandchild_after.parent_issue_id, Some(child.id));
+    }
+
+    fn patch_status(status_id: Uuid) -> api_types::UpdateIssueRequest {
+        api_types::UpdateIssueRequest {
+            status_id: Some(status_id),
+            title: None,
+            description: None,
+            priority: None,
+            start_date: None,
+            target_date: None,
+            completed_at: None,
+            sort_order: None,
+            parent_issue_id: None,
+            parent_issue_sort_order: None,
+            extension_metadata: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn merge_and_update_issue_blocks_done_when_sub_issues_open() {
+        clear_key_chain_cache();
+        let pool = pool().await;
+        let project = create_project_record(&pool, Uuid::new_v4(), "Hive", "#6366f1", None)
+            .await
+            .unwrap();
+        let todo = DbProjectStatus::create(
+            &pool,
+            Uuid::new_v4(),
+            project.id,
+            "Todo",
+            "#94a3b8",
+            0,
+            false,
+            false,
+        )
+        .await
+        .unwrap();
+        let in_progress = DbProjectStatus::create(
+            &pool,
+            Uuid::new_v4(),
+            project.id,
+            "In Progress",
+            "#3b82f6",
+            1,
+            false,
+            false,
+        )
+        .await
+        .unwrap();
+        let done = DbProjectStatus::create(
+            &pool,
+            Uuid::new_v4(),
+            project.id,
+            "Done",
+            "#22c55e",
+            2,
+            false,
+            true,
+        )
+        .await
+        .unwrap();
+        let cancelled = DbProjectStatus::create(
+            &pool,
+            Uuid::new_v4(),
+            project.id,
+            "Cancelled",
+            "#64748b",
+            3,
+            false,
+            true,
+        )
+        .await
+        .unwrap();
+
+        let parent = create_issue_for(&pool, &project, &todo, "Parent")
+            .await
+            .unwrap();
+        let child1 = super::create_issue_record(
+            &pool,
+            issue_req(project.id, todo.id, None, Some(parent.id)),
+        )
+        .await
+        .unwrap();
+        let child2 = super::create_issue_record(
+            &pool,
+            issue_req(project.id, in_progress.id, None, Some(parent.id)),
+        )
+        .await
+        .unwrap();
+
+        let err = super::merge_and_update_issue(&pool, parent.id, patch_status(done.id))
+            .await
+            .expect_err("moving parent with open sub-issues to Done must fail");
+        match err {
+            ApiError::BadRequest(msg) => {
+                assert!(
+                    msg.starts_with("Cannot move issue to Done while sub-issues are still open:"),
+                    "unexpected message: {msg}"
+                );
+                assert!(msg.contains(&format!("{} (Todo)", child1.simple_id)));
+                assert!(msg.contains(&format!("{} (In Progress)", child2.simple_id)));
+            }
+            other => panic!("expected BadRequest, got {other:?}"),
+        }
+
+        // Moving parent to Cancelled is allowed even with open sub-issues.
+        let cancelled_parent =
+            super::merge_and_update_issue(&pool, parent.id, patch_status(cancelled.id))
+                .await
+                .unwrap()
+                .expect("parent exists");
+        assert_eq!(cancelled_parent.status_id, cancelled.id);
+
+        // Moving one sub-issue to Done and the other to Cancelled unblocks the parent.
+        super::merge_and_update_issue(&pool, child1.id, patch_status(done.id))
+            .await
+            .unwrap();
+        super::merge_and_update_issue(&pool, child2.id, patch_status(cancelled.id))
+            .await
+            .unwrap();
+
+        let updated = super::merge_and_update_issue(&pool, parent.id, patch_status(done.id))
+            .await
+            .unwrap()
+            .expect("parent exists");
+        assert_eq!(updated.status_id, done.id);
     }
 }

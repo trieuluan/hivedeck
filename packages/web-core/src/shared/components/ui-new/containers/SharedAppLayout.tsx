@@ -67,6 +67,10 @@ import {
   persistProjectReorder,
 } from '@/shared/lib/persistIssues';
 import {
+  getOpenSubIssuesForDoneMove,
+  showOpenSubIssuesBlockedDialog,
+} from '@/features/kanban/model/subIssueDoneGuard';
+import {
   buildIssueDragLookup,
   type IssueDragLookupRow,
 } from '@/shared/lib/issueLookup';
@@ -388,11 +392,15 @@ export function SharedAppLayout() {
   // useCallback deps) keeps the handler identity STABLE across renders.
   const dndContextRef = useRef({
     activeProjectId,
+    activeIssues: activeProjectIssues.data,
+    activeStatuses: activeProjectStatuses.data,
     issuesById,
     statusIds,
   });
   dndContextRef.current = {
     activeProjectId,
+    activeIssues: activeProjectIssues.data,
+    activeStatuses: activeProjectStatuses.data,
     issuesById,
     statusIds,
   };
@@ -407,6 +415,8 @@ export function SharedAppLayout() {
     (completion: DragCompletion) => {
       const {
         activeProjectId: projectId,
+        activeIssues,
+        activeStatuses,
         issuesById: byId,
         statusIds: statusIdsForResolve,
       } = dndContextRef.current;
@@ -472,6 +482,18 @@ export function SharedAppLayout() {
           return;
         }
         case 'move-issue':
+          {
+            const openSubIssues = getOpenSubIssuesForDoneMove(
+              outcome.issueId,
+              outcome.targetStatusId,
+              activeIssues,
+              activeStatuses
+            );
+            if (openSubIssues.length > 0) {
+              void showOpenSubIssuesBlockedDialog(openSubIssues, t);
+              return;
+            }
+          }
           persistIssues(
             [
               {

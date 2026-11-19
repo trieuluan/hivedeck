@@ -43,6 +43,8 @@ export interface ShipIssueButtonProps {
   workspaceId: string;
   /** Pinned workspaces are kept instead of deleted after merge. */
   isPinned?: boolean;
+  /** Optional preflight check; returning false aborts shipping. */
+  onBeforeShip?: () => Promise<boolean> | boolean;
   /** Moves the card to Done once the merge succeeded. */
   onShipped: () => void;
   /** Opens the workspace (to resolve conflicts with the agent). */
@@ -59,6 +61,7 @@ export interface ShipIssueButtonProps {
 export function ShipIssueButton({
   workspaceId,
   isPinned = false,
+  onBeforeShip,
   onShipped,
   onOpenWorkspace,
   onCleanup,
@@ -69,6 +72,7 @@ export function ShipIssueButton({
   const ship = async (e: MouseEvent) => {
     e.stopPropagation();
     if (busy) return;
+    if (onBeforeShip && !(await onBeforeShip())) return;
     const confirmation = await ConfirmCheckboxDialog.show({
       title: t('ship.confirmTitle'),
       message: t('ship.confirmMessage'),

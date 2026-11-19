@@ -87,6 +87,10 @@ Many tools accept an optional `project_id` parameter. When running inside a work
 For `update_issue`, the `parent_issue_id` field supports three states: omit it entirely to leave the parent unchanged, pass `null` to un-nest the issue from its parent, or pass a UUID to set a new parent. The response is a minimal acknowledgement rather than the full issue: its `changed[]` list names the fields you supplied, so an applied un-nest appears as `"parent_issue_id": null` with `"parent_issue_id"` in `changed[]`, while an untouched parent omits the key entirely. Call `get_issue` when you need the issue body back.
 </Tip>
 
+<Note>
+Use `parent_issue_id` only to group sub-issues under an epic/parent card (a parent issue cannot be moved to `Done` while any sub-issue is still open). For sequential execution order (step 1 → step 2), use `create_issue_relationship` with `relationship_type: "blocking"`.
+</Note>
+
 ### Issue Tags
 
 | Tool | Purpose | Required Parameters | Optional Parameters | Returns |

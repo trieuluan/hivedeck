@@ -630,7 +630,9 @@
     "rebaseInProgress": "Workspace này đang rebase dở. Hãy hoàn tất hoặc huỷ ở đó trước.",
     "failedTitle": "Merge thất bại",
     "pushFailedTitle": "Đã merge nhưng push lỗi",
-    "pushFailedMessage": "Thay đổi đã được merge trên máy và card đã sang Done. Hãy tự push khi có thể: {{error}}"
+    "pushFailedMessage": "Thay đổi đã được merge trên máy và card đã sang Done. Hãy tự push khi có thể: {{error}}",
+    "openSubIssuesTitle": "Không thể chuyển sang Done khi còn sub-issue chưa xong",
+    "openSubIssuesMessage": "Hãy hoàn tất hoặc huỷ các sub-issue này trước:\n{{list}}"
   },
   "captain": {
     "title": "Thuyền trưởng",

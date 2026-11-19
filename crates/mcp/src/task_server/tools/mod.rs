@@ -151,10 +151,22 @@ impl McpServer {
 
         if !resp.status().is_success() {
             let status = resp.status();
-            return Err(ToolError::message(format!(
-                "VK API returned error status: {}",
-                status
-            )));
+            let detail = resp.text().await.ok().and_then(|body| {
+                serde_json::from_str::<serde_json::Value>(&body)
+                    .ok()
+                    .and_then(|v| {
+                        v.get("message")
+                            .and_then(|m| m.as_str())
+                            .map(str::to_string)
+                    })
+            });
+            return Err(match detail {
+                Some(msg) if !msg.is_empty() => ToolError::new(
+                    format!("VK API returned error status: {}", status),
+                    Some(msg),
+                ),
+                _ => ToolError::message(format!("VK API returned error status: {}", status)),
+            });
         }
 
         let api_response = resp
@@ -181,10 +193,22 @@ impl McpServer {
 
         if !resp.status().is_success() {
             let status = resp.status();
-            return Err(ToolError::message(format!(
-                "VK API returned error status: {}",
-                status
-            )));
+            let detail = resp.text().await.ok().and_then(|body| {
+                serde_json::from_str::<serde_json::Value>(&body)
+                    .ok()
+                    .and_then(|v| {
+                        v.get("message")
+                            .and_then(|m| m.as_str())
+                            .map(str::to_string)
+                    })
+            });
+            return Err(match detail {
+                Some(msg) if !msg.is_empty() => ToolError::new(
+                    format!("VK API returned error status: {}", status),
+                    Some(msg),
+                ),
+                _ => ToolError::message(format!("VK API returned error status: {}", status)),
+            });
         }
 
         #[derive(Deserialize)]

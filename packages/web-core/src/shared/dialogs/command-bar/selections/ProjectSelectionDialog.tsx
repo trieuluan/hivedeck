@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { create, useModal } from '@ebay/nice-modal-react';
 import { defineModal } from '@/shared/lib/modals';
 import { ProjectProvider } from '@/shared/providers/remote/ProjectProvider';
@@ -21,6 +22,10 @@ import type { StatusSelectionResult } from './statusSelection';
 import type { PrioritySelectionResult } from './prioritySelection';
 import type { SubIssueSelectionResult } from './subIssueSelection';
 import type { RelationshipSelectionResult } from './relationshipSelection';
+import {
+  getOpenSubIssuesForDoneMove,
+  showOpenSubIssuesBlockedDialog,
+} from '@/features/kanban/model/subIssueDoneGuard';
 
 // Union of all selection modes
 export type SelectionMode =
@@ -58,6 +63,7 @@ function getInitialPageId(selectionType: SelectionMode['type']): string {
 
 // Inner component that has access to ProjectContext
 function ProjectSelectionContent({ selection }: { selection: SelectionMode }) {
+  const { t } = useTranslation(['tasks', 'common']);
   const modal = useModal();
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const {
@@ -204,8 +210,31 @@ function ProjectSelectionContent({ selection }: { selection: SelectionMode }) {
       if (selection.type === 'status') {
         const result = data as StatusSelectionResult;
         if (selection.isCreateMode) return; // Create mode: caller handles URL update
+        const blocked = selection.issueIds
+          .map((issueId) => ({
+            issueId,
+            openSubIssues: getOpenSubIssuesForDoneMove(
+              issueId,
+              result.statusId,
+              issues,
+              statuses
+            ),
+          }))
+          .filter((entry) => entry.openSubIssues.length > 0);
+        const blockedIds = new Set(blocked.map((entry) => entry.issueId));
         for (const issueId of selection.issueIds) {
+          if (blockedIds.has(issueId)) continue;
           updateIssue(issueId, { status_id: result.statusId });
+        }
+        if (blocked.length > 0) {
+          const uniqueOpen = Array.from(
+            new Map(
+              blocked
+                .flatMap((entry) => entry.openSubIssues)
+                .map((sub) => [sub.id, sub])
+            ).values()
+          );
+          void showOpenSubIssuesBlockedDialog(uniqueOpen, t);
         }
       } else if (selection.type === 'priority') {
         const result = data as PrioritySelectionResult;
@@ -244,7 +273,7 @@ function ProjectSelectionContent({ selection }: { selection: SelectionMode }) {
         }
       }
     },
-    [selection, updateIssue, insertIssueRelationship]
+    [selection, issues, statuses, t, updateIssue, insertIssueRelationship]
   );
 
   const fallbackPage = pages[initialPageId] ?? Object.values(pages)[0];
