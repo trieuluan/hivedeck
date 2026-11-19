@@ -31,11 +31,16 @@ struct McpCreateIssueRequest {
     priority: Option<String>,
     #[schemars(description = "Optional parent issue ID to create a subissue")]
     parent_issue_id: Option<Uuid>,
+    #[schemars(
+        description = "Optional existing project tag names, matched case-insensitively. Unknown names return an error listing available tags before creating the issue; tags are never created."
+    )]
+    tags: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]
 struct McpCreateIssueResponse {
     issue_id: String,
+    tags: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -315,12 +320,42 @@ impl McpServer {
             description,
             priority,
             parent_issue_id,
+            tags,
         }): Parameters<McpCreateIssueRequest>,
     ) -> Result<CallToolResult, ErrorData> {
         let project_id = match self.resolve_project_id(project_id) {
             Ok(id) => id,
             Err(e) => return Ok(McpServer::tool_error(e)),
         };
+
+        let mut selected_tags = Vec::new();
+        if let Some(names) = tags.filter(|names| !names.is_empty()) {
+            let available = match self.fetch_project_tags(project_id).await {
+                Ok(tags) => tags,
+                Err(error) => return Ok(Self::tool_error(error)),
+            };
+            for name in names {
+                let Some(tag) = available
+                    .iter()
+                    .find(|tag| tag.name.to_lowercase() == name.to_lowercase())
+                else {
+                    let names = available
+                        .iter()
+                        .map(|tag| tag.name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    return Ok(Self::tool_error(ToolError::message(format!(
+                        "Unknown tag '{name}'. Available tags: {names}"
+                    ))));
+                };
+                if !selected_tags
+                    .iter()
+                    .any(|selected: &api_types::Tag| selected.id == tag.id)
+                {
+                    selected_tags.push(tag.clone());
+                }
+            }
+        }
 
         let expanded_description = match description {
             Some(desc) => Some(self.expand_tags(&desc).await),
@@ -363,8 +398,21 @@ impl McpServer {
                 Err(e) => return Ok(McpServer::tool_error(e)),
             };
 
+        let issue_id = response.data.id;
+        let mut attached = Vec::new();
+        for tag in selected_tags {
+            if let Err(error) = self.attach_issue_tag(issue_id, tag.id).await {
+                return Ok(Self::tool_error(ToolError::message(format!(
+                    "Issue {issue_id} was created, but attaching tag '{}' failed: {error}. Already attached: {}",
+                    tag.name,
+                    attached.join(", ")
+                ))));
+            }
+            attached.push(tag.name);
+        }
         McpServer::success(&McpCreateIssueResponse {
-            issue_id: response.data.id.to_string(),
+            issue_id: issue_id.to_string(),
+            tags: attached,
         })
     }
 
@@ -1964,6 +2012,7 @@ mod tests {
             in_review_status_id: Uuid,
             issues: Vec<serde_json::Value>,
             next_number: i64,
+            attached_tags: Vec<serde_json::Value>,
         }
 
         type SharedBoard = Arc<Mutex<Board>>;
@@ -2156,6 +2205,21 @@ mod tests {
             envelope(serde_json::json!({ "tags": [] }))
         }
 
+        async fn stub_project_tags(State(board): State<SharedBoard>) -> Json<serde_json::Value> {
+            envelope(
+                serde_json::json!({ "tags": [{ "id": Uuid::from_u128(42), "project_id": board.lock().unwrap().project_id, "name": "research", "color": "red" }] }),
+            )
+        }
+
+        async fn stub_attach_tag(
+            State(board): State<SharedBoard>,
+            Json(payload): Json<serde_json::Value>,
+        ) -> Json<serde_json::Value> {
+            let tag = serde_json::json!({ "id": Uuid::new_v4(), "issue_id": payload["issue_id"], "tag_id": payload["tag_id"] });
+            board.lock().unwrap().attached_tags.push(tag.clone());
+            envelope(serde_json::json!({ "data": tag, "txid": 1 }))
+        }
+
         async fn stub_empty_issue_tags() -> Json<serde_json::Value> {
             envelope(serde_json::json!({ "issue_tags": [] }))
         }
@@ -2261,6 +2325,78 @@ mod tests {
         }
 
         #[tokio::test]
+        async fn create_issue_validates_and_attaches_existing_tags() {
+            crate::task_server::tools::tests::install_rustls_provider();
+            let project_id = Uuid::new_v4();
+            let board = Arc::new(Mutex::new(Board {
+                project_id,
+                todo_status_id: Uuid::from_u128(1),
+                in_review_status_id: Uuid::from_u128(2),
+                issues: Vec::new(),
+                next_number: 1,
+                attached_tags: Vec::new(),
+            }));
+            let app = Router::new()
+                .route("/api/project-statuses", get(stub_project_statuses))
+                .route("/api/project-tags", get(stub_project_tags))
+                .route("/api/issue-tags", post(stub_attach_tag))
+                .route("/api/issues", post(stub_create_issue))
+                .with_state(board.clone());
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            tokio::spawn(async move { serve(listener, app).await.unwrap() });
+            let server = server_for(format!("http://{address}"));
+
+            let request = |tags: serde_json::Value| {
+                serde_json::from_value::<McpCreateIssueRequest>(serde_json::json!({
+                    "project_id": project_id, "title": "Card", "tags": tags
+                }))
+                .unwrap()
+            };
+            let invalid = server
+                .create_issue(Parameters(request(serde_json::json!([
+                    "research", "reserch"
+                ]))))
+                .await
+                .unwrap();
+            assert_eq!(invalid.is_error, Some(true));
+            assert!(
+                invalid.content[0]
+                    .as_text()
+                    .unwrap()
+                    .text
+                    .contains("research")
+            );
+            assert!(board.lock().unwrap().issues.is_empty());
+
+            let created = payload(
+                &server
+                    .create_issue(Parameters(request(serde_json::json!([
+                        "Research", "research"
+                    ]))))
+                    .await
+                    .unwrap(),
+            );
+            assert_eq!(created["tags"], serde_json::json!(["research"]));
+            let guard = board.lock().unwrap();
+            assert_eq!(guard.attached_tags.len(), 1);
+            assert_eq!(guard.attached_tags[0]["issue_id"], created["issue_id"]);
+            assert_eq!(
+                guard.attached_tags[0]["tag_id"],
+                serde_json::json!(Uuid::from_u128(42))
+            );
+            drop(guard);
+
+            let without_tags: McpCreateIssueRequest = serde_json::from_value(
+                serde_json::json!({"project_id": project_id, "title": "No tags"}),
+            )
+            .unwrap();
+            let created = payload(&server.create_issue(Parameters(without_tags)).await.unwrap());
+            assert_eq!(created["tags"], serde_json::json!([]));
+            assert_eq!(board.lock().unwrap().issues.len(), 2);
+        }
+
+        #[tokio::test]
         async fn create_list_get_update_keeps_updated_at_byte_identical() {
             crate::task_server::tools::tests::install_rustls_provider();
 
@@ -2272,6 +2408,7 @@ mod tests {
                 in_review_status_id: Uuid::from_u128(0xa2),
                 issues: Vec::new(),
                 next_number: 1,
+                attached_tags: Vec::new(),
             }));
             // Seed the parent card, so the `parent_issue_id` filter has something
             // real to be the child OF — and something it must NOT return.

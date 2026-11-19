@@ -9,7 +9,7 @@ use rmcp::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::McpServer;
+use super::{McpServer, ToolError};
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct McpListTagsRequest {
@@ -116,6 +116,28 @@ struct McpRemoveIssueTagResponse {
 }
 
 impl McpServer {
+    pub(super) async fn fetch_project_tags(&self, project_id: Uuid) -> Result<Vec<Tag>, ToolError> {
+        let url = self.url(&format!("/api/project-tags?project_id={}", project_id));
+        let response: ListTagsResponse = self.send_json(self.client.get(&url)).await?;
+        Ok(response.tags)
+    }
+
+    pub(super) async fn attach_issue_tag(
+        &self,
+        issue_id: Uuid,
+        tag_id: Uuid,
+    ) -> Result<IssueTag, ToolError> {
+        let payload = CreateIssueTagRequest {
+            id: None,
+            issue_id,
+            tag_id,
+        };
+        let url = self.url("/api/issue-tags");
+        let response: MutationResponse<IssueTag> = self
+            .send_json(self.client.post(&url).json(&payload))
+            .await?;
+        Ok(response.data)
+    }
     fn tag_created_response(tag: Tag, created: bool) -> Result<CallToolResult, ErrorData> {
         McpServer::success(&McpCreateTagResponse {
             tag_id: tag.id.to_string(),
@@ -140,14 +162,12 @@ impl McpServer {
             Err(e) => return Ok(Self::tool_error(e)),
         };
 
-        let url = self.url(&format!("/api/project-tags?project_id={}", project_id));
-        let response: ListTagsResponse = match self.send_json(self.client.get(&url)).await {
+        let response = match self.fetch_project_tags(project_id).await {
             Ok(r) => r,
             Err(e) => return Ok(Self::tool_error(e)),
         };
 
         let tags = response
-            .tags
             .into_iter()
             .map(|tag| TagSummary {
                 id: tag.id.to_string(),
@@ -278,21 +298,13 @@ impl McpServer {
         &self,
         Parameters(McpAddIssueTagRequest { issue_id, tag_id }): Parameters<McpAddIssueTagRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let payload = CreateIssueTagRequest {
-            id: None,
-            issue_id,
-            tag_id,
+        let response = match self.attach_issue_tag(issue_id, tag_id).await {
+            Ok(r) => r,
+            Err(e) => return Ok(Self::tool_error(e)),
         };
 
-        let url = self.url("/api/issue-tags");
-        let response: MutationResponse<IssueTag> =
-            match self.send_json(self.client.post(&url).json(&payload)).await {
-                Ok(r) => r,
-                Err(e) => return Ok(Self::tool_error(e)),
-            };
-
         McpServer::success(&McpAddIssueTagResponse {
-            issue_tag_id: response.data.id.to_string(),
+            issue_tag_id: response.id.to_string(),
         })
     }
 
