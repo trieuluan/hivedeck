@@ -498,6 +498,7 @@ mod tests {
             "create_issue".to_string(),
             "create_issue_relationship".to_string(),
             "create_session".to_string(),
+            "create_tag".to_string(),
             "delete_issue".to_string(),
             "delete_issue_relationship".to_string(),
             "delete_workspace".to_string(),
