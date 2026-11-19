@@ -36,9 +36,26 @@ struct SessionExecutionProcessQuery {
 
 async fn get_execution_process_by_id(
     Extension(execution_process): Extension<ExecutionProcess>,
-    State(_deployment): State<DeploymentImpl>,
-) -> Result<ResponseJson<ApiResponse<ExecutionProcess>>, ApiError> {
-    Ok(ResponseJson(ApiResponse::success(execution_process)))
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<GetExecutionProcessResponse>>, ApiError> {
+    let pool = &deployment.db().pool;
+
+    let latest_session_execution_id = if execution_process.status == ExecutionProcessStatus::Completed {
+        ExecutionProcess::find_next_execution_in_session(
+            pool,
+            execution_process.session_id,
+            execution_process.created_at,
+        )
+        .await?
+        .map(|ep| ep.id)
+    } else {
+        None
+    };
+
+    Ok(ResponseJson(ApiResponse::success(GetExecutionProcessResponse {
+        execution_process,
+        latest_session_execution_id,
+    })))
 }
 
 async fn stream_raw_logs_ws(
@@ -413,4 +430,11 @@ pub(super) fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
         .nest("/{id}", workspace_id_router);
 
     Router::new().nest("/execution-processes", workspaces_router)
+}
+
+#[derive(Debug, Serialize, TS)]
+pub struct GetExecutionProcessResponse {
+    #[serde(flatten)]
+    pub execution_process: ExecutionProcess,
+    pub latest_session_execution_id: Option<Uuid>,
 }

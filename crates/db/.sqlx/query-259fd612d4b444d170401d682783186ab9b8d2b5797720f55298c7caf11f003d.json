@@ -6,87 +6,189 @@
       {
         "name": "id!: Uuid",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "id"
+          }
+        }
       },
       {
         "name": "project_id!: Uuid",
         "ordinal": 1,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "project_id"
+          }
+        }
       },
       {
         "name": "issue_number",
         "ordinal": 2,
-        "type_info": "Integer"
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "issue_number"
+          }
+        }
       },
       {
         "name": "simple_id",
         "ordinal": 3,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "simple_id"
+          }
+        }
       },
       {
         "name": "status_id!: Uuid",
         "ordinal": 4,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "status_id"
+          }
+        }
       },
       {
         "name": "title",
         "ordinal": 5,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "title"
+          }
+        }
       },
       {
         "name": "description",
         "ordinal": 6,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "description"
+          }
+        }
       },
       {
         "name": "priority",
         "ordinal": 7,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "priority"
+          }
+        }
       },
       {
         "name": "start_date: DateTime<Utc>",
         "ordinal": 8,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "start_date"
+          }
+        }
       },
       {
         "name": "target_date: DateTime<Utc>",
         "ordinal": 9,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "target_date"
+          }
+        }
       },
       {
         "name": "completed_at: DateTime<Utc>",
         "ordinal": 10,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "completed_at"
+          }
+        }
       },
       {
         "name": "sort_order!: f64",
         "ordinal": 11,
-        "type_info": "Float"
+        "type_info": "Float",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "sort_order"
+          }
+        }
       },
       {
         "name": "parent_issue_id: Uuid",
         "ordinal": 12,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "parent_issue_id"
+          }
+        }
       },
       {
         "name": "parent_issue_sort_order: f64",
         "ordinal": 13,
-        "type_info": "Float"
+        "type_info": "Float",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "parent_issue_sort_order"
+          }
+        }
       },
       {
         "name": "extension_metadata",
         "ordinal": 14,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "extension_metadata"
+          }
+        }
       },
       {
         "name": "created_at!: DateTime<Utc>",
         "ordinal": 15,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "created_at"
+          }
+        }
       },
       {
         "name": "updated_at!: DateTime<Utc>",
         "ordinal": 16,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "updated_at"
+          }
+        }
       }
     ],
     "parameters": {

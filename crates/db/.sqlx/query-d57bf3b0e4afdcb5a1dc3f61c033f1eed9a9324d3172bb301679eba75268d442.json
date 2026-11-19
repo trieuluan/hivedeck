@@ -6,12 +6,24 @@
       {
         "name": "issue_id!: Uuid",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "issue_workspaces",
+            "name": "issue_id"
+          }
+        }
       },
       {
         "name": "project_id!: Uuid",
         "ordinal": 1,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "project_id"
+          }
+        }
       }
     ],
     "parameters": {

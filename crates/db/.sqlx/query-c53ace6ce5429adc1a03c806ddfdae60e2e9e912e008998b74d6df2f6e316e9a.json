@@ -6,27 +6,57 @@
       {
         "name": "id!: Uuid",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "issue_relationships",
+            "name": "id"
+          }
+        }
       },
       {
         "name": "issue_id!: Uuid",
         "ordinal": 1,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "issue_relationships",
+            "name": "issue_id"
+          }
+        }
       },
       {
         "name": "related_issue_id!: Uuid",
         "ordinal": 2,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "issue_relationships",
+            "name": "related_issue_id"
+          }
+        }
       },
       {
         "name": "relationship_type",
         "ordinal": 3,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issue_relationships",
+            "name": "relationship_type"
+          }
+        }
       },
       {
         "name": "created_at!: DateTime<Utc>",
         "ordinal": 4,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issue_relationships",
+            "name": "created_at"
+          }
+        }
       }
     ],
     "parameters": {

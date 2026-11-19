@@ -6,57 +6,123 @@
       {
         "name": "id!: Uuid",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "id"
+          }
+        }
       },
       {
         "name": "name",
         "ordinal": 1,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "name"
+          }
+        }
       },
       {
         "name": "key",
         "ordinal": 2,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "key"
+          }
+        }
       },
       {
         "name": "color",
         "ordinal": 3,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "color"
+          }
+        }
       },
       {
         "name": "sort_order",
         "ordinal": 4,
-        "type_info": "Integer"
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "sort_order"
+          }
+        }
       },
       {
         "name": "parent_id: Uuid",
         "ordinal": 5,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "parent_id"
+          }
+        }
       },
       {
         "name": "default_agent_working_dir",
         "ordinal": 6,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "default_agent_working_dir"
+          }
+        }
       },
       {
         "name": "remote_project_id: Uuid",
         "ordinal": 7,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "remote_project_id"
+          }
+        }
       },
       {
         "name": "orchestrator_prompt",
         "ordinal": 8,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "orchestrator_prompt"
+          }
+        }
       },
       {
         "name": "created_at!: DateTime<Utc>",
         "ordinal": 9,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "created_at"
+          }
+        }
       },
       {
         "name": "updated_at!: DateTime<Utc>",
         "ordinal": 10,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "updated_at"
+          }
+        }
       }
     ],
     "parameters": {

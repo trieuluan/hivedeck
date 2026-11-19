@@ -462,6 +462,35 @@ impl ExecutionProcess {
     /// async task that queries `find_by_rowid` on a different connection.
     /// If we used a transaction, that query would not see the uncommitted row,
     /// causing the WebSocket event to be lost.
+    /// Find the next execution process in the same session after a certain time.
+    pub async fn find_next_execution_in_session(
+        pool: &SqlitePool,
+        session_id: Uuid,
+        after_created_at: DateTime<Utc>,
+    ) -> Result<Option<Self>, sqlx::Error> {
+        sqlx::query_as::<_, ExecutionProcess>(
+            r#"SELECT
+                    ep.id,
+                    ep.session_id,
+                    ep.run_reason,
+                    ep.executor_action,
+                    ep.status,
+                    ep.exit_code,
+                    ep.dropped,
+                    ep.started_at,
+                    ep.completed_at,
+                    ep.created_at,
+                    ep.updated_at
+               FROM execution_processes ep
+               WHERE ep.session_id = ? AND ep.created_at > ? AND ep.dropped = FALSE
+               ORDER BY ep.created_at ASC LIMIT 1"#,
+        )
+        .bind(session_id)
+        .bind(after_created_at)
+        .fetch_optional(pool)
+        .await
+    }
+
     pub async fn create(
         pool: &SqlitePool,
         data: &CreateExecutionProcess,

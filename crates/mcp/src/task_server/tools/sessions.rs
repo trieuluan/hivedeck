@@ -46,6 +46,12 @@ struct SessionSummary {
     updated_at: String,
     #[schemars(description = "True if this is the orchestrator session for this MCP server")]
     is_orchestrator_session: bool,
+    #[schemars(description = "Latest execution process ID in this session")]
+    latest_execution_id: Option<String>,
+    #[schemars(description = "Status of the latest execution process")]
+    latest_execution_status: Option<String>,
+    #[schemars(description = "Run reason of the latest execution process")]
+    latest_execution_run_reason: Option<String>,
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]
@@ -226,6 +232,11 @@ struct GetExecutionResponse {
     status: String,
     is_finished: bool,
     execution: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "ID of a newer execution in the same session, if one was spawned after this one"
+    )]
+    latest_session_execution_id: Option<String>,
     #[schemars(
         description = "Most recent assistant message from the agent (updates live as it works); null until the agent produces one"
     )]
@@ -486,12 +497,21 @@ impl McpServer {
         &self,
         Parameters(GetExecutionRequest { execution_id }): Parameters<GetExecutionRequest>,
     ) -> Result<CallToolResult, ErrorData> {
+        #[derive(Debug, Deserialize)]
+        struct BackendExecutionResponse {
+            #[serde(flatten)]
+            execution_process: ExecutionProcess,
+            latest_session_execution_id: Option<Uuid>,
+        }
+
         let process_url = self.url(&format!("/api/execution-processes/{execution_id}"));
-        let execution_process: ExecutionProcess =
+        let backend_resp: BackendExecutionResponse =
             match self.send_json(self.client.get(&process_url)).await {
                 Ok(value) => value,
                 Err(error_result) => return Ok(Self::tool_error(error_result)),
             };
+        let execution_process = backend_resp.execution_process;
+        let latest_session_execution_id = backend_resp.latest_session_execution_id;
 
         let session_url = self.url(&format!("/api/sessions/{}", execution_process.session_id));
         let session: Session = match self.send_json(self.client.get(&session_url)).await {
@@ -540,6 +560,7 @@ impl McpServer {
             session_id: execution_process.session_id.to_string(),
             status: Self::execution_process_status_label(&execution_process.status).to_string(),
             is_finished,
+            latest_session_execution_id: latest_session_execution_id.map(|id| id.to_string()),
             execution: execution_process_value,
             final_message: progress.latest_message,
             claude_session_id: expose_headed
@@ -627,6 +648,9 @@ impl McpServer {
             created_at: session.created_at.to_rfc3339(),
             updated_at: session.updated_at.to_rfc3339(),
             is_orchestrator_session,
+            latest_execution_id: session.latest_execution_id.map(|id| id.to_string()),
+            latest_execution_status: session.latest_execution_status.map(|s| serde_json::to_value(s).unwrap().as_str().unwrap().to_string()),
+            latest_execution_run_reason: session.latest_execution_run_reason.map(|r| serde_json::to_value(r).unwrap().as_str().unwrap().to_string()),
         }
     }
 
@@ -997,6 +1021,7 @@ mod tests {
             tmux_session_name: Some("vk-exec-1".to_string()),
             claude_transcript_path: Some("/tmp/transcript.jsonl".to_string()),
             pending_approvals: vec![pending_approval],
+            latest_session_execution_id: None,
         };
 
         let value = serde_json::to_value(&headed).unwrap();
@@ -1029,6 +1054,7 @@ mod tests {
             tmux_session_name: None,
             claude_transcript_path: None,
             pending_approvals: vec![],
+            latest_session_execution_id: None,
         };
         let value = serde_json::to_value(&unheaded).unwrap();
         let obj = value.as_object().unwrap();

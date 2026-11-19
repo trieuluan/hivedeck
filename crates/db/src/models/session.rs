@@ -4,6 +4,7 @@ use sqlx::{FromRow, SqlitePool};
 use thiserror::Error;
 use ts_rs::TS;
 use uuid::Uuid;
+use super::execution_process::{ExecutionProcessRunReason, ExecutionProcessStatus};
 
 use super::workspace_repo::WorkspaceRepo;
 
@@ -28,6 +29,9 @@ pub struct Session {
     pub agent_working_dir: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub latest_execution_id: Option<Uuid>,
+    pub latest_execution_status: Option<ExecutionProcessStatus>,
+    pub latest_execution_run_reason: Option<ExecutionProcessRunReason>,
 }
 
 #[derive(Debug, Deserialize, TS)]
@@ -38,19 +42,27 @@ pub struct CreateSession {
 
 impl Session {
     pub async fn find_by_id(pool: &SqlitePool, id: Uuid) -> Result<Option<Self>, sqlx::Error> {
-        sqlx::query_as!(
-            Session,
-            r#"SELECT id AS "id!: Uuid",
-                      workspace_id AS "workspace_id!: Uuid",
-                      name,
-                      executor,
-                      agent_working_dir,
-                      created_at AS "created_at!: DateTime<Utc>",
-                      updated_at AS "updated_at!: DateTime<Utc>"
-               FROM sessions
-               WHERE id = $1"#,
-            id
+        sqlx::query_as::<_, Session>(
+            r#"SELECT s.id,
+                      s.workspace_id,
+                      s.name,
+                      s.executor,
+                      s.agent_working_dir,
+                      s.created_at,
+                      s.updated_at,
+                      ep.id AS latest_execution_id,
+                      ep.status AS latest_execution_status,
+                      ep.run_reason AS latest_execution_run_reason
+               FROM sessions s
+               LEFT JOIN (
+                   SELECT session_id, id, status, run_reason,
+                          ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY created_at DESC) as rn
+                   FROM execution_processes
+                   WHERE dropped = FALSE
+               ) ep ON s.id = ep.session_id AND ep.rn = 1
+               WHERE s.id = ?"#,
         )
+        .bind(id)
         .fetch_optional(pool)
         .await
     }
@@ -62,26 +74,34 @@ impl Session {
         pool: &SqlitePool,
         workspace_id: Uuid,
     ) -> Result<Vec<Self>, sqlx::Error> {
-        sqlx::query_as!(
-            Session,
-            r#"SELECT s.id AS "id!: Uuid",
-                      s.workspace_id AS "workspace_id!: Uuid",
+        sqlx::query_as::<_, Session>(
+            r#"SELECT s.id,
+                      s.workspace_id,
                       s.name,
                       s.executor,
                       s.agent_working_dir,
-                      s.created_at AS "created_at!: DateTime<Utc>",
-                      s.updated_at AS "updated_at!: DateTime<Utc>"
+                      s.created_at,
+                      s.updated_at,
+                      lep.id AS latest_execution_id,
+                      lep.status AS latest_execution_status,
+                      lep.run_reason AS latest_execution_run_reason
                FROM sessions s
+               LEFT JOIN (
+                   SELECT session_id, id, status, run_reason,
+                          ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY created_at DESC) as rn
+                   FROM execution_processes
+                   WHERE dropped = FALSE
+               ) lep ON s.id = lep.session_id AND lep.rn = 1
                LEFT JOIN (
                    SELECT ep.session_id, MAX(ep.created_at) as last_used
                    FROM execution_processes ep
                    WHERE ep.run_reason != 'devserver' AND ep.dropped = FALSE
                    GROUP BY ep.session_id
                ) latest_ep ON s.id = latest_ep.session_id
-               WHERE s.workspace_id = $1
+               WHERE s.workspace_id = ?
                ORDER BY COALESCE(latest_ep.last_used, s.created_at) DESC"#,
-            workspace_id
         )
+        .bind(workspace_id)
         .fetch_all(pool)
         .await
     }
@@ -93,27 +113,35 @@ impl Session {
         pool: &SqlitePool,
         workspace_id: Uuid,
     ) -> Result<Option<Self>, sqlx::Error> {
-        sqlx::query_as!(
-            Session,
-            r#"SELECT s.id AS "id!: Uuid",
-                      s.workspace_id AS "workspace_id!: Uuid",
+        sqlx::query_as::<_, Session>(
+            r#"SELECT s.id,
+                      s.workspace_id,
                       s.name,
                       s.executor,
                       s.agent_working_dir,
-                      s.created_at AS "created_at!: DateTime<Utc>",
-                      s.updated_at AS "updated_at!: DateTime<Utc>"
+                      s.created_at,
+                      s.updated_at,
+                      lep.id AS latest_execution_id,
+                      lep.status AS latest_execution_status,
+                      lep.run_reason AS latest_execution_run_reason
                FROM sessions s
+               LEFT JOIN (
+                   SELECT session_id, id, status, run_reason,
+                          ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY created_at DESC) as rn
+                   FROM execution_processes
+                   WHERE dropped = FALSE
+               ) lep ON s.id = lep.session_id AND lep.rn = 1
                LEFT JOIN (
                    SELECT ep.session_id, MAX(ep.created_at) as last_used
                    FROM execution_processes ep
                    WHERE ep.run_reason != 'devserver' AND ep.dropped = FALSE
                    GROUP BY ep.session_id
                ) latest_ep ON s.id = latest_ep.session_id
-               WHERE s.workspace_id = $1
+               WHERE s.workspace_id = ?
                ORDER BY COALESCE(latest_ep.last_used, s.created_at) DESC
                LIMIT 1"#,
-            workspace_id
         )
+        .bind(workspace_id)
         .fetch_optional(pool)
         .await
     }
@@ -131,7 +159,10 @@ impl Session {
                       executor,
                       agent_working_dir,
                       created_at,
-                      updated_at
+                      updated_at,
+                      NULL as latest_execution_id,
+                      NULL as latest_execution_status,
+                      NULL as latest_execution_run_reason
                FROM sessions
                WHERE workspace_id = ?
                ORDER BY created_at ASC, id ASC
@@ -151,23 +182,17 @@ impl Session {
         let agent_working_dir = Self::resolve_agent_working_dir(pool, workspace_id).await?;
         let name = data.name.as_deref().filter(|s| !s.is_empty());
 
-        Ok(sqlx::query_as!(
-            Session,
+        Ok(sqlx::query_as::<_, Session>(
             r#"INSERT INTO sessions (id, workspace_id, name, executor, agent_working_dir)
-               VALUES ($1, $2, $3, $4, $5)
-               RETURNING id AS "id!: Uuid",
-                         workspace_id AS "workspace_id!: Uuid",
-                         name,
-                         executor,
-                         agent_working_dir,
-                         created_at AS "created_at!: DateTime<Utc>",
-                         updated_at AS "updated_at!: DateTime<Utc>""#,
-            id,
-            workspace_id,
-            name,
-            data.executor,
-            agent_working_dir
+               VALUES (?, ?, ?, ?, ?)
+               RETURNING id, workspace_id, name, executor, agent_working_dir, created_at, updated_at,
+                         NULL as latest_execution_id, NULL as latest_execution_status, NULL as latest_execution_run_reason"#,
         )
+        .bind(id)
+        .bind(workspace_id)
+        .bind(name)
+        .bind(&data.executor)
+        .bind(agent_working_dir)
         .fetch_one(pool)
         .await?)
     }

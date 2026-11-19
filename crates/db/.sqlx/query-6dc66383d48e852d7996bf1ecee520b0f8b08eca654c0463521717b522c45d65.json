@@ -6,7 +6,13 @@
       {
         "name": "workspace_id!: Uuid",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "issue_workspaces",
+            "name": "workspace_id"
+          }
+        }
       }
     ],
     "parameters": {
