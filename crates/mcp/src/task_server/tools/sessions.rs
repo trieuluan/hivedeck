@@ -649,8 +649,20 @@ impl McpServer {
             updated_at: session.updated_at.to_rfc3339(),
             is_orchestrator_session,
             latest_execution_id: session.latest_execution_id.map(|id| id.to_string()),
-            latest_execution_status: session.latest_execution_status.map(|s| serde_json::to_value(s).unwrap().as_str().unwrap().to_string()),
-            latest_execution_run_reason: session.latest_execution_run_reason.map(|r| serde_json::to_value(r).unwrap().as_str().unwrap().to_string()),
+            latest_execution_status: session.latest_execution_status.map(|s| {
+                serde_json::to_value(s)
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .to_string()
+            }),
+            latest_execution_run_reason: session.latest_execution_run_reason.map(|r| {
+                serde_json::to_value(r)
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .to_string()
+            }),
         }
     }
 
@@ -1068,5 +1080,184 @@ mod tests {
                 "key `{key}` should be absent when None"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn list_sessions_and_get_execution_surface_codingagent_after_setup() {
+        use axum::{Json as AxumJson, Router, routing::get, serve};
+        use rmcp::handler::server::tool::ToolRouter;
+        use tokio::net::TcpListener;
+
+        use crate::task_server::{McpContext, McpMode};
+
+        crate::task_server::tools::tests::install_rustls_provider();
+
+        let workspace_id = Uuid::new_v4();
+        let session_id = Uuid::new_v4();
+        let setup_id = Uuid::new_v4();
+        let codingagent_id = Uuid::new_v4();
+
+        let session_json = json!({
+            "id": session_id,
+            "workspace_id": workspace_id,
+            "name": null,
+            "executor": "CLAUDE_CODE",
+            "agent_working_dir": null,
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:02Z",
+            "latest_execution_id": codingagent_id,
+            "latest_execution_status": "running",
+            "latest_execution_run_reason": "codingagent"
+        });
+        let sessions_body = json!({
+            "success": true,
+            "data": [session_json.clone()],
+            "message": null
+        });
+        let session_body = json!({
+            "success": true,
+            "data": session_json,
+            "message": null
+        });
+        let setup_exec_body = json!({
+            "success": true,
+            "data": {
+                "id": setup_id,
+                "session_id": session_id,
+                "run_reason": "setupscript",
+                "executor_action": {
+                    "typ": {
+                        "type": "ScriptRequest",
+                        "script": "echo setup",
+                        "language": "Bash",
+                        "context": "SetupScript",
+                        "working_dir": null
+                    },
+                    "next_action": null
+                },
+                "status": "completed",
+                "exit_code": 0,
+                "dropped": false,
+                "started_at": "2026-01-01T00:00:00Z",
+                "completed_at": "2026-01-01T00:00:01Z",
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-01T00:00:01Z",
+                "latest_session_execution_id": codingagent_id
+            },
+            "message": null
+        });
+        let progress_body = json!({
+            "success": true,
+            "data": {
+                "latest_message": null,
+                "claude_session_id": null,
+                "tmux_session_name": null,
+                "transcript_path": null
+            },
+            "message": null
+        });
+        let approvals_body = json!({
+            "success": true,
+            "data": [],
+            "message": null
+        });
+
+        let router = Router::new()
+            .route(
+                "/api/sessions",
+                get({
+                    let body = sessions_body.clone();
+                    move || async move { AxumJson(body) }
+                }),
+            )
+            .route(
+                &format!("/api/sessions/{session_id}"),
+                get({
+                    let body = session_body.clone();
+                    move || async move { AxumJson(body) }
+                }),
+            )
+            .route(
+                &format!("/api/execution-processes/{setup_id}"),
+                get({
+                    let body = setup_exec_body.clone();
+                    move || async move { AxumJson(body) }
+                }),
+            )
+            .route(
+                &format!("/api/execution-processes/{setup_id}/agent-progress"),
+                get({
+                    let body = progress_body.clone();
+                    move || async move { AxumJson(body) }
+                }),
+            )
+            .route(
+                &format!("/api/approvals/pending/{setup_id}"),
+                get({
+                    let body = approvals_body.clone();
+                    move || async move { AxumJson(body) }
+                }),
+            );
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            serve(listener, router).await.unwrap();
+        });
+
+        let server = McpServer {
+            client: reqwest::Client::new(),
+            base_url: format!("http://{addr}"),
+            tool_router: ToolRouter::default(),
+            context: Some(McpContext {
+                project_id: None,
+                issue_id: None,
+                orchestrator_session_id: None,
+                workspace_id,
+                workspace_branch: "main".to_string(),
+                workspace_repos: vec![],
+            }),
+            mode: McpMode::Global,
+            headed_local_control: false,
+        };
+
+        let list_res = server
+            .list_sessions(Parameters(ListSessionsRequest {
+                workspace_id: Some(workspace_id),
+            }))
+            .await
+            .unwrap();
+        assert_ne!(list_res.is_error, Some(true));
+        let list_json: serde_json::Value =
+            serde_json::from_str(&list_res.content[0].as_text().unwrap().text).unwrap();
+        assert_eq!(
+            list_json["sessions"][0]["latest_execution_id"],
+            codingagent_id.to_string()
+        );
+        assert_eq!(
+            list_json["sessions"][0]["latest_execution_status"],
+            "running"
+        );
+        assert_eq!(
+            list_json["sessions"][0]["latest_execution_run_reason"],
+            "codingagent"
+        );
+
+        let exec_res = server
+            .get_execution(Parameters(GetExecutionRequest {
+                execution_id: setup_id,
+            }))
+            .await
+            .unwrap();
+        assert_ne!(exec_res.is_error, Some(true));
+        let exec_json: serde_json::Value =
+            serde_json::from_str(&exec_res.content[0].as_text().unwrap().text).unwrap();
+        assert_eq!(exec_json["execution_id"], setup_id.to_string());
+        assert_eq!(exec_json["status"], "completed");
+        assert_eq!(exec_json["is_finished"], true);
+        assert_eq!(
+            exec_json["latest_session_execution_id"],
+            codingagent_id.to_string()
+        );
     }
 }

@@ -998,4 +998,78 @@ mod tests {
             "dropped running coding-agent row must not count as running"
         );
     }
+
+    #[tokio::test]
+    async fn setup_completed_plus_codingagent_running_updates_session_and_next_execution() {
+        let pool = pool().await;
+        let ws_id = Uuid::new_v4();
+        sqlx::query("INSERT INTO workspaces (id, branch, name) VALUES (?, 'b', 'ws')")
+            .bind(ws_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let session_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO sessions (id, workspace_id, created_at, updated_at)              VALUES (?, ?, datetime('now'), datetime('now'))",
+        )
+        .bind(session_id)
+        .bind(ws_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let setup_id = Uuid::new_v4();
+        let codingagent_id = Uuid::new_v4();
+        let t_setup = Utc::now();
+        let t_coding = t_setup + chrono::Duration::seconds(1);
+
+        sqlx::query(
+            "INSERT INTO execution_processes              (id, session_id, run_reason, executor_action, status, exit_code, started_at, completed_at, created_at, updated_at)              VALUES (?, ?, 'setupscript', '{}', 'completed', 0, ?, ?, ?, ?)",
+        )
+        .bind(setup_id)
+        .bind(session_id)
+        .bind(t_setup)
+        .bind(t_coding)
+        .bind(t_setup)
+        .bind(t_coding)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO execution_processes              (id, session_id, run_reason, executor_action, status, started_at, created_at, updated_at)              VALUES (?, ?, 'codingagent', '{}', 'running', ?, ?, ?)",
+        )
+        .bind(codingagent_id)
+        .bind(session_id)
+        .bind(t_coding)
+        .bind(t_coding)
+        .bind(t_coding)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let sessions = Session::find_by_workspace_id(&pool, ws_id).await.unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].latest_execution_id, Some(codingagent_id));
+        assert_eq!(
+            sessions[0].latest_execution_status,
+            Some(ExecutionProcessStatus::Running)
+        );
+        assert_eq!(
+            sessions[0].latest_execution_run_reason,
+            Some(ExecutionProcessRunReason::CodingAgent)
+        );
+
+        let session = Session::find_by_id(&pool, session_id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(session.latest_execution_id, Some(codingagent_id));
+
+        let next = ExecutionProcess::find_next_execution_in_session(&pool, session_id, t_setup)
+            .await
+            .unwrap()
+            .expect("codingagent must follow completed setupscript");
+        assert_eq!(next.id, codingagent_id);
+    }
 }

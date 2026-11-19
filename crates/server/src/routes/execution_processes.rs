@@ -12,8 +12,9 @@ use db::models::{
 };
 use deployment::Deployment;
 use futures_util::{StreamExt, TryStreamExt};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use services::services::container::{AgentProgress, ContainerService};
+use ts_rs::TS;
 use utils::{log_msg::LogMsg, response::ApiResponse};
 use uuid::Uuid;
 
@@ -40,22 +41,25 @@ async fn get_execution_process_by_id(
 ) -> Result<ResponseJson<ApiResponse<GetExecutionProcessResponse>>, ApiError> {
     let pool = &deployment.db().pool;
 
-    let latest_session_execution_id = if execution_process.status == ExecutionProcessStatus::Completed {
-        ExecutionProcess::find_next_execution_in_session(
-            pool,
-            execution_process.session_id,
-            execution_process.created_at,
-        )
-        .await?
-        .map(|ep| ep.id)
-    } else {
-        None
-    };
+    let latest_session_execution_id =
+        if execution_process.status == ExecutionProcessStatus::Completed {
+            ExecutionProcess::find_next_execution_in_session(
+                pool,
+                execution_process.session_id,
+                execution_process.created_at,
+            )
+            .await?
+            .map(|ep| ep.id)
+        } else {
+            None
+        };
 
-    Ok(ResponseJson(ApiResponse::success(GetExecutionProcessResponse {
-        execution_process,
-        latest_session_execution_id,
-    })))
+    Ok(ResponseJson(ApiResponse::success(
+        GetExecutionProcessResponse {
+            execution_process,
+            latest_session_execution_id,
+        },
+    )))
 }
 
 async fn stream_raw_logs_ws(
