@@ -1003,7 +1003,12 @@
       },
       "addDialog": {
         "title": "Add extension",
-        "description": "Paste a git repo URL or a plugin folder path.",
+        "description": "Choose a plugin repository, MCP URL, or command.",
+        "sourceKind": "Source type",
+        "presetPlaceholder": "Choose a preset",
+        "serverName": "Name",
+        "arguments": "Arguments (one per line)",
+        "secretNames": "Secret names (one per line)",
         "source": "Source",
         "sourcePlaceholder": "https://github.com/owner/plugin or /path/to/plugin",
         "tag": "Tag",
@@ -1025,7 +1030,7 @@
         "conflictBody": "{{kind}} {{name}} clashes with {{against}}.",
         "conflictSkip": "Install, skip clashing items",
         "conflictOverwrite": "Install, overwrite old items",
-        "scopeNote": "Runs for every role and board by default. Restrict after install if needed."
+        "scopeNote": "Defaults to the crew role on every board. Adjust scope after installation."
       },
       "detail": {
         "source": "Source",

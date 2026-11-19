@@ -1,5 +1,8 @@
 # ADR-045: HiveDeck plugin asset store and per-run MCP/skill injection
 
+> Standalone MCP servers are installed as one-server plugins. Settings manages
+> them under Plugins, and the legacy MCP registry is migrated at startup.
+
 - **Status**: Accepted
 - **Date**: 2026-11-20
 

@@ -1003,7 +1003,12 @@
       },
       "addDialog": {
         "title": "Thêm tiện ích",
-        "description": "Dán URL repo git hoặc đường dẫn thư mục plugin.",
+        "description": "Chọn repo plugin, URL MCP hoặc command.",
+        "sourceKind": "Loại nguồn",
+        "presetPlaceholder": "Chọn preset",
+        "serverName": "Tên",
+        "arguments": "Đối số (mỗi dòng một đối số)",
+        "secretNames": "Tên secret (mỗi dòng một tên)",
         "source": "Nguồn",
         "sourcePlaceholder": "https://github.com/owner/plugin hoặc /đường/dẫn/plugin",
         "tag": "Tag",
@@ -1025,7 +1030,7 @@
         "conflictBody": "{{kind}} {{name}} trùng với {{against}}.",
         "conflictSkip": "Cài và bỏ qua mục trùng",
         "conflictOverwrite": "Cài và ghi đè mục cũ",
-        "scopeNote": "Mặc định chạy cho mọi vai trò và board. Chỉnh sau khi cài nếu cần hạn chế."
+        "scopeNote": "Mặc định chạy cho crew trên mọi board. Có thể chỉnh phạm vi sau khi cài."
       },
       "detail": {
         "source": "Nguồn",

@@ -234,7 +234,7 @@ export function PluginsSettingsSection() {
           </div>
         );
       })}
-      <ImportFromCli notify={notify} />
+      <ImportFromCli notify={notify} onImported={reload} />
       <AddPluginDialog
         open={adding}
         onClose={() => {

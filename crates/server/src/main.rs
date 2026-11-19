@@ -44,6 +44,8 @@ async fn main() -> Result<(), HiveDeckError> {
     if !asset_dir().exists() {
         std::fs::create_dir_all(asset_dir())?;
     }
+    executors::plugins::migrate_mcp_registry(&asset_dir())
+        .map_err(|error| anyhow::anyhow!("MCP migration failed: {error}"))?;
 
     // Copy old database to new location for safe downgrades
     let old_db = asset_dir().join("db.sqlite");

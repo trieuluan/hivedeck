@@ -499,8 +499,6 @@ capabilities: { [key in string]?: Array<BaseAgentCapability> }, preview_proxy_po
 
 export type Environment = { os_type: string, os_version: string, os_architecture: string, bitness: string, };
 
-export type McpServerQuery = { executor: BaseCodingAgent, };
-
 export type AgentExtensionsEntry = { inventory: CliInventory, prefs: CliExtensionPrefs, };
 
 export type AgentExtensionsResponse = { clis: Array<AgentExtensionsEntry>, };
@@ -583,7 +581,7 @@ export type PluginSkillEntry = { name: string, path: string, roles: Array<string
 
 export type InstalledPlugin = { name: string, version: string, source: string, commit?: string | null, tag?: string | null, enabled: boolean, asset_hash: string, mcp: Array<PluginMcpEntry>, skills: Array<PluginSkillEntry>, unsupported: Array<string>, notes: Array<PluginConflict>, };
 
-export type InstallPluginRequest = { source: string, version: string | null, commit: string | null, tag: string | null, roles: Array<string> | null, boards: Array<string> | null, skill_clis: Array<string> | null, conflict_policy: ConflictPolicy, secrets: { [key in string]?: { [key in string]?: string } }, };
+export type InstallPluginRequest = { source: string, single_mcp?: PluginMcpEntry, version: string | null, commit: string | null, tag: string | null, roles: Array<string> | null, boards: Array<string> | null, skill_clis: Array<string> | null, conflict_policy: ConflictPolicy, secrets: { [key in string]?: { [key in string]?: string } }, };
 
 export type UpgradePluginRequest = { source: string | null, version: string | null, commit: string | null, tag: string | null, conflict_policy: ConflictPolicy, };
 
@@ -594,8 +592,6 @@ export type PluginView = { secret_status: Array<PluginMcpSecretStatus>, name: st
 export type PluginSecretStatus = { plugin: string, mcp: string, name: string, has_value: boolean, };
 
 export type SetPluginSecretRequest = { value: string, };
-
-export type GetMcpServerResponse = { mcp_config: McpConfig, config_path: string, };
 
 export type CheckEditorAvailabilityQuery = { editor_type: EditorType, };
 

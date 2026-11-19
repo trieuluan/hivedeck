@@ -143,6 +143,9 @@ pub async fn initialize_deployment(
             DeploymentError::Other(anyhow::anyhow!("Failed to create asset directory: {}", e))
         })?;
     }
+    executors::plugins::migrate_mcp_registry(&asset_dir()).map_err(|error| {
+        DeploymentError::Other(anyhow::anyhow!("MCP migration failed: {error}"))
+    })?;
 
     // Copy old database to new location for safe downgrades
     let old_db = asset_dir().join("db.sqlite");

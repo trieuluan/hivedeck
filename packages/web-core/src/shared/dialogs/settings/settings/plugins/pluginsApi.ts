@@ -43,6 +43,7 @@ const seg = encodeURIComponent;
 
 export type InstallInput = {
   source: string;
+  singleMcp?: PluginMcpEntry;
   tag?: string;
   commit?: string;
   conflictPolicy?: ConflictPolicy;
@@ -51,6 +52,7 @@ export type InstallInput = {
 
 const toRequest = (input: InstallInput): InstallPluginRequest => ({
   source: input.source.trim(),
+  ...(input.singleMcp ? { single_mcp: input.singleMcp } : {}),
   version: null,
   commit: input.commit?.trim() || null,
   tag: input.tag?.trim() || null,

@@ -38,6 +38,11 @@ export function AddPluginDialog({
 }) {
   const { t } = useTranslation('settings');
   const [source, setSource] = useState('');
+  const [kind, setKind] = useState<'repo' | 'http' | 'stdio'>('repo');
+  const [name, setName] = useState('');
+  const [args, setArgs] = useState('');
+  const [secretNames, setSecretNames] = useState('');
+  const [oauth, setOauth] = useState(false);
   const [tag, setTag] = useState('');
   const [commit, setCommit] = useState('');
   const [preview, setPreview] = useState<InstalledPlugin | null>(null);
@@ -48,6 +53,11 @@ export function AddPluginDialog({
 
   const reset = () => {
     setSource('');
+    setKind('repo');
+    setName('');
+    setArgs('');
+    setSecretNames('');
+    setOauth(false);
     setTag('');
     setCommit('');
     setPreview(null);
@@ -61,8 +71,46 @@ export function AddPluginDialog({
     onClose();
   };
 
-  const input = () => ({ source, tag, commit });
-  const needsPin = isRemote(source.trim()) && !tag.trim() && !commit.trim();
+  const input = () => ({
+    source,
+    tag: kind === 'repo' ? tag : '',
+    commit: kind === 'repo' ? commit : '',
+    ...(kind === 'repo'
+      ? {}
+      : {
+          singleMcp: {
+            name: name.trim(),
+            transport: kind,
+            command: kind === 'stdio' ? source.trim() : null,
+            args: kind === 'stdio' ? args.split('\n').filter(Boolean) : [],
+            url: kind === 'http' ? source.trim() : null,
+            headers:
+              kind === 'http'
+                ? Object.fromEntries(
+                    secretNames
+                      .split('\n')
+                      .map((key, index) => [key.trim(), `SECRET_${index}`])
+                      .filter(([key]) => key)
+                  )
+                : {},
+            env:
+              kind === 'stdio'
+                ? Object.fromEntries(
+                    secretNames
+                      .split('\n')
+                      .map((key, index) => [key.trim(), `SECRET_${index}`])
+                      .filter(([key]) => key)
+                  )
+                : {},
+            roles: ['crew'],
+            boards: [],
+            oauth,
+            enabled: true,
+          },
+        }),
+  });
+  const needsPin =
+    kind === 'repo' && isRemote(source.trim()) && !tag.trim() && !commit.trim();
   const dirty = () => {
     setPreview(null);
     setConflicts([]);
@@ -134,6 +182,68 @@ export function AddPluginDialog({
             if (source.trim() && !needsPin && !busy) void runPreview();
           }}
         >
+          <label className="block text-sm text-normal">
+            Preset
+            <select
+              aria-label="Preset"
+              defaultValue=""
+              onChange={(event) => {
+                const preset = event.target.value;
+                if (!preset) return;
+                setName(preset);
+                setKind(preset === 'context7' ? 'http' : 'stdio');
+                setSource(
+                  preset === 'context7' ? 'https://mcp.context7.com/mcp' : 'npx'
+                );
+                setArgs(
+                  preset === 'playwright'
+                    ? '@playwright/mcp@latest'
+                    : preset === 'exa'
+                      ? '-y\nexa-mcp-server\ntools=web_search_exa,get_code_context_exa'
+                      : preset === 'chrome_devtools'
+                        ? 'chrome-devtools-mcp@latest'
+                        : preset === 'dev_manager'
+                          ? 'dev-manager-mcp\nstdio'
+                          : ''
+                );
+                setSecretNames(
+                  preset === 'context7'
+                    ? 'CONTEXT7_API_KEY'
+                    : preset === 'exa'
+                      ? 'EXA_API_KEY'
+                      : ''
+                );
+                setOauth(false);
+                dirty();
+              }}
+              className="ml-2 rounded-sm border border-border bg-secondary p-1"
+            >
+              <option value="">
+                {t('settings.plugins.addDialog.presetPlaceholder')}
+              </option>
+              <option value="context7">Context7</option>
+              <option value="playwright">Playwright</option>
+              <option value="exa">Exa</option>
+              <option value="chrome_devtools">Chrome DevTools</option>
+              <option value="dev_manager">Dev Manager</option>
+            </select>
+          </label>
+          <label className="block text-sm text-normal">
+            {t('settings.plugins.addDialog.sourceKind')}
+            <select
+              aria-label={t('settings.plugins.addDialog.sourceKind')}
+              value={kind}
+              onChange={(event) => {
+                setKind(event.target.value as typeof kind);
+                dirty();
+              }}
+              className="ml-2 rounded-sm border border-border bg-secondary p-1"
+            >
+              <option value="repo">Repository / plugin</option>
+              <option value="http">URL MCP</option>
+              <option value="stdio">Command MCP</option>
+            </select>
+          </label>
           <SettingsField label={t('settings.plugins.addDialog.source')}>
             <SettingsInput
               ariaLabel={t('settings.plugins.addDialog.source')}
@@ -141,36 +251,104 @@ export function AddPluginDialog({
               placeholder={t('settings.plugins.addDialog.sourcePlaceholder')}
               onChange={(value) => {
                 setSource(value);
+                if (kind === 'http') {
+                  try {
+                    const host = new URL(value).hostname.split('.');
+                    setName(
+                      host[0] === 'mcp' ? (host[1] ?? '') : (host[0] ?? '')
+                    );
+                  } catch {
+                    setName('');
+                  }
+                }
                 dirty();
               }}
             />
           </SettingsField>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <SettingsField label={t('settings.plugins.addDialog.tag')}>
-              <SettingsInput
-                ariaLabel={t('settings.plugins.addDialog.tag')}
-                value={tag}
-                onChange={(value) => {
-                  setTag(value);
-                  dirty();
-                }}
-              />
-            </SettingsField>
-            <SettingsField label={t('settings.plugins.addDialog.commit')}>
-              <SettingsInput
-                ariaLabel={t('settings.plugins.addDialog.commit')}
-                value={commit}
-                onChange={(value) => {
-                  setCommit(value);
-                  dirty();
-                }}
-              />
-            </SettingsField>
-          </div>
-          {needsPin && (
-            <p className="text-xs text-warning">
-              {t('settings.plugins.addDialog.pinHint')}
-            </p>
+          {kind !== 'repo' && (
+            <>
+              <SettingsField label={t('settings.plugins.addDialog.serverName')}>
+                <SettingsInput
+                  ariaLabel={t('settings.plugins.addDialog.serverName')}
+                  value={name}
+                  onChange={(value) => {
+                    setName(value);
+                    dirty();
+                  }}
+                />
+              </SettingsField>
+              {kind === 'stdio' && (
+                <label className="block text-sm text-normal">
+                  {t('settings.plugins.addDialog.arguments')}
+                  <textarea
+                    aria-label={t('settings.plugins.addDialog.arguments')}
+                    className="block w-full border border-border bg-secondary"
+                    value={args}
+                    onChange={(event) => {
+                      setArgs(event.target.value);
+                      dirty();
+                    }}
+                  />
+                </label>
+              )}
+              <label className="block text-sm text-normal">
+                {kind === 'http' ? 'Header' : 'Environment'} —{' '}
+                {t('settings.plugins.addDialog.secretNames')}
+                <textarea
+                  aria-label={kind === 'http' ? 'Header' : 'Environment'}
+                  className="block w-full border border-border bg-secondary"
+                  value={secretNames}
+                  onChange={(event) => {
+                    setSecretNames(event.target.value);
+                    dirty();
+                  }}
+                />
+              </label>
+              {kind === 'http' && (
+                <label className="block text-sm text-normal">
+                  <input
+                    type="checkbox"
+                    checked={oauth}
+                    onChange={(event) => {
+                      setOauth(event.target.checked);
+                      dirty();
+                    }}
+                  />{' '}
+                  OAuth
+                </label>
+              )}
+            </>
+          )}
+          {kind === 'repo' && (
+            <>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <SettingsField label={t('settings.plugins.addDialog.tag')}>
+                  <SettingsInput
+                    ariaLabel={t('settings.plugins.addDialog.tag')}
+                    value={tag}
+                    onChange={(value) => {
+                      setTag(value);
+                      dirty();
+                    }}
+                  />
+                </SettingsField>
+                <SettingsField label={t('settings.plugins.addDialog.commit')}>
+                  <SettingsInput
+                    ariaLabel={t('settings.plugins.addDialog.commit')}
+                    value={commit}
+                    onChange={(value) => {
+                      setCommit(value);
+                      dirty();
+                    }}
+                  />
+                </SettingsField>
+              </div>
+              {needsPin && (
+                <p className="text-xs text-warning">
+                  {t('settings.plugins.addDialog.pinHint')}
+                </p>
+              )}
+            </>
           )}
           <button
             type="submit"
@@ -219,7 +397,9 @@ export function AddPluginDialog({
                   </div>
                   {refsOf(mcp).map((ref) => (
                     <label key={ref} className="block text-sm text-low">
-                      {ref}
+                      {Object.entries({ ...mcp.headers, ...mcp.env }).find(
+                        ([, value]) => value === ref
+                      )?.[0] ?? ref}
                       <input
                         type="password"
                         autoComplete="new-password"

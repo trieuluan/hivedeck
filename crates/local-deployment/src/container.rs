@@ -2751,22 +2751,6 @@ impl ContainerService for LocalContainerService {
         };
         if let Some(cli) = registry_cli {
             let dir = utils::assets::asset_dir();
-            let read = |name: &str| -> Result<Vec<u8>, std::io::Error> {
-                match std::fs::read(dir.join(name)) {
-                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                        Ok(b"[]".to_vec())
-                    }
-                    result => result,
-                }
-            };
-            let entries = serde_json::from_slice(&read("mcp_registry.json")?)
-                .map_err(|_| anyhow!("Invalid MCP registry"))?;
-            let secret_bytes = match std::fs::read(dir.join("mcp_secrets.json")) {
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => b"{}".to_vec(),
-                result => result?,
-            };
-            let secrets = serde_json::from_slice(&secret_bytes)
-                .map_err(|_| anyhow!("Invalid MCP secrets"))?;
             let plugins = executors::plugins::read_plugins(&dir)
                 .map_err(|error| anyhow!("Invalid plugins registry: {error}"))?;
             let plugin_secrets = executors::plugins::read_plugin_secrets(&dir)
@@ -2783,8 +2767,8 @@ impl ContainerService for LocalContainerService {
             .map(|id| id.to_string());
             let (servers, secrets) = executors::plugins::select_mcp_for_run(
                 &dir,
-                entries,
-                &secrets,
+                vec![],
+                &Default::default(),
                 &plugins,
                 &plugin_secrets,
                 cli,

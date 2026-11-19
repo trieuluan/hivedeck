@@ -136,6 +136,9 @@ pub type PluginsSecrets = BTreeMap<String, BTreeMap<String, BTreeMap<String, Str
 pub struct InstallPluginRequest {
     pub source: String,
     #[serde(default)]
+    #[ts(optional)]
+    pub single_mcp: Option<PluginMcpEntry>,
+    #[serde(default)]
     pub version: Option<String>,
     #[serde(default)]
     pub commit: Option<String>,
@@ -252,6 +255,10 @@ fn write_atomic<T: Serialize>(path: &Path, value: &T, secret: bool) -> Result<()
         file.write_all(&bytes)?;
         file.sync_all()?;
         fs::rename(&temp, path)?;
+        #[cfg(unix)]
+        if let Some(parent) = path.parent() {
+            fs::File::open(parent)?.sync_all()?;
+        }
         Ok(())
     })();
     if result.is_err() {
@@ -266,6 +273,98 @@ pub fn read_plugins(dir: &Path) -> Result<Vec<InstalledPlugin>, PluginError> {
 
 pub fn read_plugin_secrets(dir: &Path) -> Result<PluginsSecrets, PluginError> {
     read_json_or_default(&secrets_path(dir))
+}
+
+pub fn migrate_mcp_registry(dir: &Path) -> Result<(), PluginError> {
+    let _lock = WRITE_LOCK
+        .lock()
+        .map_err(|_| std::io::Error::other("Plugin registry lock poisoned"))?;
+    let path = dir.join("mcp_registry.json");
+    let bytes = match fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.into()),
+    };
+    let entries: Vec<PluginMcpEntry> = serde_json::from_slice(&bytes)
+        .map_err(|_| PluginError::BadRequest("Invalid legacy MCP registry".into()))?;
+    let legacy_secrets: BTreeMap<String, String> =
+        read_json_or_default(&dir.join("mcp_secrets.json"))?;
+    let mut plugins = read_plugins(dir)?;
+    let mut secrets = read_plugin_secrets(dir)?;
+    let mut seen = BTreeSet::new();
+    for entry in entries {
+        validate_mcp_entry(&entry)?;
+        if !seen.insert(entry.name.clone()) {
+            return Err(PluginError::ConflictMessage(format!(
+                "Duplicate legacy MCP: {}",
+                entry.name
+            )));
+        }
+        let name = entry.name.clone();
+        let plugin = single_mcp_plugin(entry.clone(), &InstallPluginRequest::default())?;
+        match plugins.iter().find(|existing| existing.name == name) {
+            Some(existing) if existing == &plugin => (),
+            Some(_) => {
+                return Err(PluginError::ConflictMessage(format!(
+                    "Plugin name already exists: {name}"
+                )));
+            }
+            None => {
+                if plugins
+                    .iter()
+                    .any(|existing| existing.mcp.iter().any(|server| server.name == name))
+                {
+                    return Err(PluginError::ConflictMessage(format!(
+                        "MCP name already exists: {name}"
+                    )));
+                }
+                plugins.push(plugin);
+            }
+        }
+        for reference in entry.headers.values().chain(entry.env.values()) {
+            if let Some(value) = legacy_secrets.get(reference) {
+                let target = secrets
+                    .entry(name.clone())
+                    .or_default()
+                    .entry(name.clone())
+                    .or_default();
+                if target
+                    .get(reference)
+                    .is_some_and(|existing| existing != value)
+                {
+                    return Err(PluginError::ConflictMessage(format!(
+                        "Secret collision for MCP {name}"
+                    )));
+                }
+                target.insert(reference.clone(), value.clone());
+            }
+        }
+    }
+    let backup = dir.join("mcp_registry.json.bak");
+    match fs::read(&backup) {
+        Ok(existing) if existing != bytes => {
+            return Err(PluginError::ConflictMessage(
+                "Legacy MCP backup already exists with different contents".into(),
+            ));
+        }
+        Ok(_) => (),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let mut file = tempfile::NamedTempFile::new_in(dir)?;
+            file.write_all(&bytes)?;
+            file.as_file().sync_all()?;
+            file.persist_noclobber(&backup)
+                .map_err(|error| error.error)?;
+            #[cfg(unix)]
+            fs::File::open(dir)?.sync_all()?;
+        }
+        Err(error) => return Err(error.into()),
+    }
+    write_atomic(&secrets_path(dir), &secrets, true)?;
+    write_atomic(&plugins_path(dir), &plugins, false)?;
+    fs::remove_file(path)?;
+    #[cfg(unix)]
+    fs::File::open(dir)?.sync_all()?;
+    Ok(())
 }
 
 fn is_remote_source(source: &str) -> bool {
@@ -1205,6 +1304,51 @@ pub fn install_plugin(
     dir: &Path,
     req: InstallPluginRequest,
 ) -> Result<InstalledPlugin, PluginError> {
+    if let Some(entry) = req.single_mcp.clone() {
+        let mut plugin = single_mcp_plugin(entry, &req)?;
+        let _lock = WRITE_LOCK
+            .lock()
+            .map_err(|_| std::io::Error::other("Plugin registry lock poisoned"))?;
+        let mut plugins = read_plugins(dir)?;
+        if plugins.iter().any(|item| item.name == plugin.name) {
+            return Err(PluginError::ConflictMessage(format!(
+                "Plugin '{}' is already installed",
+                plugin.name
+            )));
+        }
+        let registry: Vec<RegistryEntry> = read_json_or_default(&dir.join("mcp_registry.json"))?;
+        plugin.notes = resolve_conflicts(
+            &plugin.name,
+            &mut plugin.mcp,
+            &mut [],
+            &mut plugins,
+            &registry,
+            req.conflict_policy,
+        )?;
+        for (server, refs) in &req.secrets {
+            if server != &plugin.name
+                || refs.keys().any(|reference| {
+                    !plugin.mcp[0]
+                        .headers
+                        .values()
+                        .chain(plugin.mcp[0].env.values())
+                        .any(|item| item == reference)
+                })
+            {
+                return Err(PluginError::BadRequest(
+                    "Unknown MCP secret reference".into(),
+                ));
+            }
+        }
+        let mut secrets = read_plugin_secrets(dir)?;
+        if !req.secrets.is_empty() {
+            secrets.insert(plugin.name.clone(), req.secrets);
+            write_atomic(&secrets_path(dir), &secrets, true)?;
+        }
+        plugins.push(plugin.clone());
+        write_atomic(&plugins_path(dir), &plugins, false)?;
+        return Ok(plugin);
+    }
     let default_roles = req.roles.unwrap_or_else(default_roles);
     let default_boards = req.boards.unwrap_or_default();
     let default_skill_clis = req.skill_clis.unwrap_or_default();
@@ -1306,7 +1450,7 @@ pub fn latest_tag(dir: &Path, name: &str) -> Result<Option<String>, PluginError>
         .into_iter()
         .find(|p| p.name == name)
         .ok_or_else(|| PluginError::NotFound(format!("Plugin '{name}' not found")))?;
-    if !is_remote_source(plugin.source.trim()) {
+    if plugin.source == "mcp-single" || !is_remote_source(plugin.source.trim()) {
         return Ok(None);
     }
     let out = Command::new("git")
@@ -1329,6 +1473,9 @@ pub fn latest_tag(dir: &Path, name: &str) -> Result<Option<String>, PluginError>
 }
 
 pub fn preview_plugin(req: InstallPluginRequest) -> Result<InstalledPlugin, PluginError> {
+    if let Some(entry) = req.single_mcp.clone() {
+        return single_mcp_plugin(entry, &req);
+    }
     let roles = req.roles.unwrap_or_else(default_roles);
     let boards = req.boards.unwrap_or_default();
     let skill_clis = req.skill_clis.unwrap_or_default();
@@ -1358,6 +1505,31 @@ pub fn preview_plugin(req: InstallPluginRequest) -> Result<InstalledPlugin, Plug
     })
 }
 
+fn single_mcp_plugin(
+    entry: PluginMcpEntry,
+    req: &InstallPluginRequest,
+) -> Result<InstalledPlugin, PluginError> {
+    validate_mcp_entry(&entry)?;
+    if req.tag.is_some() || req.commit.is_some() {
+        return Err(PluginError::BadRequest(
+            "MCP servers cannot be pinned".into(),
+        ));
+    }
+    Ok(InstalledPlugin {
+        name: entry.name.clone(),
+        version: "1".into(),
+        source: "mcp-single".into(),
+        commit: None,
+        tag: None,
+        enabled: true,
+        asset_hash: String::new(),
+        mcp: vec![entry],
+        skills: vec![],
+        unsupported: vec![],
+        notes: vec![],
+    })
+}
+
 pub fn upgrade_plugin(
     dir: &Path,
     name: &str,
@@ -1376,6 +1548,12 @@ pub fn upgrade_plugin(
             .find(|p| p.name == name)
             .ok_or_else(|| PluginError::NotFound(format!("Plugin '{name}' not found")))?
     };
+
+    if snapshot_source.source == "mcp-single" {
+        return Err(PluginError::BadRequest(
+            "Single MCP servers cannot be upgraded".into(),
+        ));
+    }
 
     let source = req.source.unwrap_or_else(|| snapshot_source.source.clone());
     let commit = req.commit.or_else(|| {
@@ -1894,6 +2072,206 @@ pub fn opencode_skills_config(skill_dirs: &[PathBuf], existing: Option<&str>) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_migration_is_restart_safe_and_preserves_scope_and_secrets() {
+        let dir = TempDir::new().unwrap();
+        let entries = serde_json::json!([
+            {"name":"first", "transport":"http", "url":"https://example.com/mcp", "headers":{"Authorization":"token"}, "roles":["captain"], "boards":["board"], "oauth":true},
+            {"name":"second", "transport":"stdio", "command":"server", "env":{"KEY":"token"}, "roles":["crew"]}
+        ]);
+        fs::write(
+            dir.path().join("mcp_registry.json"),
+            serde_json::to_vec(&entries).unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            dir.path().join("mcp_secrets.json"),
+            br#"{"token":"secret"}"#,
+        )
+        .unwrap();
+        migrate_mcp_registry(dir.path()).unwrap();
+        let plugins = read_plugins(dir.path()).unwrap();
+        assert_eq!(plugins.len(), 2);
+        assert!(plugins[0].mcp[0].oauth);
+        assert_eq!(plugins[0].mcp[0].boards, ["board"]);
+        assert_eq!(plugins[0].mcp[0].roles, ["captain"]);
+        assert_eq!(
+            read_plugin_secrets(dir.path()).unwrap()["first"]["first"]["token"],
+            "secret"
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                fs::metadata(secrets_path(dir.path()))
+                    .unwrap()
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o600
+            );
+        }
+        fs::copy(
+            dir.path().join("mcp_registry.json.bak"),
+            dir.path().join("mcp_registry.json"),
+        )
+        .unwrap();
+        migrate_mcp_registry(dir.path()).unwrap();
+        migrate_mcp_registry(dir.path()).unwrap();
+        assert_eq!(read_plugins(dir.path()).unwrap(), plugins);
+        assert!(dir.path().join("mcp_registry.json.bak").exists());
+        for cli in ["claude_code", "codex", "opencode"] {
+            for (role, board, expected) in [
+                ("captain", Some("board"), "first"),
+                ("crew", None, "second"),
+            ] {
+                let (servers, _) = select_mcp_for_run(
+                    dir.path(),
+                    vec![],
+                    &BTreeMap::new(),
+                    &plugins,
+                    &read_plugin_secrets(dir.path()).unwrap(),
+                    cli,
+                    role,
+                    board,
+                )
+                .unwrap();
+                assert_eq!(servers.len(), 1);
+                assert_eq!(servers[0].name, expected);
+            }
+        }
+    }
+
+    #[test]
+    fn legacy_migration_refuses_duplicate_names_without_touching_source() {
+        let dir = TempDir::new().unwrap();
+        let bytes = br#"[{"name":"same","transport":"stdio","command":"a","roles":["crew"]},{"name":"same","transport":"stdio","command":"b","roles":["crew"]}]"#;
+        fs::write(dir.path().join("mcp_registry.json"), bytes).unwrap();
+        assert!(migrate_mcp_registry(dir.path()).is_err());
+        assert_eq!(
+            fs::read(dir.path().join("mcp_registry.json")).unwrap(),
+            bytes
+        );
+        assert!(!plugins_path(dir.path()).exists());
+    }
+
+    #[test]
+    fn legacy_migration_retries_after_partial_write_and_rejects_collision() {
+        let dir = TempDir::new().unwrap();
+        let bytes = br#"[{"name":"same","transport":"stdio","command":"a","env":{"KEY":"token"},"roles":["crew"]}]"#;
+        fs::write(dir.path().join("mcp_registry.json"), bytes).unwrap();
+        fs::write(dir.path().join("mcp_registry.json.bak"), bytes).unwrap();
+        fs::write(
+            dir.path().join("mcp_secrets.json"),
+            br#"{"token":"secret"}"#,
+        )
+        .unwrap();
+        let secrets: PluginsSecrets = BTreeMap::from([(
+            "same".into(),
+            BTreeMap::from([(
+                "same".into(),
+                BTreeMap::from([("token".into(), "secret".into())]),
+            )]),
+        )]);
+        write_atomic(&secrets_path(dir.path()), &secrets, true).unwrap();
+        migrate_mcp_registry(dir.path()).unwrap();
+        assert_eq!(read_plugins(dir.path()).unwrap().len(), 1);
+
+        let other = TempDir::new().unwrap();
+        fs::write(other.path().join("mcp_registry.json"), bytes).unwrap();
+        let entry = PluginMcpEntry {
+            name: "same".into(),
+            transport: "stdio".into(),
+            command: Some("different".into()),
+            args: vec![],
+            url: None,
+            headers: BTreeMap::new(),
+            env: BTreeMap::new(),
+            roles: vec!["crew".into()],
+            boards: vec![],
+            oauth: false,
+            enabled: true,
+        };
+        install_plugin(
+            other.path(),
+            InstallPluginRequest {
+                single_mcp: Some(entry),
+                conflict_policy: ConflictPolicy::Overwrite,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let before = fs::read(plugins_path(other.path())).unwrap();
+        assert!(migrate_mcp_registry(other.path()).is_err());
+        assert_eq!(fs::read(plugins_path(other.path())).unwrap(), before);
+        assert_eq!(
+            fs::read(other.path().join("mcp_registry.json")).unwrap(),
+            bytes
+        );
+    }
+
+    #[test]
+    fn single_mcp_preview_install_and_injection() {
+        let dir = TempDir::new().unwrap();
+        let entry = PluginMcpEntry {
+            name: "example".into(),
+            transport: "http".into(),
+            command: None,
+            args: vec![],
+            url: Some("https://example.com/mcp".into()),
+            headers: BTreeMap::from([("Authorization".into(), "TOKEN".into())]),
+            env: BTreeMap::new(),
+            roles: vec!["crew".into()],
+            boards: vec!["board".into()],
+            oauth: true,
+            enabled: true,
+        };
+        let req = InstallPluginRequest {
+            source: String::new(),
+            single_mcp: Some(entry),
+            secrets: BTreeMap::from([(
+                "example".into(),
+                BTreeMap::from([("TOKEN".into(), "secret".into())]),
+            )]),
+            ..Default::default()
+        };
+        assert_eq!(preview_plugin(req.clone()).unwrap().source, "mcp-single");
+        install_plugin(dir.path(), req.clone()).unwrap();
+        assert!(install_plugin(dir.path(), req).is_err());
+        assert!(
+            !fs::read_to_string(plugins_path(dir.path()))
+                .unwrap()
+                .contains("secret")
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                fs::metadata(secrets_path(dir.path()))
+                    .unwrap()
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o600
+            );
+        }
+        for cli in ["claude_code", "codex", "opencode"] {
+            let (servers, vars) = select_mcp_for_run(
+                dir.path(),
+                vec![],
+                &BTreeMap::new(),
+                &read_plugins(dir.path()).unwrap(),
+                &read_plugin_secrets(dir.path()).unwrap(),
+                cli,
+                "crew",
+                Some("board"),
+            )
+            .unwrap();
+            assert_eq!(servers.len(), 1);
+            assert!(vars.values().any(|value| value == "secret"));
+        }
+    }
 
     fn fixture_dir() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sample-plugin")

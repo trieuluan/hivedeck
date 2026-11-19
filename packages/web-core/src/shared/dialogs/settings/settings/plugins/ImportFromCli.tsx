@@ -19,8 +19,10 @@ const request = async <T,>(path: string, init?: RequestInit): Promise<T> =>
 
 export function ImportFromCli({
   notify,
+  onImported,
 }: {
   notify: (notice: Notice) => void;
+  onImported: () => Promise<void>;
 }) {
   const { t } = useTranslation('settings');
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
@@ -55,6 +57,7 @@ export function ImportFromCli({
       );
       setCandidates(null);
       setSelected([]);
+      await onImported();
       notify({
         kind: 'ok',
         text: t('settings.plugins.notice.imported', {

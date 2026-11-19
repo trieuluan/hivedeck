@@ -1,5 +1,8 @@
 # ADR-044: HiveDeck-owned MCP registry, injected per run
 
+> Superseded in part by ADR-045: the legacy registry migrates to one-server
+> plugins at startup. HiveDeck retains a backup and injects plugins only.
+
 - **Status**: Accepted
 - **Date**: 2026-11-19
 

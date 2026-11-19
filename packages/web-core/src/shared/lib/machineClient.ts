@@ -1,8 +1,6 @@
 import type {
   Config,
-  GetMcpServerResponse,
   GitBranch,
-  McpServerQuery,
   Repo,
   UpdateRepo,
   UserSystemInfo,
@@ -42,7 +40,6 @@ export interface MachineClient {
   getRepoBranches: (repoId: string) => Promise<GitBranch[]>;
   loadProfiles: () => Promise<{ content: string; path: string }>;
   saveProfiles: (content: string) => Promise<string>;
-  loadMcpServers: (query: McpServerQuery) => Promise<GetMcpServerResponse>;
 }
 
 function getMachineRequestOptions(
@@ -136,11 +133,5 @@ export function createMachineClient(target: MachineTarget): MachineClient {
           },
         })
       ),
-    loadMcpServers: async (query) => {
-      const params = new URLSearchParams(query);
-      return handleApiResponse<GetMcpServerResponse>(
-        await makeMachineRequest(target, `/api/mcp-config?${params.toString()}`)
-      );
-    },
   };
 }

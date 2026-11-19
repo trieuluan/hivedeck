@@ -13,14 +13,12 @@ use executors::{
     executors::{
         AvailabilityInfo, BaseAgentCapability, BaseCodingAgent, StandardCodingAgentExecutor,
     },
-    mcp_config::{McpConfig, read_agent_config},
     profile::{ExecutorConfigs, ExecutorProfileId},
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use services::services::{
     config::{
-        Config, ConfigError, SoundFile,
+        Config, SoundFile,
         editor::{EditorConfig, EditorType},
         save_config_to_file,
     },
@@ -42,7 +40,6 @@ pub fn router() -> Router<DeploymentImpl> {
         .route("/info", get(get_user_system_info))
         .route("/config", put(update_config))
         .route("/sounds/{sound}", get(get_sound))
-        .route("/mcp-config", get(get_mcp_servers))
         .route(
             "/agent-extensions",
             get(get_agent_extensions).put(update_agent_extensions),
@@ -178,18 +175,6 @@ async fn get_sound(Path(sound): Path<SoundFile>) -> Result<Response, ApiError> {
     Ok(response)
 }
 
-#[derive(TS, Debug, Deserialize)]
-pub struct McpServerQuery {
-    executor: BaseCodingAgent,
-}
-
-#[derive(TS, Debug, Serialize, Deserialize)]
-pub struct GetMcpServerResponse {
-    // servers: HashMap<String, Value>,
-    mcp_config: McpConfig,
-    config_path: String,
-}
-
 /// One CLI's installed skills/MCP/hooks/plugins plus the owner's choices
 /// for HiveDeck's headless runs (ADR-038).
 #[derive(Debug, Serialize, TS)]
@@ -235,61 +220,6 @@ async fn update_agent_extensions(
         .save()
         .map_err(|e| ApiError::BadRequest(format!("could not save: {e}")))?;
     Ok(ResponseJson(ApiResponse::success(req.prefs)))
-}
-
-async fn get_mcp_servers(
-    State(_deployment): State<DeploymentImpl>,
-    Query(query): Query<McpServerQuery>,
-) -> Result<ResponseJson<ApiResponse<GetMcpServerResponse>>, ApiError> {
-    let coding_agent = ExecutorConfigs::get_cached()
-        .get_coding_agent(&ExecutorProfileId::new(query.executor))
-        .ok_or(ConfigError::ValidationError(
-            "Executor not found".to_string(),
-        ))?;
-
-    if !coding_agent.supports_mcp() {
-        return Ok(ResponseJson(ApiResponse::error(
-            "MCP not supported by this executor",
-        )));
-    }
-
-    // Resolve supplied config path or agent default
-    let config_path = match coding_agent.default_mcp_config_path() {
-        Some(path) => path,
-        None => {
-            return Ok(ResponseJson(ApiResponse::error(
-                "Could not determine config file path",
-            )));
-        }
-    };
-
-    let mut mcpc = coding_agent.get_mcp_config();
-    let raw_config = read_agent_config(&config_path, &mcpc).await?;
-    let servers = get_mcp_servers_from_config_path(&raw_config, &mcpc.servers_path);
-    mcpc.set_servers(servers);
-    Ok(ResponseJson(ApiResponse::success(GetMcpServerResponse {
-        mcp_config: mcpc,
-        config_path: config_path.to_string_lossy().to_string(),
-    })))
-}
-
-/// Helper function to get MCP servers from config using a path
-fn get_mcp_servers_from_config_path(raw_config: &Value, path: &[String]) -> HashMap<String, Value> {
-    let mut current = raw_config;
-    for part in path {
-        current = match current.get(part) {
-            Some(val) => val,
-            None => return HashMap::new(),
-        };
-    }
-    // Extract the servers object
-    match current.as_object() {
-        Some(servers) => servers
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect(),
-        None => HashMap::new(),
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
