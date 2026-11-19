@@ -3,6 +3,9 @@
 - **Status**: Accepted
 - **Date**: 2026-11-19
 
+Superseded in part by ADR-044. Default path is per-run injection; writing CLI
+config is the fallback.
+
 ## Context
 
 ADR-038 states that HiveDeck never edits CLI config. Installing MCP servers

@@ -1,6 +1,6 @@
-# ADR-043: HiveDeck-owned MCP registry, injected per run
+# ADR-044: HiveDeck-owned MCP registry, injected per run
 
-- **Status**: Proposed
+- **Status**: Accepted
 - **Date**: 2026-11-19
 
 ## Context
@@ -31,8 +31,9 @@ through `OPENCODE_CONFIG_CONTENT` (`opencode.rs`).
 
 - HiveDeck keeps its **own MCP registry** in its asset dir, next to
   `agent_extensions.json`. Each entry holds a name, transport (stdio or
-  streamable HTTP), command/args or URL, headers/env, and a scope: which CLIs,
-  and captain / crew / selected boards or cards.
+  streamable HTTP), command/args or URL, headers/env, and a scope.
+- **v1 scope**: by CLI and role (captain / crew) and by board. Per-card
+  filtering is deferred.
 - At spawn, HiveDeck adds the matching entries to that run only, in the CLI's
   format: Claude Code through the run's `--mcp-config`, Codex through
   `mcp_servers.*` overrides, OpenCode through `OPENCODE_CONFIG_CONTENT`. Other
@@ -45,15 +46,17 @@ through `OPENCODE_CONFIG_CONTENT` (`opencode.rs`).
   line (visible in `ps`) or in logs. Codex uses `bearer_token_env_var`;
   Claude Code and OpenCode use env expansion in their MCP config, after the
   exact syntax is verified per version.
+- **Secret storage (v1)**: values live in a separate file with mode `0600` in
+  the asset dir, next to `agent_extensions.json`. The file is outside Git and
+  secret values never reach logs.
 - An **import** action copies a server definition from a CLI's existing
   config (for example Claude Code's `~/.claude.json`) into the registry. It
   reads; it does not write back.
-- The Settings UI merges the two pages into one: per-CLI tabs for CLIs found
-  on the machine (inventory and switches from ADR-038), plus a HiveDeck
-  registry list with scope checkboxes. Writing into a CLI's own config (the
-  old MCP page) moves to an explicit "install into CLI" action and stays
-  available only until the registry covers the same need; when it is used,
-  it backs up the file first.
+- **UI v1**: a "Registry" section is added to the existing MCP page, with
+  scope checkboxes per entry. Merging the two Settings pages (MCP and Skills &
+  MCP) is deferred.
+- The "install into CLI" action (writes the CLI's own config, ADR-043) is kept
+  as a fallback, not the default path. When used, it backs up the file first.
 - A registry entry with the same name as a server the CLI already has
   overrides it for that run, and the UI shows the clash.
 

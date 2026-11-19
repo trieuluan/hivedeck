@@ -3,7 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-11-18
 
-Superseded in part by ADR-043.
+Superseded in part by ADR-043 and ADR-044.
 
 ## Context
 
