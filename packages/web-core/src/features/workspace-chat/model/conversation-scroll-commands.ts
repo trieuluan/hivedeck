@@ -16,6 +16,15 @@ import type { AddEntryType } from '@/shared/hooks/useConversationHistory/types';
  */
 export const NEAR_BOTTOM_THRESHOLD_PX = 64;
 
+export function shouldReleaseBottomLock(
+  previousTop: number,
+  currentTop: number,
+  userScroll: boolean,
+  guarded: boolean
+): boolean {
+  return userScroll && !guarded && previousTop - currentTop > 5;
+}
+
 // ---------------------------------------------------------------------------
 // Scroll Intent
 // ---------------------------------------------------------------------------

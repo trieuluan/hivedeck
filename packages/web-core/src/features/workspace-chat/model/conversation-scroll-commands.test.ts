@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { AddEntryType } from '@/shared/hooks/useConversationHistory/types';
-import { resolveScrollIntent } from './conversation-scroll-commands';
+import {
+  resolveScrollIntent,
+  shouldReleaseBottomLock,
+} from './conversation-scroll-commands';
 
 describe('conversation scroll intents', () => {
   it('always jumps to the bottom on initial load', () => {
@@ -31,5 +34,13 @@ describe('conversation scroll intents', () => {
         type: 'preserve-anchor',
       });
     }
+  });
+
+  it('releases bottom lock only for an unguarded upward user scroll', () => {
+    expect(shouldReleaseBottomLock(100, 80, true, false)).toBe(true);
+    expect(shouldReleaseBottomLock(100, 80, false, false)).toBe(false);
+    expect(shouldReleaseBottomLock(100, 80, true, true)).toBe(false);
+    expect(shouldReleaseBottomLock(100, 96, true, false)).toBe(false);
+    expect(shouldReleaseBottomLock(100, 120, true, false)).toBe(false);
   });
 });

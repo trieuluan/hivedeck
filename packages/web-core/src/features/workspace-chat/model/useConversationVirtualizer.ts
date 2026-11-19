@@ -28,6 +28,7 @@ import {
 import {
   NEAR_BOTTOM_THRESHOLD_PX,
   isNearBottom,
+  shouldReleaseBottomLock,
 } from './conversation-scroll-commands';
 
 // TanStack Virtual's ScrollBehavior ('auto' | 'smooth' | 'instant') shadows
@@ -180,6 +181,19 @@ export function useConversationVirtualizer({
     overscan: OVERSCAN,
     measureElement: defaultMeasureElement,
     useAnimationFrameWithResizeObserver: false,
+    onChange: () => {
+      if (!bottomLockedRef.current) return;
+      requestAnimationFrame(() => {
+        const el = scrollContainerRef.current;
+        if (
+          el &&
+          bottomLockedRef.current &&
+          performance.now() >= smoothScrollDeadlineRef.current
+        ) {
+          el.scrollTop = el.scrollHeight - el.clientHeight;
+        }
+      });
+    },
   });
 
   // -------------------------------------------------------------------------
@@ -272,19 +286,49 @@ export function useConversationVirtualizer({
 
     prevScrollTopRef.current = el.scrollTop;
 
+    let userScrollDeadline = 0;
+    let touchY = 0;
+    const markUserScroll = () => {
+      userScrollDeadline = performance.now() + 1000;
+    };
+    const handleWheel = (event: WheelEvent) => {
+      if (event.deltaY < 0) markUserScroll();
+    };
+    const handleTouchStart = (event: TouchEvent) => {
+      touchY = event.touches[0]?.clientY ?? 0;
+    };
+    const handleTouchMove = (event: TouchEvent) => {
+      if ((event.touches[0]?.clientY ?? touchY) > touchY) markUserScroll();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.target instanceof Element &&
+        event.target.closest(
+          'input, textarea, select, [contenteditable="true"]'
+        )
+      )
+        return;
+      if (
+        ['ArrowUp', 'PageUp', 'Home'].includes(event.key) ||
+        (event.key === ' ' && event.shiftKey)
+      )
+        markUserScroll();
+    };
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.target === el) markUserScroll();
+    };
     const handleScroll = () => {
       const currentScrollTop = el.scrollTop;
 
-      // Release bottom lock on any user-initiated upward scroll.
-      // Guards prevent false positives from programmatic scroll sources:
-      // - smoothScrollDeadlineRef: set during scrollToBottom('smooth')
-      // - shouldSuppressSizeAdjustment: set during interaction anchor corrections
-      // - 5px threshold: filters input-resize micro-adjustments
       if (
         bottomLockedRef.current &&
-        prevScrollTopRef.current - currentScrollTop > 5 &&
-        performance.now() > smoothScrollDeadlineRef.current &&
-        !shouldSuppressSizeAdjustment?.()
+        shouldReleaseBottomLock(
+          prevScrollTopRef.current,
+          currentScrollTop,
+          performance.now() < userScrollDeadline,
+          performance.now() <= smoothScrollDeadlineRef.current ||
+            Boolean(shouldSuppressSizeAdjustment?.())
+        )
       ) {
         bottomLockedRef.current = false;
       }
@@ -294,10 +338,20 @@ export function useConversationVirtualizer({
     };
 
     el.addEventListener('scroll', handleScroll, { passive: true });
+    el.addEventListener('wheel', handleWheel, { passive: true });
+    el.addEventListener('touchstart', handleTouchStart, { passive: true });
+    el.addEventListener('touchmove', handleTouchMove, { passive: true });
+    document.addEventListener('keydown', handleKeyDown);
+    el.addEventListener('pointerdown', handlePointerDown);
     handleScroll();
 
     return () => {
       el.removeEventListener('scroll', handleScroll);
+      el.removeEventListener('wheel', handleWheel);
+      el.removeEventListener('touchstart', handleTouchStart);
+      el.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('keydown', handleKeyDown);
+      el.removeEventListener('pointerdown', handlePointerDown);
     };
   }, [scrollContainerRef, shouldSuppressSizeAdjustment, syncIsAtBottom]);
 
@@ -340,13 +394,8 @@ export function useConversationVirtualizer({
 
       bottomLockedRef.current = true;
 
-      // Guard the follow-bottom scroll (and any immediate measurement
-      // correction that follows it) from being misread as a user-initiated
-      // upward scroll in the scroll handler, which would falsely release the
-      // bottom lock and leave the stream "stuck" mid-list. The deadline is set
-      // for BOTH behaviors — streaming uses 'auto', so it previously had no
-      // guard at all.
-      smoothScrollDeadlineRef.current = performance.now() + 500;
+      smoothScrollDeadlineRef.current =
+        behavior === 'smooth' ? performance.now() + 500 : 0;
 
       if (behavior === 'smooth') {
         el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });

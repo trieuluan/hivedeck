@@ -70,9 +70,8 @@ export interface ConversationListHandle {
   getVisibleUserMessagePatchKey: () => string | null;
 }
 
-const ALWAYS_UNVIRTUALIZED_TAIL_ROWS = 8;
+const ALWAYS_UNVIRTUALIZED_TAIL_ROWS = 32;
 const WAITING_FOR_MODEL_MS = 30_000;
-const STREAMING_UNVIRTUALIZED_BUFFER_ROWS = 24;
 
 /** A run of steps between two agent messages, folded to one line. */
 function WorkGroupRow({
@@ -519,11 +518,7 @@ export const ConversationList = forwardRef<
   }, [candidateFirstUnvirtualizedRowIndex, hasActiveStreamingTurn]);
 
   const firstUnvirtualizedRowIndex = hasActiveStreamingTurn
-    ? Math.max(
-        0,
-        streamingFirstUnvirtualizedRowIndex -
-          STREAMING_UNVIRTUALIZED_BUFFER_ROWS
-      )
+    ? streamingFirstUnvirtualizedRowIndex
     : candidateFirstUnvirtualizedRowIndex;
 
   const virtualizedRows = useMemo(
