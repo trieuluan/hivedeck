@@ -716,14 +716,14 @@ executor?: BaseCodingAgent,
 /**
  * ADR-032: spawn this project's captain instead of the global one.
  */
-project_id?: string, };
+project_id?: string, new_session: boolean, };
 
 export type SpawnOrchestratorResponse = { workspace: Workspace, 
 /**
  * True when an already-running orchestrator was returned instead of
  * starting a new session (its live tmux session is reused).
  */
-reused: boolean, };
+reused: boolean, resume_fallback: boolean, };
 
 export type CloseOrchestratorResponse = { 
 /**

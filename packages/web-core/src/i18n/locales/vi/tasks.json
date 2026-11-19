@@ -565,7 +565,9 @@
         "description": "Nếu một agent đang chạy không có tin nhắn mới trong khoảng 30 phút (một nhịp kiểm tra của thuyền trưởng), hỏi nó tình hình và bước tiếp theo; lần kiểm tra sau vẫn im lặng thì dừng nó."
       }
     },
-    "existingIdle": "Đã có workspace thuyền trưởng và đang rảnh. Khởi động sẽ mở một phiên mới trong đó; các phiên cũ vẫn nằm trong lịch sử.",
+    "existingIdle": "Thuyền trưởng đang nghỉ. Khởi động mặc định sẽ tiếp tục phiên gần nhất.",
+    "newSession": "Session mới",
+    "resumeFallback": "Không thể tiếp tục phiên trước. Đã khởi động một phiên mới thay thế.",
     "removeStart": "Xoá và làm lại từ đầu",
     "removeConfirm": "Xoá workspace thuyền trưởng cùng toàn bộ lịch sử phiên? Lần khởi động sau sẽ tạo workspace mới.",
     "remove": "Xoá",

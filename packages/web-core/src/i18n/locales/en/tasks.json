@@ -566,7 +566,9 @@
         "description": "If a running agent shows no new message for about 30 minutes (one captain heartbeat), ask it for a status and next step; stop it if it is still silent at the next check."
       }
     },
-    "existingIdle": "An orchestrator workspace already exists and is idle. Spawning starts a fresh captain session in it; earlier sessions stay in its history.",
+    "existingIdle": "The captain is idle. Starting resumes its latest session by default.",
+    "newSession": "New session",
+    "resumeFallback": "The previous session could not be resumed. A new session was started instead.",
     "removeStart": "Remove it and start over",
     "removeConfirm": "Delete the orchestrator workspace and all its session history? The next spawn creates a new one.",
     "remove": "Remove",

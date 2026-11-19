@@ -73,6 +73,8 @@ pub struct SpawnOrchestratorRequest {
     #[serde(default)]
     #[ts(optional)]
     pub project_id: Option<Uuid>,
+    #[serde(default)]
+    pub new_session: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS)]
@@ -81,6 +83,7 @@ pub struct SpawnOrchestratorResponse {
     /// True when an already-running orchestrator was returned instead of
     /// starting a new session (its live tmux session is reused).
     pub reused: bool,
+    pub resume_fallback: bool,
 }
 
 /// ADR-031: whether the captain is on.

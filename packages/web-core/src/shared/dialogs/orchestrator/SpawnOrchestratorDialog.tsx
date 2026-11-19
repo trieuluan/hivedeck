@@ -82,10 +82,12 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(
     const [enabled, setEnabled] = useState<Record<string, boolean>>(() =>
       loadDirectiveState()
     );
+    const [resumeFallback, setResumeFallback] = useState(false);
 
     useEffect(() => {
       if (!modal.visible) {
         setConfirmRemove(false);
+        setResumeFallback(false);
         setName(defaultName);
         setEnabled(loadDirectiveState());
       }
@@ -125,8 +127,6 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(
     const runningAgentKey =
       CAPTAIN_AGENTS.find((a) => a.id === status?.executor)?.key ?? null;
 
-    // An idle (not running) orchestrator workspace: spawning reuses it with a
-    // fresh session; it can also be removed to start over with no history.
     const idleOrchestrator =
       !status?.active && status?.workspace_id
         ? { id: status.workspace_id }
@@ -147,11 +147,12 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(
     };
 
     const spawnMutation = useMutation({
-      mutationFn: async () => {
+      mutationFn: async (newSession: boolean) => {
         return workspacesApi.spawnOrchestrator({
           prompt: composeOrchestratorPrompt(enabledIds),
           name: name.trim() || defaultName,
           executor: agent,
+          new_session: newSession,
           ...(projectId ? { project_id: projectId } : {}),
         });
       },
@@ -160,10 +161,11 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(
         queryClient.invalidateQueries({
           queryKey: orchestratorStatusKey(projectId),
         });
-        // Each start opens a new session in the captain workspace; refresh
-        // its session list so the chat switches to it (it otherwise kept
-        // showing the previous, stopped session until a page reload).
         queryClient.invalidateQueries({ queryKey: workspaceSessionKeys.all });
+        if (data.resume_fallback) {
+          setResumeFallback(true);
+          return;
+        }
         modal.hide();
         // A project's captain is shown beside its board; stay there.
         if (data.workspace && !projectId) {
@@ -208,7 +210,7 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(
     // Route "open" through the spawn endpoint so the backend decides reuse vs.
     // respawn: a genuinely live session is reused, a dead one (tmux gone) is
     // transparently replaced with a fresh session.
-    const openRunning = () => spawnMutation.mutate();
+    const openRunning = () => spawnMutation.mutate(false);
 
     return (
       <Dialog open={modal.visible} onOpenChange={handleOpenChange}>
@@ -226,6 +228,11 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            {resumeFallback && (
+              <p role="alert" className="text-sm text-destructive">
+                {t('spawnOrchestrator.resumeFallback')}
+              </p>
+            )}
             {runningOrchestrator && (
               <div className="space-y-1 rounded-md border border-border bg-secondary/50 p-3 text-sm text-normal">
                 <p>{t('spawnOrchestrator.existingRunning')}</p>
@@ -412,11 +419,25 @@ const SpawnOrchestratorDialogImpl = create<SpawnOrchestratorDialogProps>(
                 </Button>
               </>
             ) : (
-              <Button onClick={() => spawnMutation.mutate()} disabled={busy}>
-                {spawnMutation.isPending
-                  ? t('spawnOrchestrator.spawning')
-                  : t('spawnOrchestrator.spawn')}
-              </Button>
+              <>
+                {idleOrchestrator && (
+                  <Button
+                    variant="outline"
+                    onClick={() => spawnMutation.mutate(true)}
+                    disabled={busy}
+                  >
+                    {t('spawnOrchestrator.newSession')}
+                  </Button>
+                )}
+                <Button
+                  onClick={() => spawnMutation.mutate(false)}
+                  disabled={busy}
+                >
+                  {spawnMutation.isPending
+                    ? t('spawnOrchestrator.spawning')
+                    : t('spawnOrchestrator.spawn')}
+                </Button>
+              </>
             )}
           </DialogFooter>
         </DialogContent>

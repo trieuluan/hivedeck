@@ -6,6 +6,7 @@ use axum::{
     response::Json as ResponseJson,
 };
 use db::models::{
+    coding_agent_turn::CodingAgentTurn,
     execution_process::{ExecutionProcess, ExecutionProcessStatus},
     issue::Issue,
     issue_workspace::IssueWorkspace,
@@ -16,6 +17,7 @@ use db::models::{
         SpawnOrchestratorResponse, WorkspaceRepoInput,
     },
     scratch::{DraftWorkspaceRepo, Scratch, ScratchPayload, ScratchType},
+    session::Session,
     workspace::{CreateWorkspace, Workspace, WorkspaceKind},
 };
 use deployment::Deployment;
@@ -25,7 +27,7 @@ use utils::response::ApiResponse;
 use uuid::Uuid;
 use workspace_manager::WorkspaceError;
 
-use crate::{DeploymentImpl, error::ApiError};
+use crate::{DeploymentImpl, error::ApiError, routes::sessions::run_follow_up};
 
 pub(crate) async fn create_workspace_record(
     deployment: &DeploymentImpl,
@@ -351,7 +353,7 @@ async fn project_scope_line(pool: &sqlx::SqlitePool, project_id: Uuid) -> Result
 /// `~/.hivedeck/orchestrator` folder. There is at most one active
 /// orchestrator workspace:
 /// - if one is already running, its live tmux session is reused (`reused: true`);
-/// - if one exists but is idle, a fresh session is started on it;
+/// - if one exists but is idle, its latest session is resumed when possible;
 /// - otherwise the singleton workspace is created and started.
 pub async fn spawn_orchestrator(
     State(deployment): State<DeploymentImpl>,
@@ -395,6 +397,7 @@ pub async fn spawn_orchestrator(
                 SpawnOrchestratorResponse {
                     workspace: existing,
                     reused: true,
+                    resume_fallback: false,
                 },
             )));
         }
@@ -430,6 +433,7 @@ pub async fn spawn_orchestrator(
                 SpawnOrchestratorResponse {
                     workspace: existing,
                     reused: true,
+                    resume_fallback: false,
                 },
             )));
         }
@@ -450,12 +454,45 @@ pub async fn spawn_orchestrator(
             );
         }
 
-        // Idle or dead tmux: start a fresh session (and thus a fresh tmux) on
-        // the same singleton workspace.
-        deployment
-            .container()
-            .start_workspace(&existing, executor_config.clone(), prompt)
-            .await?;
+        let mut resumed = false;
+        let mut resume_fallback = false;
+        if !payload.new_session {
+            if let Some(session) = Session::find_latest_by_workspace_id(pool, existing.id).await? {
+                let resume_info =
+                    CodingAgentTurn::find_latest_session_info(pool, session.id).await?;
+                if resume_info.is_some_and(|info| !info.session_id.trim().is_empty()) {
+                    let resume_prompt = if backend_loop {
+                        crate::captain_loop::tick_message(&tick_prompt)
+                    } else {
+                        crate::captain_loop::tick_message(&prompt)
+                    };
+                    match run_follow_up(
+                        &deployment,
+                        session,
+                        existing.clone(),
+                        resume_prompt,
+                        executor_config.clone(),
+                        None,
+                        None,
+                        None,
+                    )
+                    .await
+                    {
+                        // ponytail: later executor failures remain visible in execution status;
+                        // add asynchronous fallback only with a safe retry policy.
+                        Ok(_) => resumed = true,
+                        Err(error) => tracing::warn!("Captain resume failed: {error:?}"),
+                    }
+                }
+            }
+            resume_fallback = !resumed;
+        }
+        if !resumed {
+            deployment
+                .container()
+                .start_workspace(&existing, executor_config.clone(), prompt)
+                .await?;
+        }
         if backend_loop {
             start_captain_loop(
                 &deployment,
@@ -472,6 +509,7 @@ pub async fn spawn_orchestrator(
             SpawnOrchestratorResponse {
                 workspace,
                 reused: false,
+                resume_fallback,
             },
         )));
     }
@@ -514,12 +552,13 @@ pub async fn spawn_orchestrator(
         SpawnOrchestratorResponse {
             workspace,
             reused: false,
+            resume_fallback: false,
         },
     )))
 }
 
 /// Close the singleton orchestrator: stop its live headed session (killing the
-/// tmux session) so the next spawn starts fresh. The singleton workspace itself
+/// tmux session). The singleton workspace itself
 /// is preserved for reuse. No-op (`closed: false`) when no orchestrator — or no
 /// running session — exists.
 pub async fn close_orchestrator(
@@ -616,6 +655,17 @@ pub async fn orchestrator_status(
 #[cfg(test)]
 mod scope_prompt_tests {
     use super::scope_prompt;
+    use db::models::requests::SpawnOrchestratorRequest;
+
+    #[test]
+    fn new_session_is_opt_in() {
+        let default: SpawnOrchestratorRequest =
+            serde_json::from_str(r#"{"prompt":"tick"}"#).unwrap();
+        let fresh: SpawnOrchestratorRequest =
+            serde_json::from_str(r#"{"prompt":"tick","new_session":true}"#).unwrap();
+        assert!(!default.new_session);
+        assert!(fresh.new_session);
+    }
 
     #[test]
     fn keeps_loop_prefix_first() {
