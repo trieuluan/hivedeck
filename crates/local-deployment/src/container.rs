@@ -1685,6 +1685,19 @@ impl LocalContainerService {
                 }
             }
 
+            if !env.mcp_servers.is_empty() {
+                let position = argv.iter().position(|arg| arg.starts_with("--mcp-config="));
+                let existing = position.map(|index| argv.remove(index));
+                let config = executors::mcp_registry::claude_config(
+                    &env.mcp_servers,
+                    existing
+                        .as_deref()
+                        .and_then(|arg| arg.strip_prefix("--mcp-config=")),
+                );
+                let position = argv.len().saturating_sub(1);
+                argv.insert(position, format!("--mcp-config={config}"));
+            }
+
             // Inject the approval hook via `--settings <json>` (two tokens before
             // the positional prompt). The hook command is a self-contained curl
             // with the backend URL baked in — NOT an env var — because a
@@ -1851,7 +1864,7 @@ impl LocalContainerService {
 
         // Replicate the env the headless opencode spawn injects (profile env +
         // permission/compaction/autoupdate config + npm noise suppression).
-        let env = oh.prepare_headed_env(&env).with_profile(&oh.inner.cmd);
+        let env = oh.prepare_headed_env(&env.with_profile(&oh.inner.cmd));
         let mut env_map = env.vars.clone();
         env_map.insert("NPM_CONFIG_LOGLEVEL".to_string(), "error".to_string());
         env_map.insert("NODE_NO_WARNINGS".to_string(), "1".to_string());
@@ -2721,6 +2734,53 @@ impl ContainerService for LocalContainerService {
         // Always inject workspace/session context
         env.insert("VK_WORKSPACE_ID", workspace.id.to_string());
         env.insert("VK_WORKSPACE_BRANCH", &workspace.branch);
+
+        let registry_cli = match executor_action.base_executor() {
+            Some(BaseCodingAgent::ClaudeCode | BaseCodingAgent::ClaudeCodeHeaded) => {
+                Some("claude_code")
+            }
+            Some(BaseCodingAgent::Codex) => Some("codex"),
+            Some(BaseCodingAgent::Opencode | BaseCodingAgent::OpencodeHeaded) => Some("opencode"),
+            _ => None,
+        };
+        if let Some(cli) = registry_cli {
+            let dir = utils::assets::asset_dir();
+            let read = |name: &str| -> Result<Vec<u8>, std::io::Error> {
+                match std::fs::read(dir.join(name)) {
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                        Ok(b"[]".to_vec())
+                    }
+                    result => result,
+                }
+            };
+            let entries = serde_json::from_slice(&read("mcp_registry.json")?)
+                .map_err(|_| anyhow!("Invalid MCP registry"))?;
+            let secret_bytes = match std::fs::read(dir.join("mcp_secrets.json")) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => b"{}".to_vec(),
+                result => result?,
+            };
+            let secrets = serde_json::from_slice(&secret_bytes)
+                .map_err(|_| anyhow!("Invalid MCP secrets"))?;
+            let captain = workspace.kind == Some(WorkspaceKind::Orchestrator);
+            let board = if captain {
+                Workspace::captain_project_id(&self.db.pool, workspace.id).await?
+            } else {
+                IssueWorkspace::find_issue_and_project_by_workspace(&self.db.pool, workspace.id)
+                    .await?
+                    .map(|(_, project)| project)
+            }
+            .map(|id| id.to_string());
+            let (servers, secrets) = executors::mcp_registry::select(
+                entries,
+                &secrets,
+                cli,
+                if captain { "captain" } else { "crew" },
+                board.as_deref(),
+            )
+            .map_err(|error| anyhow!(error))?;
+            env.mcp_servers = servers;
+            env.merge(&secrets);
+        }
 
         // Telegram channel: hand Claude Code agents their per-branch channel
         // *name* via TELEGRAM_TOPIC, plus TELEGRAM_DEV=1 marking the session as

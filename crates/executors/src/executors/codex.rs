@@ -670,6 +670,62 @@ impl Codex {
         }
     }
 
+    fn prepare_mcp_env(
+        &self,
+        current_dir: &Path,
+        command_parts: &CommandParts,
+        env: &ExecutionEnv,
+    ) -> (ExecutionEnv, Vec<String>) {
+        let mut env = env.clone();
+        let registry_variables: std::collections::HashSet<_> = env
+            .mcp_servers
+            .iter()
+            .flat_map(|server| server.headers.values().chain(server.env.values()))
+            .cloned()
+            .collect();
+        let effective = env.clone().with_profile(&self.cmd);
+        let home = effective
+            .get("CODEX_HOME")
+            .cloned()
+            .or_else(|| std::env::var("CODEX_HOME").ok())
+            .filter(|path| !path.trim().is_empty())
+            .map(PathBuf::from)
+            .or_else(|| {
+                effective
+                    .get("HOME")
+                    .map(|home| PathBuf::from(home).join(".codex"))
+            })
+            .or_else(codex_home);
+        let mut paths: Vec<PathBuf> = current_dir
+            .ancestors()
+            .map(|dir| dir.join(".codex/config.toml"))
+            .collect();
+        if let Some(home) = home {
+            paths.push(home.join("config.toml"));
+            paths.push(home.join("managed_config.toml"));
+        } else if !env.mcp_servers.is_empty() {
+            tracing::warn!("Skipping Codex registry servers: Codex home is unknown");
+            env.mcp_servers.clear();
+        }
+        #[cfg(unix)]
+        paths.push(PathBuf::from("/etc/codex/managed_config.toml"));
+        let disabled_registry_names = crate::mcp_registry::filter_codex_conflicts(
+            &mut env.mcp_servers,
+            &paths,
+            command_parts.args(),
+        );
+        let retained_variables: std::collections::HashSet<_> = env
+            .mcp_servers
+            .iter()
+            .flat_map(|server| server.headers.values().chain(server.env.values()))
+            .cloned()
+            .collect();
+        for variable in registry_variables.difference(&retained_variables) {
+            env.vars.remove(variable);
+        }
+        (env, disabled_registry_names)
+    }
+
     async fn spawn_inner(
         &self,
         current_dir: &Path,
@@ -678,6 +734,7 @@ impl Codex {
         resume_session: Option<&str>,
         env: &ExecutionEnv,
     ) -> Result<SpawnedChild, ExecutorError> {
+        let (env, disabled_registry_names) = self.prepare_mcp_env(current_dir, &command_parts, env);
         let mut params = self.build_thread_start_params(current_dir);
         if let Some(captain) = env.vars.get(CAPTAIN_INSTRUCTIONS_ENV) {
             params.developer_instructions = Some(with_captain_instructions(
@@ -686,7 +743,10 @@ impl Codex {
             ));
         }
         // The owner's per-CLI choices for headless runs (ADR-038).
-        let prefs = crate::extensions::ExtensionPrefs::load().for_cli("CODEX");
+        let mut prefs = crate::extensions::ExtensionPrefs::load().for_cli("CODEX");
+        for server in &env.mcp_servers {
+            prefs.disabled_mcp.remove(&server.name);
+        }
         for (key, value) in crate::extensions::codex_config_overrides(&prefs) {
             params
                 .config
@@ -698,7 +758,8 @@ impl Codex {
         self.spawn_app_server(
             current_dir,
             command_parts,
-            env,
+            &env,
+            &disabled_registry_names,
             move |client, _| async move {
                 match action {
                     CodexSessionAction::Chat { prompt } => {
@@ -765,6 +826,7 @@ impl Codex {
         current_dir: &Path,
         command_parts: CommandParts,
         env: &ExecutionEnv,
+        disabled_registry_names: &[String],
         task: F,
     ) -> Result<SpawnedChild, ExecutorError>
     where
@@ -787,6 +849,19 @@ impl Codex {
                 .unwrap_or(args.len());
             args.splice(at..at, captain_mcp_args(url));
         }
+        let at = args
+            .iter()
+            .position(|arg| arg == "app-server")
+            .unwrap_or(args.len());
+        args.splice(at..at, crate::mcp_registry::codex_args(&env.mcp_servers));
+        let at = args
+            .iter()
+            .position(|arg| arg == "app-server")
+            .unwrap_or(args.len());
+        args.splice(
+            at..at,
+            crate::mcp_registry::codex_disable_args(disabled_registry_names),
+        );
 
         let mut process = Command::new(program_path);
         process
@@ -804,6 +879,13 @@ impl Codex {
         env.clone()
             .with_profile(&self.cmd)
             .apply_to_command(&mut process);
+        for server in &env.mcp_servers {
+            for (name, variable) in &server.env {
+                if let Some(value) = env.vars.get(variable) {
+                    process.env(name, value);
+                }
+            }
+        }
         process.env_remove(ROUTER_BASE_URL_ENV);
         process.env_remove(CAPTAIN_MCP_URL_ENV);
         process.env_remove(CAPTAIN_INSTRUCTIONS_ENV);

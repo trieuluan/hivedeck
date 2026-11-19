@@ -12,6 +12,7 @@ use std::{
     sync::OnceLock,
 };
 
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use executors::interactive::TerminalKind;
 use thiserror::Error;
 use tokio::{process::Command, sync::Mutex};
@@ -96,7 +97,55 @@ pub async fn tmux_new_session(
     env: &HashMap<String, String>,
     env_remove: &[String],
 ) -> Result<(), TerminalError> {
-    let inner = build_inner_command(argv, env, env_remove)?;
+    let (secret_env, public_env): (HashMap<_, _>, HashMap<_, _>) = env
+        .iter()
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .partition(|(key, _)| key.starts_with("HIVEDECK_MCP_"));
+    let mut inner = build_inner_command(argv, &public_env, env_remove)?;
+    if !secret_env.is_empty() {
+        let fifo =
+            std::env::temp_dir().join(format!("{session_name}-mcp-{}.fifo", uuid::Uuid::new_v4()));
+        let status = Command::new("mkfifo")
+            .arg("-m")
+            .arg("600")
+            .arg(&fifo)
+            .status()
+            .await?;
+        if !status.success() {
+            return Err(TerminalError::TmuxFailed(
+                "Cannot create secret pipe".into(),
+            ));
+        }
+        let fifo_path = fifo.to_string_lossy();
+        let quoted = shlex::try_quote(&fifo_path)
+            .map_err(|error| TerminalError::Quote(error.to_string()))?;
+        let flag = if cfg!(target_os = "macos") {
+            "-D"
+        } else {
+            "-d"
+        };
+        let script = format!(
+            "while IFS= read -r key && IFS= read -r data; do value=$(printf '%s' \"$data\" | base64 {flag}; printf .); export \"$key=${{value%.}}\"; done < {quoted}; rm -f -- {quoted}; exec {inner}"
+        );
+        inner = shlex::try_join(["sh", "-c", &script])
+            .map_err(|error| TerminalError::Quote(error.to_string()))?;
+        tokio::spawn(async move {
+            use tokio::io::AsyncWriteExt;
+            let write = async {
+                let mut pipe = tokio::fs::OpenOptions::new()
+                    .write(true)
+                    .open(&fifo)
+                    .await?;
+                for (key, value) in secret_env {
+                    pipe.write_all(format!("{key}\n{}\n", STANDARD.encode(value)).as_bytes())
+                        .await?;
+                }
+                pipe.shutdown().await
+            };
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(30), write).await;
+            let _ = tokio::fs::remove_file(fifo).await;
+        });
+    }
     let script_path = write_launch_script(session_name, &inner).await?;
     let launch = tmux_launch_command(&script_path)?;
 

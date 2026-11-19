@@ -132,9 +132,15 @@ impl Opencode {
             .env("OPENCODE_SERVER_PASSWORD", &server_password)
             .args(&args);
 
-        env.clone()
-            .with_profile(&self.cmd)
-            .apply_to_command(&mut command);
+        let mut env = env.clone().with_profile(&self.cmd);
+        if !env.mcp_servers.is_empty() {
+            let config = crate::mcp_registry::opencode_config(
+                &env.mcp_servers,
+                env.get("OPENCODE_CONFIG_CONTENT").map(String::as_str),
+            );
+            env.insert("OPENCODE_CONFIG_CONTENT", config);
+        }
+        env.apply_to_command(&mut command);
 
         let child = command.group_spawn_no_window()?;
 
@@ -910,6 +916,11 @@ impl OpencodeHeaded {
         let env = setup_compaction_env(self.inner.auto_compact, &env);
         let existing = env.get("OPENCODE_CONFIG_CONTENT").map(String::as_str);
         let merged = merge_autoupdate_disabled(existing);
+        let merged = if env.mcp_servers.is_empty() {
+            merged
+        } else {
+            crate::mcp_registry::opencode_config(&env.mcp_servers, Some(&merged))
+        };
         let mut env = env;
         env.insert("OPENCODE_CONFIG_CONTENT", &merged);
         env

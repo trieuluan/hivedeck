@@ -508,7 +508,9 @@ fn claude_args_with(
             .and_then(|p| p.get("mcpServers")));
         add(read_json(&cwd.join(".mcp.json")).get("mcpServers"));
         if let Some(extra) = extra_mcp.and_then(|e| serde_json::from_str::<Value>(e).ok()) {
-            add(extra.get("mcpServers"));
+            if let Some(extra) = extra.get("mcpServers").and_then(Value::as_object) {
+                servers.extend(extra.clone());
+            }
         }
         let config = serde_json::json!({ "mcpServers": servers });
         args.push("--strict-mcp-config".to_string());
@@ -669,6 +671,30 @@ mod tests {
                 .into_iter()
                 .collect()
         );
+    }
+
+    #[test]
+    fn strict_config_preserves_run_overrides() {
+        let mut prefs = CliExtensionPrefs::default();
+        prefs.disabled_mcp.insert("probe".into());
+        let installed = serde_json::json!({"mcpServers": {"probe": {"command": "old"}}});
+        let run = r#"{"mcpServers":{"probe":{"command":"new"},"hivedeck":{"url":"local"},"other":{"command":"other"}}}"#;
+        let args = claude_args_with(
+            &prefs,
+            &installed,
+            Path::new("/repo"),
+            Some(run),
+            &Map::new(),
+        );
+        let config = args
+            .iter()
+            .find_map(|arg| arg.strip_prefix("--mcp-config="))
+            .unwrap();
+        let config: Value = serde_json::from_str(config).unwrap();
+        assert!(args.contains(&"--strict-mcp-config".to_string()));
+        assert_eq!(config["mcpServers"]["probe"]["command"], "new");
+        assert!(config["mcpServers"].get("hivedeck").is_some());
+        assert!(config["mcpServers"].get("other").is_some());
     }
 
     #[test]

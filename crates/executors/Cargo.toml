@@ -51,6 +51,9 @@ jsonc-parser.workspace = true
 lru.workspace = true
 async-stream.workspace = true
 
+[dev-dependencies]
+tracing-subscriber.workspace = true
+
 [target.'cfg(windows)'.dependencies]
 winsplit = "0.1.0"
 

@@ -144,6 +144,7 @@ impl Codex {
         env: &ExecutionEnv,
     ) -> Result<SpawnedChild, ExecutorError> {
         let command_parts = self.build_command_builder()?.build_initial()?;
+        let (env, disabled_registry_names) = self.prepare_mcp_env(current_dir, &command_parts, env);
         let session_id = session_id.map(|s| s.to_string());
         let (_, session_fast) = resolve_model(self.model.as_deref());
         let thread_start_params = self.build_thread_start_params(current_dir);
@@ -151,7 +152,8 @@ impl Codex {
         self.spawn_app_server(
             current_dir,
             command_parts,
-            env,
+            &env,
+            &disabled_registry_names,
             move |client, exit_signal_tx| async move {
                 match command {
                     CodexSlashCommand::Compact { .. } => {

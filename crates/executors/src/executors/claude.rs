@@ -1052,10 +1052,18 @@ impl ClaudeCode {
             .cloned();
         let model_overrides =
             crate::extensions::gateway_model_overrides(main_model.as_deref(), &env.vars);
+        let mcp_config = if env.mcp_servers.is_empty() {
+            env.vars.get(CAPTAIN_MCP_CONFIG_ENV).cloned()
+        } else {
+            Some(crate::mcp_registry::claude_config(
+                &env.mcp_servers,
+                env.vars.get(CAPTAIN_MCP_CONFIG_ENV).map(String::as_str),
+            ))
+        };
         args.extend(crate::extensions::claude_args(
             &prefs,
             current_dir,
-            env.vars.get(CAPTAIN_MCP_CONFIG_ENV).map(String::as_str),
+            mcp_config.as_deref(),
             &model_overrides,
         ));
         let combined_prompt = self.append_prompt.combine_prompt(prompt);

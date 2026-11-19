@@ -27,6 +27,9 @@ pub struct CommandParts {
 }
 
 impl CommandParts {
+    pub fn args(&self) -> &[String] {
+        &self.args
+    }
     pub fn new(program: String, args: Vec<String>) -> Self {
         Self { program, args }
     }

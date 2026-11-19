@@ -75,12 +75,25 @@ impl RepoContext {
 }
 
 /// Environment variables to inject into executor processes
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ExecutionEnv {
     pub vars: HashMap<String, String>,
+    pub mcp_servers: Vec<crate::mcp_registry::InjectedMcpServer>,
     pub repo_context: RepoContext,
     pub commit_reminder: bool,
     pub commit_reminder_prompt: String,
+}
+
+impl std::fmt::Debug for ExecutionEnv {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ExecutionEnv")
+            .field("vars", &"[REDACTED]")
+            .field("repo_context", &self.repo_context)
+            .field("commit_reminder", &self.commit_reminder)
+            .field("commit_reminder_prompt", &self.commit_reminder_prompt)
+            .finish()
+    }
 }
 
 impl ExecutionEnv {
@@ -91,6 +104,7 @@ impl ExecutionEnv {
     ) -> Self {
         Self {
             vars: HashMap::new(),
+            mcp_servers: Vec::new(),
             repo_context,
             commit_reminder,
             commit_reminder_prompt,
@@ -117,7 +131,13 @@ impl ExecutionEnv {
     /// Return a new env with profile env from CmdOverrides merged in.
     pub fn with_profile(self, cmd: &CmdOverrides) -> Self {
         if let Some(ref profile_env) = cmd.env {
-            self.with_overrides(profile_env)
+            let mut env = self;
+            for (key, value) in profile_env {
+                if !key.starts_with("HIVEDECK_MCP_") || !env.vars.contains_key(key) {
+                    env.insert(key, value);
+                }
+            }
+            env
         } else {
             self
         }
@@ -158,5 +178,12 @@ mod tests {
         assert_eq!(merged.vars.get("VK_PROJECT_NAME").unwrap(), "runtime");
         assert_eq!(merged.vars.get("FOO").unwrap(), "profile"); // overrides
         assert_eq!(merged.vars.get("BAR").unwrap(), "profile");
+    }
+
+    #[test]
+    fn debug_does_not_expose_environment() {
+        let mut env = ExecutionEnv::new(RepoContext::default(), false, String::new());
+        env.insert("HIVEDECK_MCP_TEST_TOKEN", "secret-value");
+        assert!(!format!("{env:?}").contains("secret-value"));
     }
 }
