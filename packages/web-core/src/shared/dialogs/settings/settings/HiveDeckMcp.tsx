@@ -18,7 +18,11 @@ import {
   SettingsTextarea,
 } from './SettingsComponents';
 
-type Candidate = { name: string; exists: boolean };
+type Candidate = {
+  name: string;
+  sources: ('claude_code' | 'codex')[];
+  exists: boolean;
+};
 type Pair = { key: string; reference: string; value: string };
 const roles: RegistryRole[] = ['captain', 'crew'];
 const empty = (): RegistryEntry => ({
@@ -56,7 +60,6 @@ export function HiveDeckMcp() {
   const [draft, setDraft] = useState<RegistryEntry | null>(null);
   const [original, setOriginal] = useState<string | null>(null);
   const [pairs, setPairs] = useState<Pair[]>([]);
-  const [source, setSource] = useState<'claude_code' | 'codex'>('claude_code');
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [message, setMessage] = useState('');
@@ -297,9 +300,7 @@ export function HiveDeckMcp() {
           if (event.currentTarget.open)
             void run(async () => {
               setCandidates(
-                await request<Candidate[]>(
-                  `mcp-registry/import-candidates/${source}`
-                )
+                await request<Candidate[]>('mcp-registry/import-candidates')
               );
               setSelected([]);
             });
@@ -315,9 +316,7 @@ export function HiveDeckMcp() {
           onClick={() =>
             void run(async () => {
               setCandidates(
-                await request<Candidate[]>(
-                  `mcp-registry/import-candidates/${source}`
-                )
+                await request<Candidate[]>('mcp-registry/import-candidates')
               );
               setSelected([]);
             })
@@ -325,26 +324,40 @@ export function HiveDeckMcp() {
         >
           Xem server
         </button>
-        <select
-          aria-label="CLI import"
-          className={button}
-          value={source}
-          onChange={(event) => {
-            setSource(event.target.value as typeof source);
-            setCandidates(null);
-          }}
-        >
-          <option value="claude_code">Claude Code</option>
-          <option value="codex">Codex</option>
-        </select>
         {candidates && (
           <div className="space-y-2">
             <p className="text-sm text-normal">Chọn server cần import</p>
+            <SettingsCheckbox
+              id="import-all"
+              label="Chọn tất cả"
+              checked={
+                candidates.some((candidate) => !candidate.exists) &&
+                candidates
+                  .filter((candidate) => !candidate.exists)
+                  .every((candidate) => selected.includes(candidate.name))
+              }
+              disabled={!candidates.some((candidate) => !candidate.exists)}
+              onChange={(checked) =>
+                setSelected(
+                  checked
+                    ? candidates
+                        .filter((candidate) => !candidate.exists)
+                        .map((candidate) => candidate.name)
+                    : []
+                )
+              }
+            />
             {candidates.map((candidate) => (
               <SettingsCheckbox
                 key={candidate.name}
                 id={`import-${candidate.name}`}
                 label={`${candidate.name}${candidate.exists ? ' (đã tồn tại)' : ''}`}
+                description={candidate.sources
+                  .map((source) =>
+                    source === 'claude_code' ? 'Claude Code' : 'Codex'
+                  )
+                  .join(', ')}
+                disabled={candidate.exists}
                 checked={selected.includes(candidate.name)}
                 onChange={(checked) =>
                   setSelected(
@@ -364,10 +377,7 @@ export function HiveDeckMcp() {
                   const result = await request<{
                     imported: string[];
                     skipped: string[];
-                  }>(
-                    'mcp-registry/import',
-                    json('POST', { source, names: selected })
-                  );
+                  }>('mcp-registry/import', json('POST', { names: selected }));
                   await reload();
                   setCandidates(null);
                   setMessage(

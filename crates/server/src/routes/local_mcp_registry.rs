@@ -65,14 +65,27 @@ pub struct RegistrySecretStatus {
 
 #[derive(Deserialize)]
 struct ImportRequest {
-    source: String,
     names: Vec<String>,
 }
 
 #[derive(Serialize)]
 struct ImportCandidate {
     name: String,
+    sources: Vec<&'static str>,
     exists: bool,
+}
+
+async fn merged_servers(home: &Path) -> BTreeMap<String, (serde_json::Value, Vec<&'static str>)> {
+    let mut merged: BTreeMap<String, (serde_json::Value, Vec<&'static str>)> = BTreeMap::new();
+    for source in ["claude_code", "codex"] {
+        for (name, value) in source_servers(home, source).await.unwrap_or_default() {
+            merged
+                .entry(name)
+                .and_modify(|(_, sources)| sources.push(source))
+                .or_insert((value, vec![source]));
+        }
+    }
+    merged
 }
 
 #[derive(Serialize)]
@@ -112,16 +125,16 @@ fn home() -> Result<PathBuf, ApiError> {
 
 async fn candidates(
     Extension(dir): Extension<PathBuf>,
-    RoutePath(source): RoutePath<String>,
 ) -> Result<Json<ApiResponse<Vec<ImportCandidate>>>, ApiError> {
-    let servers = source_servers(&home()?, &source).await?;
+    let servers = merged_servers(&home()?).await;
     let entries: Vec<RegistryEntry> = read(&dir.join("mcp_registry.json"))?;
     Ok(Json(ApiResponse::success(
         servers
-            .keys()
-            .map(|name| ImportCandidate {
-                name: name.clone(),
-                exists: entries.iter().any(|entry| entry.name == *name),
+            .into_iter()
+            .map(|(name, (_, sources))| ImportCandidate {
+                exists: entries.iter().any(|entry| entry.name == name),
+                name,
+                sources,
             })
             .collect(),
     )))
@@ -141,7 +154,7 @@ async fn import_from(
     home: &Path,
     request: ImportRequest,
 ) -> Result<ImportResult, ApiError> {
-    let servers = source_servers(home, &request.source).await?;
+    let servers = merged_servers(home).await;
     let _lock = WRITE_LOCK
         .lock()
         .map_err(|_| std::io::Error::other("Registry lock poisoned"))?;
@@ -158,10 +171,12 @@ async fn import_from(
             result.skipped.push(name);
             continue;
         }
-        let server = servers
+        let (server, sources) = servers
             .get(&name)
-            .and_then(|value| value.as_object())
             .ok_or_else(|| ApiError::BadRequest("Import server not found".into()))?;
+        let server = server
+            .as_object()
+            .ok_or_else(|| ApiError::BadRequest("Invalid server".into()))?;
         let oauth = server
             .get("oauth")
             .map(|value| value.as_bool().unwrap_or(value.is_object()))
@@ -198,7 +213,7 @@ async fn import_from(
         for (field, target) in [
             ("env", &mut entry.env),
             (
-                if request.source == "codex" {
+                if sources[0] == "codex" {
                     "http_headers"
                 } else {
                     "headers"
@@ -480,7 +495,7 @@ async fn secret_status(
 
 pub(super) fn router() -> Router<DeploymentImpl> {
     Router::new()
-        .route("/mcp-registry/import-candidates/{source}", get(candidates))
+        .route("/mcp-registry/import-candidates", get(candidates))
         .route("/mcp-registry/import", axum::routing::post(import))
         .route("/mcp-registry/entries", get(list).post(create))
         .route("/mcp-registry/entries/{name}", put(update).delete(delete))
@@ -501,6 +516,42 @@ mod tests {
     use tower::ServiceExt;
 
     #[tokio::test]
+    async fn merges_sources_preferring_claude_and_tolerates_missing_or_invalid_config() {
+        let home = tempfile::tempdir().unwrap();
+        let registry = tempfile::tempdir().unwrap();
+        std::fs::create_dir(home.path().join(".codex")).unwrap();
+        std::fs::write(
+            home.path().join(".claude.json"),
+            r#"{"mcpServers":{"shared":{"command":"claude"},"only_claude":{"command":"node"}}}"#,
+        )
+        .unwrap();
+        let codex = home.path().join(".codex/config.toml");
+        std::fs::write(
+            &codex,
+            "[mcp_servers.shared]\ncommand = 'codex'\n[mcp_servers.only_codex]\ncommand = 'node'\n",
+        )
+        .unwrap();
+        let merged = merged_servers(home.path()).await;
+        assert_eq!(merged.len(), 3);
+        assert_eq!(merged["shared"].1, ["claude_code", "codex"]);
+        import_from(
+            registry.path(),
+            home.path(),
+            ImportRequest {
+                names: vec!["shared".into()],
+            },
+        )
+        .await
+        .unwrap();
+        let entries: Vec<RegistryEntry> = read(&registry.path().join("mcp_registry.json")).unwrap();
+        assert_eq!(entries[0].command.as_deref(), Some("claude"));
+        std::fs::remove_file(&codex).unwrap();
+        assert_eq!(merged_servers(home.path()).await.len(), 2);
+        std::fs::write(&codex, "invalid = [").unwrap();
+        assert_eq!(merged_servers(home.path()).await.len(), 2);
+    }
+
+    #[tokio::test]
     async fn imports_codex_environment_headers_without_reading_secrets() {
         let home = tempfile::tempdir().unwrap();
         let registry = tempfile::tempdir().unwrap();
@@ -510,7 +561,6 @@ mod tests {
             registry.path(),
             home.path(),
             ImportRequest {
-                source: "codex".into(),
                 names: vec!["bearer".into(), "headers".into()],
             },
         )
@@ -549,7 +599,6 @@ mod tests {
                     .contains_key(name)
             );
             let request = || ImportRequest {
-                source: source.into(),
                 names: vec![name.into()],
             };
             assert_eq!(
