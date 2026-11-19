@@ -3,7 +3,7 @@
 //! These helpers abstract over JSON vs TOML vs JSONC formats used by different agents.
 //! JSONC (JSON with Comments) is supported with comment preservation using jsonc-parser's CST.
 
-use std::{collections::HashMap, path::Path, sync::LazyLock};
+use std::{collections::HashMap, io::Write, path::Path, sync::LazyLock};
 
 use jsonc_parser::{
     ParseOptions,
@@ -90,30 +90,87 @@ pub async fn write_agent_config(
     mcp_config: &McpConfig,
     config: &Value,
 ) -> Result<(), ExecutorError> {
-    if mcp_config.is_toml_config {
+    let current = match fs::read_to_string(config_path).await {
+        Ok(content) => Some(content),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error.into()),
+    };
+    let output = if mcp_config.is_toml_config {
         let toml_value: toml::Value = serde_json::from_str(&serde_json::to_string(config)?)?;
-        let toml_content = toml::to_string_pretty(&toml_value)?;
-        fs::write(config_path, toml_content).await?;
+        let serialized = toml::to_string_pretty(&toml_value)?;
+        let parse = |content: &str| {
+            content
+                .parse::<toml_edit::Document>()
+                .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))
+        };
+        let mut document = parse(current.as_deref().unwrap_or(""))?;
+        let desired = parse(&serialized)?;
+        let old: Value = if let Some(content) = current.as_deref().filter(|s| !s.trim().is_empty())
+        {
+            serde_json::to_value(toml::from_str::<toml::Value>(content)?)?
+        } else {
+            serde_json::json!({})
+        };
+        merge_toml(document.as_table_mut(), desired.as_table(), &old, config);
+        document.to_string()
     } else if is_jsonc_file(config_path) {
-        write_jsonc_preserving_comments(config_path, config).await?;
+        update_jsonc_content(current.as_deref().unwrap_or("{}"), config)
     } else {
-        let json_content = serde_json::to_string_pretty(config)?;
-        fs::write(config_path, json_content).await?;
-    }
-    Ok(())
+        serde_json::to_string_pretty(config)?
+    };
+    atomic_write(config_path, output.as_bytes())
 }
 
-async fn write_jsonc_preserving_comments(
-    config_path: &std::path::Path,
-    new_config: &Value,
-) -> Result<(), ExecutorError> {
-    let current_content = fs::read_to_string(config_path)
-        .await
-        .unwrap_or_else(|_| "{}".to_string());
+fn merge_toml(
+    current: &mut toml_edit::Table,
+    desired: &toml_edit::Table,
+    old: &Value,
+    new: &Value,
+) {
+    current.retain(|key, _| desired.contains_key(key));
+    for (key, replacement) in desired.iter() {
+        if old.get(key) == new.get(key) && current.contains_key(key) {
+            continue;
+        }
+        if let (Some(existing), Some(replacement_table)) =
+            (current.get_mut(key), replacement.as_table())
+            && let Some(existing_table) = existing.as_table_mut()
+        {
+            merge_toml(existing_table, replacement_table, &old[key], &new[key]);
+        } else {
+            let mut replacement = replacement.clone();
+            if let (Some(previous), Some(next)) = (
+                current.get(key).and_then(toml_edit::Item::as_value),
+                replacement.as_value_mut(),
+            ) {
+                *next.decor_mut() = previous.decor().clone();
+            }
+            current.insert(key, replacement);
+        }
+    }
+}
 
-    let output = update_jsonc_content(&current_content, new_config);
-
-    fs::write(config_path, output).await?;
+fn atomic_write(path: &Path, content: &[u8]) -> Result<(), ExecutorError> {
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+    match std::fs::metadata(path) {
+        Ok(metadata) => {
+            temporary
+                .as_file()
+                .set_permissions(metadata.permissions())?;
+            let mut backup = path.as_os_str().to_os_string();
+            backup.push(".hivedeck.bak");
+            std::fs::copy(path, backup)?;
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
+    }
+    temporary.write_all(content)?;
+    temporary.as_file().sync_all()?;
+    temporary.persist(path).map_err(|error| error.error)?;
     Ok(())
 }
 
@@ -412,5 +469,61 @@ impl CodingAgent {
 
         let canonical = PRECONFIGURED_MCP_SERVERS.clone();
         apply_adapter(adapter, canonical)
+    }
+}
+
+#[cfg(test)]
+mod write_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn preserves_toml_and_backs_up_all_formats() {
+        for (filename, original, is_toml) in [
+            (
+                "config.toml",
+                "# header\nunknown = 'keep' # inline\n\n[mcp_servers.old]\ncommand = 'old' # command\n",
+                true,
+            ),
+            (
+                "config.jsonc",
+                "{\n  // keep\n  \"unknown\": \"keep\",\n  \"mcp_servers\": {}\n}",
+                false,
+            ),
+            (
+                "config.json",
+                "{\"unknown\":\"keep\",\"mcp_servers\":{}}",
+                false,
+            ),
+        ] {
+            let directory = tempfile::tempdir().unwrap();
+            let path = directory.path().join(filename);
+            fs::write(&path, original).await.unwrap();
+            let config = McpConfig::new(
+                vec![],
+                serde_json::json!({}),
+                serde_json::json!({}),
+                is_toml,
+            );
+            let mut value = read_agent_config(&path, &config).await.unwrap();
+            value["mcp_servers"]["new"] = serde_json::json!({"command": "new"});
+            write_agent_config(&path, &config, &value).await.unwrap();
+            let output = fs::read_to_string(&path).await.unwrap();
+            assert_eq!(
+                fs::read_to_string(directory.path().join(format!("{filename}.hivedeck.bak")))
+                    .await
+                    .unwrap(),
+                original
+            );
+            assert_eq!(read_agent_config(&path, &config).await.unwrap(), value);
+            if is_toml {
+                assert!(
+                    output.contains("# header")
+                        && output.contains("unknown = 'keep' # inline")
+                        && output.contains("# command")
+                );
+            } else if filename.ends_with("jsonc") {
+                assert!(output.contains("// keep"));
+            }
+        }
     }
 }

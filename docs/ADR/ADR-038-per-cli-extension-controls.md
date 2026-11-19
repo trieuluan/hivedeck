@@ -3,6 +3,8 @@
 - **Status**: Accepted
 - **Date**: 2026-11-18
 
+Superseded in part by ADR-043.
+
 ## Context
 
 Headless agent runs (card agents and the captain) load everything the owner
