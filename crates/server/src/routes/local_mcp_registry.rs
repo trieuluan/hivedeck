@@ -164,7 +164,7 @@ async fn import_from(
         skipped: vec![],
     };
     for name in request.names {
-        if entries.iter().any(|entry| entry.name == name) {
+        if name == "hivedeck" || entries.iter().any(|entry| entry.name == name) {
             result.skipped.push(name);
             continue;
         }
@@ -172,11 +172,6 @@ async fn import_from(
             .get(&name)
             .and_then(|value| value.as_object())
             .ok_or_else(|| ApiError::BadRequest("Import server not found".into()))?;
-        if server.contains_key("env_http_headers") || server.contains_key("bearer_token_env_var") {
-            return Err(ApiError::BadRequest(
-                "Import of environment-backed HTTP headers is not supported".into(),
-            ));
-        }
         let oauth = server
             .get("oauth")
             .map(|value| value.as_bool().unwrap_or(value.is_object()))
@@ -243,6 +238,25 @@ async fn import_from(
                 }
             }
         }
+        if server.contains_key("bearer_token_env_var") {
+            entry.headers.insert(
+                "Authorization".into(),
+                format!("import_{}", Uuid::new_v4().simple()),
+            );
+        }
+        if let Some(headers) = server.get("env_http_headers") {
+            let headers = headers
+                .as_object()
+                .ok_or_else(|| ApiError::BadRequest("Invalid server values".into()))?;
+            for (name, value) in headers {
+                if !value.is_string() {
+                    return Err(ApiError::BadRequest("Invalid server value".into()));
+                }
+                entry
+                    .headers
+                    .insert(name.clone(), format!("import_{}", Uuid::new_v4().simple()));
+            }
+        }
         validate(&entry)?;
         entries.push(entry);
         result.imported.push(name);
@@ -262,7 +276,8 @@ fn valid_name(name: &str) -> bool {
 }
 
 fn validate(entry: &RegistryEntry) -> Result<(), ApiError> {
-    if !valid_name(&entry.name)
+    if entry.name == "hivedeck"
+        || !valid_name(&entry.name)
         || entry
             .headers
             .values()
@@ -499,6 +514,29 @@ mod tests {
         http::Request,
     };
     use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn imports_codex_environment_headers_without_reading_secrets() {
+        let home = tempfile::tempdir().unwrap();
+        let registry = tempfile::tempdir().unwrap();
+        std::fs::create_dir(home.path().join(".codex")).unwrap();
+        std::fs::write(home.path().join(".codex/config.toml"), "[mcp_servers.bearer]\nurl = 'https://example.com'\nbearer_token_env_var = 'TOKEN'\n[mcp_servers.headers]\nurl = 'https://example.com'\n[mcp_servers.headers.env_http_headers]\nX-Api-Key = 'API_KEY'\n").unwrap();
+        import_from(
+            registry.path(),
+            home.path(),
+            ImportRequest {
+                source: "codex".into(),
+                names: vec!["bearer".into(), "headers".into()],
+            },
+        )
+        .await
+        .unwrap();
+        let entries: Vec<RegistryEntry> = read(&registry.path().join("mcp_registry.json")).unwrap();
+        let secrets: BTreeMap<String, String> =
+            read(&registry.path().join("mcp_secrets.json")).unwrap();
+        assert!(!secrets.contains_key(&entries[0].headers["Authorization"]));
+        assert!(!secrets.contains_key(&entries[1].headers["X-Api-Key"]));
+    }
 
     #[tokio::test]
     async fn imports_without_changing_cli_configs() {

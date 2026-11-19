@@ -26,6 +26,7 @@ import {
 } from './SettingsComponents';
 import { useSettingsDirty } from './SettingsDirtyContext';
 import { useSettingsMachineClient } from './SettingsHostContext';
+import { HiveDeckMcp } from './HiveDeckMcp';
 
 type RegistryInput = {
   name?: string;
@@ -332,7 +333,7 @@ function MultiCliMcp({
   };
   return (
     <SettingsCard
-      title={t('settings.mcp.multi.title')}
+      title="Install into CLI (ghi file config)"
       description={t('settings.mcp.multi.description')}
     >
       <SettingsField label="Tìm trong MCP Registry">
@@ -836,6 +837,7 @@ export function McpSettingsSection() {
 
   return (
     <>
+      <HiveDeckMcp />
       <MultiCliMcp
         disabled={isDirty}
         onSaved={() => setRefresh((value) => value + 1)}

@@ -52,7 +52,7 @@ through `OPENCODE_CONFIG_CONTENT` (`opencode.rs`).
 - An **import** action copies a server definition from a CLI's existing
   config (for example Claude Code's `~/.claude.json`) into the registry. It
   reads; it does not write back.
-- **UI v1**: a "Registry" section is added to the existing MCP page, with
+- **UI v1**: a "HiveDeck MCP" section is added to the existing MCP page, with
   scope checkboxes per entry. Merging the two Settings pages (MCP and Skills &
   MCP) is deferred.
 - The "install into CLI" action (writes the CLI's own config, ADR-043) is kept
