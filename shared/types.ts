@@ -925,7 +925,7 @@ lines_removed: number | null,
 /**
  * When the latest execution process completed
  */
-latest_process_completed_at?: string, 
+latest_process_completed_at?: string, latest_process_started_at?: string, 
 /**
  * Status of the latest execution process
  */

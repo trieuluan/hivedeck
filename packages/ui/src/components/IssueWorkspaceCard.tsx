@@ -13,6 +13,7 @@ import {
 } from '@phosphor-icons/react';
 import { UserAvatar, type UserAvatarUser } from './UserAvatar';
 import { RunningDots } from './RunningDots';
+import { useWorkspaceTime } from './WorkspaceTime';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,6 +43,7 @@ export interface WorkspaceWithStats {
   hasRunningDevServer?: boolean;
   hasUnseenActivity?: boolean;
   latestProcessCompletedAt?: string;
+  latestProcessStartedAt?: string;
   latestProcessStatus?: 'running' | 'completed' | 'failed' | 'killed';
 }
 
@@ -129,9 +131,7 @@ export function IssueWorkspaceCard({
   className,
 }: IssueWorkspaceCardProps) {
   const { t } = useTranslation('common');
-  const timeAgo = getTimeAgo(
-    workspace.latestProcessCompletedAt ?? workspace.updatedAt
-  );
+  const timeAgo = useWorkspaceTime(workspace);
   const isRunning = workspace.isRunning ?? false;
   const hasPendingApproval = workspace.hasPendingApproval ?? false;
   const hasRunningDevServer = workspace.hasRunningDevServer ?? false;
@@ -267,11 +267,20 @@ export function IssueWorkspaceCard({
             )}
           </div>
 
-          {hasLiveStatusIndicator && (
+          {hasLiveStatusIndicator && timeAgo && (
             <span className="text-low/50 shrink-0">·</span>
           )}
 
-          <span className="whitespace-nowrap shrink-0">{timeAgo}</span>
+          {timeAgo && (
+            <span
+              className={cn(
+                'whitespace-nowrap shrink-0',
+                isFailed && 'text-error'
+              )}
+            >
+              {timeAgo}
+            </span>
+          )}
           {workspace.filesChanged > 0 && (
             <>
               <span className="text-low/50 shrink-0">·</span>
@@ -370,20 +379,4 @@ export function IssueWorkspaceCreateCard({
       </div>
     </IssueWorkspaceCardContainer>
   );
-}
-
-function getTimeAgo(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / (1000 * 60));
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const diffWeeks = Math.floor(diffDays / 7);
-
-  if (diffMins < 1) return 'just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return `${diffWeeks}w ago`;
 }

@@ -99,6 +99,10 @@
   },
   "documents": { "title": "Tài liệu" },
   "workspaces": {
+    "processRunning": "đang chạy {{time}}",
+    "processDone": "xong {{time}} trước",
+    "processFailed": "lỗi {{time}} trước",
+    "processRan": "chạy {{time}}",
     "title": "Workspace",
     "searchPlaceholder": "Tìm kiếm...",
     "active": "Đang hoạt động",

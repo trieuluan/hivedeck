@@ -10,7 +10,7 @@ import {
 import { DIM_ROW, HOVER_ROW, TINT_ROW, tintStyle } from './layout';
 import { WorkspaceActivityText } from '../WorkspaceActivityText';
 import { TreeRow } from './TreeRow';
-import { formatRelativeElapsed } from './format';
+import { useWorkspaceTime } from '../WorkspaceTime';
 import type { LeafNode, TreeNodeRenderProps } from './types';
 
 /**
@@ -44,11 +44,7 @@ export function OutlinerLeafNode({
   const ws = node.data.workspace;
   const hasMenu = Boolean(onArchiveWorkspace || onDeleteWorkspace);
   const isActive = ws.id === activeWorkspaceId;
-  const { i18n } = useTranslation();
-  const elapsed = formatRelativeElapsed(
-    ws.latestProcessCompletedAt,
-    i18n?.resolvedLanguage ?? i18n?.language
-  );
+  const elapsed = useWorkspaceTime(ws);
 
   return (
     <TreeRow
@@ -72,7 +68,18 @@ export function OutlinerLeafNode({
           >
             <span className="truncate">{ws.name}</span>
             {elapsed && (
-              <span className="shrink-0 text-xs text-low">{elapsed}</span>
+              <span
+                className={cn(
+                  'shrink-0 text-xs',
+                  !ws.isRunning &&
+                    (ws.latestProcessStatus === 'failed' ||
+                      ws.latestProcessStatus === 'killed')
+                    ? 'text-error'
+                    : 'text-low'
+                )}
+              >
+                {elapsed}
+              </span>
             )}
           </span>
           <WorkspaceActivityText

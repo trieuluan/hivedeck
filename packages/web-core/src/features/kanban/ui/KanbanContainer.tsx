@@ -982,6 +982,7 @@ export function KanbanContainer() {
             hasRunningDevServer: localWorkspace?.hasRunningDevServer,
             hasUnseenActivity: localWorkspace?.hasUnseenActivity,
             latestProcessCompletedAt: localWorkspace?.latestProcessCompletedAt,
+            latestProcessStartedAt: localWorkspace?.latestProcessStartedAt,
             latestProcessStatus: localWorkspace?.latestProcessStatus,
           };
         });

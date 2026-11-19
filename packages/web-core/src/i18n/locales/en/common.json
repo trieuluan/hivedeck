@@ -99,6 +99,10 @@
   },
   "documents": { "title": "Documents" },
   "workspaces": {
+    "processRunning": "running {{time}}",
+    "processDone": "done {{time}} ago",
+    "processFailed": "failed {{time}} ago",
+    "processRan": "ran {{time}}",
     "title": "Workspaces",
     "searchPlaceholder": "Search...",
     "active": "Active",

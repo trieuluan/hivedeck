@@ -3,21 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { WorkspaceKind } from 'shared/types';
 import { cn } from '../lib/cn';
 import { WorkspaceStatusIcons } from './WorkspaceStatusIcons';
-
-const formatRelativeElapsed = (dateString: string): string => {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffSecs = Math.floor(diffMs / 1000);
-  const diffMins = Math.floor(diffSecs / 60);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  if (diffSecs < 60) return 'just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  return `${diffDays}d ago`;
-};
+import { useWorkspaceTime } from './WorkspaceTime';
 
 export interface WorkspaceSummaryProps {
   name: string;
@@ -34,6 +20,7 @@ export interface WorkspaceSummaryProps {
   hasRunningDevServer?: boolean;
   hasUnseenActivity?: boolean;
   latestProcessCompletedAt?: string;
+  latestProcessStartedAt?: string;
   latestProcessStatus?: 'running' | 'completed' | 'failed' | 'killed';
   prStatus?: 'open' | 'merged' | 'closed' | 'unknown';
   onClick?: () => void;
@@ -58,6 +45,7 @@ export function WorkspaceSummary({
   hasRunningDevServer = false,
   hasUnseenActivity = false,
   latestProcessCompletedAt,
+  latestProcessStartedAt,
   latestProcessStatus,
   prStatus,
   onClick,
@@ -68,6 +56,12 @@ export function WorkspaceSummary({
 }: WorkspaceSummaryProps) {
   const { t } = useTranslation('common');
   const hasChanges = filesChanged !== undefined && filesChanged > 0;
+  const elapsed = useWorkspaceTime({
+    isRunning,
+    latestProcessStartedAt,
+    latestProcessCompletedAt,
+    latestProcessStatus,
+  });
 
   const handleOpenCommandBar = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -134,21 +128,25 @@ export function WorkspaceSummary({
             />
 
             {/* Time elapsed OR "Draft" label (when not running) */}
-            {!isRunning &&
-              (isDraft ? (
-                <span className="min-w-0 flex-1 truncate">
-                  {t('workspaces.draft')}
-                </span>
-              ) : latestProcessCompletedAt ? (
-                <span className="min-w-0 flex-1 truncate">
-                  {formatRelativeElapsed(latestProcessCompletedAt)}
-                </span>
-              ) : (
-                <span className="flex-1" />
-              ))}
-
-            {/* Spacer when running (no elapsed time shown) */}
-            {isRunning && <span className="flex-1" />}
+            {isDraft && !isRunning ? (
+              <span className="min-w-0 flex-1 truncate">
+                {t('workspaces.draft')}
+              </span>
+            ) : elapsed ? (
+              <span
+                className={cn(
+                  'min-w-0 flex-1 truncate',
+                  (latestProcessStatus === 'failed' ||
+                    latestProcessStatus === 'killed') &&
+                    !isRunning &&
+                    'text-error'
+                )}
+              >
+                {elapsed}
+              </span>
+            ) : (
+              <span className="flex-1" />
+            )}
 
             {/* File count + lines changed on the right */}
             {hasChanges && (

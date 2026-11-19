@@ -28,7 +28,7 @@ import {
   DropdownMenuTrigger,
 } from './DropdownMenu';
 import { WorkspaceActivityText } from './WorkspaceActivityText';
-import { formatRelativeElapsed } from './outliner/format';
+import { useWorkspaceTime } from './WorkspaceTime';
 import type { OutlinerWorkspace } from './outliner/types';
 
 interface SidebarBucketBarProps {
@@ -187,11 +187,7 @@ function WorkspaceBucketMenuItem({
   active: boolean;
   onSelectWorkspace: (id: string) => void;
 }) {
-  const { i18n } = useTranslation();
-  const elapsed = formatRelativeElapsed(
-    workspace.latestProcessCompletedAt,
-    i18n?.resolvedLanguage ?? i18n?.language
-  );
+  const elapsed = useWorkspaceTime(workspace);
   return (
     <DropdownMenuItem
       // Radix closes the menu after onSelect fires by default — gives us
@@ -205,7 +201,18 @@ function WorkspaceBucketMenuItem({
           {workspace.name}
         </span>
         {elapsed && (
-          <span className="shrink-0 text-xs text-low">{elapsed}</span>
+          <span
+            className={cn(
+              'shrink-0 text-xs',
+              !workspace.isRunning &&
+                (workspace.latestProcessStatus === 'failed' ||
+                  workspace.latestProcessStatus === 'killed')
+                ? 'text-error'
+                : 'text-low'
+            )}
+          >
+            {elapsed}
+          </span>
         )}
       </span>
       <WorkspaceActivityText
@@ -307,11 +314,7 @@ function AttentionInboxItem({
 }) {
   const { t } = useTranslation('common');
   const reason = attentionReason(workspace) ?? 'finished';
-  const { i18n } = useTranslation();
-  const elapsed = formatRelativeElapsed(
-    workspace.latestProcessCompletedAt,
-    i18n?.resolvedLanguage ?? i18n?.language
-  );
+  const elapsed = useWorkspaceTime(workspace);
   const name =
     workspace.kind === 'orchestrator'
       ? t('attentionInbox.captain', { name: workspace.name })

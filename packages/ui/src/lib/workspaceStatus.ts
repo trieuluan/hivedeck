@@ -42,6 +42,7 @@ export function attentionReason(
 export interface WorkspaceStatusItem extends WorkspaceAttentionItem {
   id: string;
   latestProcessCompletedAt?: string;
+  latestProcessStartedAt?: string;
   createdAt: string;
 }
 

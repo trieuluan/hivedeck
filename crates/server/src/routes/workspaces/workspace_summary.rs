@@ -39,6 +39,8 @@ pub struct WorkspaceSummary {
     /// When the latest execution process completed
     #[ts(optional)]
     pub latest_process_completed_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[ts(optional)]
+    pub latest_process_started_at: Option<chrono::DateTime<chrono::Utc>>,
     /// Status of the latest execution process
     pub latest_process_status: Option<ExecutionProcessStatus>,
     /// Is a dev server currently running?
@@ -153,6 +155,7 @@ pub async fn get_workspace_summaries(
                 lines_added: stats.map(|s| s.lines_added),
                 lines_removed: stats.map(|s| s.lines_removed),
                 latest_process_completed_at: latest.and_then(|p| p.completed_at),
+                latest_process_started_at: latest.map(|p| p.started_at),
                 latest_process_status: latest.map(|p| p.status.clone()),
                 has_running_dev_server: dev_server_workspaces.contains(&id),
                 has_unseen_turns: unseen_workspaces.contains(&id),

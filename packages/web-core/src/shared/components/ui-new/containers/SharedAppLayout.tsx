@@ -598,6 +598,7 @@ export function SharedAppLayout() {
     hasRunningDevServer: ws.hasRunningDevServer,
     hasUnseenActivity: ws.hasUnseenActivity,
     latestProcessCompletedAt: ws.latestProcessCompletedAt,
+    latestProcessStartedAt: ws.latestProcessStartedAt,
     latestProcessStatus: ws.latestProcessStatus,
     prStatus: ws.prStatus,
   });
