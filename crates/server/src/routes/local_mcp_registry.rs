@@ -73,6 +73,187 @@ pub struct RegistrySecretStatus {
     pub has_value: bool,
 }
 
+#[derive(Deserialize)]
+struct ImportRequest {
+    source: String,
+    names: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct ImportCandidate {
+    name: String,
+    exists: bool,
+}
+
+#[derive(Serialize)]
+struct ImportResult {
+    imported: Vec<String>,
+    skipped: Vec<String>,
+}
+
+async fn source_servers(
+    home: &Path,
+    source: &str,
+) -> Result<serde_json::Map<String, serde_json::Value>, ApiError> {
+    let (path, key, toml) = match source {
+        "claude_code" => (home.join(".claude.json"), "mcpServers", false),
+        "codex" => (home.join(".codex/config.toml"), "mcp_servers", true),
+        _ => return Err(ApiError::BadRequest("Invalid import source".into())),
+    };
+    let config = executors::mcp_config::McpConfig::new(
+        vec![],
+        serde_json::json!({}),
+        serde_json::json!({}),
+        toml,
+    );
+    let value = executors::mcp_config::read_agent_config(&path, &config).await?;
+    Ok(value
+        .get(key)
+        .and_then(|servers| servers.as_object())
+        .cloned()
+        .unwrap_or_default())
+}
+
+fn home() -> Result<PathBuf, ApiError> {
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .ok_or_else(|| ApiError::BadRequest("HOME not set".into()))
+}
+
+async fn candidates(
+    Extension(dir): Extension<PathBuf>,
+    RoutePath(source): RoutePath<String>,
+) -> Result<Json<ApiResponse<Vec<ImportCandidate>>>, ApiError> {
+    let servers = source_servers(&home()?, &source).await?;
+    let entries: Vec<RegistryEntry> = read(&dir.join("mcp_registry.json"))?;
+    Ok(Json(ApiResponse::success(
+        servers
+            .keys()
+            .map(|name| ImportCandidate {
+                name: name.clone(),
+                exists: entries.iter().any(|entry| entry.name == *name),
+            })
+            .collect(),
+    )))
+}
+
+async fn import(
+    Extension(dir): Extension<PathBuf>,
+    Json(request): Json<ImportRequest>,
+) -> Result<Json<ApiResponse<ImportResult>>, ApiError> {
+    Ok(Json(ApiResponse::success(
+        import_from(&dir, &home()?, request).await?,
+    )))
+}
+
+async fn import_from(
+    dir: &Path,
+    home: &Path,
+    request: ImportRequest,
+) -> Result<ImportResult, ApiError> {
+    let servers = source_servers(home, &request.source).await?;
+    let _lock = WRITE_LOCK
+        .lock()
+        .map_err(|_| std::io::Error::other("Registry lock poisoned"))?;
+    let registry_path = dir.join("mcp_registry.json");
+    let secret_path = dir.join("mcp_secrets.json");
+    let mut entries: Vec<RegistryEntry> = read(&registry_path)?;
+    let mut secrets: BTreeMap<String, String> = read(&secret_path)?;
+    let mut result = ImportResult {
+        imported: vec![],
+        skipped: vec![],
+    };
+    for name in request.names {
+        if entries.iter().any(|entry| entry.name == name) {
+            result.skipped.push(name);
+            continue;
+        }
+        let server = servers
+            .get(&name)
+            .and_then(|value| value.as_object())
+            .ok_or_else(|| ApiError::BadRequest("Import server not found".into()))?;
+        if server.contains_key("env_http_headers") || server.contains_key("bearer_token_env_var") {
+            return Err(ApiError::BadRequest(
+                "Import of environment-backed HTTP headers is not supported".into(),
+            ));
+        }
+        let oauth = server
+            .get("oauth")
+            .map(|value| value.as_bool().unwrap_or(value.is_object()))
+            .unwrap_or(false);
+        let url = server
+            .get("url")
+            .and_then(|value| value.as_str())
+            .map(str::to_owned);
+        let mut entry = RegistryEntry {
+            name: name.clone(),
+            transport: if url.is_some() {
+                RegistryTransport::Http
+            } else {
+                RegistryTransport::Stdio
+            },
+            command: server
+                .get("command")
+                .and_then(|value| value.as_str())
+                .map(str::to_owned),
+            args: serde_json::from_value(
+                server
+                    .get("args")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!([])),
+            )
+            .map_err(|_| ApiError::BadRequest("Invalid server args".into()))?,
+            url,
+            headers: BTreeMap::new(),
+            env: BTreeMap::new(),
+            clis: vec![if request.source == "codex" {
+                RegistryCli::Codex
+            } else {
+                RegistryCli::ClaudeCode
+            }],
+            roles: vec![RegistryRole::Crew],
+            boards: vec![],
+            oauth,
+        };
+        for (field, target) in [
+            ("env", &mut entry.env),
+            (
+                if request.source == "codex" {
+                    "http_headers"
+                } else {
+                    "headers"
+                },
+                &mut entry.headers,
+            ),
+        ] {
+            if let Some(values) = server.get(field) {
+                let values = values
+                    .as_object()
+                    .ok_or_else(|| ApiError::BadRequest("Invalid server values".into()))?;
+                for (key, value) in values {
+                    if oauth && key.eq_ignore_ascii_case("authorization") {
+                        continue;
+                    }
+                    let value = value
+                        .as_str()
+                        .ok_or_else(|| ApiError::BadRequest("Invalid server value".into()))?;
+                    let reference = format!("import_{}", Uuid::new_v4().simple());
+                    secrets.insert(reference.clone(), value.to_owned());
+                    target.insert(key.clone(), reference);
+                }
+            }
+        }
+        validate(&entry)?;
+        entries.push(entry);
+        result.imported.push(name);
+    }
+    if !result.imported.is_empty() {
+        write(&secret_path, &secrets, true)?;
+        write(&registry_path, &entries, false)?;
+    }
+    Ok(result)
+}
+
 fn valid_name(name: &str) -> bool {
     !name.is_empty()
         && name
@@ -299,6 +480,8 @@ async fn secret_status(
 
 pub(super) fn router() -> Router<DeploymentImpl> {
     Router::new()
+        .route("/mcp-registry/import-candidates/{source}", get(candidates))
+        .route("/mcp-registry/import", axum::routing::post(import))
         .route("/mcp-registry/entries", get(list).post(create))
         .route("/mcp-registry/entries/{name}", put(update).delete(delete))
         .route(
@@ -316,6 +499,70 @@ mod tests {
         http::Request,
     };
     use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn imports_without_changing_cli_configs() {
+        let home = tempfile::tempdir().unwrap();
+        let registry = tempfile::tempdir().unwrap();
+        std::fs::create_dir(home.path().join(".codex")).unwrap();
+        let claude = home.path().join(".claude.json");
+        let codex = home.path().join(".codex/config.toml");
+        std::fs::write(
+            &claude,
+            r#"{"mcpServers":{"local":{"command":"node","env":{"API_KEY":"secret"}}}}"#,
+        )
+        .unwrap();
+        std::fs::write(&codex, "[mcp_servers.remote]\nurl = 'https://example.com/mcp'\n[mcp_servers.remote.http_headers]\nAuthorization = 'Bearer secret'\n").unwrap();
+        for (source, path, name) in [
+            ("claude_code", &claude, "local"),
+            ("codex", &codex, "remote"),
+        ] {
+            let before = std::fs::read(path).unwrap();
+            let modified = std::fs::metadata(path).unwrap().modified().unwrap();
+            assert!(
+                source_servers(home.path(), source)
+                    .await
+                    .unwrap()
+                    .contains_key(name)
+            );
+            let request = || ImportRequest {
+                source: source.into(),
+                names: vec![name.into()],
+            };
+            assert_eq!(
+                import_from(registry.path(), home.path(), request())
+                    .await
+                    .unwrap()
+                    .imported,
+                vec![name]
+            );
+            assert_eq!(
+                import_from(registry.path(), home.path(), request())
+                    .await
+                    .unwrap()
+                    .skipped,
+                vec![name]
+            );
+            assert_eq!(std::fs::read(path).unwrap(), before);
+            assert_eq!(
+                std::fs::metadata(path).unwrap().modified().unwrap(),
+                modified
+            );
+        }
+        let entries: Vec<RegistryEntry> = read(&registry.path().join("mcp_registry.json")).unwrap();
+        let secrets: BTreeMap<String, String> =
+            read(&registry.path().join("mcp_secrets.json")).unwrap();
+        assert_eq!(secrets[&entries[0].env["API_KEY"]], "secret");
+        assert_eq!(
+            secrets[&entries[1].headers["Authorization"]],
+            "Bearer secret"
+        );
+        assert!(
+            !std::fs::read_to_string(registry.path().join("mcp_registry.json"))
+                .unwrap()
+                .contains("Bearer secret")
+        );
+    }
 
     #[tokio::test]
     async fn registry_crud_and_secrets() {
