@@ -565,6 +565,18 @@ export type CliSupports = { skill_modes: boolean, mcp: boolean, plugins: boolean
 
 export type UpdateMcpServersBody = { servers: { [key in string]?: JsonValue }, };
 
+export type RegistryTransport = "stdio" | "http";
+
+export type RegistryCli = "claude_code" | "codex" | "opencode";
+
+export type RegistryRole = "captain" | "crew";
+
+export type RegistryEntry = { name: string, transport: RegistryTransport, command: string | null, args: Array<string>, url: string | null, headers: { [key in string]?: string }, env: { [key in string]?: string }, clis: Array<RegistryCli>, roles: Array<RegistryRole>, boards: Array<string>, oauth: boolean, };
+
+export type SetRegistrySecret = { value: string, };
+
+export type RegistrySecretStatus = { name: string, has_value: boolean, };
+
 export type GetMcpServerResponse = { mcp_config: McpConfig, config_path: string, };
 
 export type CheckEditorAvailabilityQuery = { editor_type: EditorType, };

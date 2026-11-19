@@ -38,6 +38,7 @@ pub mod frontend;
 pub mod health;
 pub mod kanban;
 pub mod local_kanban;
+pub mod local_mcp_registry;
 pub mod mcp_http;
 pub mod mcp_registry;
 pub mod nine_router;
@@ -68,6 +69,7 @@ pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
         .merge(telegram::router())
         .merge(nine_router::router())
         .merge(mcp_registry::router())
+        .merge(local_mcp_registry::router())
         .merge(filesystem::router())
         .merge(repo::router())
         .merge(events::router(&deployment))
