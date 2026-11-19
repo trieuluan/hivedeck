@@ -44,6 +44,7 @@ import { isRealMobileDevice } from '@/shared/hooks/useIsMobile';
 import { useOpenInEditor } from '@/shared/hooks/useOpenInEditor';
 import { OpenInIdeButton } from '@/shared/components/OpenInIdeButton';
 import { CopyButton } from '@/shared/components/CopyButton';
+import { MarkdownPreview } from '@/shared/components/MarkdownPreview';
 import { writeClipboardViaBridge } from '@/shared/lib/clipboard';
 import { getFileIcon } from '@/shared/lib/fileTypeIcon';
 import { stripLineEnding, splitLines } from '@/shared/lib/string';
@@ -326,6 +327,11 @@ const DiffFileItem = memo(function DiffFileItem({
   const { t } = useTranslation('common');
   const filePath = diff.newPath || diff.oldPath || '';
   const expandKey = `diff:${filePath}`;
+  const [preview, setPreview] = useState(false);
+  const canPreview =
+    filePath.endsWith('.md') &&
+    diff.change !== 'deleted' &&
+    diff.newContent !== null;
 
   const expanded = useUiPreferencesStore(
     (s) => s.expanded[expandKey] ?? initialExpanded
@@ -410,13 +416,21 @@ const DiffFileItem = memo(function DiffFileItem({
       themeType: actualTheme,
       overflow: wrapText ? ('wrap' as const) : ('scroll' as const),
       hunkSeparators: 'line-info' as const,
-      collapsed: !expanded,
+      collapsed: !expanded || (canPreview && preview),
       enableHoverUtility: true,
       onLineClick: handleLineClick,
       theme: { dark: 'github-dark', light: 'github-light' } as const,
       unsafeCSS: PIERRE_DIFFS_THEME_CSS,
     }),
-    [globalMode, actualTheme, wrapText, expanded, handleLineClick]
+    [
+      globalMode,
+      actualTheme,
+      wrapText,
+      expanded,
+      canPreview,
+      preview,
+      handleLineClick,
+    ]
   );
 
   const handleToggle = useCallback(() => {
@@ -442,6 +456,28 @@ const DiffFileItem = memo(function DiffFileItem({
         className="flex items-center gap-2 shrink-0 text-xs"
         onClick={(e) => e.stopPropagation()}
       >
+        {canPreview && (
+          <div
+            className="flex items-center gap-1"
+            role="group"
+            aria-label="Markdown view"
+          >
+            {(['Diff', 'Preview'] as const).map((label) => (
+              <button
+                key={label}
+                type="button"
+                aria-pressed={preview === (label === 'Preview')}
+                className="rounded px-2 py-1 text-low hover:text-high focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand aria-pressed:bg-brand/20 aria-pressed:text-high"
+                onClick={() => {
+                  setPreview(label === 'Preview');
+                  if (!expanded) handleToggle();
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         <CopyButton
           onCopy={handleCopyFilePath}
           disabled={false}
@@ -482,6 +518,8 @@ const DiffFileItem = memo(function DiffFileItem({
       githubCommentCount,
       additions,
       deletions,
+      canPreview,
+      preview,
     ]
   );
 
@@ -583,6 +621,13 @@ const DiffFileItem = memo(function DiffFileItem({
         renderHeaderMetadata={renderHeaderMetadata}
         renderHoverUtility={expanded ? renderHoverUtility : undefined}
       />
+      {expanded && canPreview && preview && (
+        <MarkdownPreview
+          content={diff.newContent ?? ''}
+          theme={actualTheme}
+          className="overflow-auto bg-primary p-4"
+        />
+      )}
     </div>
   );
 });
