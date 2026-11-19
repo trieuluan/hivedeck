@@ -48,6 +48,10 @@ export interface MachineClient {
     query: McpServerQuery,
     data: UpdateMcpServersBody
   ) => Promise<void>;
+  installMcpServers: (
+    query: McpServerQuery,
+    data: UpdateMcpServersBody
+  ) => Promise<void>;
 }
 
 function getMachineRequestOptions(
@@ -158,6 +162,15 @@ export function createMachineClient(target: MachineTarget): MachineClient {
             body: JSON.stringify(data),
           }
         )
+      );
+    },
+    installMcpServers: async (query, data) => {
+      const params = new URLSearchParams(query);
+      await handleApiResponse<void>(
+        await makeMachineRequest(target, `/api/mcp-install?${params}`, {
+          method: 'POST',
+          body: JSON.stringify(data),
+        })
       );
     },
   };

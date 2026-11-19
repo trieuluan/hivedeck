@@ -38,12 +38,15 @@ use crate::{
     middleware::signed_ws::{MaybeSignedWebSocket, SignedWsUpgrade},
 };
 
+static MCP_CONFIG_WRITE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 pub fn router() -> Router<DeploymentImpl> {
     Router::new()
         .route("/info", get(get_user_system_info))
         .route("/config", put(update_config))
         .route("/sounds/{sound}", get(get_sound))
         .route("/mcp-config", get(get_mcp_servers).post(update_mcp_servers))
+        .route("/mcp-install", post(install_mcp_servers))
         .route(
             "/agent-extensions",
             get(get_agent_extensions).put(update_agent_extensions),
@@ -284,6 +287,7 @@ async fn update_mcp_servers(
     Query(query): Query<McpServerQuery>,
     Json(payload): Json<UpdateMcpServersBody>,
 ) -> Result<ResponseJson<ApiResponse<String>>, ApiError> {
+    let _guard = MCP_CONFIG_WRITE.lock().await;
     let profiles = ExecutorConfigs::get_cached();
     let agent = profiles
         .get_coding_agent(&ExecutorProfileId::new(query.executor))
@@ -315,6 +319,69 @@ async fn update_mcp_servers(
             e
         )))),
     }
+}
+
+async fn install_mcp_servers(
+    State(_deployment): State<DeploymentImpl>,
+    Query(query): Query<McpServerQuery>,
+    Json(payload): Json<UpdateMcpServersBody>,
+) -> Result<ResponseJson<ApiResponse<String>>, ApiError> {
+    let _guard = MCP_CONFIG_WRITE.lock().await;
+    if !matches!(
+        query.executor,
+        BaseCodingAgent::ClaudeCode | BaseCodingAgent::Codex
+    ) {
+        return Err(ApiError::BadRequest("Unsupported MCP destination".into()));
+    }
+    if payload.servers.is_empty()
+        || payload.servers.iter().any(|(name, server)| {
+            name.trim().is_empty()
+                || name == "meta"
+                || !server.as_object().is_some_and(|server| {
+                    let is_http = server.get("type").and_then(Value::as_str) == Some("http");
+                    let field = if is_http { "url" } else { "command" };
+                    server
+                        .get(field)
+                        .and_then(Value::as_str)
+                        .is_some_and(|value| !value.trim().is_empty())
+                })
+        })
+    {
+        return Err(ApiError::BadRequest("Invalid MCP server".into()));
+    }
+    let profiles = ExecutorConfigs::get_cached();
+    let agent = profiles
+        .get_coding_agent(&ExecutorProfileId::new(query.executor))
+        .ok_or_else(|| ApiError::BadRequest("Executor not found".into()))?;
+    let path = agent
+        .default_mcp_config_path()
+        .ok_or_else(|| ApiError::BadRequest("Config path not found".into()))?;
+    let config = agent.get_mcp_config();
+    let raw = read_agent_config(&path, &config).await?;
+    let mut servers = get_mcp_servers_from_config_path(&raw, &config.servers_path);
+    let adapted = agent.adapt_mcp_servers(
+        serde_json::to_value(&payload.servers)
+            .map_err(|error| ApiError::BadRequest(error.to_string()))?,
+    );
+    let adapted = adapted
+        .as_object()
+        .ok_or_else(|| ApiError::BadRequest("Invalid servers".into()))?;
+    if adapted.len() != payload.servers.len()
+        || adapted.keys().any(|name| servers.contains_key(name))
+    {
+        return Err(ApiError::Conflict(
+            "Invalid or already existing MCP server".into(),
+        ));
+    }
+    servers.extend(
+        adapted
+            .iter()
+            .map(|(name, value)| (name.clone(), value.clone())),
+    );
+    let message = update_mcp_servers_in_config(&path, &config, servers)
+        .await
+        .map_err(|error| ApiError::BadRequest(error.to_string()))?;
+    Ok(ResponseJson(ApiResponse::success(message)))
 }
 
 async fn update_mcp_servers_in_config(

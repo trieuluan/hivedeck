@@ -295,12 +295,14 @@ export function SettingsSelect<T extends string>({
 export function SettingsInput({
   value,
   onChange,
+  ariaLabel,
   placeholder,
   error,
   disabled,
 }: {
   value: string;
   onChange: (value: string) => void;
+  ariaLabel?: string;
   placeholder?: string;
   error?: boolean;
   disabled?: boolean;
@@ -308,6 +310,7 @@ export function SettingsInput({
   return (
     <input
       type="text"
+      aria-label={ariaLabel}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
@@ -326,6 +329,7 @@ export function SettingsInput({
 export function SettingsTextarea({
   value,
   onChange,
+  ariaLabel,
   placeholder,
   disabled,
   rows = 4,
@@ -333,6 +337,7 @@ export function SettingsTextarea({
 }: {
   value: string;
   onChange: (value: string) => void;
+  ariaLabel?: string;
   placeholder?: string;
   disabled?: boolean;
   rows?: number;
@@ -340,6 +345,7 @@ export function SettingsTextarea({
 }) {
   return (
     <textarea
+      aria-label={ariaLabel}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}

@@ -60,7 +60,14 @@ pub async fn read_agent_config(
     config_path: &std::path::Path,
     mcp_config: &McpConfig,
 ) -> Result<Value, ExecutorError> {
-    if let Ok(file_content) = fs::read_to_string(config_path).await {
+    let file_content = match fs::read_to_string(config_path).await {
+        Ok(content) => content,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(mcp_config.template.clone());
+        }
+        Err(error) => return Err(error.into()),
+    };
+    {
         if mcp_config.is_toml_config {
             if file_content.trim().is_empty() {
                 return Ok(serde_json::json!({}));
@@ -80,8 +87,6 @@ pub async fn read_agent_config(
         } else {
             Ok(serde_json::from_str(&file_content)?)
         }
-    } else {
-        Ok(mcp_config.template.clone())
     }
 }
 
@@ -335,7 +340,23 @@ fn adapt_cursor(servers: ServerMap, meta: Option<Value>) -> Value {
 }
 
 fn adapt_codex(mut servers: ServerMap, mut meta: Option<Value>) -> Value {
-    servers.retain(|_, v| v.as_object().map(is_stdio).unwrap_or(false));
+    servers.retain(|_, value| {
+        let Some(server) = value.as_object_mut() else {
+            return false;
+        };
+        if is_http_server(server) {
+            server.remove("type");
+            if let Some(headers) = server.remove("headers") {
+                server.insert("http_headers".to_string(), headers);
+            }
+            true
+        } else if is_stdio(server) {
+            server.remove("type");
+            true
+        } else {
+            false
+        }
+    });
 
     if let Some(Value::Object(ref mut m)) = meta {
         m.retain(|k, _| servers.contains_key(k));
@@ -451,6 +472,10 @@ fn apply_adapter(adapter: Adapter, canonical: Value) -> Value {
 
 impl CodingAgent {
     pub fn preconfigured_mcp(&self) -> Value {
+        self.adapt_mcp_servers(PRECONFIGURED_MCP_SERVERS.clone())
+    }
+
+    pub fn adapt_mcp_servers(&self, canonical: Value) -> Value {
         use Adapter::*;
 
         let adapter = match self {
@@ -467,7 +492,6 @@ impl CodingAgent {
             CodingAgent::QaMock(_) => Passthrough, // QA mock doesn't need MCP
         };
 
-        let canonical = PRECONFIGURED_MCP_SERVERS.clone();
         apply_adapter(adapter, canonical)
     }
 }
@@ -475,6 +499,20 @@ impl CodingAgent {
 #[cfg(test)]
 mod write_tests {
     use super::*;
+
+    #[test]
+    fn codex_adapter_preserves_http_and_stdio_servers() {
+        let input = serde_json::json!({
+            "web": {"type": "http", "url": "https://example.com/mcp", "headers": {"X-Key": "value"}},
+            "local": {"type": "stdio", "command": "npx", "args": ["server"], "env": {"KEY": "value"}}
+        });
+        let result = apply_adapter(Adapter::Codex, input);
+        assert_eq!(result["web"]["url"], "https://example.com/mcp");
+        assert_eq!(result["web"]["http_headers"]["X-Key"], "value");
+        assert!(result["web"].get("type").is_none());
+        assert_eq!(result["local"]["env"]["KEY"], "value");
+        assert!(result["local"].get("type").is_none());
+    }
 
     #[tokio::test]
     async fn preserves_toml_and_backs_up_all_formats() {
