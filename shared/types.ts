@@ -901,6 +901,8 @@ artifact?: string, };
 
 export type UpdateOrchestratorPromptRequest = { orchestrator_prompt: string, };
 
+export type GlobalOrchestratorPromptResponse = { orchestrator_prompt: string, };
+
 export type OrchestratorPromptResponse = { project_id: string, orchestrator_prompt: string, };
 
 export type ResolvedOrchestratorPromptResponse = { project_id: string, orchestrator_prompt: string, source_project_id: string | null, source: OrchestratorPromptSource, };

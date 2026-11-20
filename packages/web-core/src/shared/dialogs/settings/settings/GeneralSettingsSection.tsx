@@ -59,6 +59,82 @@ import {
   SettingsTextarea,
 } from './SettingsComponents';
 import { useSettingsDirty } from './SettingsDirtyContext';
+import { projectsApi } from '@/shared/lib/api';
+
+function GlobalOrchestratorPrompt() {
+  const { t } = useTranslation('common');
+  const { setDirty } = useSettingsDirty();
+  const [draft, setDraft] = useState('');
+  const [saved, setSaved] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    projectsApi
+      .getGlobalOrchestratorPrompt()
+      .then((result) => {
+        if (active) {
+          setDraft(result.orchestrator_prompt);
+          setSaved(result.orchestrator_prompt);
+          setLoading(false);
+        }
+      })
+      .catch((reason: unknown) => {
+        if (active) {
+          setError(String(reason));
+          setLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  useEffect(() => {
+    setDirty('global-orchestrator-prompt', draft !== saved);
+    return () => setDirty('global-orchestrator-prompt', false);
+  }, [draft, saved, setDirty]);
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const result = await projectsApi.putGlobalOrchestratorPrompt(draft);
+      setSaved(result.orchestrator_prompt);
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <SettingsCard
+      title={t('orchestratorPromptEditor.globalTitle')}
+      description={t('orchestratorPromptEditor.globalDescription')}
+    >
+      <SettingsTextarea
+        value={draft}
+        onChange={setDraft}
+        ariaLabel={t('orchestratorPromptEditor.globalTitle')}
+        disabled={loading || saving}
+        rows={8}
+        monospace
+      />
+      {error && (
+        <p role="alert" className="text-sm text-error">
+          {error}
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={save}
+        disabled={loading || saving || draft === saved}
+        className="rounded bg-brand px-base py-1.5 text-sm text-white disabled:opacity-40"
+      >
+        {t('orchestratorPromptEditor.save')}
+      </button>
+    </SettingsCard>
+  );
+}
 
 export function GeneralSettingsSection() {
   const { t } = useTranslation(['settings', 'common']);
@@ -275,6 +351,7 @@ export function GeneralSettingsSection() {
 
   return (
     <>
+      <GlobalOrchestratorPrompt />
       {/* Status messages */}
       {error && (
         <div className="bg-error/10 border border-error/50 rounded-sm p-4 text-error">

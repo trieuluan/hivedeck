@@ -541,6 +541,11 @@
     "projects": "Projects"
   },
   "orchestratorPromptEditor": {
+    "globalTitle": "Global orchestrator prompt",
+    "globalDescription": "Applies to every project. Project and board instructions override conflicting global instructions.",
+    "globalInheritance": "Inherits the global prompt. Project and board instructions take precedence. Preview reflects saved changes.",
+    "inheritedGlobal": "Inherited from global prompt",
+    "preview": "Preview saved prompt stack",
     "title": "Orchestrator prompt",
     "subtitle": "Read by the orchestrator at the start of every tick. Edits apply live — no restart.",
     "inheritedFrom": "Inherited from an ancestor project",

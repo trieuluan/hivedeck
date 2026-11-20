@@ -193,6 +193,7 @@ fn generate_types_content() -> String {
         api_types::AnalyzeFinding::decl(),
         // ADR-016 — board-scoped orchestrator prompts.
         api_types::UpdateOrchestratorPromptRequest::decl(),
+        api_types::GlobalOrchestratorPromptResponse::decl(),
         api_types::OrchestratorPromptResponse::decl(),
         api_types::ResolvedOrchestratorPromptResponse::decl(),
         api_types::OrchestratorPromptSource::decl(),

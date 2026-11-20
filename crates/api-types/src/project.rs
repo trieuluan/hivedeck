@@ -94,6 +94,11 @@ pub struct UpdateOrchestratorPromptRequest {
 }
 
 /// Raw local value for a single project — what the editor edits.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct GlobalOrchestratorPromptResponse {
+    pub orchestrator_prompt: String,
+}
+
 #[derive(Debug, Clone, Serialize, TS)]
 pub struct OrchestratorPromptResponse {
     pub project_id: Uuid,

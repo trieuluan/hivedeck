@@ -163,10 +163,7 @@ export function OrchestratorPromptEditor({
   // resolve says "default", we show "Using default behavior".
   // `source_project_id` should always be set for `ancestor`; keep the check as
   // defense-in-depth against malformed or stale API responses.
-  const showInherited =
-    rawIsEmpty &&
-    resolved?.source === 'ancestor' &&
-    resolved.source_project_id !== null;
+  const showInherited = rawIsEmpty && resolved?.source === 'ancestor';
   const showDefault = rawIsEmpty && resolved?.source === 'default';
 
   return (
@@ -182,16 +179,18 @@ export function OrchestratorPromptEditor({
           )}
         </p>
       </header>
+      <p className="text-sm text-low">
+        {t('orchestratorPromptEditor.globalInheritance')}
+      </p>
 
       {showInherited && (
         <div
           className="rounded-md border border-brand/40 bg-brand/10 px-base py-2 text-sm text-high"
           data-testid="orchestrator-prompt-inherited-from"
         >
-          {t(
-            'orchestratorPromptEditor.inheritedFrom',
-            'Inherited from an ancestor project'
-          )}
+          {resolved?.source_project_id
+            ? t('orchestratorPromptEditor.inheritedFrom')
+            : t('orchestratorPromptEditor.inheritedGlobal')}
         </div>
       )}
       {showDefault && (
@@ -204,6 +203,7 @@ export function OrchestratorPromptEditor({
       )}
 
       <textarea
+        aria-label={t('orchestratorPromptEditor.title')}
         value={draft}
         onChange={(e) => {
           setDraft(e.target.value);
@@ -254,6 +254,22 @@ export function OrchestratorPromptEditor({
           )}
         </div>
       </div>
+      {errorMessage && saveState !== 'error' && (
+        <p role="alert" className="text-sm text-error">
+          {errorMessage}
+        </p>
+      )}
+      {resolved && (
+        <details>
+          <summary className="cursor-pointer text-sm text-high">
+            {t('orchestratorPromptEditor.preview')}
+          </summary>
+          <pre className="mt-2 whitespace-pre-wrap break-words rounded border bg-secondary p-base text-sm text-normal">
+            {resolved.orchestrator_prompt ||
+              t('orchestratorPromptEditor.usingDefault')}
+          </pre>
+        </details>
+      )}
     </section>
   );
 }

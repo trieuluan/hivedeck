@@ -96,6 +96,7 @@ import {
   ConstitutionContent,
   SpecKitFeatureStatus,
   OrchestratorPromptResponse,
+  GlobalOrchestratorPromptResponse,
   ResolvedOrchestratorPromptResponse,
   UpdateOrchestratorPromptRequest,
   Pipeline,
@@ -1805,6 +1806,21 @@ export const projectsApi = {
       `/api/projects/${projectId}/orchestrator-prompt`
     );
     return handleApiResponse<OrchestratorPromptResponse>(response);
+  },
+
+  getGlobalOrchestratorPrompt: async (): Promise<GlobalOrchestratorPromptResponse> => {
+    const response = await makeRequest('/api/orchestrator-prompt/global');
+    return handleApiResponse(response);
+  },
+
+  putGlobalOrchestratorPrompt: async (
+    orchestrator_prompt: string
+  ): Promise<GlobalOrchestratorPromptResponse> => {
+    const response = await makeRequest('/api/orchestrator-prompt/global', {
+      method: 'PUT',
+      body: JSON.stringify({ orchestrator_prompt }),
+    });
+    return handleApiResponse(response);
   },
 
   resolveOrchestratorPrompt: async (

@@ -541,6 +541,11 @@
     "projects": "Project"
   },
   "orchestratorPromptEditor": {
+    "globalTitle": "Prompt điều phối toàn cục",
+    "globalDescription": "Áp dụng cho mọi project. Prompt project và board được ưu tiên khi xung đột.",
+    "globalInheritance": "Kế thừa prompt toàn cục. Prompt project và board được ưu tiên. Bản xem trước phản ánh nội dung đã lưu.",
+    "inheritedGlobal": "Kế thừa prompt toàn cục",
+    "preview": "Xem stack prompt đã lưu",
     "title": "Prompt cho thuyền trưởng",
     "subtitle": "Thuyền trưởng đọc prompt này ở đầu mỗi lượt. Sửa là áp dụng ngay, không cần khởi động lại.",
     "inheritedFrom": "Kế thừa từ project cha",

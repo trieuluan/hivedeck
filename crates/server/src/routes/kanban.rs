@@ -16,15 +16,16 @@ use std::{
 };
 
 use api_types::{
-    CreateIssueRelationshipRequest, CreateIssueRequest, CreateIssueTagRequest, Issue as ApiIssue,
-    IssuePriority, IssueRelationship as ApiIssueRelationship, IssueRelationshipType,
-    IssueSortField, IssueTag as ApiIssueTag, ListIssueRelationshipsQuery,
-    ListIssueRelationshipsResponse, ListIssueTagsResponse, ListIssuesResponse,
-    ListProjectStatusesResponse, ListProjectsResponse, ListPullRequestsResponse, ListTagsResponse,
-    MutationResponse, OrchestratorPromptResponse, OrchestratorPromptSource, Project as ApiProject,
-    ProjectStatus as ApiProjectStatus, PullRequest as ApiPullRequest, PullRequestStatus,
-    ResolvedOrchestratorPromptResponse, SearchIssuesRequest, SortDirection, Tag as ApiTag,
-    UpdateIssueRequest, UpdateOrchestratorPromptRequest,
+    CreateIssueRelationshipRequest, CreateIssueRequest, CreateIssueTagRequest,
+    GlobalOrchestratorPromptResponse, Issue as ApiIssue, IssuePriority,
+    IssueRelationship as ApiIssueRelationship, IssueRelationshipType, IssueSortField,
+    IssueTag as ApiIssueTag, ListIssueRelationshipsQuery, ListIssueRelationshipsResponse,
+    ListIssueTagsResponse, ListIssuesResponse, ListProjectStatusesResponse, ListProjectsResponse,
+    ListPullRequestsResponse, ListTagsResponse, MutationResponse, OrchestratorPromptResponse,
+    OrchestratorPromptSource, Project as ApiProject, ProjectStatus as ApiProjectStatus,
+    PullRequest as ApiPullRequest, PullRequestStatus, ResolvedOrchestratorPromptResponse,
+    SearchIssuesRequest, SortDirection, Tag as ApiTag, UpdateIssueRequest,
+    UpdateOrchestratorPromptRequest,
 };
 use axum::{
     Router,
@@ -907,32 +908,62 @@ async fn resolve_project_orchestrator_prompt(
     resolve_project_orchestrator_prompt_with_pool(&deployment.db().pool, id).await
 }
 
+async fn get_global_orchestrator_prompt(
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<GlobalOrchestratorPromptResponse>>, ApiError> {
+    get_global_orchestrator_prompt_with_pool(&deployment.db().pool).await
+}
+
+async fn get_global_orchestrator_prompt_with_pool(
+    pool: &sqlx::SqlitePool,
+) -> Result<ResponseJson<ApiResponse<GlobalOrchestratorPromptResponse>>, ApiError> {
+    let orchestrator_prompt = DbProject::get_global_orchestrator_prompt(pool).await?;
+    Ok(ok(GlobalOrchestratorPromptResponse {
+        orchestrator_prompt,
+    }))
+}
+
+async fn put_global_orchestrator_prompt(
+    State(deployment): State<DeploymentImpl>,
+    Json(req): Json<UpdateOrchestratorPromptRequest>,
+) -> Result<ResponseJson<ApiResponse<GlobalOrchestratorPromptResponse>>, ApiError> {
+    put_global_orchestrator_prompt_with_pool(&deployment.db().pool, req).await
+}
+
+async fn put_global_orchestrator_prompt_with_pool(
+    pool: &sqlx::SqlitePool,
+    req: UpdateOrchestratorPromptRequest,
+) -> Result<ResponseJson<ApiResponse<GlobalOrchestratorPromptResponse>>, ApiError> {
+    let orchestrator_prompt =
+        DbProject::update_global_orchestrator_prompt(pool, &req.orchestrator_prompt).await?;
+    Ok(ok(GlobalOrchestratorPromptResponse {
+        orchestrator_prompt,
+    }))
+}
+
 async fn resolve_project_orchestrator_prompt_with_pool(
     pool: &sqlx::SqlitePool,
     id: Uuid,
 ) -> Result<ResponseJson<ApiResponse<ResolvedOrchestratorPromptResponse>>, ApiError> {
     let (prompt, source_project_id) = DbProject::resolve_orchestrator_prompt(pool, id).await?;
+    let has_prompt = !prompt.is_empty();
     Ok(ok(ResolvedOrchestratorPromptResponse {
         project_id: id,
         orchestrator_prompt: prompt,
         source_project_id,
-        source: resolve_source_kind(id, source_project_id),
+        source: resolve_source_kind(id, source_project_id, has_prompt),
     }))
 }
 
-/// Map `(path_id, source_project_id)` to the wire `OrchestratorPromptSource`
-/// enum. Pulled out so the mapping can be unit-tested without standing up an
-/// axum handler. The resolver walks the chain collecting a stack of prompts;
-/// `source_project_id` is the id of the MOST-SPECIFIC (first / top-of-stack)
-/// prompt — i.e. the queried row if it had a prompt, else the nearest
-/// ancestor that did. If that id equals `path_id`, the local row is on the
-/// stack (`Self_`); if not, only ancestors contributed (`Ancestor`). `None`
-/// means no prompt at any scope (`Default`). This avoids the second
-/// `find_by_id` round-trip the original handler had.
-fn resolve_source_kind(path_id: Uuid, source_project_id: Option<Uuid>) -> OrchestratorPromptSource {
+fn resolve_source_kind(
+    path_id: Uuid,
+    source_project_id: Option<Uuid>,
+    has_prompt: bool,
+) -> OrchestratorPromptSource {
     match source_project_id {
         Some(source_id) if source_id == path_id => OrchestratorPromptSource::Self_,
         Some(_) => OrchestratorPromptSource::Ancestor,
+        None if has_prompt => OrchestratorPromptSource::Ancestor,
         None => OrchestratorPromptSource::Default,
     }
 }
@@ -959,6 +990,10 @@ pub fn router(_deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
         .route(
             "/projects/{id}/orchestrator-prompt/resolve",
             get(resolve_project_orchestrator_prompt),
+        )
+        .route(
+            "/orchestrator-prompt/global",
+            get(get_global_orchestrator_prompt).put(put_global_orchestrator_prompt),
         )
         .route("/issues", get(list_issues).post(create_issue))
         .route("/issues/search", post(search_issues))
@@ -1556,27 +1591,184 @@ mod tests {
     /// at any scope). The mapping now uses ONLY `(path_id,
     /// source_project_id)` — no second `find_by_id` call — so the test
     /// verifies that contract.
+    #[tokio::test]
+    async fn global_orchestrator_prompt_applies_to_all_projects() {
+        use super::{
+            ApiError, ApiResponse, Json, Path, ResolvedOrchestratorPromptResponse, ResponseJson,
+            State, UpdateOrchestratorPromptRequest,
+        };
+        use axum::{
+            Router,
+            body::{Body, to_bytes},
+            http::{Request, StatusCode},
+            routing::get,
+        };
+        use serde_json::{Value, json};
+        use tower::ServiceExt;
+
+        let pool = pool().await;
+        let p1 = Uuid::new_v4();
+        let p2 = Uuid::new_v4();
+        for (id, name) in [(p1, "One"), (p2, "Two")] {
+            DbProject::create(
+                &pool,
+                NewProject {
+                    id,
+                    name,
+                    key: None,
+                    color: "#6366f1",
+                    sort_order: 0,
+                    default_agent_working_dir: None,
+                    parent_id: None,
+                },
+            )
+            .await
+            .unwrap();
+            if id == p1 {
+                DbProject::update_orchestrator_prompt(&pool, p1, "first project")
+                    .await
+                    .unwrap();
+            }
+        }
+        assert!(
+            DbProject::find_by_id(&pool, p2)
+                .await
+                .unwrap()
+                .unwrap()
+                .orchestrator_prompt
+                .is_empty()
+        );
+        DbProject::update_orchestrator_prompt(&pool, p1, "")
+            .await
+            .unwrap();
+        DbProject::update_orchestrator_prompt(&pool, p2, "project two only")
+            .await
+            .unwrap();
+
+        async fn get_global(
+            State(pool): State<SqlitePool>,
+        ) -> Result<ResponseJson<ApiResponse<api_types::GlobalOrchestratorPromptResponse>>, ApiError>
+        {
+            super::get_global_orchestrator_prompt_with_pool(&pool).await
+        }
+        async fn put_global(
+            State(pool): State<SqlitePool>,
+            Json(req): Json<UpdateOrchestratorPromptRequest>,
+        ) -> Result<ResponseJson<ApiResponse<api_types::GlobalOrchestratorPromptResponse>>, ApiError>
+        {
+            super::put_global_orchestrator_prompt_with_pool(&pool, req).await
+        }
+        async fn resolve_prompt(
+            State(pool): State<SqlitePool>,
+            Path(id): Path<Uuid>,
+        ) -> Result<ResponseJson<ApiResponse<ResolvedOrchestratorPromptResponse>>, ApiError>
+        {
+            super::resolve_project_orchestrator_prompt_with_pool(&pool, id).await
+        }
+
+        let app = Router::new()
+            .route(
+                "/api/orchestrator-prompt/global",
+                get(get_global).put(put_global),
+            )
+            .route(
+                "/api/projects/{id}/orchestrator-prompt/resolve",
+                get(resolve_prompt),
+            )
+            .with_state(pool);
+
+        let put_resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/api/orchestrator-prompt/global")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        json!({ "orchestrator_prompt": "require tags" }).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(put_resp.status(), StatusCode::OK);
+
+        let r1: Value = serde_json::from_slice(
+            &to_bytes(
+                app.clone()
+                    .oneshot(
+                        Request::builder()
+                            .uri(format!("/api/projects/{p1}/orchestrator-prompt/resolve"))
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap()
+                    .into_body(),
+                usize::MAX,
+            )
+            .await
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(r1["data"]["source"], "ancestor");
+        assert!(r1["data"]["source_project_id"].is_null());
+        assert!(
+            r1["data"]["orchestrator_prompt"]
+                .as_str()
+                .unwrap()
+                .contains("[Global: require tags]")
+        );
+
+        let r2: Value = serde_json::from_slice(
+            &to_bytes(
+                app.oneshot(
+                    Request::builder()
+                        .uri(format!("/api/projects/{p2}/orchestrator-prompt/resolve"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap()
+                .into_body(),
+                usize::MAX,
+            )
+            .await
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(r2["data"]["source"], "self");
+        assert_eq!(r2["data"]["source_project_id"], json!(p2));
+        let p2_text = r2["data"]["orchestrator_prompt"].as_str().unwrap();
+        assert!(
+            p2_text.find("[Project: project two only]").unwrap()
+                < p2_text.find("[Global: require tags]").unwrap()
+        );
+    }
+
     #[test]
     fn resolve_source_kind_maps_path_and_source_to_wire_enum() {
         use api_types::OrchestratorPromptSource;
         let path_id = Uuid::new_v4();
         let ancestor_id = Uuid::new_v4();
 
-        // Resolver returned the local row → `Self_`.
         assert!(matches!(
-            super::resolve_source_kind(path_id, Some(path_id)),
+            super::resolve_source_kind(path_id, Some(path_id), true),
             OrchestratorPromptSource::Self_
         ));
 
-        // Resolver returned an ancestor id (≠ path_id) → `Ancestor`.
         assert!(matches!(
-            super::resolve_source_kind(path_id, Some(ancestor_id)),
+            super::resolve_source_kind(path_id, Some(ancestor_id), true),
             OrchestratorPromptSource::Ancestor
         ));
 
-        // Resolver returned nothing → `Default`.
         assert!(matches!(
-            super::resolve_source_kind(path_id, None),
+            super::resolve_source_kind(path_id, None, true),
+            OrchestratorPromptSource::Ancestor
+        ));
+
+        assert!(matches!(
+            super::resolve_source_kind(path_id, None, false),
             OrchestratorPromptSource::Default
         ));
 

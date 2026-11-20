@@ -43,15 +43,15 @@ impl McpServer {
     ///
     /// Stack semantics (ADR-016 stack amendment): `orchestrator_prompt` is
     /// a STACK of every non-empty prompt in the parent chain, rendered as
-    /// a mandatory-preamble + labeled `[Board: …]` / `[Project: …]`
-    /// sections (board-level first, project-level last). The preamble
+    /// a mandatory-preamble + labeled `[Board: …]` / `[Project: …]` /
+    /// `[Global: …]` sections, most specific first. The preamble
     /// tells the LLM how to apply the stack (specific overrides broad on
-    /// direct conflict; otherwise additive; project-level is the
+    /// direct conflict; otherwise additive; global is the
     /// baseline). The orchestrator plugin consumes only the
     /// `orchestrator_prompt` string — no plugin change needed for the
     /// stack.
     #[tool(
-        description = "Resolve the orchestrator prompt for a project as a STACK of every non-empty prompt in the parent chain (board-level first, project-level last), with a mandatory preamble the orchestrator must follow. The orchestrator calls this every tick with the current card's project_id. `source` is 'self' (this row supplied the most-specific section), 'ancestor' (a parent did), or 'default' (no prompt at any scope — use built-in behavior)."
+        description = "Resolve the orchestrator prompt as a stack, most specific first: board, project, then global. The orchestrator calls this every tick with the current card's project_id. `source` is 'self' (this row supplied the most-specific section), 'ancestor' (a parent or global did), or 'default' (no prompt)."
     )]
     async fn get_orchestrator_prompt(
         &self,

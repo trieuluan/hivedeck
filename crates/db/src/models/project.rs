@@ -314,20 +314,20 @@ impl Project {
     /// ADR-016 (stack amendment): walk the parent chain `self → root`
     /// collecting EVERY non-empty (trimmed) `orchestrator_prompt` as a
     /// labeled stack — most-specific (the queried row, board-level) first,
-    /// broadest (root, project-level) last. The returned `String` is the
+    /// followed by the global prompt. The returned `String` is the
     /// rendered stack: a fixed mandatory preamble (telling the
     /// orchestrator LLM how to treat the stack) followed by `[Board: …]`
-    /// / `[Project: …]` sections. The returned `Option<Uuid>` is the id of
+    /// / `[Project: …]` / `[Global: …]` sections. The returned `Option<Uuid>` is the id of
     /// the MOST-SPECIFIC prompt's row (the top-of-stack); the wire
     /// `source` enum derives from it exactly as before (`Self_` if it
-    /// equals the queried id, `Ancestor` if a parent supplied it, `Default`
-    /// when empty).
+    /// equals the queried id, `Ancestor` if a parent or global supplied it,
+    /// `Default` when empty).
     ///
     /// Non-root rows (parent_id non-null) label as `Board`; the root row
     /// (parent_id null) labels as `Project`. Each scope that has a prompt
     /// contributes its own labeled section — absent scopes are omitted.
     /// Resolving a board with both prompts set yields two sections;
-    /// resolving the root project yields just `[Project: …]`.
+    /// resolving the root project includes `[Project: …]` and global if set.
     ///
     /// All-empty / missing-row / cycle / hop-overflow ⇒ `("", None)` —
     /// same abort semantics as the single-prompt resolver, so corrupt
@@ -348,14 +348,11 @@ impl Project {
         let mut current = Some(id);
         let mut seen: std::collections::HashSet<Uuid> = std::collections::HashSet::new();
         let mut hops = 0usize;
-        // Walk-order collection of non-empty prompts: (text, supplier_id,
-        // is_root). is_root drives the `Board` vs `Project` label.
-        let mut stack: Vec<(String, Uuid, bool)> = Vec::new();
+        let mut stack: Vec<(String, PromptScope)> = Vec::new();
+        let mut source_project_id: Option<Uuid> = None;
 
         while let Some(project_id) = current {
             if !seen.insert(project_id) {
-                // Cycle: abort to empty (don't emit a partial stack from
-                // corrupt data — matches the pre-stack semantics).
                 return Ok((String::new(), None));
             }
             if hops >= MAX_HOPS {
@@ -369,59 +366,93 @@ impl Project {
                     .fetch_optional(pool)
                     .await?;
             let Some((prompt, parent_id)) = row else {
-                // Row vanished mid-walk — abort to empty.
                 return Ok((String::new(), None));
             };
             let prompt = prompt.unwrap_or_default();
-            let is_root = parent_id.is_none();
+            let scope = if parent_id.is_none() {
+                PromptScope::Project
+            } else {
+                PromptScope::Board
+            };
             let trimmed = prompt.trim();
             if !trimmed.is_empty() {
-                // Trimmed for the stack (cleaner LLM input); the editor
-                // reads the raw value separately via the GET endpoint, so
-                // no fidelity loss for the operator.
-                stack.push((trimmed.to_string(), project_id, is_root));
+                if source_project_id.is_none() {
+                    source_project_id = Some(project_id);
+                }
+                stack.push((trimmed.to_string(), scope));
             }
             current = parent_id;
+        }
+
+        let global_prompt = Self::get_global_orchestrator_prompt(pool).await?;
+        let global_trimmed = global_prompt.trim();
+        if !global_trimmed.is_empty() {
+            stack.push((global_trimmed.to_string(), PromptScope::Global));
         }
 
         if stack.is_empty() {
             return Ok((String::new(), None));
         }
-        // Top-of-stack = first non-empty in walk order = queried row if it
-        // had a prompt, else the nearest ancestor that did. This id drives
-        // the wire `source` enum exactly as before.
-        let source_project_id = stack[0].1;
-        Ok((
-            render_orchestrator_prompt_stack(&stack),
-            Some(source_project_id),
-        ))
+        Ok((render_orchestrator_prompt_stack(&stack), source_project_id))
+    }
+
+    pub async fn get_global_orchestrator_prompt(pool: &SqlitePool) -> Result<String, sqlx::Error> {
+        let value: Option<String> =
+            sqlx::query_scalar("SELECT value FROM app_settings WHERE key = ?")
+                .bind(GLOBAL_ORCHESTRATOR_PROMPT_KEY)
+                .fetch_optional(pool)
+                .await?;
+        Ok(value.unwrap_or_default())
+    }
+
+    pub async fn update_global_orchestrator_prompt(
+        pool: &SqlitePool,
+        prompt: &str,
+    ) -> Result<String, sqlx::Error> {
+        sqlx::query(
+            "INSERT INTO app_settings (key, value, updated_at)
+             VALUES (?, ?, datetime('now', 'subsec'))
+             ON CONFLICT(key) DO UPDATE SET
+               value = excluded.value,
+               updated_at = excluded.updated_at",
+        )
+        .bind(GLOBAL_ORCHESTRATOR_PROMPT_KEY)
+        .bind(prompt)
+        .execute(pool)
+        .await?;
+        Ok(prompt.to_string())
     }
 }
 
-/// ADR-016 (stack amendment): render the collected non-empty prompts as
-/// the payload the orchestrator LLM consumes. The preamble is a fixed
-/// mandatory instruction block — it tells the LLM the text is a scoped
-/// stack, how to order precedence (specific overrides broad on direct
-/// conflict; otherwise additive), and that the project-level section is
-/// the baseline. The XML-ish tags delimit the block so the LLM can
-/// cleanly separate it from surrounding tick context.
-///
-/// Section labels: `Board` for non-root rows, `Project` for the root row.
-/// Sections are emitted in walk order (most-specific first) and joined by
-/// a blank line for readability.
-fn render_orchestrator_prompt_stack(stack: &[(String, Uuid, bool)]) -> String {
+const GLOBAL_ORCHESTRATOR_PROMPT_KEY: &str = "global_orchestrator_prompt";
+
+#[derive(Clone, Copy)]
+enum PromptScope {
+    Board,
+    Project,
+    Global,
+}
+
+impl PromptScope {
+    fn label(self) -> &'static str {
+        match self {
+            PromptScope::Board => "Board",
+            PromptScope::Project => "Project",
+            PromptScope::Global => "Global",
+        }
+    }
+}
+
+fn render_orchestrator_prompt_stack(stack: &[(String, PromptScope)]) -> String {
     const PREAMBLE: &str = "This is a STACK of scoped orchestrator prompts, \
-        ordered most-specific first (board-level) to broadest last (project-level). \
+        ordered most-specific first (board-level) to broadest last (global-level). \
         MANDATORY: follow every section. On a direct conflict between sections, \
         the earlier (more-specific) section overrides the later (broader) one. \
         Where there is no conflict, all sections apply additively; the \
-        project-level section is the baseline that always holds.";
+        global-level section is the baseline that holds unless overridden.";
     let sections: Vec<String> = stack
         .iter()
-        .map(|(text, _id, is_root)| {
-            let label = if *is_root { "Project" } else { "Board" };
-            format!("[{label}: {text}]")
-        })
+        .map(|(text, scope)| format!("[{}: {text}]", scope.label()))
         .collect();
     format!(
         "<orchestrator_prompt_stack>\n{preamble}\n\n{sections}\n</orchestrator_prompt_stack>",
@@ -953,6 +984,99 @@ mod tests {
         .await
         .expect("resolve_orchestrator_prompt must NOT hang on a cycle");
         let (got, source) = result.unwrap();
+        assert_eq!(got, "");
+        assert_eq!(source, None);
+    }
+
+    #[tokio::test]
+    async fn resolve_orchestrator_prompt_includes_global_baseline() {
+        let pool = pool().await;
+        let root_id = Uuid::new_v4();
+        let child_id = Uuid::new_v4();
+
+        Project::create(
+            &pool,
+            NewProject {
+                id: root_id,
+                name: "Root",
+                key: Some("ROOT"),
+                color: "#6366f1",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: None,
+            },
+        )
+        .await
+        .unwrap();
+        Project::create(
+            &pool,
+            NewProject {
+                id: child_id,
+                name: "Child",
+                key: Some("CHILD"),
+                color: "#6366f1",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: Some(root_id),
+            },
+        )
+        .await
+        .unwrap();
+
+        // Global only: returns [Global: ...], source_project_id = None
+        Project::update_global_orchestrator_prompt(&pool, "always tag issues")
+            .await
+            .unwrap();
+        let (got, source) = Project::resolve_orchestrator_prompt(&pool, root_id)
+            .await
+            .unwrap();
+        assert!(got.contains("[Global: always tag issues]"));
+        assert!(!got.contains("[Project:"));
+        assert!(got.contains("MANDATORY"));
+        assert_eq!(source, None);
+
+        // Whitespace-only global ignored
+        Project::update_global_orchestrator_prompt(&pool, " \n ")
+            .await
+            .unwrap();
+        let (got, source) = Project::resolve_orchestrator_prompt(&pool, root_id)
+            .await
+            .unwrap();
+        assert_eq!(got, "");
+        assert_eq!(source, None);
+
+        // Both project and global: project before global, source = root_id
+        Project::update_global_orchestrator_prompt(&pool, "global rule")
+            .await
+            .unwrap();
+        Project::update_orchestrator_prompt(&pool, root_id, "project override")
+            .await
+            .unwrap();
+        let (got, source) = Project::resolve_orchestrator_prompt(&pool, root_id)
+            .await
+            .unwrap();
+        let proj_idx = got.find("[Project: project override]").unwrap();
+        let glob_idx = got.find("[Global: global rule]").unwrap();
+        assert!(proj_idx < glob_idx);
+        assert_eq!(source, Some(root_id));
+
+        // Board + project + global: board < project < global, source = child_id
+        Project::update_orchestrator_prompt(&pool, child_id, "board override")
+            .await
+            .unwrap();
+        let (got, source) = Project::resolve_orchestrator_prompt(&pool, child_id)
+            .await
+            .unwrap();
+        let board_idx = got.find("[Board: board override]").unwrap();
+        let proj_idx = got.find("[Project: project override]").unwrap();
+        let glob_idx = got.find("[Global: global rule]").unwrap();
+        assert!(board_idx < proj_idx && proj_idx < glob_idx);
+        assert_eq!(source, Some(child_id));
+
+        // Missing project does not return global prompt
+        let (got, source) = Project::resolve_orchestrator_prompt(&pool, Uuid::new_v4())
+            .await
+            .unwrap();
         assert_eq!(got, "");
         assert_eq!(source, None);
     }
