@@ -433,8 +433,24 @@ fn stage_source(
     source: &str,
     commit: Option<&str>,
     tag: Option<&str>,
+    allow_marketplace_head: bool,
 ) -> Result<(TempDir, PathBuf, Option<String>, Option<String>), PluginError> {
-    let trimmed = source.trim();
+    let original = source.trim();
+    let marketplace = original.strip_prefix("marketplace+");
+    let (trimmed, subdir) = match marketplace {
+        Some(value) => {
+            let (repo, path) = value.split_once('#').unwrap_or((value, ""));
+            if !is_remote_source(repo)
+                || path
+                    .split('/')
+                    .any(|part| part == ".." || part.starts_with('.'))
+            {
+                return Err(PluginError::BadRequest("Invalid marketplace source".into()));
+            }
+            (repo, path)
+        }
+        None => (original, ""),
+    };
     if trimmed.is_empty() {
         return Err(PluginError::BadRequest("Plugin source is required".into()));
     }
@@ -445,7 +461,11 @@ fn stage_source(
         validate_tag_pin(tag_pin)?;
     }
     let remote = is_remote_source(trimmed);
-    if remote && commit.is_none() && tag.is_none() {
+    if remote
+        && commit.is_none()
+        && tag.is_none()
+        && !(marketplace.is_some() && allow_marketplace_head)
+    {
         return Err(PluginError::BadRequest(
             "Remote plugin source requires a commit or tag pin".into(),
         ));
@@ -480,6 +500,7 @@ fn stage_source(
         let target_ref = tag
             .map(|tag_name| format!("refs/tags/{tag_name}"))
             .or_else(|| commit.map(str::to_owned))
+            .or_else(|| marketplace.map(|_| "HEAD".to_owned()))
             .ok_or_else(|| PluginError::BadRequest("Missing commit or tag pin".into()))?;
         let checkout_out = Command::new("git")
             .arg("-C")
@@ -518,7 +539,13 @@ fn stage_source(
             )));
         }
         let _ = fs::remove_dir_all(dest.join(".git"));
-        Ok((staging, dest, Some(resolved_sha), tag.map(str::to_owned)))
+        let root = fs::canonicalize(dest.join(subdir))?;
+        if !root.starts_with(fs::canonicalize(&dest)?) || !root.is_dir() {
+            return Err(PluginError::BadRequest(
+                "Invalid marketplace directory".into(),
+            ));
+        }
+        Ok((staging, root, Some(resolved_sha), tag.map(str::to_owned)))
     } else {
         let source_path = Path::new(trimmed);
         if !source_path.is_dir() {
@@ -916,9 +943,18 @@ struct ParsedManifest {
     unsupported: Vec<String>,
 }
 
+fn marketplace_fallback_version(source: &str, commit: Option<&str>) -> Option<String> {
+    source
+        .trim()
+        .starts_with("marketplace+")
+        .then(|| commit.map(|sha| sha.chars().take(12).collect()))
+        .flatten()
+}
+
 fn parse_manifest(
     root: &Path,
     expected_version: Option<&str>,
+    fallback_version: Option<&str>,
     default_roles: &[String],
     default_boards: &[String],
     default_skill_clis: &[String],
@@ -958,6 +994,7 @@ fn parse_manifest(
         .filter(|val| {
             !val.is_empty() && !val.chars().any(|ch| ch.is_control() || ch.is_whitespace())
         })
+        .or(fallback_version)
         .ok_or_else(|| PluginError::BadRequest("Manifest missing required 'version'".into()))?;
     if let Some(pinned) = expected_version
         && version != pinned.trim()
@@ -1355,11 +1392,16 @@ pub fn install_plugin(
     validate_roles(&default_roles)?;
     validate_clis(&default_skill_clis)?;
 
-    let (_staging, staged_root, resolved_commit, resolved_tag) =
-        stage_source(&req.source, req.commit.as_deref(), req.tag.as_deref())?;
+    let (_staging, staged_root, resolved_commit, resolved_tag) = stage_source(
+        &req.source,
+        req.commit.as_deref(),
+        req.tag.as_deref(),
+        false,
+    )?;
     let mut parsed = parse_manifest(
         &staged_root,
         req.version.as_deref(),
+        marketplace_fallback_version(&req.source, resolved_commit.as_deref()).as_deref(),
         &default_roles,
         &default_boards,
         &default_skill_clis,
@@ -1482,10 +1524,11 @@ pub fn preview_plugin(req: InstallPluginRequest) -> Result<InstalledPlugin, Plug
     validate_roles(&roles)?;
     validate_clis(&skill_clis)?;
     let (_staging, staged_root, commit, tag) =
-        stage_source(&req.source, req.commit.as_deref(), req.tag.as_deref())?;
+        stage_source(&req.source, req.commit.as_deref(), req.tag.as_deref(), true)?;
     let parsed = parse_manifest(
         &staged_root,
         req.version.as_deref(),
+        marketplace_fallback_version(&req.source, commit.as_deref()).as_deref(),
         &roles,
         &boards,
         &skill_clis,
@@ -1572,10 +1615,11 @@ pub fn upgrade_plugin(
     });
 
     let (_staging, staged_root, resolved_commit, resolved_tag) =
-        stage_source(&source, commit.as_deref(), tag.as_deref())?;
+        stage_source(&source, commit.as_deref(), tag.as_deref(), false)?;
     let mut parsed = parse_manifest(
         &staged_root,
         req.version.as_deref(),
+        marketplace_fallback_version(&source, resolved_commit.as_deref()).as_deref(),
         &default_roles(),
         &[],
         &[],
@@ -2072,6 +2116,68 @@ pub fn opencode_skills_config(skill_dirs: &[PathBuf], existing: Option<&str>) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn marketplace_subdirectory_is_pinned_and_confined() {
+        let repo = TempDir::new().unwrap();
+        fs::create_dir(repo.path().join("plugin")).unwrap();
+        fs::write(repo.path().join("plugin/data"), "fixture").unwrap();
+        fs::create_dir(repo.path().join("plugin/.claude-plugin")).unwrap();
+        fs::write(
+            repo.path().join("plugin/.claude-plugin/plugin.json"),
+            r#"{"name":"nover"}"#,
+        )
+        .unwrap();
+        for args in [
+            vec!["init"],
+            vec!["add", "."],
+            vec![
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@example.com",
+                "commit",
+                "-m",
+                "fixture",
+            ],
+        ] {
+            assert!(
+                Command::new("git")
+                    .arg("-C")
+                    .arg(repo.path())
+                    .args(args)
+                    .output()
+                    .unwrap()
+                    .status
+                    .success()
+            );
+        }
+        let source = format!("marketplace+file://{}#plugin", repo.path().display());
+        let (_stage, root, commit, _) = stage_source(&source, None, None, true).unwrap();
+        assert_eq!(fs::read_to_string(root.join("data")).unwrap(), "fixture");
+        let preview = preview_plugin(InstallPluginRequest {
+            source: source.clone(),
+            ..Default::default()
+        })
+        .unwrap();
+        assert_eq!(preview.name, "nover");
+        assert_eq!(preview.commit.as_deref(), commit.as_deref());
+        assert_eq!(
+            preview.version,
+            commit.as_deref().unwrap()[..12].to_string()
+        );
+        assert!(stage_source(&source, None, None, false).is_err());
+        assert!(stage_source(&source, commit.as_deref(), None, false).is_ok());
+        assert!(
+            stage_source(
+                &format!("marketplace+file://{}#../outside", repo.path().display()),
+                None,
+                None,
+                true
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn legacy_migration_is_restart_safe_and_preserves_scope_and_secrets() {

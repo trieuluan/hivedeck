@@ -963,7 +963,9 @@
       "title": "Tiện ích",
       "marketplace": {
         "title": "Danh mục plugin Claude",
-        "description": "Hiển thị thành phần được khai báo; chưa xác minh tương thích. Không tải plugin.",
+        "description": "Duyệt plugin và xem trước thành phần trước khi cài.",
+        "install": "Cài",
+        "installed": "Đã cài",
         "refresh": "Làm mới",
         "search": "Tìm theo tên, mô tả hoặc tag",
         "loading": "Đang tải danh mục…",

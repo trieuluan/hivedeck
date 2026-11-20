@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type {
   ConflictPolicy,
@@ -31,10 +31,16 @@ export function AddPluginDialog({
   open,
   onClose,
   onInstalled,
+  initialSource,
+  initialCommit,
+  onPreview,
 }: {
   open: boolean;
   onClose: () => void;
   onInstalled: (plugin: PluginView) => void;
+  initialSource?: string;
+  initialCommit?: string;
+  onPreview?: (plugin: InstalledPlugin) => void;
 }) {
   const { t } = useTranslation('settings');
   const [source, setSource] = useState('');
@@ -50,6 +56,13 @@ export function AddPluginDialog({
   const [conflicts, setConflicts] = useState<PluginConflict[]>([]);
   const [busy, setBusy] = useState<'preview' | 'install' | null>(null);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (open && initialSource) {
+      setSource(initialSource);
+      setCommit(initialCommit ?? '');
+    }
+  }, [open, initialSource, initialCommit]);
 
   const reset = () => {
     setSource('');
@@ -121,7 +134,9 @@ export function AddPluginDialog({
     setBusy('preview');
     setError('');
     try {
-      setPreview(await pluginsApi.preview(input()));
+      const result = await pluginsApi.preview(input());
+      setPreview(result);
+      onPreview?.(result);
       setSecrets({});
       setConflicts([]);
     } catch (reason) {
@@ -145,6 +160,9 @@ export function AddPluginDialog({
     try {
       const installed = await pluginsApi.install({
         ...input(),
+        commit: source.startsWith('marketplace+')
+          ? (preview.commit ?? '')
+          : commit,
         conflictPolicy: policy,
         secrets: grouped,
       });

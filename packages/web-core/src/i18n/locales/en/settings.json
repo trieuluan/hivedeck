@@ -963,7 +963,9 @@
       "title": "Extensions",
       "marketplace": {
         "title": "Claude plugin marketplace",
-        "description": "Browse declared components; compatibility is not verified. No plugins are downloaded.",
+        "description": "Browse plugins and preview their components before installing.",
+        "install": "Install",
+        "installed": "Installed",
         "refresh": "Refresh",
         "search": "Search by name, description or tag",
         "loading": "Loading catalog…",

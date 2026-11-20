@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SpinnerIcon } from '@phosphor-icons/react';
-import type { PluginView } from 'shared/types';
+import type { InstalledPlugin, PluginView } from 'shared/types';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
 import { Switch } from '@vibe/ui/components/Switch';
 import { SettingsCard } from './SettingsComponents';
@@ -21,6 +21,12 @@ export function PluginsSettingsSection() {
   const [loadError, setLoadError] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [marketplace, setMarketplace] = useState<{
+    source: string;
+    commit: string | null;
+    key: string;
+  } | null>(null);
+  const [previews, setPreviews] = useState<Record<string, InstalledPlugin>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [latest, setLatest] = useState<Record<string, string>>({});
   const [notice, notify] = useNotice();
@@ -243,12 +249,23 @@ export function PluginsSettingsSection() {
         <ImportFromCli notify={notify} onImported={reload} />
         <AddPluginDialog
           open={adding}
+          initialSource={marketplace?.source}
+          initialCommit={marketplace?.commit ?? undefined}
+          onPreview={(preview) =>
+            marketplace &&
+            setPreviews((previous) => ({
+              ...previous,
+              [marketplace.key]: preview,
+            }))
+          }
           onClose={() => {
             setAdding(false);
+            setMarketplace(null);
             requestAnimationFrame(() => addButton.current?.focus());
           }}
           onInstalled={(installed) => {
             setAdding(false);
+            setMarketplace(null);
             void reload();
             notify({
               kind: 'ok',
@@ -259,7 +276,14 @@ export function PluginsSettingsSection() {
           }}
         />
       </SettingsCard>
-      <MarketplaceCatalog />
+      <MarketplaceCatalog
+        plugins={plugins}
+        previews={previews}
+        onInstall={(source, commit, key) => {
+          setMarketplace({ source, commit, key });
+          setAdding(true);
+        }}
+      />
     </div>
   );
 }

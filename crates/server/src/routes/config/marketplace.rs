@@ -19,6 +19,8 @@ struct Plugin {
     description: String,
     version: Option<String>,
     source: Value,
+    install_source: Option<String>,
+    install_commit: Option<String>,
     marketplace: String,
     tags: Vec<String>,
     components: Vec<String>,
@@ -59,6 +61,8 @@ fn parse(body: &str, repo: &str) -> Result<Vec<Plugin>, serde_json::Error> {
                 })
                 .map(str::to_owned)
                 .collect();
+            let source = entry.get("source").cloned().unwrap_or(Value::Null);
+            let (install_source, install_commit) = map_source(&source, repo).unwrap_or_default();
             Some(Plugin {
                 name,
                 description: entry
@@ -70,13 +74,47 @@ fn parse(body: &str, repo: &str) -> Result<Vec<Plugin>, serde_json::Error> {
                     .get("version")
                     .and_then(Value::as_str)
                     .map(str::to_owned),
-                source: entry.get("source").cloned().unwrap_or(Value::Null),
+                source,
+                install_source,
+                install_commit,
                 marketplace: repo.to_owned(),
                 tags,
                 components,
             })
         })
         .collect())
+}
+
+fn map_source(source: &Value, marketplace: &str) -> Option<(Option<String>, Option<String>)> {
+    let (url, path, commit) = if let Some(value) = source.as_str() {
+        if let Some(path) = value.strip_prefix("./") {
+            (format!("https://github.com/{marketplace}.git"), path, None)
+        } else {
+            (value.to_owned(), "", None)
+        }
+    } else {
+        let kind = source.get("source")?.as_str()?;
+        let url = match kind {
+            "github" => format!("https://github.com/{}.git", source.get("repo")?.as_str()?),
+            "url" | "git" | "git-subdir" => source.get("url")?.as_str()?.to_owned(),
+            _ => return None,
+        };
+        (
+            url,
+            source.get("path").and_then(Value::as_str).unwrap_or(""),
+            source.get("sha").and_then(Value::as_str).map(str::to_owned),
+        )
+    };
+    if !(url.starts_with("https://")
+        || url.starts_with("ssh://")
+        || url.starts_with("git://")
+        || url.starts_with("git@"))
+        || url.contains('#')
+        || path.split('/').any(|part| part.starts_with('.'))
+    {
+        return None;
+    }
+    Some((Some(format!("marketplace+{url}#{path}")), commit))
 }
 
 fn valid_repo(repo: &str) -> bool {
@@ -205,5 +243,33 @@ mod tests {
             "https://github.com/example/plugin"
         );
         assert!(!valid_repo("../repo"));
+        assert_eq!(
+            map_source(&serde_json::json!("./plugins/foo"), "owner/repo")
+                .unwrap()
+                .0
+                .as_deref(),
+            Some("marketplace+https://github.com/owner/repo.git#plugins/foo")
+        );
+        assert_eq!(
+            map_source(
+                &serde_json::json!({"source":"github","repo":"a/b"}),
+                "owner/repo"
+            )
+            .unwrap()
+            .0
+            .as_deref(),
+            Some("marketplace+https://github.com/a/b.git#")
+        );
+        assert!(map_source(&serde_json::json!("./../secret"), "owner/repo").is_none());
+        assert_eq!(
+            map_source(
+                &serde_json::json!({"source":"git-subdir", "url":"https://example.com/repo.git", "path":"plugins/example", "sha":"abcdef0"}),
+                "owner/repo"
+            ),
+            Some((
+                Some("marketplace+https://example.com/repo.git#plugins/example".into()),
+                Some("abcdef0".into())
+            ))
+        );
     }
 }
