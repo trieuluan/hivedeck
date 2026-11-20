@@ -48,7 +48,10 @@ pub struct Copilot {
 }
 
 impl Copilot {
-    fn build_command_builder(&self) -> Result<CommandBuilder, CommandBuildError> {
+    pub(crate) fn build_command_builder(
+        &self,
+        env: &ExecutionEnv,
+    ) -> Result<CommandBuilder, CommandBuildError> {
         let mut builder = CommandBuilder::new("npx -y @github/copilot@0.0.403");
 
         if self.allow_all_tools.unwrap_or(false) {
@@ -79,9 +82,56 @@ impl Copilot {
             }
         }
 
+        if !env.mcp_servers.is_empty() {
+            builder = builder.extend_params([
+                "--additional-mcp-config",
+                &crate::mcp_registry::copilot_config(&env.mcp_servers),
+            ]);
+        }
+
+        for dir in &env.skill_dirs {
+            builder = builder.extend_params(["--add-dir", &dir.to_string_lossy()]);
+        }
+
         builder = builder.extend_params(["--acp"]);
 
         apply_overrides(builder, &self.cmd)
+    }
+
+    pub(crate) fn with_skills_env(&self, env: &ExecutionEnv) -> ExecutionEnv {
+        if env.skill_dirs.is_empty() {
+            return env.clone();
+        }
+        let mut next = env.clone();
+        let existing = next
+            .vars
+            .get("COPILOT_SKILLS_DIRS")
+            .cloned()
+            .or_else(|| {
+                self.cmd
+                    .env
+                    .as_ref()
+                    .and_then(|map| map.get("COPILOT_SKILLS_DIRS").cloned())
+            })
+            .or_else(|| std::env::var("COPILOT_SKILLS_DIRS").ok());
+        let mut dirs: Vec<String> = existing
+            .into_iter()
+            .flat_map(|raw| {
+                raw.split(',')
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string)
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        for dir in &env.skill_dirs {
+            let value = dir.to_string_lossy().into_owned();
+            if !dirs.contains(&value) {
+                dirs.push(value);
+            }
+        }
+        next.insert("COPILOT_SKILLS_DIRS", dirs.join(","));
+        next
     }
 }
 
@@ -112,14 +162,21 @@ impl StandardCodingAgentExecutor for Copilot {
     ) -> Result<SpawnedChild, ExecutorError> {
         let harness = AcpAgentHarness::new();
         let combined_prompt = self.append_prompt.combine_prompt(prompt);
-        let copilot_command = self.build_command_builder()?.build_initial()?;
+        let copilot_command = self.build_command_builder(env)?.build_initial()?;
+        let env = self.with_skills_env(env);
+        let mut cmd = self.cmd.clone();
+        if !env.skill_dirs.is_empty()
+            && let Some(vars) = &mut cmd.env
+        {
+            vars.remove("COPILOT_SKILLS_DIRS");
+        }
         harness
             .spawn_with_command(
                 current_dir,
                 combined_prompt,
                 copilot_command,
-                env,
-                &self.cmd,
+                &env,
+                &cmd,
                 self.approvals.clone(),
             )
             .await
@@ -135,15 +192,22 @@ impl StandardCodingAgentExecutor for Copilot {
     ) -> Result<SpawnedChild, ExecutorError> {
         let harness = AcpAgentHarness::new();
         let combined_prompt = self.append_prompt.combine_prompt(prompt);
-        let copilot_command = self.build_command_builder()?.build_follow_up(&[])?;
+        let copilot_command = self.build_command_builder(env)?.build_follow_up(&[])?;
+        let env = self.with_skills_env(env);
+        let mut cmd = self.cmd.clone();
+        if !env.skill_dirs.is_empty()
+            && let Some(vars) = &mut cmd.env
+        {
+            vars.remove("COPILOT_SKILLS_DIRS");
+        }
         harness
             .spawn_follow_up_with_command(
                 current_dir,
                 combined_prompt,
                 session_id,
                 copilot_command,
-                env,
-                &self.cmd,
+                &env,
+                &cmd,
                 self.approvals.clone(),
             )
             .await

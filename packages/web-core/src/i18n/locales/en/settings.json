@@ -961,6 +961,13 @@
     },
     "plugins": {
       "title": "Extensions",
+      "compatibility": {
+        "title": "Executor compatibility",
+        "error": "Could not load compatibility.",
+        "supported": "Supported",
+        "prompt_catalog": "Prompt catalog",
+        "unsupported": "Unsupported"
+      },
       "marketplace": {
         "title": "Claude plugin marketplace",
         "description": "Browse plugins and preview their components before installing.",

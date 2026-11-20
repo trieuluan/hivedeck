@@ -33,11 +33,20 @@ pub struct Amp {
 }
 
 impl Amp {
-    fn build_command_builder(&self) -> Result<CommandBuilder, CommandBuildError> {
+    pub(crate) fn build_command_builder(
+        &self,
+        env: &ExecutionEnv,
+    ) -> Result<CommandBuilder, CommandBuildError> {
         let mut builder = CommandBuilder::new("npx -y @sourcegraph/amp@latest")
             .params(["--execute", "--stream-json"]);
         if self.dangerously_allow_all.unwrap_or(false) {
             builder = builder.extend_params(["--dangerously-allow-all"]);
+        }
+        if !env.mcp_servers.is_empty() {
+            builder = builder.extend_params([
+                "--mcp-config",
+                &crate::mcp_registry::amp_config(&env.mcp_servers),
+            ]);
         }
         apply_overrides(builder, &self.cmd)
     }
@@ -51,10 +60,14 @@ impl StandardCodingAgentExecutor for Amp {
         prompt: &str,
         env: &ExecutionEnv,
     ) -> Result<SpawnedChild, ExecutorError> {
-        let command_parts = self.build_command_builder()?.build_initial()?;
+        let command_parts = self.build_command_builder(env)?.build_initial()?;
         let (executable_path, args) = command_parts.into_resolved().await?;
 
-        let combined_prompt = self.append_prompt.combine_prompt(prompt);
+        let combined_prompt = format!(
+            "{}{}",
+            crate::plugins::skills_catalog(&env.skill_dirs).unwrap_or_default(),
+            self.append_prompt.combine_prompt(prompt)
+        );
 
         let mut command = Command::new(executable_path);
         command
@@ -89,7 +102,7 @@ impl StandardCodingAgentExecutor for Amp {
         _reset_to_message_id: Option<&str>,
         env: &ExecutionEnv,
     ) -> Result<SpawnedChild, ExecutorError> {
-        let builder = self.build_command_builder()?;
+        let builder = self.build_command_builder(env)?;
         let continue_line = builder.build_follow_up(&[
             "threads".to_string(),
             "continue".to_string(),
@@ -97,7 +110,11 @@ impl StandardCodingAgentExecutor for Amp {
         ])?;
         let (continue_program, continue_args) = continue_line.into_resolved().await?;
 
-        let combined_prompt = self.append_prompt.combine_prompt(prompt);
+        let combined_prompt = format!(
+            "{}{}",
+            crate::plugins::skills_catalog(&env.skill_dirs).unwrap_or_default(),
+            self.append_prompt.combine_prompt(prompt)
+        );
 
         let mut command = Command::new(continue_program);
         command

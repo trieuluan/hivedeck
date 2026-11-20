@@ -784,6 +784,98 @@ async fn context7_plugin_reaches_every_installed_cli() {
         check(name, joined, "query-docs");
     }
 
+    if let Some(bin) = find_binary("copilot") {
+        let home = TempDir::new().unwrap();
+        let marker = home.path().join("context7-started");
+        let mut servers = select("copilot");
+        servers[0].command = Some("/bin/sh".into());
+        servers[0].args = vec![
+            "-c".into(),
+            "touch \"$1\"; exec \"$2\"".into(),
+            "context7-wrapper".into(),
+            marker.to_string_lossy().into_owned(),
+            context7.to_string_lossy().into_owned(),
+        ];
+        let mut child = tokio::process::Command::new(bin)
+            .args([
+                "--additional-mcp-config",
+                &mcp_registry::copilot_config(&servers),
+                "--acp",
+            ])
+            .env("HOME", home.path())
+            .env("XDG_CONFIG_HOME", home.path().join("config"))
+            .env("XDG_CACHE_HOME", home.path().join("cache"))
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .kill_on_drop(true)
+            .spawn()
+            .unwrap();
+        let started = tokio::time::timeout(Duration::from_secs(20), async {
+            while !marker.exists() {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        })
+        .await
+        .is_ok();
+        let _ = child.kill().await;
+        eprintln!("RESULT copilot: context7 process launched = {started}");
+        results.push(("copilot process launch".into(), started));
+    } else {
+        eprintln!("SKIP copilot: executable not installed");
+    }
+
+    if let Some(bin) = find_binary("droid") {
+        let home = TempDir::new().unwrap();
+        let factory_dir = home.path().join(".factory");
+        std::fs::create_dir_all(&factory_dir).unwrap();
+        let mock = start_mock_llm_server().await;
+        let port = mock.0;
+        let custom_settings = serde_json::json!({
+            "customModels": [{
+                "model": "probe-model",
+                "id": "custom:probe-model",
+                "displayName": "probe-model",
+                "provider": "anthropic",
+                "baseUrl": format!("http://127.0.0.1:{port}"),
+                "apiKey": "probe-dummy",
+            }]
+        });
+        std::fs::write(
+            factory_dir.join("settings.json"),
+            custom_settings.to_string(),
+        )
+        .unwrap();
+        let run_settings = home.path().join("run-settings.json");
+        std::fs::write(
+            &run_settings,
+            mcp_registry::droid_settings(&select("droid"), None),
+        )
+        .unwrap();
+        let joined = probe_cli(
+            "droid",
+            &bin,
+            home.path(),
+            [
+                "exec".to_string(),
+                "--settings".into(),
+                run_settings.to_string_lossy().into_owned(),
+                "-m".into(),
+                "custom:probe-model".into(),
+                "Reply with OK".into(),
+            ]
+            .to_vec(),
+            vec![],
+            mock,
+        )
+        .await;
+        let seen = joined.contains("context7---query-docs");
+        eprintln!("RESULT droid: context7 MCP tool in model request = {seen}");
+        results.push(("droid".into(), seen));
+    } else {
+        eprintln!("SKIP droid: executable not installed");
+    }
+
     assert!(!results.is_empty(), "no CLI binary found");
     assert!(
         results.iter().all(|(_, seen)| *seen),

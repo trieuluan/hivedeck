@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SpinnerIcon } from '@phosphor-icons/react';
-import type { InstalledPlugin, PluginView } from 'shared/types';
+import type {
+  ExecutorCompatibility,
+  InstalledPlugin,
+  PluginView,
+} from 'shared/types';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
 import { Switch } from '@vibe/ui/components/Switch';
 import { SettingsCard } from './SettingsComponents';
@@ -19,6 +23,10 @@ export function PluginsSettingsSection() {
   const { t } = useTranslation('settings');
   const [plugins, setPlugins] = useState<PluginView[] | null>(null);
   const [loadError, setLoadError] = useState(false);
+  const [compatibility, setCompatibility] = useState<
+    ExecutorCompatibility[] | null
+  >(null);
+  const [compatibilityError, setCompatibilityError] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [marketplace, setMarketplace] = useState<{
@@ -38,6 +46,10 @@ export function PluginsSettingsSection() {
 
   useEffect(() => {
     reload().catch(() => setLoadError(true));
+    pluginsApi
+      .compatibility()
+      .then(setCompatibility)
+      .catch(() => setCompatibilityError(true));
   }, [reload]);
 
   useEffect(() => {
@@ -284,6 +296,39 @@ export function PluginsSettingsSection() {
           setAdding(true);
         }}
       />
+      <SettingsCard title={t('settings.plugins.compatibility.title')}>
+        {compatibilityError && (
+          <p role="alert">{t('settings.plugins.compatibility.error')}</p>
+        )}
+        {compatibility && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr>
+                  <th scope="col">Executor</th>
+                  <th scope="col">MCP</th>
+                  <th scope="col">Skills</th>
+                </tr>
+              </thead>
+              <tbody>
+                {compatibility.map((row) => (
+                  <tr key={row.executor}>
+                    <th scope="row">{row.executor}</th>
+                    <td>
+                      {t(`settings.plugins.compatibility.${row.mcp}`)}
+                      <div className="text-low">{row.mcp_mechanism}</div>
+                    </td>
+                    <td>
+                      {t(`settings.plugins.compatibility.${row.skills}`)}
+                      <div className="text-low">{row.skills_mechanism}</div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SettingsCard>
     </div>
   );
 }

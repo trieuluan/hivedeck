@@ -961,6 +961,13 @@
     },
     "plugins": {
       "title": "Tiện ích",
+      "compatibility": {
+        "title": "Tương thích executor",
+        "error": "Không tải được bảng tương thích.",
+        "supported": "Hỗ trợ",
+        "prompt_catalog": "Mục lục trong prompt",
+        "unsupported": "Không hỗ trợ"
+      },
       "marketplace": {
         "title": "Danh mục plugin Claude",
         "description": "Duyệt plugin và xem trước thành phần trước khi cài.",

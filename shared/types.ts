@@ -573,6 +573,10 @@ export type RegistrySecretStatus = { name: string, has_value: boolean, };
 
 export type ConflictPolicy = "abort" | "skip" | "overwrite";
 
+export type InjectionSupport = "supported" | "prompt_catalog" | "unsupported";
+
+export type ExecutorCompatibility = { executor: BaseCodingAgent, cli: string | null, mcp: InjectionSupport, mcp_mechanism: string, skills: InjectionSupport, skills_mechanism: string, };
+
 export type PluginConflict = { kind: string, name: string, against: string, action?: string | null, };
 
 export type PluginMcpEntry = { name: string, transport: string, command?: string | null, args: Array<string>, url?: string | null, headers: { [key in string]?: string }, env: { [key in string]?: string }, roles: Array<string>, boards: Array<string>, oauth: boolean, enabled: boolean, };

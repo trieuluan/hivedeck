@@ -119,6 +119,10 @@ async fn list(
     )))
 }
 
+async fn compatibility() -> Json<ApiResponse<Vec<plugins::ExecutorCompatibility>>> {
+    Json(ApiResponse::success(plugins::executor_compatibility()))
+}
+
 async fn get_one(
     Extension(dir): Extension<PathBuf>,
     RoutePath(name): RoutePath<String>,
@@ -291,6 +295,7 @@ async fn clear_secret(
 pub(crate) fn router_for_dir<S: Clone + Send + Sync + 'static>(dir: &Path) -> Router<S> {
     Router::new()
         .route("/plugins", get(list))
+        .route("/plugins/compatibility", get(compatibility))
         .route("/plugins/install", post(install))
         .route("/plugins/preview", post(preview))
         .route("/plugins/{name}", get(get_one).delete(uninstall))
@@ -334,6 +339,20 @@ mod tests {
         let status = resp.status();
         let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
         (status, String::from_utf8(bytes.to_vec()).unwrap())
+    }
+
+    #[tokio::test]
+    async fn compatibility_route_lists_executors() {
+        let dir = tempfile::tempdir().unwrap();
+        let app = router_for_dir::<()>(dir.path());
+        let (status, body) = request(&app, "GET", "/plugins/compatibility", "").await;
+        assert_eq!(status, StatusCode::OK);
+        let body: serde_json::Value = serde_json::from_str(&body).unwrap();
+        let rows = body["data"].as_array().unwrap();
+        assert_eq!(rows.len(), plugins::executor_compatibility().len());
+        for entry in plugins::executor_compatibility() {
+            assert!(rows.contains(&serde_json::to_value(entry).unwrap()));
+        }
     }
 
     #[tokio::test]

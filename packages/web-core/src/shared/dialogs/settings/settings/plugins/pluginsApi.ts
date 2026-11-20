@@ -1,5 +1,6 @@
 import type {
   ConflictPolicy,
+  ExecutorCompatibility,
   PluginConflict,
   InstalledPlugin,
   InstallPluginRequest,
@@ -71,6 +72,7 @@ export type ScopePatch = {
 
 export const pluginsApi = {
   list: () => call<PluginView[]>(''),
+  compatibility: () => call<ExecutorCompatibility[]>('/compatibility'),
   preview: (input: InstallInput) =>
     call<InstalledPlugin>('/preview', json('POST', toRequest(input))),
   install: (input: InstallInput) =>

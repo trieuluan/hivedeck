@@ -85,10 +85,16 @@ pub struct Droid {
 }
 
 impl Droid {
-    pub fn build_command_builder(&self) -> Result<CommandBuilder, CommandBuildError> {
+    pub fn build_command_builder(
+        &self,
+        env: &ExecutionEnv,
+    ) -> Result<CommandBuilder, CommandBuildError> {
         use crate::command::{CommandBuilder, apply_overrides};
         let mut builder =
             CommandBuilder::new("droid exec").params(["--output-format", "stream-json"]);
+        if let Some(path) = &env.runtime_config_path {
+            builder = builder.extend_params(["--settings", &path.to_string_lossy()]);
+        }
         builder = match &self.autonomy {
             Autonomy::Normal => builder,
             Autonomy::Low => builder.extend_params(["--auto", "low"]),
@@ -161,8 +167,12 @@ impl StandardCodingAgentExecutor for Droid {
         prompt: &str,
         env: &ExecutionEnv,
     ) -> Result<SpawnedChild, ExecutorError> {
-        let droid_command = self.build_command_builder()?.build_initial()?;
-        let combined_prompt = self.append_prompt.combine_prompt(prompt);
+        let droid_command = self.build_command_builder(env)?.build_initial()?;
+        let combined_prompt = format!(
+            "{}{}",
+            crate::plugins::skills_catalog(&env.skill_dirs).unwrap_or_default(),
+            self.append_prompt.combine_prompt(prompt)
+        );
 
         spawn_droid(droid_command, &combined_prompt, current_dir, env, &self.cmd).await
     }
@@ -176,9 +186,13 @@ impl StandardCodingAgentExecutor for Droid {
         env: &ExecutionEnv,
     ) -> Result<SpawnedChild, ExecutorError> {
         let continue_cmd = self
-            .build_command_builder()?
+            .build_command_builder(env)?
             .build_follow_up(&["--session-id".to_string(), session_id.to_string()])?;
-        let combined_prompt = self.append_prompt.combine_prompt(prompt);
+        let combined_prompt = format!(
+            "{}{}",
+            crate::plugins::skills_catalog(&env.skill_dirs).unwrap_or_default(),
+            self.append_prompt.combine_prompt(prompt)
+        );
 
         spawn_droid(continue_cmd, &combined_prompt, current_dir, env, &self.cmd).await
     }

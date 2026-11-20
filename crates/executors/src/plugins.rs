@@ -8,13 +8,17 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use serde_json::Value;
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
+use strum::IntoEnumIterator;
 use tempfile::TempDir;
 use ts_rs::TS;
 use uuid::Uuid;
 
-use crate::mcp_registry::{self, InjectedMcpServer, RegistryEntry};
+use crate::{
+    executors::BaseCodingAgent,
+    mcp_registry::{self, InjectedMcpServer, RegistryEntry},
+};
 
 static WRITE_LOCK: Mutex<()> = Mutex::new(());
 
@@ -177,8 +181,145 @@ pub struct SelectedSkill {
     pub source_skill_dir: PathBuf,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum InjectionSupport {
+    Supported,
+    PromptCatalog,
+    Unsupported,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct ExecutorCompatibility {
+    pub executor: BaseCodingAgent,
+    pub cli: Option<String>,
+    pub mcp: InjectionSupport,
+    pub mcp_mechanism: String,
+    pub skills: InjectionSupport,
+    pub skills_mechanism: String,
+}
+
+pub fn plugin_cli_key(agent: BaseCodingAgent) -> Option<&'static str> {
+    match agent {
+        BaseCodingAgent::ClaudeCode | BaseCodingAgent::ClaudeCodeHeaded => Some("claude_code"),
+        BaseCodingAgent::Codex => Some("codex"),
+        BaseCodingAgent::Opencode | BaseCodingAgent::OpencodeHeaded => Some("opencode"),
+        BaseCodingAgent::Gemini => Some("gemini"),
+        BaseCodingAgent::QwenCode => Some("qwen_code"),
+        BaseCodingAgent::Amp => Some("amp"),
+        BaseCodingAgent::CursorAgent => Some("cursor_agent"),
+        BaseCodingAgent::Copilot => Some("copilot"),
+        BaseCodingAgent::Droid => Some("droid"),
+        #[cfg(feature = "qa-mode")]
+        BaseCodingAgent::QaMock => None,
+    }
+}
+
+pub fn executor_compatibility_for(agent: BaseCodingAgent) -> ExecutorCompatibility {
+    let cli = plugin_cli_key(agent).map(str::to_string);
+    match agent {
+        BaseCodingAgent::ClaudeCode | BaseCodingAgent::ClaudeCodeHeaded => ExecutorCompatibility {
+            executor: agent,
+            cli,
+            mcp: InjectionSupport::Supported,
+            mcp_mechanism: "--mcp-config".into(),
+            skills: InjectionSupport::Supported,
+            skills_mechanism: "--add-dir".into(),
+        },
+        BaseCodingAgent::Codex => ExecutorCompatibility {
+            executor: agent,
+            cli,
+            mcp: InjectionSupport::Supported,
+            mcp_mechanism: "-c mcp_servers.*".into(),
+            skills: InjectionSupport::Unsupported,
+            skills_mechanism: "Codex CLI has no per-run skill directory flag".into(),
+        },
+        BaseCodingAgent::Opencode | BaseCodingAgent::OpencodeHeaded => ExecutorCompatibility {
+            executor: agent,
+            cli,
+            mcp: InjectionSupport::Supported,
+            mcp_mechanism: "OPENCODE_CONFIG_CONTENT".into(),
+            skills: InjectionSupport::Supported,
+            skills_mechanism: "OPENCODE_CONFIG_CONTENT (skills.paths)".into(),
+        },
+        BaseCodingAgent::Gemini => ExecutorCompatibility {
+            executor: agent,
+            cli,
+            mcp: InjectionSupport::Supported,
+            mcp_mechanism: "GEMINI_CLI_SYSTEM_SETTINGS_PATH".into(),
+            skills: InjectionSupport::PromptCatalog,
+            skills_mechanism: "--include-directories + prompt catalog".into(),
+        },
+        BaseCodingAgent::QwenCode => ExecutorCompatibility {
+            executor: agent,
+            cli,
+            mcp: InjectionSupport::Supported,
+            mcp_mechanism: "QWEN_CODE_SYSTEM_SETTINGS_PATH".into(),
+            skills: InjectionSupport::PromptCatalog,
+            skills_mechanism: "--include-directories + prompt catalog".into(),
+        },
+        BaseCodingAgent::Amp => ExecutorCompatibility {
+            executor: agent,
+            cli,
+            mcp: InjectionSupport::Supported,
+            mcp_mechanism: "--mcp-config".into(),
+            skills: InjectionSupport::PromptCatalog,
+            skills_mechanism: "Prompt catalog (no non-clobbering per-run skill flag)".into(),
+        },
+        BaseCodingAgent::CursorAgent => ExecutorCompatibility {
+            executor: agent,
+            cli,
+            mcp: InjectionSupport::Supported,
+            mcp_mechanism: "--plugin-dir (.mcp.json)".into(),
+            skills: InjectionSupport::Supported,
+            skills_mechanism: "--plugin-dir (skills/)".into(),
+        },
+        BaseCodingAgent::Copilot => ExecutorCompatibility {
+            executor: agent,
+            cli,
+            mcp: InjectionSupport::Supported,
+            mcp_mechanism: "--additional-mcp-config".into(),
+            skills: InjectionSupport::Supported,
+            skills_mechanism: "COPILOT_SKILLS_DIRS + --add-dir".into(),
+        },
+        BaseCodingAgent::Droid => ExecutorCompatibility {
+            executor: agent,
+            cli,
+            mcp: InjectionSupport::Supported,
+            mcp_mechanism: "--settings (mcp.mcpServers)".into(),
+            skills: InjectionSupport::PromptCatalog,
+            skills_mechanism: "Prompt catalog (--settings skills uses internal schema)".into(),
+        },
+        #[cfg(feature = "qa-mode")]
+        BaseCodingAgent::QaMock => ExecutorCompatibility {
+            executor: agent,
+            cli,
+            mcp: InjectionSupport::Unsupported,
+            mcp_mechanism: "Internal QA mock executor".into(),
+            skills: InjectionSupport::Unsupported,
+            skills_mechanism: "Internal QA mock executor".into(),
+        },
+    }
+}
+
+pub fn executor_compatibility() -> Vec<ExecutorCompatibility> {
+    BaseCodingAgent::iter()
+        .map(executor_compatibility_for)
+        .collect()
+}
+
 pub fn cli_supports_skills(cli: &str) -> bool {
-    matches!(cli, "claude_code" | "opencode")
+    matches!(
+        cli,
+        "claude_code"
+            | "opencode"
+            | "gemini"
+            | "qwen_code"
+            | "amp"
+            | "cursor_agent"
+            | "copilot"
+            | "droid"
+    )
 }
 
 pub fn valid_name(name: &str) -> bool {
@@ -2062,12 +2203,26 @@ pub fn materialize_run_skills(
             let skills_dir = run_root.join("opencode");
             (skills_dir.clone(), Some(skills_dir))
         }
-        "gemini" | "qwen_code" => {
+        "cursor_agent" => {
+            let plugin_dir = run_root.join("cursor_plugin");
+            (plugin_dir.join("skills"), Some(plugin_dir))
+        }
+        "gemini" | "qwen_code" | "amp" | "copilot" | "droid" => {
             let skills_dir = run_root.join("skills");
             (skills_dir.clone(), Some(skills_dir))
         }
         _ => (run_root.join("skills"), None),
     };
+
+    if cli == "cursor_agent" {
+        let plugin_dir = run_root.join("cursor_plugin");
+        let manifest_dir = plugin_dir.join(".cursor-plugin");
+        fs::create_dir_all(&manifest_dir)?;
+        fs::write(
+            manifest_dir.join("plugin.json"),
+            json!({"name": "hivedeck-run"}).to_string(),
+        )?;
+    }
 
     for skill in skills {
         let dst = container_root.join(&skill.name);
@@ -2099,6 +2254,57 @@ pub fn cleanup_run_skills(asset_dir: &Path, run_id: &str) {
 /// Per-run settings file for Gemini CLI / Qwen Code, inside the run's
 /// `run_skills/<run_id>` dir (removed by [`cleanup_run_skills`]). Holds env
 /// placeholders only, never secret values. Returns the file path.
+pub fn write_droid_settings(
+    asset_dir: &Path,
+    run_id: &str,
+    servers: &[InjectedMcpServer],
+) -> Result<PathBuf, PluginError> {
+    let run_root = asset_dir.join("run_skills").join(run_id);
+    fs::create_dir_all(&run_root)?;
+    let path = run_root.join("droid_settings.json");
+    fs::write(&path, mcp_registry::droid_settings(servers, None))?;
+    Ok(path)
+}
+
+/// Per-run `--plugin-dir` bundle for Cursor Agent (`run_skills/<run_id>/cursor_plugin`).
+/// Combines `.cursor-plugin/plugin.json`, `.mcp.json` (with `${VAR}` placeholders),
+/// and `skills/<name>/SKILL.md`. Returns `None` when both inputs are empty.
+pub fn write_cursor_plugin_dir(
+    asset_dir: &Path,
+    run_id: &str,
+    servers: &[InjectedMcpServer],
+    skills: &[SelectedSkill],
+) -> Result<Option<PathBuf>, PluginError> {
+    if servers.is_empty() && skills.is_empty() {
+        return Ok(None);
+    }
+    let plugin_dir = asset_dir
+        .join("run_skills")
+        .join(run_id)
+        .join("cursor_plugin");
+    let manifest_dir = plugin_dir.join(".cursor-plugin");
+    fs::create_dir_all(&manifest_dir)?;
+    fs::write(
+        manifest_dir.join("plugin.json"),
+        json!({"name": "hivedeck-run"}).to_string(),
+    )?;
+    if !servers.is_empty() {
+        fs::write(
+            plugin_dir.join(".mcp.json"),
+            mcp_registry::cursor_mcp_config(servers),
+        )?;
+    }
+    let skills_root = plugin_dir.join("skills");
+    for skill in skills {
+        let dst = skills_root.join(&skill.name);
+        if dst.exists() {
+            fs::remove_dir_all(&dst)?;
+        }
+        copy_dir_filtered(&skill.source_skill_dir, &dst)?;
+    }
+    Ok(Some(plugin_dir))
+}
+
 pub fn write_run_settings(
     asset_dir: &Path,
     run_id: &str,
@@ -2296,7 +2502,7 @@ mod tests {
         migrate_mcp_registry(dir.path()).unwrap();
         assert_eq!(read_plugins(dir.path()).unwrap(), plugins);
         assert!(dir.path().join("mcp_registry.json.bak").exists());
-        for cli in ["claude_code", "codex", "opencode"] {
+        for cli in KNOWN_CLIS {
             for (role, board, expected) in [
                 ("captain", Some("board"), "first"),
                 ("crew", None, "second"),
@@ -2431,7 +2637,7 @@ mod tests {
                 0o600
             );
         }
-        for cli in ["claude_code", "codex", "opencode"] {
+        for cli in KNOWN_CLIS {
             let (servers, vars) = select_mcp_for_run(
                 dir.path(),
                 vec![],
@@ -2525,7 +2731,7 @@ mod tests {
         .unwrap();
         assert!(empty_mcp.is_empty());
 
-        for cli in ["claude_code", "codex", "opencode"] {
+        for cli in KNOWN_CLIS {
             let (servers, vars) = select_mcp_for_run(
                 asset_dir.path(),
                 vec![],
@@ -2562,11 +2768,16 @@ mod tests {
                             .join(".claude/skills/fixture-skill/SKILL.md")
                             .is_file()
                     );
+                } else if cli == "cursor_agent" {
+                    assert!(run_dirs[0].join(".cursor-plugin/plugin.json").is_file());
+                    assert!(run_dirs[0].join("skills/fixture-skill/SKILL.md").is_file());
                 } else {
                     assert!(run_dirs[0].join("fixture-skill/SKILL.md").is_file());
-                    let oc = opencode_skills_config(&run_dirs, None);
-                    assert!(oc.contains("skills"));
-                    assert!(oc.contains(&run_dirs[0].to_string_lossy().to_string()));
+                    if cli == "opencode" {
+                        let oc = opencode_skills_config(&run_dirs, None);
+                        assert!(oc.contains("skills"));
+                        assert!(oc.contains(&run_dirs[0].to_string_lossy().to_string()));
+                    }
                 }
             } else {
                 assert!(run_dirs.is_empty());
@@ -2817,5 +3028,121 @@ mod tests {
         assert_eq!(upgraded.version, "2.0.0");
         assert_eq!(upgraded.tag.as_deref(), Some("v2.0.0"));
         assert_ne!(upgraded.asset_hash, installed_p1.asset_hash);
+    }
+
+    #[test]
+    fn every_base_coding_agent_is_covered_in_compatibility_matrix() {
+        let matrix = executor_compatibility();
+        for agent in BaseCodingAgent::iter() {
+            let entry = matrix
+                .iter()
+                .find(|item| item.executor == agent)
+                .unwrap_or_else(|| panic!("missing compatibility entry for {agent}"));
+            match plugin_cli_key(agent) {
+                Some(cli) => {
+                    assert!(
+                        KNOWN_CLIS.contains(&cli),
+                        "{agent} maps to unknown cli {cli}"
+                    );
+                    assert_eq!(entry.cli.as_deref(), Some(cli));
+                    assert_eq!(entry.mcp, InjectionSupport::Supported);
+                    assert!(!entry.mcp_mechanism.is_empty());
+                    assert!(!entry.skills_mechanism.is_empty());
+                }
+                None => {
+                    assert_eq!(entry.mcp, InjectionSupport::Unsupported);
+                    assert_eq!(entry.skills, InjectionSupport::Unsupported);
+                    assert!(!entry.mcp_mechanism.is_empty());
+                    assert!(!entry.skills_mechanism.is_empty());
+                }
+            }
+        }
+        let codex = matrix
+            .iter()
+            .find(|item| item.executor == BaseCodingAgent::Codex)
+            .unwrap();
+        assert_eq!(codex.skills, InjectionSupport::Unsupported);
+        assert!(!codex.skills_mechanism.is_empty());
+    }
+
+    #[test]
+    fn new_cli_per_run_materialization_and_catalog_snapshots() {
+        let asset_dir = TempDir::new().unwrap();
+        let skill_src = asset_dir.path().join("src-skill");
+        fs::create_dir_all(&skill_src).unwrap();
+        fs::write(
+            skill_src.join("SKILL.md"),
+            "---\nname: probe-skill\ndescription: Probe skill desc\n---\nBody\n",
+        )
+        .unwrap();
+        let selected = vec![SelectedSkill {
+            plugin_name: "p".into(),
+            name: "probe-skill".into(),
+            source_skill_dir: skill_src,
+        }];
+        let servers = vec![InjectedMcpServer {
+            name: "probe".into(),
+            transport: "stdio".into(),
+            command: Some("srv".into()),
+            args: vec!["--x".into()],
+            url: None,
+            headers: BTreeMap::new(),
+            env: BTreeMap::from([("TOKEN".into(), "HIVEDECK_MCP_PROBE_TOKEN".into())]),
+        }];
+
+        assert!(
+            write_cursor_plugin_dir(asset_dir.path(), "empty-cursor", &[], &[])
+                .unwrap()
+                .is_none()
+        );
+        let cursor_dir =
+            write_cursor_plugin_dir(asset_dir.path(), "run-cursor", &servers, &selected)
+                .unwrap()
+                .unwrap();
+        assert_eq!(
+            serde_json::from_str::<Value>(
+                &fs::read_to_string(cursor_dir.join(".cursor-plugin/plugin.json")).unwrap()
+            )
+            .unwrap(),
+            json!({"name": "hivedeck-run"})
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(
+                &fs::read_to_string(cursor_dir.join(".mcp.json")).unwrap()
+            )
+            .unwrap(),
+            json!({"mcpServers": {"probe": {"command": "srv", "args": ["--x"], "env": {"TOKEN": "${HIVEDECK_MCP_PROBE_TOKEN}"}}}})
+        );
+        assert!(cursor_dir.join("skills/probe-skill/SKILL.md").is_file());
+
+        let droid_path = write_droid_settings(asset_dir.path(), "run-droid", &servers).unwrap();
+        assert_eq!(
+            serde_json::from_str::<Value>(&fs::read_to_string(&droid_path).unwrap()).unwrap(),
+            json!({"mcp": {"mcpServers": {"probe": {"type": "stdio", "command": "srv", "args": ["--x"], "env": {"TOKEN": "${HIVEDECK_MCP_PROBE_TOKEN}"}}}}})
+        );
+
+        for cli in ["amp", "copilot", "droid"] {
+            let run_id = format!("run-{cli}");
+            let dirs = materialize_run_skills(asset_dir.path(), &run_id, cli, &selected).unwrap();
+            assert_eq!(dirs.len(), 1);
+            let skill_md = dirs[0].join("probe-skill/SKILL.md");
+            assert!(skill_md.is_file());
+            if matches!(cli, "amp" | "droid") {
+                let catalog = skills_catalog(&dirs).unwrap();
+                assert_eq!(
+                    catalog,
+                    format!(
+                        "Available skills (read the SKILL.md file before using one):\n- probe-skill: Probe skill desc ({})\n\n",
+                        skill_md.display()
+                    )
+                );
+            }
+            cleanup_run_skills(asset_dir.path(), &run_id);
+            assert!(!asset_dir.path().join("run_skills").join(&run_id).exists());
+        }
+        cleanup_run_skills(asset_dir.path(), "run-cursor");
+        cleanup_run_skills(asset_dir.path(), "run-droid");
+        assert!(!cursor_dir.exists());
+        assert!(!droid_path.exists());
     }
 }

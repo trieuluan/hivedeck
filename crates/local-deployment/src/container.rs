@@ -2741,16 +2741,9 @@ impl ContainerService for LocalContainerService {
         env.insert("VK_WORKSPACE_ID", workspace.id.to_string());
         env.insert("VK_WORKSPACE_BRANCH", &workspace.branch);
 
-        let registry_cli = match executor_action.base_executor() {
-            Some(BaseCodingAgent::ClaudeCode | BaseCodingAgent::ClaudeCodeHeaded) => {
-                Some("claude_code")
-            }
-            Some(BaseCodingAgent::Codex) => Some("codex"),
-            Some(BaseCodingAgent::Opencode | BaseCodingAgent::OpencodeHeaded) => Some("opencode"),
-            Some(BaseCodingAgent::Gemini) => Some("gemini"),
-            Some(BaseCodingAgent::QwenCode) => Some("qwen_code"),
-            _ => None,
-        };
+        let registry_cli = executor_action
+            .base_executor()
+            .and_then(executors::plugins::plugin_cli_key);
         if let Some(cli) = registry_cli {
             let dir = utils::assets::asset_dir();
             let plugins = executors::plugins::read_plugins(&dir)
@@ -2796,9 +2789,6 @@ impl ContainerService for LocalContainerService {
                     settings.to_string_lossy(),
                 );
             }
-            env.mcp_servers = servers;
-            env.merge(&secrets);
-
             let selected_skills = executors::plugins::select_skills_for_run(
                 &dir,
                 &plugins,
@@ -2806,13 +2796,35 @@ impl ContainerService for LocalContainerService {
                 role,
                 board.as_deref(),
             );
-            env.skill_dirs = executors::plugins::materialize_run_skills(
-                &dir,
-                &execution_process.id.to_string(),
-                cli,
-                &selected_skills,
-            )
-            .map_err(|error| anyhow!("Failed to materialize plugin skills: {error}"))?;
+            if cli == "cursor_agent" {
+                env.runtime_config_path = executors::plugins::write_cursor_plugin_dir(
+                    &dir,
+                    &execution_process.id.to_string(),
+                    &servers,
+                    &selected_skills,
+                )
+                .map_err(|error| anyhow!("Failed to create Cursor plugin: {error}"))?;
+            } else {
+                env.skill_dirs = executors::plugins::materialize_run_skills(
+                    &dir,
+                    &execution_process.id.to_string(),
+                    cli,
+                    &selected_skills,
+                )
+                .map_err(|error| anyhow!("Failed to materialize plugin skills: {error}"))?;
+            }
+            if cli == "droid" && !servers.is_empty() {
+                env.runtime_config_path = Some(
+                    executors::plugins::write_droid_settings(
+                        &dir,
+                        &execution_process.id.to_string(),
+                        &servers,
+                    )
+                    .map_err(|error| anyhow!("Failed to write Droid settings: {error}"))?,
+                );
+            }
+            env.mcp_servers = servers;
+            env.merge(&secrets);
         }
 
         // Telegram channel: hand Claude Code agents their per-branch channel

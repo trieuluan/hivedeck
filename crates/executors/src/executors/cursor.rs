@@ -147,9 +147,15 @@ impl CursorAgent {
             .map(|base| resolve_cursor_model_name(base, self.reasoning.as_deref()))
     }
 
-    fn build_command_builder(&self) -> Result<CommandBuilder, CommandBuildError> {
+    pub(crate) fn build_command_builder(
+        &self,
+        env: &ExecutionEnv,
+    ) -> Result<CommandBuilder, CommandBuildError> {
         let mut builder =
             CommandBuilder::new(Self::base_command()).params(["-p", "--output-format=stream-json"]);
+        if let Some(path) = &env.runtime_config_path {
+            builder = builder.extend_params(["--plugin-dir", &path.to_string_lossy()]);
+        }
 
         if self.force.unwrap_or(false) {
             builder = builder.extend_params(["--force"]);
@@ -191,7 +197,7 @@ impl StandardCodingAgentExecutor for CursorAgent {
     ) -> Result<SpawnedChild, ExecutorError> {
         mcp::ensure_mcp_server_trust(self, current_dir).await;
 
-        let command_parts = self.build_command_builder()?.build_initial()?;
+        let command_parts = self.build_command_builder(env)?.build_initial()?;
 
         let (executable_path, args) = command_parts.into_resolved().await?;
 
@@ -232,7 +238,7 @@ impl StandardCodingAgentExecutor for CursorAgent {
         mcp::ensure_mcp_server_trust(self, current_dir).await;
 
         let command_parts = self
-            .build_command_builder()?
+            .build_command_builder(env)?
             .build_follow_up(&["--resume".to_string(), session_id.to_string()])?;
         let (executable_path, args) = command_parts.into_resolved().await?;
 

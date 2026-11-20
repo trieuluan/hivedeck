@@ -113,6 +113,8 @@ fn generate_types_content() -> String {
         server::routes::local_mcp_registry::SetRegistrySecret::decl(),
         server::routes::local_mcp_registry::RegistrySecretStatus::decl(),
         executors::plugins::ConflictPolicy::decl(),
+        executors::plugins::InjectionSupport::decl(),
+        executors::plugins::ExecutorCompatibility::decl(),
         executors::plugins::PluginConflict::decl(),
         executors::plugins::PluginMcpEntry::decl(),
         executors::plugins::PluginSkillEntry::decl(),

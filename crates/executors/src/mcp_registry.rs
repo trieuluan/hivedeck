@@ -225,6 +225,117 @@ pub fn gemini_family_settings(
     config.to_string()
 }
 
+fn placeholder_headers(server: &InjectedMcpServer) -> BTreeMap<&str, String> {
+    server
+        .headers
+        .iter()
+        .map(|(key, variable)| {
+            (
+                key.as_str(),
+                if key.eq_ignore_ascii_case("authorization") {
+                    format!("Bearer ${{{variable}}}")
+                } else {
+                    format!("${{{variable}}}")
+                },
+            )
+        })
+        .collect()
+}
+
+fn placeholder_env(server: &InjectedMcpServer) -> BTreeMap<&str, String> {
+    server
+        .env
+        .iter()
+        .map(|(key, variable)| (key.as_str(), format!("${{{variable}}}")))
+        .collect()
+}
+
+/// Amp `--mcp-config <json>`: expects a bare `{serverName: definition}` map
+/// (wrapping in `mcpServers` or `amp.mcpServers` is rejected). Expands `${VAR}`
+/// in stdio `env` and HTTP `headers` from the process env.
+pub fn amp_config(servers: &[InjectedMcpServer]) -> String {
+    let mut map = serde_json::Map::new();
+    for server in servers {
+        let definition = if server.transport == "http" {
+            json!({"url": server.url, "headers": placeholder_headers(server)})
+        } else {
+            json!({"command": server.command, "args": server.args, "env": placeholder_env(server)})
+        };
+        map.insert(server.name.clone(), definition);
+    }
+    Value::Object(map).to_string()
+}
+
+/// Copilot `--additional-mcp-config <json>`: expects `{"mcpServers": {...}}`
+/// and requires `tools` (e.g. `["*"]`) on every server definition. Expands
+/// `${VAR}` from the process env in `env` and `headers`.
+pub fn copilot_config(servers: &[InjectedMcpServer]) -> String {
+    let mut map = serde_json::Map::new();
+    for server in servers {
+        let definition = if server.transport == "http" {
+            json!({
+                "type": "http",
+                "url": server.url,
+                "headers": placeholder_headers(server),
+                "tools": ["*"],
+            })
+        } else {
+            json!({
+                "type": "stdio",
+                "command": server.command,
+                "args": server.args,
+                "env": placeholder_env(server),
+                "tools": ["*"],
+            })
+        };
+        map.insert(server.name.clone(), definition);
+    }
+    json!({"mcpServers": map}).to_string()
+}
+
+/// Cursor Agent `--plugin-dir <dir>` `.mcp.json`: expects `{"mcpServers": {...}}`
+/// and expands `${VAR}` from `process.env`.
+pub fn cursor_mcp_config(servers: &[InjectedMcpServer]) -> String {
+    let mut map = serde_json::Map::new();
+    for server in servers {
+        let definition = if server.transport == "http" {
+            json!({"url": server.url, "headers": placeholder_headers(server)})
+        } else {
+            json!({"command": server.command, "args": server.args, "env": placeholder_env(server)})
+        };
+        map.insert(server.name.clone(), definition);
+    }
+    json!({"mcpServers": map}).to_string()
+}
+
+/// Droid `--settings <path>` runtime overlay: expects `{"mcp": {"mcpServers": {...}}}`
+/// and expands `${VAR}` from `process.env` in stdio `env` and HTTP `headers`.
+pub fn droid_settings(servers: &[InjectedMcpServer], existing: Option<&str>) -> String {
+    let mut config: Value = existing
+        .and_then(|value| serde_json::from_str(value).ok())
+        .filter(Value::is_object)
+        .unwrap_or_else(|| json!({}));
+    if !config.get("mcp").is_some_and(Value::is_object) {
+        config["mcp"] = json!({});
+    }
+    if !config["mcp"]
+        .get("mcpServers")
+        .is_some_and(Value::is_object)
+    {
+        config["mcp"]["mcpServers"] = json!({});
+    }
+    let map = config["mcp"]["mcpServers"].as_object_mut().unwrap();
+    for server in servers {
+        let definition = if server.transport == "http" {
+            json!({"type": "http", "url": server.url, "headers": placeholder_headers(server)})
+        } else {
+            json!({"type": "stdio", "command": server.command, "args": server.args, "env": placeholder_env(server)})
+        };
+        map.insert(server.name.clone(), definition);
+    }
+    config.to_string()
+}
+
 fn valid_env_ident(name: &str) -> bool {
     let mut bytes = name.bytes();
     bytes
@@ -437,6 +548,47 @@ mod tests {
     }
 
     #[test]
+    fn new_executor_configs_match_complete_payloads() {
+        let http = entry();
+        let mut stdio = entry();
+        stdio.name = "local".into();
+        stdio.transport = "stdio".into();
+        stdio.command = Some("runner".into());
+        stdio.args = vec!["--mcp".into()];
+        stdio.url = None;
+        stdio.headers.clear();
+        stdio.env.insert("API_KEY".into(), "probe-key".into());
+        let secrets = BTreeMap::from([("probe-key".into(), "top-secret".into())]);
+        let (servers, _) =
+            select(vec![http, stdio], &secrets, "amp", "crew", Some("board-a")).unwrap();
+        let http = json!({"url":"https://example.test/mcp","headers":{"Authorization":"Bearer ${HIVEDECK_MCP_PROBE_KEY_TOKEN}"}});
+        let stdio = json!({"command":"runner","args":["--mcp"],"env":{"API_KEY":"${HIVEDECK_MCP_PROBE_KEY_TOKEN}"}});
+        let parse = |text: String| serde_json::from_str::<Value>(&text).unwrap();
+        assert_eq!(
+            parse(amp_config(&servers)),
+            json!({"probe":http,"local":stdio})
+        );
+        assert_eq!(
+            parse(cursor_mcp_config(&servers)),
+            json!({"mcpServers":{"probe":http,"local":stdio}})
+        );
+        let mut typed_http = http.clone();
+        typed_http["type"] = json!("http");
+        let mut typed_stdio = stdio.clone();
+        typed_stdio["type"] = json!("stdio");
+        assert_eq!(
+            parse(droid_settings(&servers, Some(r#"{"other":true}"#))),
+            json!({"other":true,"mcp":{"mcpServers":{"probe":typed_http,"local":typed_stdio}}})
+        );
+        typed_http["tools"] = json!(["*"]);
+        typed_stdio["tools"] = json!(["*"]);
+        assert_eq!(
+            parse(copilot_config(&servers)),
+            json!({"mcpServers":{"probe":typed_http,"local":typed_stdio}})
+        );
+    }
+
+    #[test]
     fn scope_and_secret_references() {
         let secrets = BTreeMap::from([("probe-key".into(), "top-secret".into())]);
         for (cli, role, board) in [
@@ -480,7 +632,34 @@ mod tests {
             config["mcp_servers"]["probe"]["bearer_token_env_var"].as_str(),
             Some("HIVEDECK_MCP_PROBE_KEY_TOKEN")
         );
-        for output in [claude, opencode, codex] {
+        let amp = amp_config(&servers);
+        let copilot = copilot_config(&servers);
+        let cursor = cursor_mcp_config(&servers);
+        let droid = droid_settings(&servers, None);
+        let gemini = gemini_family_settings(&servers, None, false);
+        let qwen = gemini_family_settings(&servers, None, true);
+        let amp_json: Value = serde_json::from_str(&amp).unwrap();
+        assert!(amp_json.get("mcpServers").is_none());
+        assert_eq!(
+            amp_json["probe"]["headers"]["Authorization"].as_str(),
+            Some("Bearer ${HIVEDECK_MCP_PROBE_KEY_TOKEN}")
+        );
+        let copilot_json: Value = serde_json::from_str(&copilot).unwrap();
+        assert_eq!(copilot_json["mcpServers"]["probe"]["tools"], json!(["*"]));
+        assert_eq!(copilot_json["mcpServers"]["probe"]["type"], json!("http"));
+        let cursor_json: Value = serde_json::from_str(&cursor).unwrap();
+        assert_eq!(
+            cursor_json["mcpServers"]["probe"]["url"],
+            json!("https://example.test/mcp")
+        );
+        let droid_json: Value = serde_json::from_str(&droid).unwrap();
+        assert_eq!(
+            droid_json["mcp"]["mcpServers"]["probe"]["type"],
+            json!("http")
+        );
+        for output in [
+            claude, opencode, codex, amp, copilot, cursor, droid, gemini, qwen,
+        ] {
             assert!(!output.contains("top-secret"));
         }
     }
@@ -528,8 +707,33 @@ mod tests {
                     |script| script.contains("export API_KEY=\"$HIVEDECK_MCP_PROBE_KEY_TOKEN\"")
                 )
         );
+        let amp = amp_config(&servers);
+        let copilot = copilot_config(&servers);
+        let cursor = cursor_mcp_config(&servers);
+        let droid = droid_settings(&servers, None);
+        assert_eq!(
+            serde_json::from_str::<Value>(&amp).unwrap()["probe"]["env"]["API_KEY"],
+            json!("${HIVEDECK_MCP_PROBE_KEY_TOKEN}")
+        );
+        let copilot_json: Value = serde_json::from_str(&copilot).unwrap();
+        assert_eq!(copilot_json["mcpServers"]["probe"]["tools"], json!(["*"]));
+        assert_eq!(
+            copilot_json["mcpServers"]["probe"]["env"]["API_KEY"],
+            json!("${HIVEDECK_MCP_PROBE_KEY_TOKEN}")
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&cursor).unwrap()["mcpServers"]["probe"]["env"]["API_KEY"],
+            json!("${HIVEDECK_MCP_PROBE_KEY_TOKEN}")
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&droid).unwrap()["mcp"]["mcpServers"]["probe"]["env"]["API_KEY"],
+            json!("${HIVEDECK_MCP_PROBE_KEY_TOKEN}")
+        );
         assert!(opencode.contains("{env:HIVEDECK_MCP_PROBE_KEY_TOKEN}"));
-        assert!(!format!("{claude}{codex}{opencode}").contains("top-secret"));
+        assert!(
+            !format!("{claude}{codex}{opencode}{amp}{copilot}{cursor}{droid}")
+                .contains("top-secret")
+        );
     }
 
     #[test]
