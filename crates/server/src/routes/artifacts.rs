@@ -1,5 +1,6 @@
 use std::{
     collections::BTreeMap,
+    ffi::OsStr,
     path::{Component, Path, PathBuf},
 };
 
@@ -81,16 +82,34 @@ fn resolve(issue_dir: &Path, path: &str) -> Result<PathBuf, Error> {
     Ok(target)
 }
 
+const MAX_ARTIFACTS_COLLECTED: usize = 500;
+
+fn should_skip_artifact_dir(name: &OsStr) -> bool {
+    matches!(
+        name.to_str(),
+        Some("node_modules" | "target" | "main-target" | ".git" | ".next" | "dist" | ".turbo")
+    )
+}
+
 fn collect(
     issue_dir: &Path,
     dir: &Path,
     execution_id: Uuid,
     files: &mut Vec<Artifact>,
 ) -> Result<(), Error> {
+    if files.len() >= MAX_ARTIFACTS_COLLECTED {
+        return Ok(());
+    }
     for entry in std::fs::read_dir(dir).map_err(io_error)? {
+        if files.len() >= MAX_ARTIFACTS_COLLECTED {
+            break;
+        }
         let entry = entry.map_err(io_error)?;
         let kind = entry.file_type().map_err(io_error)?;
         if kind.is_dir() {
+            if should_skip_artifact_dir(&entry.file_name()) {
+                continue;
+            }
             collect(issue_dir, &entry.path(), execution_id, files)?;
         } else if kind.is_file() {
             let metadata = entry.metadata().map_err(io_error)?;
