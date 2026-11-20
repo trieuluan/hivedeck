@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "UPDATE projects\n               SET orchestrator_prompt = $2,\n                   updated_at = datetime('now', 'subsec')\n               WHERE id = $1\n               RETURNING id as \"id!: Uuid\",\n                         name,\n                         key,\n                         color,\n                         sort_order,\n                         parent_id as \"parent_id: Uuid\",\n                         default_agent_working_dir,\n                         remote_project_id as \"remote_project_id: Uuid\",\n                         orchestrator_prompt,\n                         created_at as \"created_at!: DateTime<Utc>\",\n                         updated_at as \"updated_at!: DateTime<Utc>\"",
+  "query": "UPDATE projects\n               SET name = $2,\n                   key = $3,\n                   color = $4,\n                   sort_order = $5,\n                   default_agent_working_dir = $6,\n                   parent_id = $7,\n                   updated_at = datetime('now', 'subsec')\n               WHERE id = $1\n               RETURNING id as \"id!: Uuid\",\n                         name,\n                         key,\n                         color,\n                         sort_order,\n                         parent_id as \"parent_id?: Uuid\",\n                         default_agent_working_dir,\n                         remote_project_id as \"remote_project_id?: Uuid\",\n                         orchestrator_prompt,\n                         created_at as \"created_at!: DateTime<Utc>\",\n                         updated_at as \"updated_at!: DateTime<Utc>\"",
   "describe": {
     "columns": [
       {
@@ -59,7 +59,7 @@
         }
       },
       {
-        "name": "parent_id: Uuid",
+        "name": "parent_id?: Uuid",
         "ordinal": 5,
         "type_info": "Blob",
         "origin": {
@@ -81,7 +81,7 @@
         }
       },
       {
-        "name": "remote_project_id: Uuid",
+        "name": "remote_project_id?: Uuid",
         "ordinal": 7,
         "type_info": "Blob",
         "origin": {
@@ -126,7 +126,7 @@
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 7
     },
     "nullable": [
       true,
@@ -134,13 +134,13 @@
       true,
       false,
       false,
+      false,
       true,
-      true,
-      true,
+      false,
       false,
       false,
       false
     ]
   },
-  "hash": "85e8b42c6dea6484c2670e2c104bf4c61b75e3db7186a32de9454020224ab7e2"
+  "hash": "86f9af433b591947312d2d2c69f8b581fe6f37e75c506664027865909f70e085"
 }

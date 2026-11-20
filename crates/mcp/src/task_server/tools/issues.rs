@@ -2476,14 +2476,15 @@ mod tests {
                     .unwrap(),
             );
             assert_eq!(created["tags"], serde_json::json!(["research"]));
-            let guard = board.lock().unwrap();
-            assert_eq!(guard.attached_tags.len(), 1);
-            assert_eq!(guard.attached_tags[0]["issue_id"], created["issue_id"]);
-            assert_eq!(
-                guard.attached_tags[0]["tag_id"],
-                serde_json::json!(Uuid::from_u128(42))
-            );
-            drop(guard);
+            {
+                let guard = board.lock().unwrap();
+                assert_eq!(guard.attached_tags.len(), 1);
+                assert_eq!(guard.attached_tags[0]["issue_id"], created["issue_id"]);
+                assert_eq!(
+                    guard.attached_tags[0]["tag_id"],
+                    serde_json::json!(Uuid::from_u128(42))
+                );
+            }
 
             let without_tags: McpCreateIssueRequest = serde_json::from_value(
                 serde_json::json!({"project_id": project_id, "title": "No tags"}),

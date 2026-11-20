@@ -451,9 +451,7 @@ impl AppServerClient {
                 )
                 .into())
             }
-            ServerRequest::AttestationGenerate { .. }
-            | ServerRequest::CurrentTimeRead { .. }
-            | _ => {
+            ServerRequest::AttestationGenerate { .. } | ServerRequest::CurrentTimeRead { .. } => {
                 tracing::warn!("Unhandled server request variant: {request:?}");
                 Ok(())
             }
