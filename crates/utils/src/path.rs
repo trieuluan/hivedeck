@@ -142,6 +142,14 @@ pub fn get_hivedeck_home_dir() -> std::path::PathBuf {
         .unwrap_or_else(get_hivedeck_temp_dir)
 }
 
+pub fn artifacts_dir() -> std::io::Result<std::path::PathBuf> {
+    dirs::home_dir()
+        .map(|home| home.join(".hivedeck/artifacts"))
+        .ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::NotFound, "home directory unavailable")
+        })
+}
+
 /// Directory holding the user-editable pipeline definition files
 /// (`~/.hivedeck/pipelines/*.toml`, or `~/.hivedeck-dev/pipelines` in
 /// debug builds). Each `*.toml` file is one selectable card pipeline.

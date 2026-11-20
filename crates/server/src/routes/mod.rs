@@ -29,6 +29,7 @@ use tower_http::{compression::CompressionLayer, validate_request::ValidateReques
 use crate::{DeploymentImpl, middleware};
 
 pub mod approvals;
+pub mod artifacts;
 pub mod attachments;
 pub mod config;
 pub mod events;
@@ -61,6 +62,7 @@ pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
     let api_routes = Router::new()
         .route("/health", get(health::health_check))
         .merge(config::router())
+        .merge(artifacts::router())
         .merge(pipelines::router())
         .merge(recurrent::router())
         .merge(kanban::router(&deployment))

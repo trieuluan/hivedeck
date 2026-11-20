@@ -2888,6 +2888,25 @@ impl ContainerService for LocalContainerService {
         env.insert("VK_WORKSPACE_ID", workspace.id.to_string());
         env.insert("VK_WORKSPACE_BRANCH", &workspace.branch);
 
+        let artifact_issue = if matches!(
+            executor_action.typ(),
+            ExecutorActionType::CodingAgentInitialRequest(_)
+                | ExecutorActionType::CodingAgentFollowUpRequest(_)
+        ) {
+            IssueWorkspace::find_issue_and_project_by_workspace(&self.db.pool, workspace.id).await?
+        } else {
+            None
+        };
+        if let Some((issue_id, _)) = artifact_issue {
+            let dir = utils::path::artifacts_dir()?
+                .join(issue_id.to_string())
+                .join(execution_process.id.to_string());
+            tokio::fs::create_dir_all(&dir)
+                .await
+                .map_err(|error| anyhow!(error))?;
+            env.insert("HIVEDECK_ARTIFACTS_DIR", dir.to_string_lossy());
+        }
+
         let registry_cli = executor_action
             .base_executor()
             .and_then(executors::plugins::plugin_cli_key);
@@ -3000,7 +3019,20 @@ impl ContainerService for LocalContainerService {
                 &mut env,
             )
             .await;
-        let executor_action = routed_action.as_ref().unwrap_or(executor_action);
+        let mut artifact_action = routed_action.as_ref().unwrap_or(executor_action).clone();
+        if artifact_issue.is_some() {
+            let prompt = match &mut artifact_action.typ {
+                ExecutorActionType::CodingAgentInitialRequest(request) => Some(&mut request.prompt),
+                ExecutorActionType::CodingAgentFollowUpRequest(request) => {
+                    Some(&mut request.prompt)
+                }
+                _ => None,
+            };
+            if let Some(prompt) = prompt {
+                prompt.push_str("\nFile output not committed to git must be written to $HIVEDECK_ARTIFACTS_DIR.");
+            }
+        }
+        let executor_action = &artifact_action;
 
         // Chain every CLI through HiveDeck's local LLM inspector proxy (preserving
         // 9router or custom base URLs as upstream) for per-category context telemetry.
