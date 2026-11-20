@@ -969,7 +969,7 @@
         "unsupported": "Không hỗ trợ"
       },
       "marketplace": {
-        "title": "Danh mục plugin Claude",
+        "title": "Plugins",
         "description": "Duyệt plugin và xem trước thành phần trước khi cài.",
         "install": "Cài",
         "installed": "Đã cài",
@@ -984,7 +984,14 @@
         "claudeOnly": "Chỉ Claude",
         "source": "Nguồn",
         "version": "Phiên bản",
-        "more": "Hiện thêm"
+        "more": "Hiện thêm",
+        "clearSearch": "Xoá tìm kiếm",
+        "noDescription": "Chưa có mô tả.",
+        "byAuthor": "bởi {{author}}",
+        "details": "Chi tiết",
+        "hideDetails": "Ẩn chi tiết",
+        "marketplaceLabel": "Kho plugin",
+        "tagsLabel": "Thẻ"
       },
       "intro": "Cài một lần, chạy trên mọi CLI (Claude Code, Codex, OpenCode) trong run HiveDeck. Không sửa config của CLI.",
       "loading": "Đang tải tiện ích…",

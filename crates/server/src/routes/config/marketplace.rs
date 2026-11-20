@@ -18,6 +18,8 @@ struct Plugin {
     name: String,
     description: String,
     version: Option<String>,
+    icon: Option<String>,
+    author: Option<String>,
     source: Value,
     install_source: Option<String>,
     install_commit: Option<String>,
@@ -74,6 +76,8 @@ fn parse(body: &str, repo: &str) -> Result<Vec<Plugin>, serde_json::Error> {
                     .get("version")
                     .and_then(Value::as_str)
                     .map(str::to_owned),
+                icon: parse_icon(&entry, repo),
+                author: parse_author(&entry),
                 source,
                 install_source,
                 install_commit,
@@ -83,6 +87,37 @@ fn parse(body: &str, repo: &str) -> Result<Vec<Plugin>, serde_json::Error> {
             })
         })
         .collect())
+}
+
+fn parse_author(entry: &Value) -> Option<String> {
+    let raw = match entry.get("author")? {
+        Value::String(value) => value.as_str(),
+        Value::Object(map) => map.get("name")?.as_str()?,
+        _ => return None,
+    };
+    let trimmed = raw.trim();
+    (!trimmed.is_empty()).then(|| trimmed.to_owned())
+}
+
+fn parse_icon(entry: &Value, repo: &str) -> Option<String> {
+    for key in ["icon", "logo", "icon_url", "logo_url"] {
+        let Some(raw) = entry.get(key).and_then(Value::as_str) else {
+            continue;
+        };
+        let trimmed = raw.trim();
+        if trimmed.starts_with("https://") || trimmed.starts_with("http://") {
+            return Some(trimmed.to_owned());
+        }
+        if let Some(rel) = trimmed.strip_prefix("./")
+            && !rel.is_empty()
+            && !rel.split('/').any(|part| part.starts_with('.'))
+        {
+            return Some(format!(
+                "https://raw.githubusercontent.com/{repo}/HEAD/{rel}"
+            ));
+        }
+    }
+    None
 }
 
 fn map_source(source: &Value, marketplace: &str) -> Option<(Option<String>, Option<String>)> {
@@ -234,6 +269,30 @@ mod tests {
         assert_eq!(plugins[0].components, ["mcpServers", "skills", "hooks"]);
         assert_eq!(plugins[0].tags, ["search", "tools"]);
         assert_eq!(plugins[0].version.as_deref(), Some("1.0"));
+        assert!(plugins[0].icon.is_none());
+        assert!(plugins[0].author.is_none());
+        let with_meta = parse(
+            r#"{"plugins":[
+                {"name":"a","icon":"https://example.com/a.png","author":"Acme"},
+                {"name":"b","logo":"./assets/b.svg","author":{"name":"Beta"}},
+                {"name":"c","icon":"javascript:alert(1)"},
+                {"name":"d","icon":"./../secret.png"}
+            ]}"#,
+            "owner/repo",
+        )
+        .unwrap();
+        assert_eq!(
+            with_meta[0].icon.as_deref(),
+            Some("https://example.com/a.png")
+        );
+        assert_eq!(with_meta[0].author.as_deref(), Some("Acme"));
+        assert_eq!(
+            with_meta[1].icon.as_deref(),
+            Some("https://raw.githubusercontent.com/owner/repo/HEAD/assets/b.svg")
+        );
+        assert_eq!(with_meta[1].author.as_deref(), Some("Beta"));
+        assert!(with_meta[2].icon.is_none());
+        assert!(with_meta[3].icon.is_none());
         assert!(plugins[1].components.is_empty());
         assert_eq!(plugins[1].source, "./plugins/unknown");
         assert!(plugins[1].version.is_none());

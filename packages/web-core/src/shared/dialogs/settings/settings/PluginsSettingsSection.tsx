@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { SpinnerIcon } from '@phosphor-icons/react';
+import { CaretDownIcon, SpinnerIcon } from '@phosphor-icons/react';
 import type {
   ExecutorCompatibility,
   InstalledPlugin,
@@ -15,6 +15,7 @@ import { PluginDetail } from './plugins/PluginDetail';
 import { errorText, useNotice } from './plugins/pluginNotice';
 import { pluginsApi } from './plugins/pluginsApi';
 import { MarketplaceCatalog } from './plugins/MarketplaceCatalog';
+import { PluginAvatar } from './plugins/PluginAvatar';
 
 const button =
   'rounded-sm border border-border px-3 py-1.5 text-sm text-normal hover:bg-secondary disabled:opacity-50';
@@ -173,91 +174,116 @@ export function PluginsSettingsSection() {
             </p>
           </div>
         )}
-        {plugins?.map((plugin) => {
-          const expanded = open === plugin.name;
-          const detailId = `plugin-detail-${plugin.name}`;
-          return (
-            <div
-              key={plugin.name}
-              className="min-w-0 space-y-2 rounded-sm border border-border p-3"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <strong className="text-sm text-high break-all">
-                    {plugin.name}
-                  </strong>{' '}
-                  <span className="text-xs text-low">
-                    {t('settings.plugins.version', { version: plugin.version })}
-                  </span>
+        {plugins && plugins.length > 0 && (
+          <div className="divide-y divide-border rounded-md border border-border bg-secondary/15">
+            {plugins.map((plugin) => {
+              const expanded = open === plugin.name;
+              const detailId = `plugin-detail-${plugin.name}`;
+              return (
+                <div key={plugin.name} className="min-w-0 space-y-2.5 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <PluginAvatar name={plugin.name} size="sm" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <strong className="truncate text-sm font-medium text-high">
+                            {plugin.name}
+                          </strong>
+                          <span className="rounded bg-secondary px-1.5 py-0.5 text-2xs text-low">
+                            {t('settings.plugins.version', {
+                              version: plugin.version,
+                            })}
+                          </span>
+                          <span
+                            className={
+                              plugin.enabled
+                                ? 'inline-flex items-center gap-1 rounded bg-success/10 px-1.5 py-0.5 text-2xs font-medium text-success'
+                                : 'inline-flex items-center gap-1 rounded bg-secondary px-1.5 py-0.5 text-2xs text-low'
+                            }
+                          >
+                            {plugin.enabled
+                              ? t('settings.plugins.enabled')
+                              : t('settings.plugins.disabled')}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 truncate text-xs text-low">
+                          {t('settings.plugins.summary', {
+                            mcp: plugin.mcp.length,
+                            skills: plugin.skills.length,
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      <Switch
+                        checked={plugin.enabled}
+                        disabled={busy === plugin.name}
+                        aria-label={t('settings.plugins.toggleAria', {
+                          name: plugin.name,
+                        })}
+                        onCheckedChange={(enabled) =>
+                          void toggle(plugin, enabled)
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded-sm border border-border px-2.5 py-1 text-xs font-medium text-normal hover:bg-secondary disabled:opacity-50"
+                        aria-expanded={expanded}
+                        aria-controls={detailId}
+                        onClick={() => setOpen(expanded ? null : plugin.name)}
+                      >
+                        {t('settings.plugins.details')}
+                        <CaretDownIcon
+                          className={
+                            expanded
+                              ? 'h-3 w-3 rotate-180 transition-transform'
+                              : 'h-3 w-3 transition-transform'
+                          }
+                          weight="bold"
+                          aria-hidden="true"
+                        />
+                      </button>
+                      {latest[plugin.name] && (
+                        <button
+                          type="button"
+                          className="rounded-sm border border-border px-2.5 py-1 text-xs font-medium text-normal hover:bg-secondary disabled:opacity-50"
+                          disabled={busy === plugin.name}
+                          title={t('settings.plugins.upgradeHint', {
+                            tag: latest[plugin.name],
+                          })}
+                          onClick={() =>
+                            void upgrade(plugin, latest[plugin.name]!)
+                          }
+                        >
+                          {t('settings.plugins.upgrade', {
+                            tag: latest[plugin.name],
+                          })}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="rounded-sm border border-border px-2.5 py-1 text-xs font-medium text-normal hover:bg-secondary disabled:opacity-50"
+                        disabled={busy === plugin.name}
+                        onClick={() => void remove(plugin)}
+                      >
+                        {t('settings.plugins.remove')}
+                      </button>
+                    </div>
+                  </div>
+                  {expanded && (
+                    <div id={detailId}>
+                      <PluginDetail
+                        plugin={plugin}
+                        onChanged={reload}
+                        notify={notify}
+                      />
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-low">
-                    {plugin.enabled
-                      ? t('settings.plugins.enabled')
-                      : t('settings.plugins.disabled')}
-                  </span>
-                  <Switch
-                    checked={plugin.enabled}
-                    disabled={busy === plugin.name}
-                    aria-label={t('settings.plugins.toggleAria', {
-                      name: plugin.name,
-                    })}
-                    onCheckedChange={(enabled) => void toggle(plugin, enabled)}
-                  />
-                </div>
-              </div>
-              <p className="text-sm text-low">
-                {t('settings.plugins.summary', {
-                  mcp: plugin.mcp.length,
-                  skills: plugin.skills.length,
-                })}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className={button}
-                  aria-expanded={expanded}
-                  aria-controls={detailId}
-                  onClick={() => setOpen(expanded ? null : plugin.name)}
-                >
-                  {t('settings.plugins.details')}
-                </button>
-                {latest[plugin.name] && (
-                  <button
-                    type="button"
-                    className={button}
-                    disabled={busy === plugin.name}
-                    title={t('settings.plugins.upgradeHint', {
-                      tag: latest[plugin.name],
-                    })}
-                    onClick={() => void upgrade(plugin, latest[plugin.name]!)}
-                  >
-                    {t('settings.plugins.upgrade', {
-                      tag: latest[plugin.name],
-                    })}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className={button}
-                  disabled={busy === plugin.name}
-                  onClick={() => void remove(plugin)}
-                >
-                  {t('settings.plugins.remove')}
-                </button>
-              </div>
-              {expanded && (
-                <div id={detailId}>
-                  <PluginDetail
-                    plugin={plugin}
-                    onChanged={reload}
-                    notify={notify}
-                  />
-                </div>
-              )}
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        )}
         <ImportFromCli notify={notify} onImported={reload} />
         <AddPluginDialog
           open={adding}

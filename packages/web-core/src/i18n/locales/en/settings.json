@@ -969,7 +969,7 @@
         "unsupported": "Unsupported"
       },
       "marketplace": {
-        "title": "Claude plugin marketplace",
+        "title": "Plugins",
         "description": "Browse plugins and preview their components before installing.",
         "install": "Install",
         "installed": "Installed",
@@ -985,7 +985,14 @@
         "claudeOnly": "Claude only",
         "source": "Source",
         "version": "Version",
-        "more": "Show more"
+        "more": "Show more",
+        "clearSearch": "Clear search",
+        "noDescription": "No description provided.",
+        "byAuthor": "by {{author}}",
+        "details": "Details",
+        "hideDetails": "Hide details",
+        "marketplaceLabel": "Marketplace",
+        "tagsLabel": "Tags"
       },
       "intro": "Install once, runs on every CLI (Claude Code, Codex, OpenCode) in HiveDeck runs. CLI configs are never edited.",
       "loading": "Loading extensions…",
