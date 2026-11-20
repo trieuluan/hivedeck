@@ -45,7 +45,10 @@ pub struct Gemini {
 }
 
 impl Gemini {
-    fn build_command_builder(&self) -> Result<CommandBuilder, CommandBuildError> {
+    fn build_command_builder(
+        &self,
+        env: &ExecutionEnv,
+    ) -> Result<CommandBuilder, CommandBuildError> {
         let mut builder = CommandBuilder::new("npx -y @google/gemini-cli@0.29.3");
 
         if let Some(model) = &self.model {
@@ -59,6 +62,9 @@ impl Gemini {
 
         builder = builder.extend_params(["--experimental-acp"]);
 
+        for dir in &env.skill_dirs {
+            builder = builder.extend_params(["--include-directories", &dir.to_string_lossy()]);
+        }
         apply_overrides(builder, &self.cmd)
     }
 }
@@ -88,8 +94,12 @@ impl StandardCodingAgentExecutor for Gemini {
         env: &ExecutionEnv,
     ) -> Result<SpawnedChild, ExecutorError> {
         let harness = AcpAgentHarness::new();
-        let combined_prompt = self.append_prompt.combine_prompt(prompt);
-        let gemini_command = self.build_command_builder()?.build_initial()?;
+        let combined_prompt = format!(
+            "{}{}",
+            crate::plugins::skills_catalog(&env.skill_dirs).unwrap_or_default(),
+            self.append_prompt.combine_prompt(prompt)
+        );
+        let gemini_command = self.build_command_builder(env)?.build_initial()?;
         let approvals = if self.yolo.unwrap_or(false) {
             None
         } else {
@@ -116,8 +126,12 @@ impl StandardCodingAgentExecutor for Gemini {
         env: &ExecutionEnv,
     ) -> Result<SpawnedChild, ExecutorError> {
         let harness = AcpAgentHarness::new();
-        let combined_prompt = self.append_prompt.combine_prompt(prompt);
-        let gemini_command = self.build_command_builder()?.build_follow_up(&[])?;
+        let combined_prompt = format!(
+            "{}{}",
+            crate::plugins::skills_catalog(&env.skill_dirs).unwrap_or_default(),
+            self.append_prompt.combine_prompt(prompt)
+        );
+        let gemini_command = self.build_command_builder(env)?.build_follow_up(&[])?;
         let approvals = if self.yolo.unwrap_or(false) {
             None
         } else {

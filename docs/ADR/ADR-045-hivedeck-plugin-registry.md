@@ -123,3 +123,28 @@ against local loopback mock LLM endpoints with isolated `HOME`:
 - `GET /api/plugins/{name}/latest-tag` backs the Upgrade button for
   tag-pinned remote sources (`git ls-remote`).
 - Types (`InstalledPlugin`, `PluginView`, requests) are generated from Rust.
+
+## Gemini CLI and Qwen Code injection (2026-11-20)
+
+Checked against the installed packages (Gemini CLI 0.29.3, Qwen Code 0.9.1), not guessed.
+
+- **MCP**: each run writes `run_skills/<run_id>/settings.json` and points the
+  CLI at it with `GEMINI_CLI_SYSTEM_SETTINGS_PATH` / `QWEN_CODE_SYSTEM_SETTINGS_PATH`.
+  The system layer merges over the user's settings and `mcpServers` is
+  shallow-merged, so the owner's servers stay and no global file is written.
+  The file is removed with the run's skills.
+- **Secrets**: both CLIs expand `$VAR`/`${VAR}` from the process env when they
+  load settings, so the file holds placeholders only. Gemini does not forward
+  env vars named like secrets to stdio servers it spawns, but `env` entries in
+  the server definition are applied after that filter.
+- **Transport**: Gemini `{url, type:"http"}`; Qwen `{httpUrl}` (its `url` is SSE).
+  Qwen needs `"$version": 2` in the file to skip its in-place migration.
+- **Skills**: neither CLI loads a per-run skill dir natively. Skills are copied
+  to `run_skills/<run_id>/skills`, passed through `--include-directories`
+  (read access), and a catalog (name, description, `SKILL.md` path) is
+  prepended to the run's prompt.
+- **Verification**: `plugin_injection.rs` runs both CLIs against a local mock
+  model and the fixture MCP server; the `fixture_ping` tool and the
+  `(authed)` marker (secret from env) reach the model request. Same test also
+  re-ran Claude Code 2.1.x, Codex, and OpenCode with the current code.
+  Not done: installing a plugin through the web UI and a real-model run.

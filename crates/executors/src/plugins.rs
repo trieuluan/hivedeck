@@ -2062,6 +2062,10 @@ pub fn materialize_run_skills(
             let skills_dir = run_root.join("opencode");
             (skills_dir.clone(), Some(skills_dir))
         }
+        "gemini" | "qwen_code" => {
+            let skills_dir = run_root.join("skills");
+            (skills_dir.clone(), Some(skills_dir))
+        }
         _ => (run_root.join("skills"), None),
     };
 
@@ -2090,6 +2094,71 @@ pub fn cleanup_run_skills(asset_dir: &Path, run_id: &str) {
     if run_root.exists() {
         let _ = fs::remove_dir_all(run_root);
     }
+}
+
+/// Per-run settings file for Gemini CLI / Qwen Code, inside the run's
+/// `run_skills/<run_id>` dir (removed by [`cleanup_run_skills`]). Holds env
+/// placeholders only, never secret values. Returns the file path.
+pub fn write_run_settings(
+    asset_dir: &Path,
+    run_id: &str,
+    servers: &[InjectedMcpServer],
+    qwen: bool,
+) -> Result<PathBuf, PluginError> {
+    let run_root = asset_dir.join("run_skills").join(run_id);
+    fs::create_dir_all(&run_root)?;
+    let path = run_root.join("settings.json");
+    fs::write(
+        &path,
+        mcp_registry::gemini_family_settings(servers, None, qwen),
+    )?;
+    Ok(path)
+}
+
+/// Skills index for CLIs without native per-run skill loading: name,
+/// description and `SKILL.md` path, prepended to the run's prompt.
+pub fn skills_catalog(skill_dirs: &[PathBuf]) -> Option<String> {
+    let mut lines = Vec::new();
+    for dir in skill_dirs {
+        let Ok(entries) = fs::read_dir(dir) else {
+            continue;
+        };
+        let mut found: Vec<_> = entries.flatten().map(|entry| entry.path()).collect();
+        found.sort();
+        for skill_dir in found {
+            let skill_md = skill_dir.join("SKILL.md");
+            let Ok(text) = fs::read_to_string(&skill_md) else {
+                continue;
+            };
+            let field = |key: &str| {
+                text.strip_prefix("---")
+                    .and_then(|rest| rest.split("\n---").next())
+                    .and_then(|front| {
+                        front
+                            .lines()
+                            .find_map(|line| line.strip_prefix(&format!("{key}:")))
+                    })
+                    .map(|value| value.trim().trim_matches(['"', '\'']).to_string())
+            };
+            let name = field("name").unwrap_or_else(|| {
+                skill_dir
+                    .file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_default()
+            });
+            lines.push(format!(
+                "- {name}: {} ({})",
+                field("description").unwrap_or_default(),
+                skill_md.display()
+            ));
+        }
+    }
+    (!lines.is_empty()).then(|| {
+        format!(
+            "Available skills (read the SKILL.md file before using one):\n{}\n\n",
+            lines.join("\n")
+        )
+    })
 }
 
 pub fn opencode_skills_config(skill_dirs: &[PathBuf], existing: Option<&str>) -> String {

@@ -41,7 +41,10 @@ pub struct QwenCode {
 }
 
 impl QwenCode {
-    fn build_command_builder(&self) -> Result<CommandBuilder, CommandBuildError> {
+    fn build_command_builder(
+        &self,
+        env: &ExecutionEnv,
+    ) -> Result<CommandBuilder, CommandBuildError> {
         let mut builder = CommandBuilder::new("npx -y @qwen-code/qwen-code@0.9.1");
 
         if let Some(model) = &self.model {
@@ -52,6 +55,9 @@ impl QwenCode {
             builder = builder.extend_params(["--yolo"]);
         }
         builder = builder.extend_params(["--acp"]);
+        for dir in &env.skill_dirs {
+            builder = builder.extend_params(["--include-directories", &dir.to_string_lossy()]);
+        }
         apply_overrides(builder, &self.cmd)
     }
 }
@@ -84,8 +90,12 @@ impl StandardCodingAgentExecutor for QwenCode {
         prompt: &str,
         env: &ExecutionEnv,
     ) -> Result<SpawnedChild, ExecutorError> {
-        let qwen_command = self.build_command_builder()?.build_initial()?;
-        let combined_prompt = self.append_prompt.combine_prompt(prompt);
+        let qwen_command = self.build_command_builder(env)?.build_initial()?;
+        let combined_prompt = format!(
+            "{}{}",
+            crate::plugins::skills_catalog(&env.skill_dirs).unwrap_or_default(),
+            self.append_prompt.combine_prompt(prompt)
+        );
         let mut harness = AcpAgentHarness::with_session_namespace("qwen_sessions");
         if let Some(model) = &self.model {
             harness = harness.with_model(model);
@@ -118,8 +128,12 @@ impl StandardCodingAgentExecutor for QwenCode {
         _reset_to_message_id: Option<&str>,
         env: &ExecutionEnv,
     ) -> Result<SpawnedChild, ExecutorError> {
-        let qwen_command = self.build_command_builder()?.build_follow_up(&[])?;
-        let combined_prompt = self.append_prompt.combine_prompt(prompt);
+        let qwen_command = self.build_command_builder(env)?.build_follow_up(&[])?;
+        let combined_prompt = format!(
+            "{}{}",
+            crate::plugins::skills_catalog(&env.skill_dirs).unwrap_or_default(),
+            self.append_prompt.combine_prompt(prompt)
+        );
         let mut harness = AcpAgentHarness::with_session_namespace("qwen_sessions");
         if let Some(model) = &self.model {
             harness = harness.with_model(model);

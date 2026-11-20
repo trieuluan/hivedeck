@@ -170,6 +170,61 @@ pub fn opencode_config(servers: &[InjectedMcpServer], existing: Option<&str>) ->
     config.to_string()
 }
 
+/// Per-run settings for Gemini CLI (`GEMINI_CLI_SYSTEM_SETTINGS_PATH`) and
+/// Qwen Code (`QWEN_CODE_SYSTEM_SETTINGS_PATH`). Both expand `$VAR` /
+/// `${VAR}` from the process env when loading settings, so the file holds
+/// placeholders only. `mcpServers` is shallow-merged, so user servers stay.
+pub fn gemini_family_settings(
+    servers: &[InjectedMcpServer],
+    existing: Option<&str>,
+    qwen: bool,
+) -> String {
+    let mut config: Value = existing
+        .and_then(|value| serde_json::from_str(value).ok())
+        .filter(Value::is_object)
+        .unwrap_or_else(|| json!({}));
+    if qwen && config.get("$version").is_none() {
+        config["$version"] = json!(2);
+    }
+    if !config.get("mcpServers").is_some_and(Value::is_object) {
+        config["mcpServers"] = json!({});
+    }
+    let map = config["mcpServers"].as_object_mut().unwrap();
+    for server in servers {
+        let definition = if server.transport == "http" {
+            let headers: BTreeMap<_, _> = server
+                .headers
+                .iter()
+                .map(|(key, variable)| {
+                    (
+                        key,
+                        if key.eq_ignore_ascii_case("authorization") {
+                            format!("Bearer ${{{variable}}}")
+                        } else {
+                            format!("${{{variable}}}")
+                        },
+                    )
+                })
+                .collect();
+            if qwen {
+                // Qwen 0.9.1: `url` is SSE, `httpUrl` is streamable HTTP.
+                json!({"httpUrl": server.url, "headers": headers})
+            } else {
+                json!({"url": server.url, "type": "http", "headers": headers})
+            }
+        } else {
+            let env: BTreeMap<_, _> = server
+                .env
+                .iter()
+                .map(|(key, variable)| (key, format!("${{{variable}}}")))
+                .collect();
+            json!({"command": server.command, "args": server.args, "env": env})
+        };
+        map.insert(server.name.clone(), definition);
+    }
+    config.to_string()
+}
+
 fn valid_env_ident(name: &str) -> bool {
     let mut bytes = name.bytes();
     bytes

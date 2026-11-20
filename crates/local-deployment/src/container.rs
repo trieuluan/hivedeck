@@ -2747,6 +2747,8 @@ impl ContainerService for LocalContainerService {
             }
             Some(BaseCodingAgent::Codex) => Some("codex"),
             Some(BaseCodingAgent::Opencode | BaseCodingAgent::OpencodeHeaded) => Some("opencode"),
+            Some(BaseCodingAgent::Gemini) => Some("gemini"),
+            Some(BaseCodingAgent::QwenCode) => Some("qwen_code"),
             _ => None,
         };
         if let Some(cli) = registry_cli {
@@ -2776,6 +2778,24 @@ impl ContainerService for LocalContainerService {
                 board.as_deref(),
             )
             .map_err(|error| anyhow!(error))?;
+            if matches!(cli, "gemini" | "qwen_code") && !servers.is_empty() {
+                let qwen = cli == "qwen_code";
+                let settings = executors::plugins::write_run_settings(
+                    &dir,
+                    &execution_process.id.to_string(),
+                    &servers,
+                    qwen,
+                )
+                .map_err(|error| anyhow!("Failed to write run settings: {error}"))?;
+                env.insert(
+                    if qwen {
+                        "QWEN_CODE_SYSTEM_SETTINGS_PATH"
+                    } else {
+                        "GEMINI_CLI_SYSTEM_SETTINGS_PATH"
+                    },
+                    settings.to_string_lossy(),
+                );
+            }
             env.mcp_servers = servers;
             env.merge(&secrets);
 
