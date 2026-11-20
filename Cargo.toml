@@ -147,6 +147,11 @@ workspace_utils = { path = "crates/utils", package = "utils" }
 worktree-manager = { path = "crates/worktree-manager" }
 xdg = "3.0"
 
+# Optimize third-party dependencies in dev builds so serde_json, sqlx, tokio,
+# git2, and json-patch run at near-release speed without slowing down local edits.
+[profile.dev.package."*"]
+opt-level = 2
+
 [profile.release]
 debug = 1
 split-debuginfo = "packed"

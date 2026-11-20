@@ -1,10 +1,12 @@
 //! Cross-platform shell command utilities
 
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     env::{join_paths, split_paths},
     ffi::{OsStr, OsString},
     path::{Path, PathBuf},
+    sync::{OnceLock, RwLock},
+    time::{Duration, Instant},
 };
 
 use crate::tokio::block_on;
@@ -40,12 +42,23 @@ pub async fn get_interactive_shell() -> PathBuf {
     }
 }
 
+const EXECUTABLE_CACHE_HIT_TTL: Duration = Duration::from_secs(60);
+const EXECUTABLE_CACHE_MISS_TTL: Duration = Duration::from_secs(30);
+
+type ExecutableCache = RwLock<HashMap<String, (Option<PathBuf>, Instant)>>;
+
+fn executable_cache() -> &'static ExecutableCache {
+    static CACHE: OnceLock<ExecutableCache> = OnceLock::new();
+    CACHE.get_or_init(|| RwLock::new(HashMap::new()))
+}
+
 /// Resolve an executable by name, falling back to a refreshed PATH if needed.
 ///
 /// The search order is:
 /// 1. Explicit paths (absolute or containing a separator).
-/// 2. The current process PATH via `which`.
-/// 3. A platform-specific refresh of PATH (login shell on Unix, PowerShell on Windows),
+/// 2. Short-lived in-process cache (60s for hits, 30s for misses).
+/// 3. The current process PATH via `which`.
+/// 4. A platform-specific refresh of PATH (login shell on Unix, PowerShell on Windows),
 ///    after which we re-run the `which` lookup and update the process PATH for future calls.
 pub async fn resolve_executable_path(executable: &str) -> Option<PathBuf> {
     if executable.trim().is_empty() {
@@ -57,17 +70,36 @@ pub async fn resolve_executable_path(executable: &str) -> Option<PathBuf> {
         return Some(path.to_path_buf());
     }
 
-    if let Some(found) = which(executable).await {
-        return Some(found);
-    }
-
-    if refresh_path().await
-        && let Some(found) = which(executable).await
+    if let Ok(cache) = executable_cache().read()
+        && let Some((cached, recorded_at)) = cache.get(executable)
     {
-        return Some(found);
+        let ttl = if cached.is_some() {
+            EXECUTABLE_CACHE_HIT_TTL
+        } else {
+            EXECUTABLE_CACHE_MISS_TTL
+        };
+        if recorded_at.elapsed() < ttl {
+            match cached {
+                Some(p) if p.is_file() => return Some(p.clone()),
+                None => return None,
+                _ => {}
+            }
+        }
     }
 
-    None
+    let resolved = if let Some(found) = which(executable).await {
+        Some(found)
+    } else if refresh_path().await {
+        which(executable).await
+    } else {
+        None
+    };
+
+    if let Ok(mut cache) = executable_cache().write() {
+        cache.insert(executable.to_string(), (resolved.clone(), Instant::now()));
+    }
+
+    resolved
 }
 
 pub fn resolve_executable_path_blocking(executable: &str) -> Option<PathBuf> {
