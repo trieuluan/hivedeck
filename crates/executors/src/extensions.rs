@@ -392,6 +392,27 @@ fn codex_inventory(home: &Path) -> CliInventory {
                 .collect()
         })
         .unwrap_or_default();
+    let plugins: Vec<InstalledItem> = config
+        .get("plugins")
+        .and_then(|v| v.as_table())
+        .map(|plugins| {
+            plugins
+                .iter()
+                .filter(|(_, val)| {
+                    val.as_table()
+                        .and_then(|t| t.get("enabled"))
+                        .and_then(|e| e.as_bool())
+                        != Some(false)
+                })
+                .map(|(name, _)| InstalledItem {
+                    name: name.clone(),
+                    description: None,
+                    source: "~/.codex/config.toml".into(),
+                    toggleable: true,
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     let hooks = read_json(&codex_dir.join("hooks.json"));
     let mut skills = skill_dirs(&codex_dir.join("skills"), "~/.codex/skills", false);
     let mut seen_skills: BTreeSet<String> = skills.iter().map(|s| s.name.clone()).collect();
@@ -405,11 +426,12 @@ fn codex_inventory(home: &Path) -> CliInventory {
         cli: "CODEX".into(),
         skills,
         mcp_servers,
-        plugins: Vec::new(),
+        plugins,
         subagents: Vec::new(),
         hooks: hook_events(&hooks, "~/.codex/hooks.json"),
         supports: CliSupports {
             mcp: true,
+            plugins: true,
             ..Default::default()
         },
     }
@@ -716,14 +738,38 @@ pub fn gateway_model_overrides(
     out
 }
 
+fn toml_key_segment(name: &str) -> String {
+    if !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        name.to_string()
+    } else {
+        format!("\"{}\"", name.replace('\\', "\\\\").replace('"', "\\\""))
+    }
+}
+
 /// Codex config overrides (`thread/start` config) for the owner's choices.
 pub fn codex_config_overrides(prefs: &CliExtensionPrefs) -> Vec<(String, Value)> {
-    prefs
+    let mut out: Vec<(String, Value)> = prefs
         .disabled_mcp
         .iter()
         .filter(|name| name.as_str() != "hivedeck")
-        .map(|name| (format!("mcp_servers.{name}.enabled"), Value::Bool(false)))
-        .collect()
+        .map(|name| {
+            (
+                format!("mcp_servers.{}.enabled", toml_key_segment(name)),
+                Value::Bool(false),
+            )
+        })
+        .collect();
+    for name in &prefs.disabled_plugins {
+        out.push((
+            format!("plugins.{}.enabled", toml_key_segment(name)),
+            Value::Bool(false),
+        ));
+    }
+    out
 }
 
 /// Remove slash commands for skills/plugins the owner switched off in `ExtensionPrefs`.
@@ -923,13 +969,22 @@ mod tests {
         let mut prefs = CliExtensionPrefs::default();
         prefs.disabled_mcp.insert("node_repl".into());
         prefs.disabled_mcp.insert("hivedeck".into());
+        prefs
+            .disabled_plugins
+            .insert("codex-app-tools@openai-bundled".into());
         let overrides = codex_config_overrides(&prefs);
         assert_eq!(
             overrides,
-            vec![(
-                "mcp_servers.node_repl.enabled".to_string(),
-                Value::Bool(false)
-            )]
+            vec![
+                (
+                    "mcp_servers.node_repl.enabled".to_string(),
+                    Value::Bool(false)
+                ),
+                (
+                    "plugins.\"codex-app-tools@openai-bundled\".enabled".to_string(),
+                    Value::Bool(false)
+                ),
+            ]
         );
     }
 }
