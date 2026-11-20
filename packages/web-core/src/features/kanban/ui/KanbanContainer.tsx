@@ -34,6 +34,7 @@ import {
   ClipboardTextIcon,
   PlusIcon,
   DotsThreeIcon,
+  PaperclipIcon,
 } from '@phosphor-icons/react';
 import {
   isDoneStatus,
@@ -75,6 +76,7 @@ import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
 import { ConfirmCheckboxDialog } from '@/shared/dialogs/shared/ConfirmCheckboxDialog';
 import { workspaceSummaryKeys } from '@/shared/hooks/workspaceSummaryKeys';
 import { useQueryClient } from '@tanstack/react-query';
+import { useArtifacts } from '@/pages/kanban/IssueArtifacts';
 import { workspacesApi } from '@/shared/lib/api';
 import {
   IssueWorkspaceCard,
@@ -203,6 +205,7 @@ function ProjectBreadcrumb({
  * — the per-project one (issues) AND the flat one (project list).
  */
 export function KanbanContainer() {
+  const { data: artifacts } = useArtifacts();
   const isMobile = useIsMobile();
   const { t } = useTranslation('common');
   const appNavigation = useAppNavigation();
@@ -1815,7 +1818,20 @@ export function KanbanContainer() {
                               onMoreActionsClick={() =>
                                 handleCardMoreActionsClick(issue.id)
                               }
-                              footer={renderShipButton(issue)}
+                              footer={
+                                <>
+                                  {artifacts?.[issue.id]?.length ? (
+                                    <span
+                                      className="text-low text-sm mr-auto flex items-center gap-1"
+                                      aria-label={`${artifacts[issue.id].length} artifacts`}
+                                    >
+                                      <PaperclipIcon />{' '}
+                                      {artifacts[issue.id].length}
+                                    </span>
+                                  ) : null}
+                                  {renderShipButton(issue)}
+                                </>
+                              }
                               retainedWorkspace={(() => {
                                 const retained =
                                   retainedWorkspacesByIssueId.get(issue.id);

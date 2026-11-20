@@ -20,6 +20,7 @@ import { IssueSubIssuesSectionContainer } from './IssueSubIssuesSectionContainer
 import { IssueRelationshipsSectionContainer } from './IssueRelationshipsSectionContainer';
 import { IssueWorkspacesSectionContainer } from './IssueWorkspacesSectionContainer';
 import { IssueDocumentsSection } from './IssueDocumentsSection';
+import { IssueArtifacts, useArtifacts } from './IssueArtifacts';
 import { IssueIntakeSection } from './IssueIntakeSection';
 import {
   PipelineSection,
@@ -155,6 +156,7 @@ export function KanbanIssuePanelContainer({
   issueResolution,
   onExpectIssueOpen,
 }: KanbanIssuePanelContainerProps) {
+  const { data: artifacts } = useArtifacts();
   const { t } = useTranslation('common');
   const [showAdvanced] = useShowAdvanced();
   const appNavigation = useAppNavigation();
@@ -1087,6 +1089,12 @@ export function KanbanIssuePanelContainer({
 
   return (
     <KanbanIssuePanel
+      artifactCount={
+        selectedKanbanIssueId ? artifacts?.[selectedKanbanIssueId]?.length : 0
+      }
+      renderArtifactsSection={(issueId) => (
+        <IssueArtifacts key={issueId} issueId={issueId} />
+      )}
       mode={mode}
       displayId={displayId}
       formData={displayData}
