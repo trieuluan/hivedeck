@@ -29,6 +29,8 @@ use ts_rs::TS;
 use utils::{assets::config_path, log_msg::LogMsg, response::ApiResponse};
 use uuid::Uuid;
 
+mod marketplace;
+
 use crate::{
     DeploymentImpl,
     error::ApiError,
@@ -44,6 +46,7 @@ pub fn router() -> Router<DeploymentImpl> {
             "/agent-extensions",
             get(get_agent_extensions).put(update_agent_extensions),
         )
+        .route("/agent-extensions/marketplace", get(marketplace::catalog))
         .route("/profiles", get(get_profiles).put(update_profiles))
         .route("/export", get(export_config))
         .route("/import", post(import_config))

@@ -10,6 +10,7 @@ import { ImportFromCli } from './plugins/ImportFromCli';
 import { PluginDetail } from './plugins/PluginDetail';
 import { errorText, useNotice } from './plugins/pluginNotice';
 import { pluginsApi } from './plugins/pluginsApi';
+import { MarketplaceCatalog } from './plugins/MarketplaceCatalog';
 
 const button =
   'rounded-sm border border-border px-3 py-1.5 text-sm text-normal hover:bg-secondary disabled:opacity-50';
@@ -108,150 +109,157 @@ export function PluginsSettingsSection() {
     });
 
   return (
-    <SettingsCard
-      title={t('settings.plugins.title')}
-      description={t('settings.plugins.intro')}
-      headerAction={
-        <button
-          ref={addButton}
-          type="button"
-          className={button}
-          onClick={() => setAdding(true)}
-        >
-          {t('settings.plugins.add')}
-        </button>
-      }
-    >
-      {notice && (
-        <p
-          role={notice.kind === 'error' ? 'alert' : 'status'}
-          className={
-            notice.kind === 'error'
-              ? 'text-sm text-error break-words'
-              : 'text-sm text-normal break-words'
-          }
-        >
-          {notice.text}
-        </p>
-      )}
-      {loadError && (
-        <p role="alert" className="text-sm text-error">
-          {t('settings.plugins.loadError')}
-        </p>
-      )}
-      {!plugins && !loadError && (
-        <p className="flex items-center gap-2 text-sm text-low">
-          <SpinnerIcon className="h-4 w-4 animate-spin" aria-hidden />
-          {t('settings.plugins.loading')}
-        </p>
-      )}
-      {plugins?.length === 0 && (
-        <div className="rounded-sm border border-dashed border-border p-4 text-center">
-          <p className="text-sm text-normal">{t('settings.plugins.empty')}</p>
-          <p className="text-xs text-low">{t('settings.plugins.emptyHint')}</p>
-        </div>
-      )}
-      {plugins?.map((plugin) => {
-        const expanded = open === plugin.name;
-        const detailId = `plugin-detail-${plugin.name}`;
-        return (
-          <div
-            key={plugin.name}
-            className="min-w-0 space-y-2 rounded-sm border border-border p-3"
+    <div>
+      <SettingsCard
+        title={t('settings.plugins.title')}
+        description={t('settings.plugins.intro')}
+        headerAction={
+          <button
+            ref={addButton}
+            type="button"
+            className={button}
+            onClick={() => setAdding(true)}
           >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="min-w-0">
-                <strong className="text-sm text-high break-all">
-                  {plugin.name}
-                </strong>{' '}
-                <span className="text-xs text-low">
-                  {t('settings.plugins.version', { version: plugin.version })}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-low">
-                  {plugin.enabled
-                    ? t('settings.plugins.enabled')
-                    : t('settings.plugins.disabled')}
-                </span>
-                <Switch
-                  checked={plugin.enabled}
-                  disabled={busy === plugin.name}
-                  aria-label={t('settings.plugins.toggleAria', {
-                    name: plugin.name,
-                  })}
-                  onCheckedChange={(enabled) => void toggle(plugin, enabled)}
-                />
-              </div>
-            </div>
-            <p className="text-sm text-low">
-              {t('settings.plugins.summary', {
-                mcp: plugin.mcp.length,
-                skills: plugin.skills.length,
-              })}
+            {t('settings.plugins.add')}
+          </button>
+        }
+      >
+        {notice && (
+          <p
+            role={notice.kind === 'error' ? 'alert' : 'status'}
+            className={
+              notice.kind === 'error'
+                ? 'text-sm text-error break-words'
+                : 'text-sm text-normal break-words'
+            }
+          >
+            {notice.text}
+          </p>
+        )}
+        {loadError && (
+          <p role="alert" className="text-sm text-error">
+            {t('settings.plugins.loadError')}
+          </p>
+        )}
+        {!plugins && !loadError && (
+          <p className="flex items-center gap-2 text-sm text-low">
+            <SpinnerIcon className="h-4 w-4 animate-spin" aria-hidden />
+            {t('settings.plugins.loading')}
+          </p>
+        )}
+        {plugins?.length === 0 && (
+          <div className="rounded-sm border border-dashed border-border p-4 text-center">
+            <p className="text-sm text-normal">{t('settings.plugins.empty')}</p>
+            <p className="text-xs text-low">
+              {t('settings.plugins.emptyHint')}
             </p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className={button}
-                aria-expanded={expanded}
-                aria-controls={detailId}
-                onClick={() => setOpen(expanded ? null : plugin.name)}
-              >
-                {t('settings.plugins.details')}
-              </button>
-              {latest[plugin.name] && (
+          </div>
+        )}
+        {plugins?.map((plugin) => {
+          const expanded = open === plugin.name;
+          const detailId = `plugin-detail-${plugin.name}`;
+          return (
+            <div
+              key={plugin.name}
+              className="min-w-0 space-y-2 rounded-sm border border-border p-3"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <strong className="text-sm text-high break-all">
+                    {plugin.name}
+                  </strong>{' '}
+                  <span className="text-xs text-low">
+                    {t('settings.plugins.version', { version: plugin.version })}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-low">
+                    {plugin.enabled
+                      ? t('settings.plugins.enabled')
+                      : t('settings.plugins.disabled')}
+                  </span>
+                  <Switch
+                    checked={plugin.enabled}
+                    disabled={busy === plugin.name}
+                    aria-label={t('settings.plugins.toggleAria', {
+                      name: plugin.name,
+                    })}
+                    onCheckedChange={(enabled) => void toggle(plugin, enabled)}
+                  />
+                </div>
+              </div>
+              <p className="text-sm text-low">
+                {t('settings.plugins.summary', {
+                  mcp: plugin.mcp.length,
+                  skills: plugin.skills.length,
+                })}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className={button}
+                  aria-expanded={expanded}
+                  aria-controls={detailId}
+                  onClick={() => setOpen(expanded ? null : plugin.name)}
+                >
+                  {t('settings.plugins.details')}
+                </button>
+                {latest[plugin.name] && (
+                  <button
+                    type="button"
+                    className={button}
+                    disabled={busy === plugin.name}
+                    title={t('settings.plugins.upgradeHint', {
+                      tag: latest[plugin.name],
+                    })}
+                    onClick={() => void upgrade(plugin, latest[plugin.name]!)}
+                  >
+                    {t('settings.plugins.upgrade', {
+                      tag: latest[plugin.name],
+                    })}
+                  </button>
+                )}
                 <button
                   type="button"
                   className={button}
                   disabled={busy === plugin.name}
-                  title={t('settings.plugins.upgradeHint', {
-                    tag: latest[plugin.name],
-                  })}
-                  onClick={() => void upgrade(plugin, latest[plugin.name]!)}
+                  onClick={() => void remove(plugin)}
                 >
-                  {t('settings.plugins.upgrade', { tag: latest[plugin.name] })}
+                  {t('settings.plugins.remove')}
                 </button>
-              )}
-              <button
-                type="button"
-                className={button}
-                disabled={busy === plugin.name}
-                onClick={() => void remove(plugin)}
-              >
-                {t('settings.plugins.remove')}
-              </button>
-            </div>
-            {expanded && (
-              <div id={detailId}>
-                <PluginDetail
-                  plugin={plugin}
-                  onChanged={reload}
-                  notify={notify}
-                />
               </div>
-            )}
-          </div>
-        );
-      })}
-      <ImportFromCli notify={notify} onImported={reload} />
-      <AddPluginDialog
-        open={adding}
-        onClose={() => {
-          setAdding(false);
-          requestAnimationFrame(() => addButton.current?.focus());
-        }}
-        onInstalled={(installed) => {
-          setAdding(false);
-          void reload();
-          notify({
-            kind: 'ok',
-            text: t('settings.plugins.notice.installed', {
-              name: installed.name,
-            }),
-          });
-        }}
-      />
-    </SettingsCard>
+              {expanded && (
+                <div id={detailId}>
+                  <PluginDetail
+                    plugin={plugin}
+                    onChanged={reload}
+                    notify={notify}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+        <ImportFromCli notify={notify} onImported={reload} />
+        <AddPluginDialog
+          open={adding}
+          onClose={() => {
+            setAdding(false);
+            requestAnimationFrame(() => addButton.current?.focus());
+          }}
+          onInstalled={(installed) => {
+            setAdding(false);
+            void reload();
+            notify({
+              kind: 'ok',
+              text: t('settings.plugins.notice.installed', {
+                name: installed.name,
+              }),
+            });
+          }}
+        />
+      </SettingsCard>
+      <MarketplaceCatalog />
+    </div>
   );
 }

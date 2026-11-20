@@ -1,0 +1,1 @@
+{"plugins":[{"name":"example","description":"Example","version":"1.0","source":{"source":"url","url":"https://github.com/example/plugin"},"tags":["search"],"category":"tools","mcpServers":{},"skills":["./skills"],"hooks":"./hooks.json"},{"name":"unknown","source":"./plugins/unknown"}]}

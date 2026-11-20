@@ -215,6 +215,7 @@ The following environment variables can be configured at build time or runtime:
 | `HOST` | Runtime | `127.0.0.1` | Backend server host |
 | `MCP_HOST` | Runtime | Value of `HOST` | MCP server connection host (use `127.0.0.1` when `HOST=0.0.0.0` on Windows) |
 | `MCP_PORT` | Runtime | Value of `BACKEND_PORT` | MCP server connection port |
+| `HIVEDECK_CLAUDE_MARKETPLACES` | Runtime | Not set | Additional public GitHub repositories, comma-separated as `owner/repo`. Catalogs refresh after one hour or on demand; the official marketplace is always included. |
 | `DISABLE_WORKTREE_CLEANUP` | Runtime | Not set | Disable all git worktree cleanup including orphan and expired workspace cleanup (for debugging) |
 | `VK_ALLOWED_ORIGINS` | Runtime | Not set | Comma-separated list of origins that are allowed to make backend API requests (e.g., `https://my-hivedeck-frontend.com`) |
 

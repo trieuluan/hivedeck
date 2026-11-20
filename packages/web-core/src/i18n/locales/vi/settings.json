@@ -961,6 +961,22 @@
     },
     "plugins": {
       "title": "Tiện ích",
+      "marketplace": {
+        "title": "Danh mục plugin Claude",
+        "description": "Hiển thị thành phần được khai báo; chưa xác minh tương thích. Không tải plugin.",
+        "refresh": "Làm mới",
+        "search": "Tìm theo tên, mô tả hoặc tag",
+        "loading": "Đang tải danh mục…",
+        "error": "Không tải được danh mục.",
+        "count_other": "{{count}} plugin",
+        "empty": "Không tìm thấy plugin.",
+        "unknown": "Chưa rõ thành phần",
+        "allClis": "Tương thích mọi CLI",
+        "claudeOnly": "Chỉ Claude",
+        "source": "Nguồn",
+        "version": "Phiên bản",
+        "more": "Hiện thêm"
+      },
       "intro": "Cài một lần, chạy trên mọi CLI (Claude Code, Codex, OpenCode) trong run HiveDeck. Không sửa config của CLI.",
       "loading": "Đang tải tiện ích…",
       "loadError": "Không đọc được danh sách tiện ích.",
