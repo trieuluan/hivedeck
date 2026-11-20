@@ -42,6 +42,7 @@ import {
   isCancelledStatusName,
 } from '../model/useCollapsedStatuses';
 import { findFinishedCleanableWorkspaceIds } from '../model/finishedWorkspaces';
+import { selectCardActionWorkspace } from '@/shared/lib/pipeline/selectActiveWorkspace';
 import {
   getOpenSubIssuesForDoneMove,
   showOpenSubIssuesBlockedDialog,
@@ -930,7 +931,12 @@ export function KanbanContainer() {
         !!w.local_workspace_id &&
         localWorkspacesById.has(w.local_workspace_id)
     );
-    const workspace = live[live.length - 1];
+    const workspace = selectCardActionWorkspace(live, (candidate) => {
+      const local = candidate.local_workspace_id
+        ? localWorkspacesById.get(candidate.local_workspace_id)
+        : undefined;
+      return local?.filesChanged ?? candidate.files_changed ?? 0;
+    });
     const localId = workspace?.local_workspace_id;
     if (!localId) return null;
     const localWorkspace = localWorkspacesById.get(localId);

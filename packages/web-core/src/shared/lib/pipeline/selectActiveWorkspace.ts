@@ -27,10 +27,49 @@ export function selectActiveWorkspace(
 }
 
 /** Positive when `a` is more recent (should sort first) than `b`. */
-function compareWorkspaceRecency(a: Workspace, b: Workspace): number {
+export function compareWorkspaceRecency(a: Workspace, b: Workspace): number {
   const createdDiff = Date.parse(a.created_at) - Date.parse(b.created_at);
   if (createdDiff !== 0) return createdDiff;
   const updatedDiff = Date.parse(a.updated_at) - Date.parse(b.updated_at);
   if (updatedDiff !== 0) return updatedDiff;
   return a.id.localeCompare(b.id);
+}
+
+type WorkspaceWithCodeChanges = Workspace & {
+  commits_ahead?: number | null;
+};
+
+/**
+ * Pick the workspace that should drive a card's code-based action (Merge vs
+ * Accept). Prefer the newest linked, non-archived workspace with code changes
+ * (`files_changed > 0` or `commits_ahead > 0`). If no workspace has code
+ * changes, fall back to the newest linked, non-archived workspace so
+ * research/debug cards still get an action.
+ *
+ * The linked-workspace list is ordered newest-first by the API, but callers
+ * must not rely on array order; recency is compared explicitly here.
+ */
+export function selectCardActionWorkspace(
+  workspaces: readonly WorkspaceWithCodeChanges[],
+  getCodeChanges?: (workspace: WorkspaceWithCodeChanges) => number
+): WorkspaceWithCodeChanges | null {
+  let best: WorkspaceWithCodeChanges | null = null;
+  let bestHasCode = false;
+
+  for (const ws of workspaces) {
+    if (ws.archived) continue;
+    const hasCode =
+      (getCodeChanges?.(ws) ??
+        (ws.files_changed ?? 0) + (ws.commits_ahead ?? 0)) > 0;
+    if (
+      best === null ||
+      (hasCode && !bestHasCode) ||
+      (hasCode === bestHasCode && compareWorkspaceRecency(ws, best) > 0)
+    ) {
+      best = ws;
+      bestHasCode = hasCode;
+    }
+  }
+
+  return best;
 }
