@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { DownloadSimpleIcon } from '@phosphor-icons/react';
 import { handleApiResponse } from '@/shared/lib/api';
 import { SettingsCheckbox } from '../SettingsComponents';
 import { errorText, type Notice } from './pluginNotice';
@@ -20,11 +21,23 @@ const request = async <T,>(path: string, init?: RequestInit): Promise<T> =>
 export function ImportFromCli({
   notify,
   onImported,
+  open,
+  onOpenChange,
+  hideTrigger = false,
 }: {
   notify: (notice: Notice) => void;
   onImported: () => Promise<void>;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
 }) {
   const { t } = useTranslation('settings');
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = open ?? internalOpen;
+  const setOpen = (next: boolean) => {
+    setInternalOpen(next);
+    onOpenChange?.(next);
+  };
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -44,6 +57,15 @@ export function ImportFromCli({
     }
   };
 
+  useEffect(() => {
+    if (isOpen) {
+      void load();
+    } else {
+      setCandidates(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
   const doImport = async () => {
     setBusy(true);
     try {
@@ -57,6 +79,7 @@ export function ImportFromCli({
       );
       setCandidates(null);
       setSelected([]);
+      setOpen(false);
       await onImported();
       notify({
         kind: 'ok',
@@ -72,77 +95,94 @@ export function ImportFromCli({
     }
   };
 
+  if (!isOpen && hideTrigger) {
+    return null;
+  }
+
   return (
-    <details
-      className="space-y-2"
-      onToggle={(event) => {
-        if (event.currentTarget.open) void load();
-        else setCandidates(null);
-      }}
-    >
-      <summary className="cursor-pointer text-sm text-low underline">
-        {t('settings.plugins.import.link')}
-      </summary>
-      {busy && !candidates && (
-        <p className="text-sm text-low">
-          {t('settings.plugins.import.loading')}
-        </p>
-      )}
-      {candidates && candidates.length === 0 && (
-        <p className="text-sm text-low">{t('settings.plugins.import.empty')}</p>
-      )}
-      {candidates && candidates.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-sm text-normal">
-            {t('settings.plugins.import.pick')}
-          </p>
-          <SettingsCheckbox
-            id="import-all"
-            label={t('settings.plugins.import.all')}
-            checked={
-              free.length > 0 &&
-              free.every((candidate) => selected.includes(candidate.name))
-            }
-            disabled={!free.length}
-            onChange={(checked) =>
-              setSelected(
-                checked ? free.map((candidate) => candidate.name) : []
-              )
-            }
+    <div className="space-y-2.5">
+      {!hideTrigger && (
+        <button
+          type="button"
+          onClick={() => setOpen(!isOpen)}
+          className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-secondary/40 px-3 py-1.5 text-xs font-medium text-normal transition-colors hover:bg-secondary hover:text-high"
+        >
+          <DownloadSimpleIcon
+            className="h-3.5 w-3.5"
+            weight="bold"
+            aria-hidden
           />
-          {candidates.map((candidate) => (
-            <SettingsCheckbox
-              key={candidate.name}
-              id={`import-${candidate.name}`}
-              label={`${candidate.name}${
-                candidate.exists
-                  ? ` ${t('settings.plugins.import.exists')}`
-                  : ''
-              }`}
-              description={candidate.sources
-                .map((source) => SOURCE_LABEL[source])
-                .join(', ')}
-              disabled={candidate.exists}
-              checked={selected.includes(candidate.name)}
-              onChange={(checked) =>
-                setSelected(
-                  checked
-                    ? [...selected, candidate.name]
-                    : selected.filter((name) => name !== candidate.name)
-                )
-              }
-            />
-          ))}
-          <button
-            type="button"
-            className={button}
-            disabled={busy || !selected.length}
-            onClick={() => void doImport()}
-          >
-            {t('settings.plugins.import.action')}
-          </button>
+          {t('settings.plugins.import.link')}
+        </button>
+      )}
+      {isOpen && (
+        <div className="space-y-3 rounded-md border border-border bg-secondary/20 p-3.5">
+          {busy && !candidates && (
+            <p className="text-sm text-low">
+              {t('settings.plugins.import.loading')}
+            </p>
+          )}
+          {candidates && candidates.length === 0 && (
+            <p className="text-sm text-low">
+              {t('settings.plugins.import.empty')}
+            </p>
+          )}
+          {candidates && candidates.length > 0 && (
+            <div className="space-y-2.5">
+              <p className="text-sm font-medium text-high">
+                {t('settings.plugins.import.pick')}
+              </p>
+              <SettingsCheckbox
+                id="import-all"
+                label={t('settings.plugins.import.all')}
+                checked={
+                  free.length > 0 &&
+                  free.every((candidate) => selected.includes(candidate.name))
+                }
+                disabled={!free.length}
+                onChange={(checked) =>
+                  setSelected(
+                    checked ? free.map((candidate) => candidate.name) : []
+                  )
+                }
+              />
+              {candidates.map((candidate) => (
+                <SettingsCheckbox
+                  key={candidate.name}
+                  id={`import-${candidate.name}`}
+                  label={`${candidate.name}${
+                    candidate.exists
+                      ? ` ${t('settings.plugins.import.exists')}`
+                      : ''
+                  }`}
+                  description={candidate.sources
+                    .map((source) => SOURCE_LABEL[source])
+                    .join(', ')}
+                  disabled={candidate.exists}
+                  checked={selected.includes(candidate.name)}
+                  onChange={(checked) =>
+                    setSelected(
+                      checked
+                        ? [...selected, candidate.name]
+                        : selected.filter((name) => name !== candidate.name)
+                    )
+                  }
+                />
+              ))}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  className={button}
+                  disabled={busy || !selected.length}
+                  onClick={() => void doImport()}
+                >
+                  {t('settings.plugins.import.action')}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
-    </details>
+    </div>
   );
 }

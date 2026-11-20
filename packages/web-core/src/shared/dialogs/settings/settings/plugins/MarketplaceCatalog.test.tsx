@@ -13,6 +13,8 @@ import {
   pluginAvatarTone,
   pluginInitials,
   resolvePluginLogoUrl,
+  resolvePluginSourceLogoUrl,
+  resolvePluginSourceOwner,
 } from './PluginAvatar';
 import {
   MarketplacePluginCard,
@@ -54,6 +56,29 @@ describe('resolvePluginLogoUrl', () => {
     expect(resolvePluginLogoUrl('//cdn.example.com/x.png')).toBeNull();
     expect(resolvePluginLogoUrl('javascript:alert(1)')).toBeNull();
     expect(resolvePluginLogoUrl('data:image/png;base64,AAA')).toBeNull();
+  });
+
+  it('derives GitHub organization owner and logo URL from plugin source metadata', () => {
+    expect(
+      resolvePluginSourceOwner(
+        'adobe-for-creativity',
+        { source: 'git-subdir', url: 'https://github.com/adobe/skills.git' },
+        null
+      )
+    ).toBe('adobe');
+    expect(
+      resolvePluginSourceLogoUrl(
+        '42crunch-api-security',
+        null,
+        'marketplace+https://github.com/42Crunch-AI/claude-plugins.git#plugins/api'
+      )
+    ).toBe('https://github.com/42Crunch-AI.png?size=64');
+    expect(
+      resolvePluginSourceOwner('agent-sdk-dev', './plugins/agent-sdk-dev', null)
+    ).toBe('anthropics');
+    expect(
+      resolvePluginSourceOwner('playwright', './external_plugins/playwright')
+    ).toBe('microsoft');
   });
 });
 

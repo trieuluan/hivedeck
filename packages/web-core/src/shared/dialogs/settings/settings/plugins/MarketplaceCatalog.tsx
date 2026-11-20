@@ -4,15 +4,25 @@ import {
   ArrowsClockwiseIcon,
   CaretDownIcon,
   CheckCircleIcon,
+  CodeIcon,
+  CubeIcon,
+  DatabaseIcon,
+  LightningIcon,
   MagnifyingGlassIcon,
+  PaletteIcon,
   PlusIcon,
+  PulseIcon,
+  RocketLaunchIcon,
+  ShieldCheckIcon,
+  StackIcon,
   XIcon,
+  type Icon,
 } from '@phosphor-icons/react';
 import { handleApiResponse } from '@/shared/lib/api';
 import { cn } from '@/shared/lib/utils';
 import { SettingsCard } from '../SettingsComponents';
 import type { InstalledPlugin, PluginView } from 'shared/types';
-import { PluginAvatar } from './PluginAvatar';
+import { PluginAvatar, resolvePluginSourceOwner } from './PluginAvatar';
 
 export type CatalogPlugin = {
   name: string;
@@ -33,6 +43,99 @@ type Catalog = { plugins: CatalogPlugin[]; warnings: string[] };
 
 const actionButtonClass =
   'inline-flex items-center gap-1.5 rounded-sm border border-border px-2.5 py-1 text-xs font-medium text-normal hover:bg-secondary hover:text-high disabled:opacity-50 transition-colors';
+
+const installButtonClass =
+  'inline-flex shrink-0 items-center gap-1 rounded-sm border border-brand/50 bg-brand/[0.08] px-2.5 py-1 text-xs font-medium text-brand hover:border-brand hover:bg-brand/15 disabled:opacity-50 transition-colors';
+
+type CategoryMeta = {
+  id: string;
+  label: string;
+  icon: Icon;
+  badgeClass: string;
+};
+
+const CATEGORY_DEFINITIONS: CategoryMeta[] = [
+  {
+    id: 'development',
+    label: 'DevTools',
+    icon: CodeIcon,
+    badgeClass:
+      'border-sky-500/25 bg-sky-500/10 text-sky-600 dark:text-sky-400',
+  },
+  {
+    id: 'productivity',
+    label: 'Productivity',
+    icon: LightningIcon,
+    badgeClass: 'border-brand/25 bg-brand/10 text-brand',
+  },
+  {
+    id: 'database',
+    label: 'Database',
+    icon: DatabaseIcon,
+    badgeClass:
+      'border-cyan-500/25 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400',
+  },
+  {
+    id: 'security',
+    label: 'Security',
+    icon: ShieldCheckIcon,
+    badgeClass:
+      'border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  },
+  {
+    id: 'design',
+    label: 'Design',
+    icon: PaletteIcon,
+    badgeClass:
+      'border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  },
+  {
+    id: 'monitoring',
+    label: 'Monitoring',
+    icon: PulseIcon,
+    badgeClass:
+      'border-rose-500/25 bg-rose-500/10 text-rose-600 dark:text-rose-400',
+  },
+  {
+    id: 'deployment',
+    label: 'Deploy',
+    icon: RocketLaunchIcon,
+    badgeClass:
+      'border-violet-500/25 bg-violet-500/10 text-violet-600 dark:text-violet-400',
+  },
+];
+
+const CATEGORY_MAP = new Map<string, CategoryMeta>(
+  CATEGORY_DEFINITIONS.map((cat) => [cat.id, cat])
+);
+
+function renderCategoryPill(tag: string) {
+  const normalized = tag.trim().toLowerCase();
+  const meta = CATEGORY_MAP.get(normalized);
+  if (meta) {
+    const TagIcon = meta.icon;
+    return (
+      <span
+        key={`tag-${tag}`}
+        className={cn(
+          'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-medium',
+          meta.badgeClass
+        )}
+      >
+        <TagIcon className="h-3 w-3 shrink-0" weight="duotone" aria-hidden />
+        {meta.label}
+      </span>
+    );
+  }
+  return (
+    <span
+      key={`tag-${tag}`}
+      className="inline-flex items-center rounded-full border border-border bg-secondary/70 px-2 py-0.5 text-2xs text-low"
+    >
+      {tag}
+    </span>
+  );
+}
 
 export function MarketplacePluginCard({
   plugin,
@@ -58,15 +161,20 @@ export function MarketplacePluginCard({
       /[^a-zA-Z0-9_-]/g,
       '-'
     );
+  const sourceOwner = resolvePluginSourceOwner(
+    plugin.name,
+    plugin.source,
+    plugin.install_source
+  );
   const subtitle = plugin.author
     ? t('settings.plugins.marketplace.byAuthor', { author: plugin.author })
-    : plugin.marketplace;
+    : (sourceOwner ?? plugin.marketplace);
 
   return (
     <article
       className={cn(
-        'flex flex-col justify-between gap-2.5 rounded-md border border-border bg-secondary/20 p-3 transition-colors',
-        'hover:bg-secondary/40',
+        'flex flex-col justify-between gap-3 rounded-md border border-border bg-secondary/20 p-3.5 transition-all',
+        'hover:border-border/90 hover:bg-secondary/35',
         expanded && 'md:col-span-2 bg-secondary/35'
       )}
     >
@@ -76,11 +184,13 @@ export function MarketplacePluginCard({
             name={plugin.name}
             icon={plugin.icon}
             logo={plugin.logo}
+            source={plugin.source}
+            installSource={plugin.install_source}
             size="md"
           />
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 space-y-1">
             <div className="flex items-center gap-1.5">
-              <h4 className="truncate text-sm font-medium text-high">
+              <h4 className="truncate text-sm font-semibold text-high">
                 {plugin.name}
               </h4>
               {installed && (
@@ -91,10 +201,22 @@ export function MarketplacePluginCard({
                 />
               )}
             </div>
-            <p className="truncate text-xs text-low">{subtitle}</p>
+            <div>
+              <span
+                title={plugin.marketplace}
+                className="inline-flex max-w-full items-center truncate rounded bg-secondary/80 px-1.5 py-0.5 text-2xs font-medium text-low"
+              >
+                {subtitle}
+              </span>
+              {!plugin.author &&
+                sourceOwner &&
+                sourceOwner !== plugin.marketplace && (
+                  <span className="sr-only">{plugin.marketplace}</span>
+                )}
+            </div>
           </div>
           {installed ? (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-sm border border-success/25 bg-success/10 px-2 py-1 text-xs font-medium text-success">
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-sm border border-success/25 bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
               <CheckCircleIcon
                 className="h-3.5 w-3.5"
                 weight="fill"
@@ -105,10 +227,7 @@ export function MarketplacePluginCard({
           ) : (
             <button
               type="button"
-              className={cn(
-                actionButtonClass,
-                'shrink-0 bg-panel hover:bg-secondary'
-              )}
+              className={installButtonClass}
               disabled={!canInstall}
               onClick={onInstall}
             >
@@ -135,25 +254,57 @@ export function MarketplacePluginCard({
 
       <div className="space-y-2.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap gap-1 text-2xs">
+          <div className="flex flex-wrap items-center gap-1.5 text-2xs">
+            {plugin.tags.slice(0, 2).map(renderCategoryPill)}
             {components.length === 0 && (
-              <span className="rounded bg-secondary px-1.5 py-0.5 text-low">
+              <span
+                className={
+                  plugin.tags.length === 0
+                    ? 'inline-flex items-center rounded-full border border-border bg-secondary/70 px-2 py-0.5 text-low'
+                    : 'sr-only'
+                }
+              >
                 {t('settings.plugins.marketplace.unknown')}
               </span>
             )}
-            {components.map((component) => (
-              <span
-                key={component}
-                className="rounded bg-secondary px-1.5 py-0.5 text-low"
-              >
-                {component}
-                {component === 'hooks'
-                  ? ` · ${t('settings.plugins.marketplace.claudeOnly')}`
-                  : ['mcpServers', 'skills'].includes(component)
-                    ? ` · ${t('settings.plugins.marketplace.allClis')}`
-                    : ''}
-              </span>
-            ))}
+            {components.map((component) => {
+              const isMcp = component === 'mcpServers';
+              const isSkills = component === 'skills';
+              return (
+                <span
+                  key={component}
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-medium',
+                    isMcp
+                      ? 'border-violet-500/25 bg-violet-500/10 text-violet-600 dark:text-violet-400'
+                      : isSkills
+                        ? 'border-sky-500/25 bg-sky-500/10 text-sky-600 dark:text-sky-400'
+                        : 'border-border bg-secondary text-low'
+                  )}
+                >
+                  {isMcp && (
+                    <CubeIcon
+                      className="h-3 w-3 shrink-0"
+                      weight="duotone"
+                      aria-hidden
+                    />
+                  )}
+                  {isSkills && (
+                    <StackIcon
+                      className="h-3 w-3 shrink-0"
+                      weight="duotone"
+                      aria-hidden
+                    />
+                  )}
+                  {isMcp ? 'MCP' : isSkills ? 'Skills' : component}
+                  {component === 'hooks'
+                    ? ` · ${t('settings.plugins.marketplace.claudeOnly')}`
+                    : ['mcpServers', 'skills'].includes(component)
+                      ? ` · ${t('settings.plugins.marketplace.allClis')}`
+                      : ''}
+                </span>
+              );
+            })}
           </div>
           <button
             type="button"
@@ -240,6 +391,7 @@ export function MarketplaceCatalog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [query, setQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [limit, setLimit] = useState(50);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
@@ -266,19 +418,40 @@ export function MarketplaceCatalog({
     return () => controller.abort();
   }, [load]);
 
+  const availableCategories = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const plugin of catalog?.plugins ?? []) {
+      for (const tag of plugin.tags) {
+        const normalized = tag.trim().toLowerCase();
+        if (CATEGORY_MAP.has(normalized)) {
+          counts.set(normalized, (counts.get(normalized) ?? 0) + 1);
+        }
+      }
+    }
+    return CATEGORY_DEFINITIONS.filter((cat) => (counts.get(cat.id) ?? 0) > 0);
+  }, [catalog]);
+
   const filtered = useMemo(() => {
     const term = query.trim().toLocaleLowerCase();
-    if (!term) return catalog?.plugins ?? [];
-    return (catalog?.plugins ?? []).filter((plugin) =>
-      [
+    return (catalog?.plugins ?? []).filter((plugin) => {
+      if (
+        selectedCategory !== 'all' &&
+        !plugin.tags.some(
+          (tag) => tag.trim().toLocaleLowerCase() === selectedCategory
+        )
+      ) {
+        return false;
+      }
+      if (!term) return true;
+      return [
         plugin.name,
         plugin.description,
         plugin.author ?? '',
         plugin.marketplace,
         ...plugin.tags,
-      ].some((value) => value.toLocaleLowerCase().includes(term))
-    );
-  }, [catalog, query]);
+      ].some((value) => value.toLocaleLowerCase().includes(term));
+    });
+  }, [catalog, query, selectedCategory]);
 
   return (
     <SettingsCard
@@ -299,46 +472,109 @@ export function MarketplaceCatalog({
         </button>
       }
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="relative min-w-0 flex-1">
-          <MagnifyingGlassIcon
-            className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-low"
-            aria-hidden="true"
-          />
-          <input
-            type="search"
-            value={query}
-            aria-label={t('settings.plugins.marketplace.search')}
-            placeholder={t('settings.plugins.marketplace.search')}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setLimit(50);
-            }}
-            className="w-full rounded-sm border border-border bg-panel py-1.5 pl-8 pr-8 text-sm text-high placeholder:text-low focus:outline-none focus:ring-1 focus:ring-brand"
-          />
-          {query && (
-            <button
-              type="button"
-              aria-label={t('settings.plugins.marketplace.clearSearch')}
-              onClick={() => {
-                setQuery('');
+      <div className="space-y-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="relative min-w-0 flex-1">
+            <MagnifyingGlassIcon
+              className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-low"
+              aria-hidden="true"
+            />
+            <input
+              type="search"
+              value={query}
+              aria-label={t('settings.plugins.marketplace.search')}
+              placeholder={t('settings.plugins.marketplace.search')}
+              onChange={(event) => {
+                setQuery(event.target.value);
                 setLimit(50);
               }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-low hover:text-high"
+              className="w-full rounded-sm border border-border bg-panel py-1.5 pl-8 pr-8 text-sm text-high placeholder:text-low focus:outline-none focus:ring-1 focus:ring-brand"
+            />
+            {query && (
+              <button
+                type="button"
+                aria-label={t('settings.plugins.marketplace.clearSearch')}
+                onClick={() => {
+                  setQuery('');
+                  setLimit(50);
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-low hover:text-high"
+              >
+                <XIcon
+                  className="h-3.5 w-3.5"
+                  weight="bold"
+                  aria-hidden="true"
+                />
+              </button>
+            )}
+          </div>
+          {catalog && (
+            <span
+              className="shrink-0 rounded-sm border border-border bg-secondary/60 px-2.5 py-1.5 text-xs font-medium text-low"
+              aria-live="polite"
             >
-              <XIcon className="h-3.5 w-3.5" weight="bold" aria-hidden="true" />
-            </button>
+              {t('settings.plugins.marketplace.count', {
+                count: filtered.length,
+              })}
+            </span>
           )}
         </div>
-        {catalog && (
-          <span
-            className="shrink-0 rounded-sm bg-secondary px-2 py-1 text-xs text-low"
-            aria-live="polite"
+
+        {availableCategories.length > 0 && (
+          <div
+            role="tablist"
+            aria-label="Filter plugins by category"
+            className="flex flex-wrap items-center gap-1.5"
           >
-            {t('settings.plugins.marketplace.count', {
-              count: filtered.length,
+            <button
+              type="button"
+              role="tab"
+              aria-selected={selectedCategory === 'all'}
+              onClick={() => {
+                setSelectedCategory('all');
+                setLimit(50);
+              }}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                selectedCategory === 'all'
+                  ? 'border-brand bg-brand/15 text-brand'
+                  : 'border-border bg-secondary/30 text-low hover:bg-secondary hover:text-normal'
+              )}
+            >
+              {t('settings.plugins.marketplace.categoryAll', {
+                defaultValue: 'Tất cả',
+              })}
+            </button>
+            {availableCategories.map((cat) => {
+              const CatIcon = cat.icon;
+              const isSelected = selectedCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isSelected}
+                  onClick={() => {
+                    setSelectedCategory(isSelected ? 'all' : cat.id);
+                    setLimit(50);
+                  }}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                    isSelected
+                      ? 'border-brand bg-brand/15 text-brand'
+                      : 'border-border bg-secondary/30 text-low hover:bg-secondary hover:text-normal'
+                  )}
+                >
+                  <CatIcon
+                    className="h-3.5 w-3.5 shrink-0"
+                    weight="duotone"
+                    aria-hidden
+                  />
+                  {cat.label}
+                </button>
+              );
             })}
-          </span>
+          </div>
         )}
       </div>
 
