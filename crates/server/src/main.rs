@@ -78,6 +78,19 @@ async fn main() -> Result<(), HiveDeckError> {
         .backfill_repo_names()
         .await
         .map_err(DeploymentError::from)?;
+    // Projects with no board columns at all get the standard set (once).
+    match services::services::project_config::backfill_default_statuses(&deployment.db().pool).await
+    {
+        Ok(0) => {}
+        Ok(n) => tracing::info!("seeded default board columns for {n} project(s)"),
+        Err(e) => tracing::warn!("could not seed default board columns: {e}"),
+    }
+    // Projects with no tags at all get the standard tags (once).
+    match services::services::project_config::backfill_default_tags(&deployment.db().pool).await {
+        Ok(0) => {}
+        Ok(n) => tracing::info!("seeded default tags for {n} project(s)"),
+        Err(e) => tracing::warn!("could not seed default tags: {e}"),
+    }
     // Every project gets a "Cancelled" column for dropped cards (once).
     match services::services::project_config::backfill_cancelled_statuses(&deployment.db().pool)
         .await

@@ -137,7 +137,10 @@ impl Project {
         .await
     }
 
-    pub async fn create(pool: &SqlitePool, project: NewProject<'_>) -> Result<Self, sqlx::Error> {
+    pub async fn create<'e, E>(executor: E, project: NewProject<'_>) -> Result<Self, sqlx::Error>
+    where
+        E: Executor<'e, Database = sqlx::Sqlite>,
+    {
         sqlx::query_as!(
             Project,
             r#"INSERT INTO projects (id, name, key, color, sort_order, default_agent_working_dir, parent_id)
@@ -161,7 +164,7 @@ impl Project {
             project.default_agent_working_dir,
             project.parent_id,
         )
-        .fetch_one(pool)
+        .fetch_one(executor)
         .await
     }
 

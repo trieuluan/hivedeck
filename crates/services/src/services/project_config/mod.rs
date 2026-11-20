@@ -30,9 +30,6 @@ use toml_edit::{Array, ArrayOfTables, Document, Item, Table, value};
 use uuid::Uuid;
 
 const DEFAULT_PROJECT_COLOR: &str = "#6366f1";
-const DEFAULT_STATUSES: &[&str] = &["Todo", "In Progress", "In Review", "Done", "Cancelled"];
-/// Columns that end a card's life: finished, or dropped without doing it.
-const TERMINAL_STATUSES: &[&str] = &["Done", "Cancelled"];
 const CANCELLED_COLOR: &str = "#64748b";
 const STATUS_PALETTE: &[&str] = &["#94a3b8", "#3b82f6", "#a855f7", "#22c55e", "#f59e0b"];
 
@@ -293,11 +290,10 @@ async fn import_project(pool: &SqlitePool, cfg: &ProjectConfig) -> anyhow::Resul
 
     // Seed kanban columns only if the project has none yet.
     if ProjectStatus::count_by_project(pool, project.id).await? == 0 {
-        let names: Vec<String> = if cfg.statuses.is_empty() {
-            DEFAULT_STATUSES.iter().map(|s| s.to_string()).collect()
-        } else {
-            cfg.statuses.clone()
-        };
+        let names = &cfg.statuses;
+        if names.is_empty() {
+            seed_default_statuses(pool, project.id).await?;
+        }
         for (idx, name) in names.iter().enumerate() {
             let color = STATUS_PALETTE[idx % STATUS_PALETTE.len()];
             ProjectStatus::create(
@@ -317,27 +313,26 @@ async fn import_project(pool: &SqlitePool, cfg: &ProjectConfig) -> anyhow::Resul
     Ok(links)
 }
 
-/// Seed default kanban columns for a freshly created project (used by the API
-/// when a project is created directly in the DB). No-op if it already has any.
+/// Seed the standard kanban columns for a project (no-op if it already has
+/// any). Project creation seeds inside its own transaction; this is for the
+/// import path and ad-hoc callers.
 pub async fn seed_default_statuses(pool: &SqlitePool, project_id: Uuid) -> anyhow::Result<()> {
-    if ProjectStatus::count_by_project(pool, project_id).await? != 0 {
-        return Ok(());
-    }
-    for (idx, name) in DEFAULT_STATUSES.iter().enumerate() {
-        let color = STATUS_PALETTE[idx % STATUS_PALETTE.len()];
-        ProjectStatus::create(
-            pool,
-            Uuid::new_v4(),
-            project_id,
-            name,
-            color,
-            idx as i64,
-            false,
-            TERMINAL_STATUSES.contains(name),
-        )
-        .await?;
-    }
+    let mut tx = pool.begin().await?;
+    ProjectStatus::seed_defaults(&mut tx, project_id).await?;
+    tx.commit().await?;
     Ok(())
+}
+
+/// Startup backfill: give every project that has no columns the standard set.
+/// Idempotent; projects with their own columns are left alone.
+pub async fn backfill_default_statuses(pool: &SqlitePool) -> anyhow::Result<usize> {
+    Ok(ProjectStatus::backfill_missing_defaults(pool).await?)
+}
+
+/// Startup backfill: give every project that has no tags the standard set.
+/// Idempotent; projects with their own tags are left alone.
+pub async fn backfill_default_tags(pool: &SqlitePool) -> anyhow::Result<usize> {
+    Ok(db::models::kanban_tag::KanbanTag::backfill_missing_defaults(pool).await?)
 }
 
 /// A column for dropped work ("Cancelled", "Rejected", "Won't do", …).

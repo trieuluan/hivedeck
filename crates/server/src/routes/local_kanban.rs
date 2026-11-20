@@ -234,9 +234,6 @@ async fn create_project(
         req.parent_id,
     )
     .await?;
-    if let Err(e) = project_config::seed_default_statuses(&deployment.db().pool, project.id).await {
-        tracing::warn!("Failed to seed default statuses for {}: {e}", project.id);
-    }
     Ok(mutation(to_api_project(project)))
 }
 
@@ -265,8 +262,11 @@ pub(crate) async fn create_project_record(
     if sibling_key_exists(pool, parent_id, &key).await? {
         return Err(ApiError::BadRequest("project key already exists".into()));
     }
+    // Project + default board columns commit together: no project ever exists
+    // without its columns.
+    let mut tx = pool.begin().await?;
     let project = DbProject::create(
-        pool,
+        &mut *tx,
         NewProject {
             id,
             name,
@@ -278,6 +278,9 @@ pub(crate) async fn create_project_record(
         },
     )
     .await?;
+    DbProjectStatus::seed_defaults(&mut tx, project.id).await?;
+    KanbanTag::seed_defaults(&mut tx, project.id).await?;
+    tx.commit().await?;
     Ok(project)
 }
 
@@ -1415,6 +1418,32 @@ mod tests {
         assert_eq!(derive_key_chain(&pool, root.id).await.unwrap(), "ACME");
         clear_key_chain_cache();
         assert_eq!(derive_key_chain(&pool, root.id).await.unwrap(), "ACME");
+    }
+
+    #[tokio::test]
+    async fn create_project_record_seeds_default_columns() {
+        let pool = pool().await;
+        let project = create_project_record(&pool, Uuid::new_v4(), "Fresh", "#6366f1", None)
+            .await
+            .unwrap();
+        let names: Vec<String> = DbProjectStatus::list_by_project(&pool, project.id)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|s| s.name)
+            .collect();
+        assert_eq!(
+            names,
+            ["Todo", "In Progress", "In Review", "Done", "Cancelled"]
+        );
+        let tags: Vec<String> =
+            db::models::kanban_tag::KanbanTag::list_by_project(&pool, project.id)
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|t| t.name)
+                .collect();
+        assert_eq!(tags, ["bug", "debug", "feature", "research"]);
     }
 
     /// F-N3: `create_project_record` MUST reject `parent_id == id` at the

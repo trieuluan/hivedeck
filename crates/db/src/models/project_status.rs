@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
+use sqlx::{SqliteConnection, SqlitePool};
 use uuid::Uuid;
 
 /// Kanban column. Mirrors the wire `ProjectStatus` shape (served at
@@ -20,7 +20,71 @@ pub struct ProjectStatus {
     pub created_at: DateTime<Utc>,
 }
 
+/// Canonical board columns every project starts with: (name, color, is_terminal).
+/// Matches the `hivedeck` project's board, in board order.
+pub const DEFAULT_STATUSES: [(&str, &str, bool); 5] = [
+    ("Todo", "#94a3b8", false),
+    ("In Progress", "#3b82f6", false),
+    ("In Review", "#a855f7", false),
+    ("Done", "#22c55e", true),
+    ("Cancelled", "#64748b", true),
+];
+
 impl ProjectStatus {
+    /// Insert [`DEFAULT_STATUSES`] unless the project already has any status.
+    /// Takes a connection so callers can run it inside their own transaction.
+    /// Returns whether columns were added.
+    pub async fn seed_defaults(
+        conn: &mut SqliteConnection,
+        project_id: Uuid,
+    ) -> Result<bool, sqlx::Error> {
+        let existing = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM project_statuses WHERE project_id = ?",
+        )
+        .bind(project_id)
+        .fetch_one(&mut *conn)
+        .await?;
+        if existing != 0 {
+            return Ok(false);
+        }
+        for (idx, (name, color, is_terminal)) in DEFAULT_STATUSES.iter().enumerate() {
+            sqlx::query(
+                "INSERT INTO project_statuses (id, project_id, name, color, sort_order, hidden, is_terminal)
+                 VALUES (?, ?, ?, ?, ?, 0, ?)",
+            )
+            .bind(Uuid::new_v4())
+            .bind(project_id)
+            .bind(name)
+            .bind(color)
+            .bind(idx as i64)
+            .bind(is_terminal)
+            .execute(&mut *conn)
+            .await?;
+        }
+        Ok(true)
+    }
+
+    /// Seed defaults into every project that has no status at all. Idempotent;
+    /// never touches a project that already has columns. Returns how many
+    /// projects were seeded.
+    pub async fn backfill_missing_defaults(pool: &SqlitePool) -> Result<usize, sqlx::Error> {
+        let project_ids = sqlx::query_scalar::<_, Uuid>(
+            "SELECT id FROM projects
+             WHERE NOT EXISTS (SELECT 1 FROM project_statuses WHERE project_id = projects.id)",
+        )
+        .fetch_all(pool)
+        .await?;
+        let mut seeded = 0;
+        for project_id in project_ids {
+            let mut tx = pool.begin().await?;
+            if Self::seed_defaults(&mut tx, project_id).await? {
+                seeded += 1;
+            }
+            tx.commit().await?;
+        }
+        Ok(seeded)
+    }
+
     pub async fn list_by_project(
         pool: &SqlitePool,
         project_id: Uuid,
@@ -280,5 +344,98 @@ mod tests {
         assert_eq!(statuses[0].id, done.id);
         assert!(statuses[0].is_terminal);
         assert!(!statuses[1].is_terminal);
+    }
+
+    async fn status_names(pool: &SqlitePool, project_id: Uuid) -> Vec<(String, bool)> {
+        super::ProjectStatus::list_by_project(pool, project_id)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|s| (s.name, s.is_terminal))
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn seed_defaults_creates_five_ordered_columns_once() {
+        let pool = migrated_pool().await;
+        let project_id = Uuid::new_v4();
+        sqlx::query("INSERT INTO projects (id, name, color) VALUES (?, 'P', '#fff')")
+            .bind(project_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let mut conn = pool.acquire().await.unwrap();
+        assert!(
+            super::ProjectStatus::seed_defaults(&mut conn, project_id)
+                .await
+                .unwrap()
+        );
+        assert!(
+            !super::ProjectStatus::seed_defaults(&mut conn, project_id)
+                .await
+                .unwrap()
+        );
+        drop(conn);
+
+        let statuses = super::ProjectStatus::list_by_project(&pool, project_id)
+            .await
+            .unwrap();
+        let summary: Vec<_> = statuses
+            .iter()
+            .map(|s| {
+                (
+                    s.name.as_str(),
+                    s.color.as_str(),
+                    s.sort_order,
+                    s.hidden,
+                    s.is_terminal,
+                )
+            })
+            .collect();
+        assert_eq!(
+            summary,
+            [
+                ("Todo", "#94a3b8", 0, false, false),
+                ("In Progress", "#3b82f6", 1, false, false),
+                ("In Review", "#a855f7", 2, false, false),
+                ("Done", "#22c55e", 3, false, true),
+                ("Cancelled", "#64748b", 4, false, true),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn backfill_is_idempotent_and_keeps_custom_columns() {
+        let pool = migrated_pool().await;
+        let empty = Uuid::new_v4();
+        let custom = Uuid::new_v4();
+        for id in [empty, custom] {
+            sqlx::query("INSERT INTO projects (id, name, color) VALUES (?, 'P', '#fff')")
+                .bind(id)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        insert_legacy_status(&pool, custom, "Backlog", 0, false).await;
+
+        assert_eq!(
+            super::ProjectStatus::backfill_missing_defaults(&pool)
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            super::ProjectStatus::backfill_missing_defaults(&pool)
+                .await
+                .unwrap(),
+            0
+        );
+
+        assert_eq!(status_names(&pool, empty).await.len(), 5);
+        assert_eq!(
+            status_names(&pool, custom).await,
+            [("Backlog".to_string(), false)]
+        );
     }
 }
