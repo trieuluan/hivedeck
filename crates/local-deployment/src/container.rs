@@ -2760,6 +2760,7 @@ impl ContainerService for LocalContainerService {
                     .map(|(_, project)| project)
             }
             .map(|id| id.to_string());
+            let _ = executors::mcp_oauth::ensure_fresh_tokens(&dir, &plugins).await;
             let (servers, secrets) = executors::plugins::select_mcp_for_run(
                 &dir,
                 vec![],

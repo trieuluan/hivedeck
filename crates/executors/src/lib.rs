@@ -8,6 +8,7 @@ pub mod extensions;
 pub mod interactive;
 pub mod logs;
 pub mod mcp_config;
+pub mod mcp_oauth;
 pub mod mcp_registry;
 pub mod model_selector;
 pub mod plugins;

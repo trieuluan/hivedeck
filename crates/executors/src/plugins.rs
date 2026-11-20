@@ -1870,6 +1870,8 @@ pub fn uninstall_plugin(dir: &Path, name: &str) -> Result<(), PluginError> {
         write_atomic(&secrets_path(dir), &secrets, true)?;
     }
 
+    let _ = crate::mcp_oauth::remove_plugin_oauth_tokens(dir, name);
+
     let asset = plugin_asset_dir(dir, name);
     if asset.exists() {
         fs::remove_dir_all(asset)?;
@@ -2093,9 +2095,14 @@ pub fn select_mcp_for_run(
     let (mut servers, mut variables) =
         mcp_registry::select(remaining_registry, mcp_secrets, cli, role, board)?;
 
+    let oauth_tokens = crate::mcp_oauth::read_oauth_tokens(asset_dir).unwrap_or_default();
+
     for (plugin_name, entry) in selected_plugins {
         let root = plugin_asset_dir(asset_dir, &plugin_name);
         let server_secrets = plugin_secrets
+            .get(&plugin_name)
+            .and_then(|by_mcp| by_mcp.get(&entry.name));
+        let oauth_token = oauth_tokens
             .get(&plugin_name)
             .and_then(|by_mcp| by_mcp.get(&entry.name));
 
@@ -2127,8 +2134,22 @@ pub fn select_mcp_for_run(
                     .collect()
             };
 
-        let headers = resolve_map(&entry.headers)?;
+        let mut headers = resolve_map(&entry.headers)?;
         let env = resolve_map(&entry.env)?;
+        if entry.oauth
+            && !headers
+                .keys()
+                .any(|k| k.eq_ignore_ascii_case("authorization"))
+            && let Some(token) = oauth_token
+        {
+            let variable = format!(
+                "HIVEDECK_MCP_PLUGIN_{}_{}_OAUTH_TOKEN",
+                sanitize_env_part(&plugin_name),
+                sanitize_env_part(&entry.name),
+            );
+            variables.insert(variable.clone(), token.access_token.clone());
+            headers.insert("Authorization".to_string(), variable);
+        }
         servers.push(InjectedMcpServer {
             name: entry.name,
             transport: entry.transport,

@@ -5,9 +5,11 @@ import type {
   InstalledPlugin,
   InstallPluginRequest,
   PluginMcpEntry,
+  PluginMcpOAuthStatus,
   PluginSecretStatus,
   PluginSkillEntry,
   PluginView,
+  StartPluginOAuthResponse,
   UpgradePluginRequest,
 } from 'shared/types';
 import { handleApiResponse } from '@/shared/lib/api';
@@ -111,6 +113,16 @@ export const pluginsApi = {
   clearSecret: (name: string, mcp: string, secret: string) =>
     call<PluginSecretStatus>(
       `/${seg(name)}/mcp/${seg(mcp)}/secrets/${seg(secret)}`,
+      json('DELETE')
+    ),
+  startOAuth: (name: string, mcp: string, redirectUri: string) =>
+    call<StartPluginOAuthResponse>(
+      `/${seg(name)}/mcp/${seg(mcp)}/oauth/start`,
+      json('POST', { redirect_uri: redirectUri })
+    ),
+  disconnectOAuth: (name: string, mcp: string) =>
+    call<PluginMcpOAuthStatus>(
+      `/${seg(name)}/mcp/${seg(mcp)}/oauth`,
       json('DELETE')
     ),
 };

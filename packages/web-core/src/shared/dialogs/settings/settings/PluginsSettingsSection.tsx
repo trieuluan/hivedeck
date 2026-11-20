@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  ArrowSquareOutIcon,
   CaretDownIcon,
   DownloadSimpleIcon,
   PlusIcon,
   SpinnerIcon,
+  WarningIcon,
 } from '@phosphor-icons/react';
 import type {
   ExecutorCompatibility,
@@ -21,6 +23,7 @@ import { errorText, useNotice } from './plugins/pluginNotice';
 import { pluginsApi } from './plugins/pluginsApi';
 import { MarketplaceCatalog } from './plugins/MarketplaceCatalog';
 import { PluginAvatar } from './plugins/PluginAvatar';
+import { launchMcpOAuthFlow } from './plugins/mcpOAuthPopup';
 
 const button =
   'inline-flex items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-sm text-normal hover:bg-secondary disabled:opacity-50 transition-colors';
@@ -303,6 +306,17 @@ export function PluginsSettingsSection() {
             {plugins.map((plugin) => {
               const expanded = open === plugin.name;
               const detailId = `plugin-detail-${plugin.name}`;
+              const oauthMcps = plugin.mcp.filter((m) => m.oauth);
+              const pendingOAuthMcp = oauthMcps.find(
+                (m) =>
+                  !plugin.oauth_status?.some(
+                    (status) => status.mcp === m.name && status.connected
+                  )
+              );
+              const allOAuthConnected =
+                oauthMcps.length > 0 && !pendingOAuthMcp;
+              const isSingleMcp =
+                plugin.source === 'mcp-single' && plugin.mcp.length === 1;
               return (
                 <div key={plugin.name} className="min-w-0 space-y-2.5 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -313,14 +327,16 @@ export function PluginsSettingsSection() {
                         size="sm"
                       />
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <strong className="truncate text-sm font-medium text-high">
                             {plugin.name}
                           </strong>
                           <span className="rounded bg-secondary px-1.5 py-0.5 text-2xs text-low">
-                            {t('settings.plugins.version', {
-                              version: plugin.version,
-                            })}
+                            {isSingleMcp
+                              ? `${plugin.mcp[0]!.transport} · mcp`
+                              : t('settings.plugins.version', {
+                                  version: plugin.version,
+                                })}
                           </span>
                           <span
                             className={
@@ -333,16 +349,73 @@ export function PluginsSettingsSection() {
                               ? t('settings.plugins.enabled')
                               : t('settings.plugins.disabled')}
                           </span>
+                          {allOAuthConnected && (
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-2 py-0.5 text-2xs font-medium text-success">
+                              <span
+                                aria-hidden="true"
+                                className="h-1.5 w-1.5 rounded-full bg-success"
+                              />
+                              Đã kết nối OAuth · Tự động cấp cho 9 CLI
+                            </span>
+                          )}
+                          {pendingOAuthMcp && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-2xs font-medium text-amber-500">
+                              <WarningIcon
+                                className="h-3 w-3 shrink-0"
+                                weight="fill"
+                                aria-hidden
+                              />
+                              Cần xác thực OAuth
+                            </span>
+                          )}
                         </div>
-                        <p className="mt-0.5 truncate text-xs text-low">
-                          {t('settings.plugins.summary', {
-                            mcp: plugin.mcp.length,
-                            skills: plugin.skills.length,
-                          })}
-                        </p>
+                        {!isSingleMcp && (
+                          <p className="mt-0.5 truncate text-xs text-low">
+                            {t('settings.plugins.summary', {
+                              mcp: plugin.mcp.length,
+                              skills: plugin.skills.length,
+                            })}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      {pendingOAuthMcp && (
+                        <button
+                          type="button"
+                          disabled={busy === plugin.name}
+                          onClick={() => {
+                            setBusy(plugin.name);
+                            void launchMcpOAuthFlow({
+                              pluginName: plugin.name,
+                              mcpName: pendingOAuthMcp.name,
+                              onComplete: async () => {
+                                await reload();
+                                setBusy(null);
+                                notify({
+                                  kind: 'ok',
+                                  text: `Đã kết nối OAuth thành công cho ${pendingOAuthMcp.name}.`,
+                                });
+                              },
+                              onError: (reason) => {
+                                setBusy(null);
+                                notify({
+                                  kind: 'error',
+                                  text: errorText(reason),
+                                });
+                              },
+                            });
+                          }}
+                          className={primaryBrandButton}
+                        >
+                          Đăng nhập OAuth
+                          <ArrowSquareOutIcon
+                            className="h-3.5 w-3.5"
+                            weight="bold"
+                            aria-hidden
+                          />
+                        </button>
+                      )}
                       <Switch
                         checked={plugin.enabled}
                         disabled={busy === plugin.name}

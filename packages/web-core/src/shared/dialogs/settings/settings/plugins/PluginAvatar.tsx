@@ -17,6 +17,7 @@ const KNOWN_EXTERNAL_PLUGIN_OWNERS: Record<string, string> = {
   firebase: 'firebase',
   github: 'github',
   gitlab: 'gitlabhq',
+  higgsfield: 'higgsfield-ai',
   'laravel-boost': 'laravel',
   linear: 'linear',
   playwright: 'microsoft',

@@ -1,5 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import {
+  EyeIcon,
+  GitBranchIcon,
+  GlobeIcon,
+  MagnifyingGlassIcon,
+  MaskHappyIcon,
+  PlugIcon,
+  ShieldCheckIcon,
+  SparkleIcon,
+  StackIcon,
+  TerminalWindowIcon,
+  WrenchIcon,
+} from '@phosphor-icons/react';
 import type {
   ConflictPolicy,
   InstalledPlugin,
@@ -14,18 +27,104 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@vibe/ui/components/KeyboardDialog';
-import { SettingsField, SettingsInput } from '../SettingsComponents';
+import { Switch } from '@vibe/ui/components/Switch';
+import { cn } from '@/shared/lib/utils';
+import {
+  SettingsField,
+  SettingsInput,
+  SettingsTextarea,
+} from '../SettingsComponents';
 import { PluginConflictError, pluginsApi } from './pluginsApi';
 import { CompatBadge, mcpCompat } from './pluginCompat';
 import { errorText } from './pluginNotice';
 
 const button =
-  'rounded-sm border border-border px-3 py-1.5 text-sm text-normal hover:bg-secondary disabled:opacity-50';
+  'inline-flex items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-xs font-medium text-normal hover:bg-secondary hover:text-high disabled:opacity-50 transition-colors';
 const primary =
-  'rounded-sm bg-brand px-3 py-1.5 text-sm text-on-brand hover:bg-brand-hover disabled:opacity-50';
+  'inline-flex items-center gap-1.5 rounded-sm bg-brand px-3.5 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-brand/90 disabled:opacity-50 transition-colors';
 
 const isRemote = (source: string) =>
   /^(https?|ssh|git|file):\/\//.test(source) || source.startsWith('git@');
+
+type PresetId =
+  | 'higgsfield'
+  | 'context7'
+  | 'playwright'
+  | 'exa'
+  | 'chrome_devtools'
+  | 'dev_manager';
+
+const PRESETS: {
+  id: PresetId;
+  label: string;
+  kind: 'http' | 'stdio';
+  source: string;
+  args: string;
+  secrets: string;
+  oauth: boolean;
+  icon: typeof SparkleIcon;
+}[] = [
+  {
+    id: 'higgsfield',
+    label: 'Higgsfield MCP',
+    kind: 'http',
+    source: 'https://mcp.higgsfield.ai/mcp',
+    args: '',
+    secrets: '',
+    oauth: true,
+    icon: SparkleIcon,
+  },
+  {
+    id: 'context7',
+    label: 'Context7',
+    kind: 'http',
+    source: 'https://mcp.context7.com/mcp',
+    args: '',
+    secrets: 'CONTEXT7_API_KEY',
+    oauth: false,
+    icon: StackIcon,
+  },
+  {
+    id: 'playwright',
+    label: 'Playwright',
+    kind: 'stdio',
+    source: 'npx',
+    args: '@playwright/mcp@latest',
+    secrets: '',
+    oauth: false,
+    icon: MaskHappyIcon,
+  },
+  {
+    id: 'exa',
+    label: 'Exa',
+    kind: 'stdio',
+    source: 'npx',
+    args: '-y\nexa-mcp-server\ntools=web_search_exa,get_code_context_exa',
+    secrets: 'EXA_API_KEY',
+    oauth: false,
+    icon: MagnifyingGlassIcon,
+  },
+  {
+    id: 'chrome_devtools',
+    label: 'Chrome DevTools',
+    kind: 'stdio',
+    source: 'npx',
+    args: 'chrome-devtools-mcp@latest',
+    secrets: '',
+    oauth: false,
+    icon: WrenchIcon,
+  },
+  {
+    id: 'dev_manager',
+    label: 'Dev Manager',
+    kind: 'stdio',
+    source: 'npx',
+    args: 'dev-manager-mcp\nstdio',
+    secrets: '',
+    oauth: false,
+    icon: TerminalWindowIcon,
+  },
+];
 
 export function AddPluginDialog({
   open,
@@ -45,6 +144,7 @@ export function AddPluginDialog({
   const { t } = useTranslation('settings');
   const [source, setSource] = useState('');
   const [kind, setKind] = useState<'repo' | 'http' | 'stdio'>('repo');
+  const [activePreset, setActivePreset] = useState<PresetId | null>(null);
   const [name, setName] = useState('');
   const [args, setArgs] = useState('');
   const [secretNames, setSecretNames] = useState('');
@@ -67,6 +167,7 @@ export function AddPluginDialog({
   const reset = () => {
     setSource('');
     setKind('repo');
+    setActivePreset(null);
     setName('');
     setArgs('');
     setSecretNames('');
@@ -184,91 +285,178 @@ export function AddPluginDialog({
     ),
   ];
 
+  const applyPreset = (preset: (typeof PRESETS)[number]) => {
+    setActivePreset(preset.id);
+    setKind(preset.kind);
+    setName(preset.id);
+    setSource(preset.source);
+    setArgs(preset.args);
+    setSecretNames(preset.secrets);
+    setOauth(preset.oauth);
+    dirty();
+  };
+
   return (
     <Dialog open={open} onOpenChange={(next) => !next && close()}>
-      <DialogContent className="min-w-0 max-h-[80vh] overflow-y-auto">
+      <DialogContent className="min-w-0 max-h-[84vh] overflow-y-auto sm:max-w-[560px]">
         <DialogHeader>
-          <DialogTitle>{t('settings.plugins.addDialog.title')}</DialogTitle>
-          <DialogDescription>
-            {t('settings.plugins.addDialog.description')}
-          </DialogDescription>
+          <div className="flex items-start gap-3">
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-brand/30 bg-brand/10 text-brand">
+              <PlugIcon className="h-5 w-5" weight="duotone" aria-hidden />
+            </span>
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <DialogTitle className="text-base font-semibold text-high">
+                {t('settings.plugins.addDialog.title')}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-low">
+                {t('settings.plugins.addDialog.description')}
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
         <form
-          className="space-y-3"
+          id="add-plugin-form"
+          className="space-y-4 pt-1"
           onSubmit={(event) => {
             event.preventDefault();
             if (source.trim() && !needsPin && !busy) void runPreview();
           }}
         >
-          <label className="block text-sm text-normal">
-            Preset
-            <select
-              aria-label="Preset"
-              defaultValue=""
-              onChange={(event) => {
-                const preset = event.target.value;
-                if (!preset) return;
-                setName(preset);
-                setKind(preset === 'context7' ? 'http' : 'stdio');
-                setSource(
-                  preset === 'context7' ? 'https://mcp.context7.com/mcp' : 'npx'
-                );
-                setArgs(
-                  preset === 'playwright'
-                    ? '@playwright/mcp@latest'
-                    : preset === 'exa'
-                      ? '-y\nexa-mcp-server\ntools=web_search_exa,get_code_context_exa'
-                      : preset === 'chrome_devtools'
-                        ? 'chrome-devtools-mcp@latest'
-                        : preset === 'dev_manager'
-                          ? 'dev-manager-mcp\nstdio'
-                          : ''
-                );
-                setSecretNames(
-                  preset === 'context7'
-                    ? 'CONTEXT7_API_KEY'
-                    : preset === 'exa'
-                      ? 'EXA_API_KEY'
-                      : ''
-                );
-                setOauth(false);
-                dirty();
-              }}
-              className="ml-2 rounded-sm border border-border bg-secondary p-1"
-            >
-              <option value="">
-                {t('settings.plugins.addDialog.presetPlaceholder')}
-              </option>
-              <option value="context7">Context7</option>
-              <option value="playwright">Playwright</option>
-              <option value="exa">Exa</option>
-              <option value="chrome_devtools">Chrome DevTools</option>
-              <option value="dev_manager">Dev Manager</option>
-            </select>
-          </label>
-          <label className="block text-sm text-normal">
-            {t('settings.plugins.addDialog.sourceKind')}
-            <select
+          <div className="space-y-1.5">
+            <span className="block text-xs font-medium text-normal">
+              {t('settings.plugins.addDialog.sourceKind')}
+            </span>
+            <div
+              role="tablist"
               aria-label={t('settings.plugins.addDialog.sourceKind')}
-              value={kind}
-              onChange={(event) => {
-                setKind(event.target.value as typeof kind);
-                dirty();
-              }}
-              className="ml-2 rounded-sm border border-border bg-secondary p-1"
+              className="grid grid-cols-3 gap-1.5 rounded-md border border-border bg-secondary/40 p-1"
             >
-              <option value="repo">Repository / plugin</option>
-              <option value="http">URL MCP</option>
-              <option value="stdio">Command MCP</option>
-            </select>
-          </label>
-          <SettingsField label={t('settings.plugins.addDialog.source')}>
+              {(
+                [
+                  {
+                    id: 'repo',
+                    label: 'Git / Local',
+                    icon: GitBranchIcon,
+                  },
+                  {
+                    id: 'http',
+                    label: 'URL MCP (HTTP)',
+                    icon: GlobeIcon,
+                  },
+                  {
+                    id: 'stdio',
+                    label: 'Command MCP',
+                    icon: TerminalWindowIcon,
+                  },
+                ] as const
+              ).map((tab) => {
+                const TabIcon = tab.icon;
+                const active = kind === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => {
+                      setKind(tab.id);
+                      setActivePreset(null);
+                      dirty();
+                    }}
+                    className={cn(
+                      'inline-flex items-center justify-center gap-1.5 rounded-sm border px-2.5 py-1.5 text-xs font-medium transition-colors',
+                      active
+                        ? 'border-brand/60 bg-brand/10 text-high shadow-sm'
+                        : 'border-transparent text-low hover:bg-secondary/60 hover:text-normal'
+                    )}
+                  >
+                    <TabIcon
+                      className={cn(
+                        'h-3.5 w-3.5 shrink-0',
+                        active ? 'text-brand' : 'text-low'
+                      )}
+                      weight="duotone"
+                      aria-hidden
+                    />
+                    <span className="truncate">{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <span className="block text-xs font-medium text-normal">
+              Mẫu nhanh (Preset)
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {PRESETS.map((preset) => {
+                const PresetIcon = preset.icon;
+                const selected = activePreset === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => applyPreset(preset)}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                      selected
+                        ? 'border-brand/70 bg-brand/15 text-brand'
+                        : 'border-border bg-secondary/35 text-normal hover:bg-secondary hover:text-high'
+                    )}
+                  >
+                    <PresetIcon
+                      className={cn(
+                        'h-3.5 w-3.5 shrink-0',
+                        selected ? 'text-brand' : 'text-low'
+                      )}
+                      weight="duotone"
+                      aria-hidden
+                    />
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {kind !== 'repo' && (
+            <SettingsField label={t('settings.plugins.addDialog.serverName')}>
+              <SettingsInput
+                ariaLabel={t('settings.plugins.addDialog.serverName')}
+                value={name}
+                placeholder="higgsfield"
+                onChange={(value) => {
+                  setName(value);
+                  setActivePreset(null);
+                  dirty();
+                }}
+              />
+            </SettingsField>
+          )}
+
+          <SettingsField
+            label={
+              kind === 'http'
+                ? 'Endpoint URL'
+                : kind === 'stdio'
+                  ? 'Command'
+                  : t('settings.plugins.addDialog.source')
+            }
+          >
             <SettingsInput
               ariaLabel={t('settings.plugins.addDialog.source')}
               value={source}
-              placeholder={t('settings.plugins.addDialog.sourcePlaceholder')}
+              placeholder={
+                kind === 'http'
+                  ? 'https://mcp.higgsfield.ai/mcp'
+                  : kind === 'stdio'
+                    ? 'npx'
+                    : t('settings.plugins.addDialog.sourcePlaceholder')
+              }
               onChange={(value) => {
                 setSource(value);
+                setActivePreset(null);
                 if (kind === 'http') {
                   try {
                     const host = new URL(value).hostname.split('.');
@@ -283,60 +471,77 @@ export function AddPluginDialog({
               }}
             />
           </SettingsField>
+
           {kind !== 'repo' && (
             <>
-              <SettingsField label={t('settings.plugins.addDialog.serverName')}>
-                <SettingsInput
-                  ariaLabel={t('settings.plugins.addDialog.serverName')}
-                  value={name}
+              {kind === 'stdio' && (
+                <SettingsField
+                  label={t('settings.plugins.addDialog.arguments')}
+                >
+                  <SettingsTextarea
+                    ariaLabel={t('settings.plugins.addDialog.arguments')}
+                    value={args}
+                    rows={3}
+                    monospace
+                    placeholder="@playwright/mcp@latest"
+                    onChange={(value) => {
+                      setArgs(value);
+                      dirty();
+                    }}
+                  />
+                </SettingsField>
+              )}
+              <SettingsField
+                label={`${kind === 'http' ? 'Header' : 'Environment'} — ${t(
+                  'settings.plugins.addDialog.secretNames'
+                )}`}
+              >
+                <SettingsTextarea
+                  ariaLabel={kind === 'http' ? 'Header' : 'Environment'}
+                  value={secretNames}
+                  rows={2}
+                  monospace
+                  placeholder={
+                    kind === 'http'
+                      ? 'Để trống nếu dùng OAuth 2.1'
+                      : 'API_KEY (mỗi dòng 1 biến)'
+                  }
                   onChange={(value) => {
-                    setName(value);
+                    setSecretNames(value);
                     dirty();
                   }}
                 />
               </SettingsField>
-              {kind === 'stdio' && (
-                <label className="block text-sm text-normal">
-                  {t('settings.plugins.addDialog.arguments')}
-                  <textarea
-                    aria-label={t('settings.plugins.addDialog.arguments')}
-                    className="block w-full border border-border bg-secondary"
-                    value={args}
-                    onChange={(event) => {
-                      setArgs(event.target.value);
+              {kind === 'http' && (
+                <label className="flex cursor-pointer items-center justify-between gap-3 rounded-md border border-brand/30 bg-brand/[0.06] px-3.5 py-2.5 transition-colors hover:bg-brand/10">
+                  <div className="flex min-w-0 items-start gap-2.5">
+                    <ShieldCheckIcon
+                      className="mt-0.5 h-4 w-4 shrink-0 text-brand"
+                      weight="duotone"
+                      aria-hidden
+                    />
+                    <div className="min-w-0 space-y-0.5">
+                      <span className="block text-xs font-semibold text-high">
+                        Xác thực OAuth 2.1 (PKCE)
+                      </span>
+                      <span className="block text-2xs text-low">
+                        Tự động mở trình duyệt đăng nhập 1 lần và cấp token cho
+                        9 CLI
+                      </span>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={oauth}
+                    onCheckedChange={(checked) => {
+                      setOauth(checked);
                       dirty();
                     }}
                   />
                 </label>
               )}
-              <label className="block text-sm text-normal">
-                {kind === 'http' ? 'Header' : 'Environment'} —{' '}
-                {t('settings.plugins.addDialog.secretNames')}
-                <textarea
-                  aria-label={kind === 'http' ? 'Header' : 'Environment'}
-                  className="block w-full border border-border bg-secondary"
-                  value={secretNames}
-                  onChange={(event) => {
-                    setSecretNames(event.target.value);
-                    dirty();
-                  }}
-                />
-              </label>
-              {kind === 'http' && (
-                <label className="block text-sm text-normal">
-                  <input
-                    type="checkbox"
-                    checked={oauth}
-                    onChange={(event) => {
-                      setOauth(event.target.checked);
-                      dirty();
-                    }}
-                  />{' '}
-                  OAuth
-                </label>
-              )}
             </>
           )}
+
           {kind === 'repo' && (
             <>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -344,6 +549,7 @@ export function AddPluginDialog({
                   <SettingsInput
                     ariaLabel={t('settings.plugins.addDialog.tag')}
                     value={tag}
+                    placeholder="v1.0.0"
                     onChange={(value) => {
                       setTag(value);
                       dirty();
@@ -354,6 +560,7 @@ export function AddPluginDialog({
                   <SettingsInput
                     ariaLabel={t('settings.plugins.addDialog.commit')}
                     value={commit}
+                    placeholder="40-char SHA"
                     onChange={(value) => {
                       setCommit(value);
                       dirty();
@@ -368,15 +575,6 @@ export function AddPluginDialog({
               )}
             </>
           )}
-          <button
-            type="submit"
-            className={button}
-            disabled={!source.trim() || needsPin || busy !== null}
-          >
-            {busy === 'preview'
-              ? t('settings.plugins.addDialog.previewing')
-              : t('settings.plugins.addDialog.preview')}
-          </button>
         </form>
 
         {error && (
@@ -519,20 +717,33 @@ export function AddPluginDialog({
           </div>
         )}
 
-        <DialogFooter>
-          <button type="button" className={button} onClick={close}>
-            {t('settings.plugins.addDialog.cancel')}
-          </button>
+        <DialogFooter className="border-t border-border pt-3 sm:justify-between">
           <button
-            type="button"
-            className={primary}
-            disabled={!preview || busy !== null || conflicts.length > 0}
-            onClick={() => void install('abort')}
+            type="submit"
+            form="add-plugin-form"
+            className={button}
+            disabled={!source.trim() || needsPin || busy !== null}
           >
-            {busy === 'install'
-              ? t('settings.plugins.addDialog.installing')
-              : t('settings.plugins.addDialog.installTo')}
+            <EyeIcon className="h-3.5 w-3.5" weight="bold" aria-hidden />
+            {busy === 'preview'
+              ? t('settings.plugins.addDialog.previewing')
+              : t('settings.plugins.addDialog.preview')}
           </button>
+          <div className="flex items-center justify-end gap-2">
+            <button type="button" className={button} onClick={close}>
+              {t('settings.plugins.addDialog.cancel')}
+            </button>
+            <button
+              type="button"
+              className={primary}
+              disabled={!preview || busy !== null || conflicts.length > 0}
+              onClick={() => void install('abort')}
+            >
+              {busy === 'install'
+                ? t('settings.plugins.addDialog.installing')
+                : t('settings.plugins.addDialog.installTo')}
+            </button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

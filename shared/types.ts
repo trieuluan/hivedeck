@@ -589,13 +589,17 @@ export type InstallPluginRequest = { source: string, single_mcp?: PluginMcpEntry
 
 export type UpgradePluginRequest = { source: string | null, version: string | null, commit: string | null, tag: string | null, conflict_policy: ConflictPolicy, };
 
+export type PluginMcpOAuthStatus = { mcp: string, connected: boolean, expires_at: bigint | null, authorization_server: string | null, has_refresh_token: boolean, };
+
 export type PluginMcpSecretStatus = { mcp: string, name: string, has_value: boolean, };
 
-export type PluginView = { secret_status: Array<PluginMcpSecretStatus>, name: string, version: string, source: string, commit?: string | null, tag?: string | null, enabled: boolean, asset_hash: string, mcp: Array<PluginMcpEntry>, skills: Array<PluginSkillEntry>, unsupported: Array<string>, notes: Array<PluginConflict>, };
+export type PluginView = { secret_status: Array<PluginMcpSecretStatus>, oauth_status: Array<PluginMcpOAuthStatus>, name: string, version: string, source: string, commit?: string | null, tag?: string | null, enabled: boolean, asset_hash: string, mcp: Array<PluginMcpEntry>, skills: Array<PluginSkillEntry>, unsupported: Array<string>, notes: Array<PluginConflict>, };
 
 export type PluginSecretStatus = { plugin: string, mcp: string, name: string, has_value: boolean, };
 
 export type SetPluginSecretRequest = { value: string, };
+
+export type StartPluginOAuthResponse = { authorize_url: string, };
 
 export type CheckEditorAvailabilityQuery = { editor_type: EditorType, };
 

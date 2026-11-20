@@ -5,13 +5,17 @@ use std::{
 
 use axum::{
     Extension, Json, Router,
-    extract::Path as RoutePath,
-    http::StatusCode,
+    extract::{Path as RoutePath, Query},
+    http::{HeaderMap, StatusCode},
+    response::Html,
     routing::{get, post, put},
 };
-use executors::plugins::{
-    self, InstallPluginRequest, InstalledPlugin, PluginError, PluginMcpEntry, PluginSkillEntry,
-    PluginsSecrets, UpgradePluginRequest,
+use executors::{
+    mcp_oauth::{self, PluginMcpOAuthStatus, PluginsOAuthTokens},
+    plugins::{
+        self, InstallPluginRequest, InstalledPlugin, PluginError, PluginMcpEntry, PluginSkillEntry,
+        PluginsSecrets, UpgradePluginRequest,
+    },
 };
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -31,6 +35,30 @@ pub struct PluginView {
     #[serde(flatten)]
     pub plugin: InstalledPlugin,
     pub secret_status: Vec<PluginMcpSecretStatus>,
+    pub oauth_status: Vec<PluginMcpOAuthStatus>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StartPluginOAuthRequest {
+    #[serde(default)]
+    pub redirect_uri: Option<String>,
+}
+
+#[derive(Debug, Serialize, TS)]
+pub struct StartPluginOAuthResponse {
+    pub authorize_url: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OAuthCallbackQuery {
+    #[serde(default)]
+    pub code: Option<String>,
+    #[serde(default)]
+    pub state: Option<String>,
+    #[serde(default)]
+    pub error: Option<String>,
+    #[serde(default)]
+    pub error_description: Option<String>,
 }
 
 #[derive(Debug, Serialize, TS)]
@@ -81,8 +109,13 @@ fn map_err(err: PluginError) -> ApiError {
     }
 }
 
-fn build_view(plugin: InstalledPlugin, secrets: &PluginsSecrets) -> PluginView {
+fn build_view(
+    plugin: InstalledPlugin,
+    secrets: &PluginsSecrets,
+    oauth_tokens: &PluginsOAuthTokens,
+) -> PluginView {
     let mut secret_status = Vec::new();
+    let mut oauth_status = Vec::new();
     for mcp in &plugin.mcp {
         let mut refs = BTreeSet::new();
         for value in mcp.headers.values().chain(mcp.env.values()) {
@@ -99,10 +132,23 @@ fn build_view(plugin: InstalledPlugin, secrets: &PluginsSecrets) -> PluginView {
                 has_value,
             });
         }
+        if mcp.oauth {
+            let token = oauth_tokens
+                .get(&plugin.name)
+                .and_then(|by_mcp| by_mcp.get(&mcp.name));
+            oauth_status.push(PluginMcpOAuthStatus {
+                mcp: mcp.name.clone(),
+                connected: token.is_some(),
+                expires_at: token.and_then(|t| t.expires_at),
+                authorization_server: token.and_then(|t| t.authorization_server.clone()),
+                has_refresh_token: token.is_some_and(|t| t.refresh_token.is_some()),
+            });
+        }
     }
     PluginView {
         plugin,
         secret_status,
+        oauth_status,
     }
 }
 
@@ -111,10 +157,11 @@ async fn list(
 ) -> Result<Json<ApiResponse<Vec<PluginView>>>, ApiError> {
     let plugins = plugins::read_plugins(&dir).map_err(map_err)?;
     let secrets = plugins::read_plugin_secrets(&dir).map_err(map_err)?;
+    let oauth_tokens = mcp_oauth::read_oauth_tokens(&dir).map_err(map_err)?;
     Ok(Json(ApiResponse::success(
         plugins
             .into_iter()
-            .map(|plugin| build_view(plugin, &secrets))
+            .map(|plugin| build_view(plugin, &secrets, &oauth_tokens))
             .collect(),
     )))
 }
@@ -136,7 +183,12 @@ async fn get_one(
         .find(|p| p.name == name)
         .ok_or_else(|| ApiError::NotFound(format!("Plugin '{name}' not found")))?;
     let secrets = plugins::read_plugin_secrets(&dir).map_err(map_err)?;
-    Ok(Json(ApiResponse::success(build_view(plugin, &secrets))))
+    let oauth_tokens = mcp_oauth::read_oauth_tokens(&dir).map_err(map_err)?;
+    Ok(Json(ApiResponse::success(build_view(
+        plugin,
+        &secrets,
+        &oauth_tokens,
+    ))))
 }
 
 async fn install(
@@ -146,7 +198,12 @@ async fn install(
     let Json(req) = req.map_err(|_| ApiError::BadRequest("Invalid install request".into()))?;
     let installed = plugins::install_plugin(&dir, req).map_err(map_err)?;
     let secrets = plugins::read_plugin_secrets(&dir).map_err(map_err)?;
-    Ok(Json(ApiResponse::success(build_view(installed, &secrets))))
+    let oauth_tokens = mcp_oauth::read_oauth_tokens(&dir).map_err(map_err)?;
+    Ok(Json(ApiResponse::success(build_view(
+        installed,
+        &secrets,
+        &oauth_tokens,
+    ))))
 }
 
 async fn preview(
@@ -182,7 +239,12 @@ async fn upgrade(
     let req = req.map(|Json(val)| val).unwrap_or_default();
     let updated = plugins::upgrade_plugin(&dir, &name, req).map_err(map_err)?;
     let secrets = plugins::read_plugin_secrets(&dir).map_err(map_err)?;
-    Ok(Json(ApiResponse::success(build_view(updated, &secrets))))
+    let oauth_tokens = mcp_oauth::read_oauth_tokens(&dir).map_err(map_err)?;
+    Ok(Json(ApiResponse::success(build_view(
+        updated,
+        &secrets,
+        &oauth_tokens,
+    ))))
 }
 
 async fn uninstall(
@@ -199,7 +261,12 @@ async fn enable(
 ) -> Result<Json<ApiResponse<PluginView>>, ApiError> {
     let updated = plugins::set_plugin_enabled(&dir, &name, true).map_err(map_err)?;
     let secrets = plugins::read_plugin_secrets(&dir).map_err(map_err)?;
-    Ok(Json(ApiResponse::success(build_view(updated, &secrets))))
+    let oauth_tokens = mcp_oauth::read_oauth_tokens(&dir).map_err(map_err)?;
+    Ok(Json(ApiResponse::success(build_view(
+        updated,
+        &secrets,
+        &oauth_tokens,
+    ))))
 }
 
 async fn disable(
@@ -208,7 +275,12 @@ async fn disable(
 ) -> Result<Json<ApiResponse<PluginView>>, ApiError> {
     let updated = plugins::set_plugin_enabled(&dir, &name, false).map_err(map_err)?;
     let secrets = plugins::read_plugin_secrets(&dir).map_err(map_err)?;
-    Ok(Json(ApiResponse::success(build_view(updated, &secrets))))
+    let oauth_tokens = mcp_oauth::read_oauth_tokens(&dir).map_err(map_err)?;
+    Ok(Json(ApiResponse::success(build_view(
+        updated,
+        &secrets,
+        &oauth_tokens,
+    ))))
 }
 
 async fn update_skill(
@@ -292,12 +364,197 @@ async fn clear_secret(
     })))
 }
 
+fn resolve_redirect_uri(headers: &HeaderMap, requested: Option<String>) -> String {
+    if let Some(uri) = requested
+        .map(|s| s.trim().to_owned())
+        .filter(|s| s.starts_with("http://") || s.starts_with("https://"))
+    {
+        return uri;
+    }
+    if let Some(origin) = headers
+        .get("origin")
+        .and_then(|v| v.to_str().ok())
+        .map(str::trim)
+        .filter(|s| s.starts_with("http://") || s.starts_with("https://"))
+    {
+        return format!(
+            "{}/api/plugins/oauth/callback",
+            origin.trim_end_matches('/')
+        );
+    }
+    let host = headers
+        .get("host")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("localhost:3002");
+    format!("http://{host}/api/plugins/oauth/callback")
+}
+
+async fn start_oauth(
+    Extension(dir): Extension<PathBuf>,
+    RoutePath((plugin_name, mcp_name)): RoutePath<(String, String)>,
+    headers: HeaderMap,
+    req: Option<Json<StartPluginOAuthRequest>>,
+) -> Result<Json<ApiResponse<StartPluginOAuthResponse>>, ApiError> {
+    if !plugins::valid_name(&plugin_name) || !plugins::valid_name(&mcp_name) {
+        return Err(ApiError::BadRequest(
+            "Invalid plugin or MCP identifier".into(),
+        ));
+    }
+    let plugins_list = plugins::read_plugins(&dir).map_err(map_err)?;
+    let plugin = plugins_list
+        .into_iter()
+        .find(|p| p.name == plugin_name)
+        .ok_or_else(|| ApiError::NotFound(format!("Plugin '{plugin_name}' not found")))?;
+    let mcp = plugin
+        .mcp
+        .into_iter()
+        .find(|m| m.name == mcp_name)
+        .ok_or_else(|| ApiError::NotFound(format!("MCP '{mcp_name}' not found")))?;
+    if mcp.transport != "http" {
+        return Err(ApiError::BadRequest(
+            "OAuth is only supported for HTTP MCP servers".into(),
+        ));
+    }
+    let url = mcp
+        .url
+        .as_deref()
+        .filter(|u| !u.trim().is_empty())
+        .ok_or_else(|| ApiError::BadRequest("MCP server is missing url".into()))?;
+    let redirect_uri = resolve_redirect_uri(&headers, req.and_then(|Json(r)| r.redirect_uri));
+    let authorize_url = mcp_oauth::start_oauth_flow(&plugin_name, &mcp_name, url, &redirect_uri)
+        .await
+        .map_err(map_err)?;
+    Ok(Json(ApiResponse::success(StartPluginOAuthResponse {
+        authorize_url,
+    })))
+}
+
+fn oauth_popup_html(
+    ok: bool,
+    title: &str,
+    detail: &str,
+    payload: serde_json::Value,
+) -> Html<String> {
+    let accent = if ok { "#22c55e" } else { "#ef4444" };
+    let payload_json = serde_json::to_string(&payload).unwrap_or_else(|_| "{}".into());
+    Html(format!(
+        r#"<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<title>HiveDeck MCP OAuth</title>
+<style>
+  body {{ margin:0; font-family: -apple-system, BlinkMacSystemFont, "IBM Plex Sans", sans-serif; background:#141414; color:#f5f5f5; display:flex; align-items:center; justify-content:center; min-height:100vh; }}
+  .card {{ max-width:420px; width:90%; background:#1c1c1c; border:1px solid #2b2b2b; border-radius:8px; padding:24px; text-align:center; }}
+  .dot {{ width:12px; height:12px; border-radius:999px; background:{accent}; display:inline-block; margin-bottom:12px; }}
+  h1 {{ font-size:16px; margin:0 0 8px; }}
+  p {{ font-size:13px; color:#a3a3a3; line-height:1.5; margin:0; word-break:break-word; }}
+</style>
+</head>
+<body>
+  <div class="card">
+    <span class="dot"></span>
+    <h1>{title}</h1>
+    <p>{detail}</p>
+  </div>
+  <script>
+    try {{
+      if (window.opener) {{
+        window.opener.postMessage({payload_json}, "*");
+      }}
+    }} catch (_) {{}}
+    if ({ok}) {{
+      setTimeout(function() {{ window.close(); }}, 500);
+    }}
+  </script>
+</body>
+</html>"#
+    ))
+}
+
+async fn oauth_callback(
+    Extension(dir): Extension<PathBuf>,
+    Query(query): Query<OAuthCallbackQuery>,
+) -> Html<String> {
+    if let Some(err) = query.error {
+        let detail = query.error_description.unwrap_or(err);
+        return oauth_popup_html(
+            false,
+            "Xác thực OAuth thất bại",
+            &detail,
+            serde_json::json!({
+                "type": "hivedeck-mcp-oauth-complete",
+                "ok": false,
+                "error": detail,
+            }),
+        );
+    }
+    let (Some(state), Some(code)) = (query.state, query.code) else {
+        return oauth_popup_html(
+            false,
+            "Thiếu mã xác thực OAuth",
+            "Callback không chứa tham số code hoặc state.",
+            serde_json::json!({
+                "type": "hivedeck-mcp-oauth-complete",
+                "ok": false,
+                "error": "Missing code or state",
+            }),
+        );
+    };
+    match mcp_oauth::complete_oauth_callback(&dir, &state, &code).await {
+        Ok((plugin, mcp)) => oauth_popup_html(
+            true,
+            "Đã kết nối OAuth thành công",
+            "Token đã được lưu vào HiveDeck và tự động cấp cho toàn bộ CLI. Cửa sổ này sẽ tự đóng.",
+            serde_json::json!({
+                "type": "hivedeck-mcp-oauth-complete",
+                "ok": true,
+                "plugin": plugin,
+                "mcp": mcp,
+            }),
+        ),
+        Err(err) => {
+            let msg = err.to_string();
+            oauth_popup_html(
+                false,
+                "Không thể hoàn tất OAuth",
+                &msg,
+                serde_json::json!({
+                    "type": "hivedeck-mcp-oauth-complete",
+                    "ok": false,
+                    "error": msg,
+                }),
+            )
+        }
+    }
+}
+
+async fn disconnect_oauth(
+    Extension(dir): Extension<PathBuf>,
+    RoutePath((plugin, mcp)): RoutePath<(String, String)>,
+) -> Result<Json<ApiResponse<PluginMcpOAuthStatus>>, ApiError> {
+    if !plugins::valid_name(&plugin) || !plugins::valid_name(&mcp) {
+        return Err(ApiError::BadRequest(
+            "Invalid plugin or MCP identifier".into(),
+        ));
+    }
+    mcp_oauth::remove_oauth_token(&dir, &plugin, &mcp).map_err(map_err)?;
+    Ok(Json(ApiResponse::success(PluginMcpOAuthStatus {
+        mcp,
+        connected: false,
+        expires_at: None,
+        authorization_server: None,
+        has_refresh_token: false,
+    })))
+}
+
 pub(crate) fn router_for_dir<S: Clone + Send + Sync + 'static>(dir: &Path) -> Router<S> {
     Router::new()
         .route("/plugins", get(list))
         .route("/plugins/compatibility", get(compatibility))
         .route("/plugins/install", post(install))
         .route("/plugins/preview", post(preview))
+        .route("/plugins/oauth/callback", get(oauth_callback))
         .route("/plugins/{name}", get(get_one).delete(uninstall))
         .route("/plugins/{name}/enable", post(enable))
         .route("/plugins/{name}/disable", post(disable))
@@ -305,6 +562,11 @@ pub(crate) fn router_for_dir<S: Clone + Send + Sync + 'static>(dir: &Path) -> Ro
         .route("/plugins/{name}/latest-tag", get(latest_tag))
         .route("/plugins/{name}/skills/{skill}", put(update_skill))
         .route("/plugins/{name}/mcp/{mcp}", put(update_mcp))
+        .route("/plugins/{name}/mcp/{mcp}/oauth/start", post(start_oauth))
+        .route(
+            "/plugins/{name}/mcp/{mcp}/oauth",
+            axum::routing::delete(disconnect_oauth),
+        )
         .route(
             "/plugins/{name}/mcp/{mcp}/secrets/{secret}",
             get(secret_status).put(set_secret).delete(clear_secret),
