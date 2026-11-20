@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
 };
 
@@ -11,7 +11,7 @@ use axum::{
     routing::{get, post, put},
 };
 use executors::{
-    mcp_oauth::{self, PluginMcpOAuthStatus, PluginsOAuthTokens},
+    mcp_oauth::{self, PluginMcpOAuthStatus, PluginMcpToolInfo, PluginsOAuthTokens},
     plugins::{
         self, InstallPluginRequest, InstalledPlugin, PluginError, PluginMcpEntry, PluginSkillEntry,
         PluginsSecrets, UpgradePluginRequest,
@@ -36,6 +36,7 @@ pub struct PluginView {
     pub plugin: InstalledPlugin,
     pub secret_status: Vec<PluginMcpSecretStatus>,
     pub oauth_status: Vec<PluginMcpOAuthStatus>,
+    pub skill_descriptions: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -94,6 +95,8 @@ pub struct UpdatePluginMcpRequest {
     pub boards: Option<Vec<String>>,
     #[serde(default)]
     pub enabled: Option<bool>,
+    #[serde(default)]
+    pub tool_policies: Option<BTreeMap<String, plugins::McpToolPolicy>>,
 }
 
 fn map_err(err: PluginError) -> ApiError {
@@ -110,6 +113,7 @@ fn map_err(err: PluginError) -> ApiError {
 }
 
 fn build_view(
+    dir: &Path,
     plugin: InstalledPlugin,
     secrets: &PluginsSecrets,
     oauth_tokens: &PluginsOAuthTokens,
@@ -132,7 +136,7 @@ fn build_view(
                 has_value,
             });
         }
-        if mcp.oauth {
+        if mcp.oauth || mcp.transport == "http" {
             let token = oauth_tokens
                 .get(&plugin.name)
                 .and_then(|by_mcp| by_mcp.get(&mcp.name));
@@ -145,10 +149,12 @@ fn build_view(
             });
         }
     }
+    let skill_descriptions = plugins::read_plugin_skill_descriptions(dir, &plugin);
     PluginView {
         plugin,
         secret_status,
         oauth_status,
+        skill_descriptions,
     }
 }
 
@@ -161,7 +167,7 @@ async fn list(
     Ok(Json(ApiResponse::success(
         plugins
             .into_iter()
-            .map(|plugin| build_view(plugin, &secrets, &oauth_tokens))
+            .map(|plugin| build_view(&dir, plugin, &secrets, &oauth_tokens))
             .collect(),
     )))
 }
@@ -185,6 +191,7 @@ async fn get_one(
     let secrets = plugins::read_plugin_secrets(&dir).map_err(map_err)?;
     let oauth_tokens = mcp_oauth::read_oauth_tokens(&dir).map_err(map_err)?;
     Ok(Json(ApiResponse::success(build_view(
+        &dir,
         plugin,
         &secrets,
         &oauth_tokens,
@@ -200,6 +207,7 @@ async fn install(
     let secrets = plugins::read_plugin_secrets(&dir).map_err(map_err)?;
     let oauth_tokens = mcp_oauth::read_oauth_tokens(&dir).map_err(map_err)?;
     Ok(Json(ApiResponse::success(build_view(
+        &dir,
         installed,
         &secrets,
         &oauth_tokens,
@@ -241,6 +249,7 @@ async fn upgrade(
     let secrets = plugins::read_plugin_secrets(&dir).map_err(map_err)?;
     let oauth_tokens = mcp_oauth::read_oauth_tokens(&dir).map_err(map_err)?;
     Ok(Json(ApiResponse::success(build_view(
+        &dir,
         updated,
         &secrets,
         &oauth_tokens,
@@ -263,6 +272,7 @@ async fn enable(
     let secrets = plugins::read_plugin_secrets(&dir).map_err(map_err)?;
     let oauth_tokens = mcp_oauth::read_oauth_tokens(&dir).map_err(map_err)?;
     Ok(Json(ApiResponse::success(build_view(
+        &dir,
         updated,
         &secrets,
         &oauth_tokens,
@@ -277,6 +287,7 @@ async fn disable(
     let secrets = plugins::read_plugin_secrets(&dir).map_err(map_err)?;
     let oauth_tokens = mcp_oauth::read_oauth_tokens(&dir).map_err(map_err)?;
     Ok(Json(ApiResponse::success(build_view(
+        &dir,
         updated,
         &secrets,
         &oauth_tokens,
@@ -308,8 +319,16 @@ async fn update_mcp(
     req: Result<Json<UpdatePluginMcpRequest>, axum::extract::rejection::JsonRejection>,
 ) -> Result<Json<ApiResponse<PluginMcpEntry>>, ApiError> {
     let Json(req) = req.map_err(|_| ApiError::BadRequest("Invalid MCP update request".into()))?;
-    let updated = plugins::update_mcp_scope(&dir, &name, &mcp, req.roles, req.boards, req.enabled)
-        .map_err(map_err)?;
+    let updated = plugins::update_mcp_scope(
+        &dir,
+        &name,
+        &mcp,
+        req.roles,
+        req.boards,
+        req.enabled,
+        req.tool_policies,
+    )
+    .map_err(map_err)?;
     Ok(Json(ApiResponse::success(updated)))
 }
 
@@ -529,6 +548,32 @@ async fn oauth_callback(
     }
 }
 
+async fn list_mcp_tools(
+    Extension(dir): Extension<PathBuf>,
+    RoutePath((plugin_name, mcp_name)): RoutePath<(String, String)>,
+) -> Result<Json<ApiResponse<Vec<PluginMcpToolInfo>>>, ApiError> {
+    if !plugins::valid_name(&plugin_name) || !plugins::valid_name(&mcp_name) {
+        return Err(ApiError::BadRequest(
+            "Invalid plugin or MCP identifier".into(),
+        ));
+    }
+    let plugins_list = plugins::read_plugins(&dir).map_err(map_err)?;
+    let plugin = plugins_list
+        .into_iter()
+        .find(|p| p.name == plugin_name)
+        .ok_or_else(|| ApiError::NotFound(format!("Plugin '{plugin_name}' not found")))?;
+    let mcp = plugin
+        .mcp
+        .iter()
+        .find(|m| m.name == mcp_name)
+        .cloned()
+        .ok_or_else(|| ApiError::NotFound(format!("MCP '{mcp_name}' not found")))?;
+    let tools = mcp_oauth::list_mcp_tools(&dir, &plugin, &mcp)
+        .await
+        .map_err(map_err)?;
+    Ok(Json(ApiResponse::success(tools)))
+}
+
 async fn disconnect_oauth(
     Extension(dir): Extension<PathBuf>,
     RoutePath((plugin, mcp)): RoutePath<(String, String)>,
@@ -562,6 +607,7 @@ pub(crate) fn router_for_dir<S: Clone + Send + Sync + 'static>(dir: &Path) -> Ro
         .route("/plugins/{name}/latest-tag", get(latest_tag))
         .route("/plugins/{name}/skills/{skill}", put(update_skill))
         .route("/plugins/{name}/mcp/{mcp}", put(update_mcp))
+        .route("/plugins/{name}/mcp/{mcp}/tools", get(list_mcp_tools))
         .route("/plugins/{name}/mcp/{mcp}/oauth/start", post(start_oauth))
         .route(
             "/plugins/{name}/mcp/{mcp}/oauth",

@@ -26,8 +26,9 @@ const Dialog = React.forwardRef<
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
     uncloseable?: boolean;
+    hideCloseButton?: boolean;
   }
->(({ className, open, onOpenChange, children, uncloseable, ...props }, ref) => {
+>(({ className, open, onOpenChange, children, uncloseable, hideCloseButton, ...props }, ref) => {
   const { t } = useTranslation();
   const { enableScope, disableScope } = useHotkeysContext();
   const dialogRef = React.useRef<HTMLDivElement | null>(null);
@@ -121,10 +122,10 @@ const Dialog = React.forwardRef<
       }}
     >
       <DialogPrimitive.Portal>
-        <div className="fixed inset-0 z-[10000] flex items-start justify-center p-4 overflow-y-auto">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 overflow-y-auto">
           <DialogPrimitive.Overlay
             data-tauri-drag-region
-            className="fixed inset-0 bg-black/50"
+            className="fixed inset-0 bg-black/60 backdrop-blur-[2px]"
           />
           <DialogPrimitive.Content
             ref={setDialogRef}
@@ -138,14 +139,14 @@ const Dialog = React.forwardRef<
               if (uncloseable) event.preventDefault();
             }}
             className={cn(
-              'relative z-[10000] flex flex-col w-full max-w-xl gap-4 bg-overlay border border-border rounded-lg p-6 shadow-xl duration-200 my-8 focus:outline-none',
+              'relative z-[10000] my-auto flex flex-col w-full max-w-xl gap-4 bg-overlay border border-border/90 rounded-xl p-6 shadow-2xl duration-200 focus:outline-none',
               className
             )}
             {...props}
           >
-            {!uncloseable && (
+            {!uncloseable && !hideCloseButton && (
               <button
-                className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 z-10"
+                className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 z-10"
                 onClick={() => onOpenChange?.(false)}
               >
                 <X className="h-4 w-4" />

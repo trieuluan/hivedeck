@@ -579,7 +579,9 @@ export type ExecutorCompatibility = { executor: BaseCodingAgent, cli: string | n
 
 export type PluginConflict = { kind: string, name: string, against: string, action?: string | null, };
 
-export type PluginMcpEntry = { name: string, transport: string, command?: string | null, args: Array<string>, url?: string | null, headers: { [key in string]?: string }, env: { [key in string]?: string }, roles: Array<string>, boards: Array<string>, oauth: boolean, enabled: boolean, };
+export type McpToolPolicy = "default" | "allow" | "ask" | "block";
+
+export type PluginMcpEntry = { name: string, transport: string, command?: string | null, args: Array<string>, url?: string | null, headers: { [key in string]?: string }, env: { [key in string]?: string }, roles: Array<string>, boards: Array<string>, oauth: boolean, enabled: boolean, tool_policies?: { [key in string]?: McpToolPolicy }, };
 
 export type PluginSkillEntry = { name: string, path: string, roles: Array<string>, boards: Array<string>, clis: Array<string>, enabled: boolean, };
 
@@ -591,9 +593,11 @@ export type UpgradePluginRequest = { source: string | null, version: string | nu
 
 export type PluginMcpOAuthStatus = { mcp: string, connected: boolean, expires_at: bigint | null, authorization_server: string | null, has_refresh_token: boolean, };
 
+export type PluginMcpToolInfo = { name: string, description: string | null, };
+
 export type PluginMcpSecretStatus = { mcp: string, name: string, has_value: boolean, };
 
-export type PluginView = { secret_status: Array<PluginMcpSecretStatus>, oauth_status: Array<PluginMcpOAuthStatus>, name: string, version: string, source: string, commit?: string | null, tag?: string | null, enabled: boolean, asset_hash: string, mcp: Array<PluginMcpEntry>, skills: Array<PluginSkillEntry>, unsupported: Array<string>, notes: Array<PluginConflict>, };
+export type PluginView = { secret_status: Array<PluginMcpSecretStatus>, oauth_status: Array<PluginMcpOAuthStatus>, skill_descriptions: { [key in string]?: string }, name: string, version: string, source: string, commit?: string | null, tag?: string | null, enabled: boolean, asset_hash: string, mcp: Array<PluginMcpEntry>, skills: Array<PluginSkillEntry>, unsupported: Array<string>, notes: Array<PluginConflict>, };
 
 export type PluginSecretStatus = { plugin: string, mcp: string, name: string, has_value: boolean, };
 
@@ -1422,7 +1426,11 @@ export type NormalizedEntry = { timestamp: string | null, entry_type: Normalized
 
 export type NormalizedEntryType = { "type": "user_message" } | { "type": "user_feedback", denied_tool: string, } | { "type": "assistant_message" } | { "type": "tool_use", tool_name: string, action_type: ActionType, status: ToolStatus, } | { "type": "system_message" } | { "type": "error_message", error_type: NormalizedEntryError, } | { "type": "thinking" } | { "type": "loading" } | { "type": "turn_complete" } | { "type": "next_action", failed: boolean, execution_processes: number, needs_setup: boolean, } | { "type": "token_usage_info" } & TokenUsageInfo | { "type": "user_answered_questions", answers: Array<AnsweredQuestion>, };
 
-export type TokenUsageInfo = { total_tokens: number, model_context_window: number, };
+export type ContextCategoryMetric = { key: string, tokens: number, count?: number | null, };
+
+export type ContextBreakdown = { source: string, categories: Array<ContextCategoryMetric>, payload_tokens: number, model?: string | null, upstream?: string | null, input_tokens?: number | null, output_tokens?: number | null, cache_read_tokens?: number | null, cache_creation_tokens?: number | null, model_context_window?: number | null, };
+
+export type TokenUsageInfo = { total_tokens: number, model_context_window: number, input_tokens?: number | null, output_tokens?: number | null, cache_read_tokens?: number | null, cache_creation_tokens?: number | null, };
 
 export type FileChange = { "action": "write", content: string, } | { "action": "delete" } | { "action": "rename", new_path: string, } | { "action": "edit", 
 /**

@@ -23,6 +23,14 @@ pub(super) enum OpencodeExecutorEvent {
     TokenUsage {
         total_tokens: u32,
         model_context_window: u32,
+        #[serde(default)]
+        input_tokens: Option<u32>,
+        #[serde(default)]
+        output_tokens: Option<u32>,
+        #[serde(default)]
+        cache_read_tokens: Option<u32>,
+        #[serde(default)]
+        cache_creation_tokens: Option<u32>,
     },
     ApprovalRequested {
         tool_call_id: String,
@@ -173,6 +181,8 @@ pub(super) struct MessageTokens {
 pub(super) struct MessageTokensCache {
     #[serde(default, deserialize_with = "deserialize_f64_as_u32")]
     pub(super) read: u32,
+    #[serde(default, deserialize_with = "deserialize_f64_as_u32")]
+    pub(super) write: u32,
 }
 
 fn deserialize_f64_as_u32<'de, D>(deserializer: D) -> Result<u32, D::Error>

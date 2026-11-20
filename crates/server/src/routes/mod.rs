@@ -37,6 +37,7 @@ pub mod filesystem;
 pub mod frontend;
 pub mod health;
 pub mod kanban;
+pub mod llm_proxy;
 pub mod local_kanban;
 pub mod local_mcp_registry;
 pub mod mcp_http;
@@ -100,12 +101,15 @@ pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
             middleware::validate_origin,
         ))
         .layer(axum::middleware::from_fn(middleware::log_server_errors))
-        .with_state(deployment);
+        .with_state(deployment.clone());
+
+    let llm_proxy_routes = llm_proxy::router(&deployment);
 
     Router::new()
         .route("/", get(frontend::serve_frontend_root))
         .route("/{*path}", get(frontend::serve_frontend))
         .nest("/api", api_routes)
+        .nest("/llm-proxy", llm_proxy_routes)
         .merge(v1_routes)
         .merge(mcp_routes)
         .layer(CompressionLayer::new())

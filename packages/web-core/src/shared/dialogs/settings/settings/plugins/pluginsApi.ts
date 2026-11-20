@@ -4,8 +4,10 @@ import type {
   PluginConflict,
   InstalledPlugin,
   InstallPluginRequest,
+  McpToolPolicy,
   PluginMcpEntry,
   PluginMcpOAuthStatus,
+  PluginMcpToolInfo,
   PluginSecretStatus,
   PluginSkillEntry,
   PluginView,
@@ -70,6 +72,7 @@ export type ScopePatch = {
   roles?: string[];
   boards?: string[];
   enabled?: boolean;
+  tool_policies?: Record<string, McpToolPolicy | undefined>;
 };
 
 export const pluginsApi = {
@@ -125,4 +128,6 @@ export const pluginsApi = {
       `/${seg(name)}/mcp/${seg(mcp)}/oauth`,
       json('DELETE')
     ),
+  listMcpTools: (name: string, mcp: string) =>
+    call<PluginMcpToolInfo[]>(`/${seg(name)}/mcp/${seg(mcp)}/tools`),
 };

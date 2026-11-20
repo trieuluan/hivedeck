@@ -10,6 +10,7 @@ pub mod file_ranker;
 pub mod file_search;
 pub mod filesystem;
 pub mod filesystem_watcher;
+pub mod llm_inspector;
 pub mod nine_router;
 pub mod notification;
 pub mod opencode_agents;

@@ -16,12 +16,13 @@ use codex_app_server_protocol::{
     GetAccountParams, GetAccountRateLimitsResponse, GetAccountResponse, InitializeCapabilities,
     InitializeParams, InitializeResponse, ItemCompletedNotification, JSONRPCError,
     JSONRPCNotification, JSONRPCRequest, JSONRPCResponse, ListMcpServerStatusParams,
-    ListMcpServerStatusResponse, McpServerStatusDetail, RequestId, ReviewStartParams,
-    ReviewStartResponse, ReviewTarget, ServerRequest, ThreadCompactStartParams,
-    ThreadCompactStartResponse, ThreadForkParams, ThreadForkResponse, ThreadItem, ThreadReadParams,
-    ThreadReadResponse, ThreadStartParams, ThreadStartResponse, ToolRequestUserInputAnswer,
-    ToolRequestUserInputQuestion, ToolRequestUserInputResponse, TurnCompletedNotification,
-    TurnStartParams, TurnStartResponse, TurnStatus, UserInput,
+    ListMcpServerStatusResponse, McpServerElicitationAction, McpServerElicitationRequestResponse,
+    McpServerStatusDetail, RequestId, ReviewStartParams, ReviewStartResponse, ReviewTarget,
+    ServerRequest, ThreadCompactStartParams, ThreadCompactStartResponse, ThreadForkParams,
+    ThreadForkResponse, ThreadItem, ThreadReadParams, ThreadReadResponse, ThreadStartParams,
+    ThreadStartResponse, ToolRequestUserInputAnswer, ToolRequestUserInputQuestion,
+    ToolRequestUserInputResponse, TurnCompletedNotification, TurnStartParams, TurnStartResponse,
+    TurnStatus, UserInput,
 };
 use codex_protocol::config_types::{CollaborationMode, ModeKind, Settings};
 use futures::TryFutureExt;
@@ -430,8 +431,37 @@ impl AppServerClient {
                 send_server_response(peer, request_id, response).await?;
                 Ok(())
             }
+            ServerRequest::McpServerElicitationRequest { request_id, params } => {
+                let accepted = if self.auto_approve || self.approvals.is_none() {
+                    true
+                } else {
+                    let call_id = params
+                        .turn_id
+                        .as_deref()
+                        .unwrap_or(&params.server_name)
+                        .to_string();
+                    let status = self
+                        .request_tool_approval(
+                            &format!("mcp:{}", params.server_name),
+                            &params.server_name,
+                            &call_id,
+                        )
+                        .await?;
+                    matches!(status, ApprovalStatus::Approved)
+                };
+                let response = McpServerElicitationRequestResponse {
+                    action: if accepted {
+                        McpServerElicitationAction::Accept
+                    } else {
+                        McpServerElicitationAction::Decline
+                    },
+                    content: accepted.then(|| serde_json::json!({})),
+                    meta: None,
+                };
+                send_server_response(peer, request_id, response).await?;
+                Ok(())
+            }
             ServerRequest::ChatgptAuthTokensRefresh { .. }
-            | ServerRequest::McpServerElicitationRequest { .. }
             | ServerRequest::PermissionsRequestApproval { .. } => {
                 tracing::warn!("received unhandled v2 server request: {:?}", request);
                 let response = JSONRPCResponse {

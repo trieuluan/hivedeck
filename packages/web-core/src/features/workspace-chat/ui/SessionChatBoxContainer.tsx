@@ -36,6 +36,11 @@ import { useApprovals } from '@/shared/hooks/useApprovals';
 import { ResolveConflictsDialog } from '@/shared/dialogs/tasks/ResolveConflictsDialog';
 import { workspaceSummaryKeys } from '@/shared/hooks/workspaceSummaryKeys';
 import { buildAgentPrompt } from '@/shared/lib/promptMessage';
+import {
+  ChatImageStrip,
+  combineChatImageAttachments,
+  splitChatImageAttachments,
+} from './ChatImageStrip';
 import { formatDateShortWithTime } from '@/shared/lib/date';
 import { toPrettyCase } from '@/shared/lib/string';
 import {
@@ -506,10 +511,11 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
   });
 
   const supportsContextUsage =
-    !!effectiveExecutor &&
-    capabilities?.[effectiveExecutor]?.includes(
-      BaseAgentCapability.CONTEXT_USAGE
-    );
+    (!!effectiveExecutor &&
+      capabilities?.[effectiveExecutor]?.includes(
+        BaseAgentCapability.CONTEXT_USAGE
+      )) ||
+    (!isNewSessionMode && !!sessionId);
 
   // Navigate to agent settings to customise variants
   const handleCustomise = () => {
@@ -1039,25 +1045,48 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
       executor,
       onPasteFiles,
       localAttachments,
-    }: SessionChatBoxEditorRenderProps<BaseCodingAgent>) => (
-      <WYSIWYGEditor
-        key={focusKey}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        onCmdEnter={onCmdEnter}
-        disabled={disabled}
-        className="min-h-double max-h-[50vh] overflow-y-auto"
-        repoIds={repoIds}
-        executor={executor}
-        sessionId={sessionId}
-        autoFocus
-        onPasteFiles={onPasteFiles}
-        localAttachments={localAttachments}
-        sendShortcut={config?.send_message_shortcut}
-      />
-    ),
-    [config?.send_message_shortcut, sessionId]
+    }: SessionChatBoxEditorRenderProps<BaseCodingAgent>) => {
+      const { images, text } = splitChatImageAttachments(value);
+      return (
+        <div className="flex flex-col">
+          <ChatImageStrip
+            images={images}
+            localAttachments={localAttachments}
+            workspaceId={workspaceId}
+            sessionId={sessionId}
+            disabled={disabled}
+            onRemove={(idx) =>
+              onChange(
+                combineChatImageAttachments(
+                  images.filter((_, i) => i !== idx),
+                  text
+                )
+              )
+            }
+          />
+          <WYSIWYGEditor
+            key={focusKey}
+            placeholder={placeholder}
+            value={text}
+            onChange={(nextText) =>
+              onChange(combineChatImageAttachments(images, nextText))
+            }
+            onCmdEnter={onCmdEnter}
+            disabled={disabled}
+            className="min-h-[64px] max-h-[50vh] overflow-y-auto text-[13px] leading-relaxed"
+            repoIds={repoIds}
+            executor={executor}
+            sessionId={sessionId}
+            pluginRole={isCaptain ? 'captain' : 'crew'}
+            autoFocus
+            onPasteFiles={onPasteFiles}
+            localAttachments={localAttachments}
+            sendShortcut={config?.send_message_shortcut}
+          />
+        </div>
+      );
+    },
+    [config?.send_message_shortcut, isCaptain, sessionId, workspaceId]
   );
 
   const modelSelectorNode = effectiveExecutor ? (

@@ -18,8 +18,11 @@ import {
   FileTextIcon,
   GearIcon,
   PlusIcon,
+  PuzzlePieceIcon,
+  SparkleIcon,
 } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
+import { cn } from '../lib/cn';
 import { useTypeaheadOpen } from './TypeaheadOpenContext';
 import { TypeaheadMenu } from './TypeaheadMenu';
 
@@ -47,7 +50,31 @@ export type FileResultLike = {
   score: bigint | number;
 };
 
+export type PluginMentionLike = {
+  name: string;
+  display_name?: string | null;
+  description?: string | null;
+  skills_count: number;
+  mcp_count: number;
+  roles: string[];
+};
+
+export type SkillMentionLike = {
+  id: string;
+  name: string;
+  plugin_name: string;
+  description?: string | null;
+};
+
 export type SearchResultItemLike =
+  | {
+      type: 'plugin';
+      plugin: PluginMentionLike;
+    }
+  | {
+      type: 'skill';
+      skill: SkillMentionLike;
+    }
   | {
       type: 'tag';
       tag: FileTagLike;
@@ -71,6 +98,8 @@ type SearchArgs = {
   repoIds?: string[];
 };
 
+type MentionTab = 'all' | 'plugins' | 'skills' | 'tags' | 'files';
+
 type FileTagTypeaheadPluginProps = {
   repoIds?: string[];
   diffPaths?: Set<string>;
@@ -84,6 +113,8 @@ type FileTagTypeaheadPluginProps = {
     query: string,
     args: SearchArgs
   ) => Promise<SearchResultItemLike[]>;
+  plugins?: PluginMentionLike[];
+  skills?: SkillMentionLike[];
 };
 
 class FileTagOption extends MenuOption {
@@ -91,7 +122,13 @@ class FileTagOption extends MenuOption {
 
   constructor(item: SearchResultItemLike) {
     const key =
-      item.type === 'tag' ? `tag-${item.tag.id}` : `file-${item.file.path}`;
+      item.type === 'plugin'
+        ? `plugin-${item.plugin.name}`
+        : item.type === 'skill'
+          ? `skill-${item.skill.id}`
+          : item.type === 'tag'
+            ? `tag-${item.tag.id}`
+            : `file-${item.file.path}`;
     super(key);
     this.item = item;
   }
@@ -139,9 +176,12 @@ export function FileTagTypeaheadPlugin({
   chooseRepo,
   onCreateTag,
   searchTagsAndFiles,
+  plugins,
+  skills,
 }: FileTagTypeaheadPluginProps) {
   const [editor] = useLexicalComposerContext();
   const [options, setOptions] = useState<FileTagOption[]>([]);
+  const [activeTab, setActiveTab] = useState<MentionTab>('all');
   const [recentRepoCatalog, setRecentRepoCatalog] = useState<RepoLike[] | null>(
     null
   );
@@ -213,6 +253,31 @@ export function FileTagTypeaheadPlugin({
           return;
         }
 
+        const normalizedQuery = query.trim().toLowerCase();
+        const pluginResults: SearchResultItemLike[] = (plugins ?? [])
+          .filter((p) => {
+            if (!normalizedQuery) return true;
+            return (
+              p.name.toLowerCase().includes(normalizedQuery) ||
+              (p.display_name ?? '').toLowerCase().includes(normalizedQuery) ||
+              (p.description ?? '').toLowerCase().includes(normalizedQuery)
+            );
+          })
+          .slice(0, 8)
+          .map((plugin) => ({ type: 'plugin' as const, plugin }));
+
+        const skillResults: SearchResultItemLike[] = (skills ?? [])
+          .filter((s) => {
+            if (!normalizedQuery) return true;
+            return (
+              s.name.toLowerCase().includes(normalizedQuery) ||
+              s.plugin_name.toLowerCase().includes(normalizedQuery) ||
+              (s.description ?? '').toLowerCase().includes(normalizedQuery)
+            );
+          })
+          .slice(0, 10)
+          .map((skill) => ({ type: 'skill' as const, skill }));
+
         const tagResults = serverResults.filter((r) => r.type === 'tag');
         const serverFileResults = serverResults
           .filter((r) => r.type === 'file')
@@ -223,6 +288,8 @@ export function FileTagTypeaheadPlugin({
         const limitedServerFiles = serverFileResults.slice(0, remainingSlots);
 
         const mergedResults: SearchResultItemLike[] = [
+          ...pluginResults,
+          ...skillResults,
           ...tagResults,
           ...limitedLocalFiles.map((file) => ({
             type: 'file' as const,
@@ -243,7 +310,7 @@ export function FileTagTypeaheadPlugin({
         });
       }
     },
-    [effectiveDiffPaths, effectiveRepoIds, searchTagsAndFiles]
+    [effectiveDiffPaths, effectiveRepoIds, plugins, searchTagsAndFiles, skills]
   );
 
   useEffect(() => {
@@ -375,6 +442,16 @@ export function FileTagTypeaheadPlugin({
     [runSearch]
   );
 
+  const filteredOptions = useMemo(() => {
+    if (activeTab === 'all') return options;
+    return options.filter((opt) => {
+      if (activeTab === 'plugins') return opt.item.type === 'plugin';
+      if (activeTab === 'skills') return opt.item.type === 'skill';
+      if (activeTab === 'tags') return opt.item.type === 'tag';
+      return opt.item.type === 'file';
+    });
+  }, [activeTab, options]);
+
   return (
     <LexicalTypeaheadMenuPlugin<FileTagOption>
       commandPriority={COMMAND_PRIORITY_NORMAL}
@@ -388,15 +465,36 @@ export function FileTagTypeaheadPlugin({
           replaceableString: match[0].slice(match[0].indexOf('@')),
         };
       }}
-      options={options}
+      options={filteredOptions}
       onQueryChange={onQueryChange}
-      onOpen={() => setIsOpen(true)}
+      onOpen={() => {
+        setActiveTab('all');
+        setIsOpen(true);
+      }}
       onClose={() => setIsOpen(false)}
       onSelectOption={(option, nodeToReplace, closeMenu) => {
         editor.update(() => {
           if (!nodeToReplace) return;
 
-          if (option.item.type === 'tag') {
+          if (option.item.type === 'plugin') {
+            const mention = `@[plugin:${option.item.plugin.name}]`;
+            const pillNode = $createTextNode(mention);
+            pillNode.toggleFormat('code');
+            nodeToReplace.replace(pillNode);
+            const spaceNode = $createTextNode(' ');
+            pillNode.insertAfter(spaceNode);
+            spaceNode.setFormat(0);
+            spaceNode.select(1, 1);
+          } else if (option.item.type === 'skill') {
+            const mention = `@[skill:${option.item.skill.name}]`;
+            const pillNode = $createTextNode(mention);
+            pillNode.toggleFormat('code');
+            nodeToReplace.replace(pillNode);
+            const spaceNode = $createTextNode(' ');
+            pillNode.insertAfter(spaceNode);
+            spaceNode.setFormat(0);
+            spaceNode.select(1, 1);
+          } else if (option.item.type === 'tag') {
             const textToInsert = option.item.tag.content ?? '';
             const textNode = $createTextNode(textToInsert);
             nodeToReplace.replace(textNode);
@@ -457,19 +555,52 @@ export function FileTagTypeaheadPlugin({
       ) => {
         if (!anchorRef.current) return null;
 
-        const tagResults = options.filter((r) => r.item.type === 'tag');
-        const fileResults = options.filter((r) => r.item.type === 'file');
+        const allPluginsCount = options.filter(
+          (r) => r.item.type === 'plugin'
+        ).length;
+        const allSkillsCount = options.filter(
+          (r) => r.item.type === 'skill'
+        ).length;
+        const allTagsCount = options.filter(
+          (r) => r.item.type === 'tag'
+        ).length;
+        const allFilesCount = options.filter(
+          (r) => r.item.type === 'file'
+        ).length;
+
+        const pluginResults = filteredOptions.filter(
+          (r) => r.item.type === 'plugin'
+        );
+        const skillResults = filteredOptions.filter(
+          (r) => r.item.type === 'skill'
+        );
+        const tagResults = filteredOptions.filter((r) => r.item.type === 'tag');
+        const fileResults = filteredOptions.filter(
+          (r) => r.item.type === 'file'
+        );
+
         const showChooseRepoControl =
           canManageRepoPreference && !canSearchFiles;
         const showSelectedRepoState = canManageRepoPreference && canSearchFiles;
+        const showTagsSection = activeTab === 'all' || activeTab === 'tags';
         const showFilesSection =
-          fileResults.length > 0 ||
-          showChooseRepoControl ||
-          showSelectedRepoState ||
-          showMissingRepoState;
+          (activeTab === 'all' || activeTab === 'files') &&
+          (fileResults.length > 0 ||
+            showChooseRepoControl ||
+            showSelectedRepoState ||
+            showMissingRepoState);
         const hasSearchResults =
-          tagResults.length > 0 || fileResults.length > 0;
-        const showGlobalEmptyState = !hasSearchResults && !showFilesSection;
+          pluginResults.length > 0 ||
+          skillResults.length > 0 ||
+          tagResults.length > 0 ||
+          fileResults.length > 0;
+        const isPluginOrSkillTab =
+          activeTab === 'plugins' || activeTab === 'skills';
+        const showGlobalEmptyState =
+          !isPluginOrSkillTab &&
+          !hasSearchResults &&
+          !showFilesSection &&
+          !showTagsSection;
         const selectedRepoLabel = preferredRepoName ?? preferredRepoId;
         const repoCtaLabel = showSelectedRepoState
           ? t('typeahead.selectedRepo', {
@@ -477,16 +608,54 @@ export function FileTagTypeaheadPlugin({
             })
           : t('typeahead.chooseRepo');
 
+        const tabs: Array<{ id: MentionTab; label: string; count: number }> = [
+          { id: 'all', label: 'Tất cả', count: options.length },
+          { id: 'plugins', label: 'Plugins', count: allPluginsCount },
+          { id: 'skills', label: 'Skills', count: allSkillsCount },
+          { id: 'tags', label: 'Tags', count: allTagsCount },
+          { id: 'files', label: 'Files', count: allFilesCount },
+        ];
+
         return createPortal(
           <TypeaheadMenu
             anchorEl={anchorRef.current}
             editorEl={editor.getRootElement()}
             onClickOutside={closeTypeahead}
           >
-            <TypeaheadMenu.Header>
-              <TagIcon className="size-icon-xs" weight="bold" />
-              {t('typeahead.tags')}
-            </TypeaheadMenu.Header>
+            <div className="flex shrink-0 items-center gap-1 border-b border-border/60 px-base py-half overflow-x-auto">
+              {tabs.map((tab) => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setActiveTab(tab.id);
+                      setHighlightedIndex(0);
+                    }}
+                    className={cn(
+                      'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium whitespace-nowrap transition-colors',
+                      isActive
+                        ? 'bg-brand text-white'
+                        : 'text-low hover:bg-secondary/70 hover:text-normal'
+                    )}
+                  >
+                    <span>{tab.label}</span>
+                    {tab.count > 0 && (
+                      <span
+                        className={cn(
+                          'text-[10px] tabular-nums',
+                          isActive ? 'text-white/80' : 'text-low/80'
+                        )}
+                      >
+                        {tab.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
 
             {showGlobalEmptyState ? (
               <TypeaheadMenu.Empty>
@@ -494,44 +663,164 @@ export function FileTagTypeaheadPlugin({
               </TypeaheadMenu.Empty>
             ) : (
               <TypeaheadMenu.ScrollArea>
-                <TypeaheadMenu.Action onClick={() => void handleCreateTag()}>
-                  <span className="flex items-center gap-half">
-                    <PlusIcon className="size-icon-xs" weight="bold" />
-                    <span>{t('typeahead.createTag')}</span>
-                  </span>
-                </TypeaheadMenu.Action>
+                {pluginResults.length > 0 && (
+                  <>
+                    <TypeaheadMenu.SectionHeader>
+                      Plugins
+                    </TypeaheadMenu.SectionHeader>
+                    {pluginResults.map((option) => {
+                      if (option.item.type !== 'plugin') return null;
+                      const index = filteredOptions.indexOf(option);
+                      const plugin = option.item.plugin;
+                      const summaryParts: string[] = [];
+                      if (plugin.skills_count > 0) {
+                        summaryParts.push(`${plugin.skills_count} skills`);
+                      }
+                      if (plugin.mcp_count > 0) {
+                        summaryParts.push(`${plugin.mcp_count} MCP`);
+                      }
+                      return (
+                        <TypeaheadMenu.Item
+                          key={option.key}
+                          isSelected={index === selectedIndex}
+                          index={index}
+                          setHighlightedIndex={setHighlightedIndex}
+                          onClick={() => selectOptionAndCleanUp(option)}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-half font-medium min-w-0">
+                              <PuzzlePieceIcon
+                                className="size-icon-xs shrink-0 text-brand"
+                                weight="bold"
+                              />
+                              <span className="truncate">
+                                {plugin.display_name || plugin.name}
+                              </span>
+                              <span className="text-[11px] font-normal text-low truncate">
+                                @{plugin.name}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {plugin.roles.length > 0 && (
+                                <span className="rounded bg-brand/15 px-1.5 py-0.5 text-[10px] font-medium text-brand">
+                                  {plugin.roles
+                                    .map((r) =>
+                                      r === 'crew'
+                                        ? 'Crew'
+                                        : r === 'captain'
+                                          ? 'Captain'
+                                          : r
+                                    )
+                                    .join(' · ')}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {(plugin.description || summaryParts.length > 0) && (
+                            <div className="text-xs text-low truncate">
+                              {summaryParts.length > 0
+                                ? `${summaryParts.join(' · ')}${plugin.description ? ` — ${plugin.description}` : ''}`
+                                : plugin.description}
+                            </div>
+                          )}
+                        </TypeaheadMenu.Item>
+                      );
+                    })}
+                  </>
+                )}
 
-                {tagResults.map((option, index) => {
-                  if (option.item.type !== 'tag') return null;
-                  const tag = option.item.tag;
-                  return (
-                    <TypeaheadMenu.Item
-                      key={option.key}
-                      isSelected={index === selectedIndex}
-                      index={index}
-                      setHighlightedIndex={setHighlightedIndex}
-                      onClick={() => selectOptionAndCleanUp(option)}
-                    >
-                      <div className="flex items-center gap-half font-medium">
-                        <TagIcon
-                          className="size-icon-xs shrink-0"
-                          weight="bold"
-                        />
-                        <span>@{tag.tag_name}</span>
-                      </div>
-                      {tag.content && (
-                        <div className="text-xs text-low truncate">
-                          {tag.content.slice(0, 60)}
-                          {tag.content.length > 60 ? '...' : ''}
-                        </div>
-                      )}
-                    </TypeaheadMenu.Item>
-                  );
-                })}
+                {skillResults.length > 0 && (
+                  <>
+                    {pluginResults.length > 0 && <TypeaheadMenu.Divider />}
+                    <TypeaheadMenu.SectionHeader>
+                      Skills
+                    </TypeaheadMenu.SectionHeader>
+                    {skillResults.map((option) => {
+                      if (option.item.type !== 'skill') return null;
+                      const index = filteredOptions.indexOf(option);
+                      const skill = option.item.skill;
+                      return (
+                        <TypeaheadMenu.Item
+                          key={option.key}
+                          isSelected={index === selectedIndex}
+                          index={index}
+                          setHighlightedIndex={setHighlightedIndex}
+                          onClick={() => selectOptionAndCleanUp(option)}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-half font-medium min-w-0">
+                              <SparkleIcon
+                                className="size-icon-xs shrink-0 text-sky-400"
+                                weight="bold"
+                              />
+                              <span className="truncate">{skill.name}</span>
+                            </div>
+                            <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] text-low shrink-0">
+                              {skill.plugin_name}
+                            </span>
+                          </div>
+                          {skill.description && (
+                            <div className="text-xs text-low truncate">
+                              {skill.description}
+                            </div>
+                          )}
+                        </TypeaheadMenu.Item>
+                      );
+                    })}
+                  </>
+                )}
+
+                {showTagsSection && (
+                  <>
+                    {(pluginResults.length > 0 || skillResults.length > 0) && (
+                      <TypeaheadMenu.Divider />
+                    )}
+                    <TypeaheadMenu.SectionHeader>
+                      {t('typeahead.tags')}
+                    </TypeaheadMenu.SectionHeader>
+                    <TypeaheadMenu.Action onClick={() => void handleCreateTag()}>
+                      <span className="flex items-center gap-half">
+                        <PlusIcon className="size-icon-xs" weight="bold" />
+                        <span>{t('typeahead.createTag')}</span>
+                      </span>
+                    </TypeaheadMenu.Action>
+
+                    {tagResults.map((option) => {
+                      if (option.item.type !== 'tag') return null;
+                      const index = filteredOptions.indexOf(option);
+                      const tag = option.item.tag;
+                      return (
+                        <TypeaheadMenu.Item
+                          key={option.key}
+                          isSelected={index === selectedIndex}
+                          index={index}
+                          setHighlightedIndex={setHighlightedIndex}
+                          onClick={() => selectOptionAndCleanUp(option)}
+                        >
+                          <div className="flex items-center gap-half font-medium">
+                            <TagIcon
+                              className="size-icon-xs shrink-0"
+                              weight="bold"
+                            />
+                            <span>@{tag.tag_name}</span>
+                          </div>
+                          {tag.content && (
+                            <div className="text-xs text-low truncate">
+                              {tag.content.slice(0, 60)}
+                              {tag.content.length > 60 ? '...' : ''}
+                            </div>
+                          )}
+                        </TypeaheadMenu.Item>
+                      );
+                    })}
+                  </>
+                )}
 
                 {showFilesSection && (
                   <>
-                    {tagResults.length > 0 && <TypeaheadMenu.Divider />}
+                    {(pluginResults.length > 0 ||
+                      skillResults.length > 0 ||
+                      showTagsSection) && <TypeaheadMenu.Divider />}
                     <TypeaheadMenu.SectionHeader>
                       {t('typeahead.files')}
                     </TypeaheadMenu.SectionHeader>
@@ -555,7 +844,7 @@ export function FileTagTypeaheadPlugin({
                     )}
                     {fileResults.map((option) => {
                       if (option.item.type !== 'file') return null;
-                      const index = options.indexOf(option);
+                      const index = filteredOptions.indexOf(option);
                       const file = option.item.file;
                       return (
                         <TypeaheadMenu.Item
@@ -580,6 +869,14 @@ export function FileTagTypeaheadPlugin({
                     })}
                   </>
                 )}
+
+                {!hasSearchResults &&
+                  !showFilesSection &&
+                  (activeTab === 'plugins' || activeTab === 'skills') && (
+                    <TypeaheadMenu.Empty>
+                      Không có {activeTab === 'plugins' ? 'plugin' : 'skill'} phù hợp
+                    </TypeaheadMenu.Empty>
+                  )}
               </TypeaheadMenu.ScrollArea>
             )}
           </TypeaheadMenu>,

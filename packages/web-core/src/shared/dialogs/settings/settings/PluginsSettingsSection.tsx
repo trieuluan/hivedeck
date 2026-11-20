@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
   ArrowSquareOutIcon,
-  CaretDownIcon,
   DownloadSimpleIcon,
   PlusIcon,
   SpinnerIcon,
@@ -200,6 +201,115 @@ export function PluginsSettingsSection() {
     });
 
   const installedCount = plugins?.length ?? 0;
+  const selectedPlugin = open
+    ? (plugins?.find((p) => p.name === open) ?? null)
+    : null;
+
+  if (selectedPlugin) {
+    return (
+      <div className="space-y-4 pb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-secondary/30 px-3.5 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setOpen(null)}
+              className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-panel px-2.5 py-1.5 text-xs font-medium text-normal transition-colors hover:bg-secondary hover:text-high"
+            >
+              <ArrowLeftIcon
+                className="h-3.5 w-3.5"
+                weight="bold"
+                aria-hidden
+              />
+              Quay lại
+            </button>
+            <PluginAvatar name={selectedPlugin.name} size="md" />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="truncate text-sm font-semibold text-high">
+                  {selectedPlugin.name}
+                </span>
+                <span className="rounded bg-secondary px-1.5 py-0.5 text-2xs text-low">
+                  {selectedPlugin.source === 'mcp-single'
+                    ? selectedPlugin.mcp[0]?.transport === 'http'
+                      ? 'http · mcp'
+                      : 'stdio · mcp'
+                    : t('settings.plugins.version', {
+                        version: selectedPlugin.version,
+                      })}
+                </span>
+                <span
+                  className={
+                    selectedPlugin.enabled
+                      ? 'rounded border border-success/30 bg-success/10 px-1.5 py-0.5 text-2xs font-medium text-success'
+                      : 'rounded border border-border bg-secondary px-1.5 py-0.5 text-2xs text-low'
+                  }
+                >
+                  {selectedPlugin.enabled ? 'Đang bật' : 'Đã tắt'}
+                </span>
+              </div>
+              <div className="text-2xs text-low">
+                {selectedPlugin.mcp.length} MCP · {selectedPlugin.skills.length}{' '}
+                skill
+              </div>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Switch
+              checked={selectedPlugin.enabled}
+              disabled={busy === selectedPlugin.name}
+              aria-label={t('settings.plugins.toggleAria', {
+                name: selectedPlugin.name,
+              })}
+              onCheckedChange={(enabled) =>
+                void toggle(selectedPlugin, enabled)
+              }
+            />
+            {latest[selectedPlugin.name] && (
+              <button
+                type="button"
+                className="rounded-sm border border-border px-2.5 py-1 text-xs font-medium text-normal hover:bg-secondary disabled:opacity-50"
+                disabled={busy === selectedPlugin.name}
+                onClick={() =>
+                  void upgrade(selectedPlugin, latest[selectedPlugin.name]!)
+                }
+              >
+                {t('settings.plugins.upgrade', {
+                  tag: latest[selectedPlugin.name],
+                })}
+              </button>
+            )}
+            <button
+              type="button"
+              className={button}
+              disabled={busy === selectedPlugin.name}
+              onClick={() => void remove(selectedPlugin)}
+            >
+              {t('settings.plugins.remove')}
+            </button>
+          </div>
+        </div>
+
+        {notice && (
+          <p
+            role={notice.kind === 'error' ? 'alert' : 'status'}
+            className={
+              notice.kind === 'error'
+                ? 'text-sm text-error break-words'
+                : 'text-sm text-normal break-words'
+            }
+          >
+            {notice.text}
+          </p>
+        )}
+
+        <PluginDetail
+          plugin={selectedPlugin}
+          onChanged={reload}
+          notify={notify}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-6">
@@ -304,8 +414,6 @@ export function PluginsSettingsSection() {
         {plugins && plugins.length > 0 && (
           <div className="divide-y divide-border rounded-md border border-border bg-secondary/15">
             {plugins.map((plugin) => {
-              const expanded = open === plugin.name;
-              const detailId = `plugin-detail-${plugin.name}`;
               const oauthMcps = plugin.mcp.filter((m) => m.oauth);
               const pendingOAuthMcp = oauthMcps.find(
                 (m) =>
@@ -429,17 +537,11 @@ export function PluginsSettingsSection() {
                       <button
                         type="button"
                         className="inline-flex items-center gap-1 rounded-sm border border-border px-2.5 py-1 text-xs font-medium text-normal hover:bg-secondary disabled:opacity-50"
-                        aria-expanded={expanded}
-                        aria-controls={detailId}
-                        onClick={() => setOpen(expanded ? null : plugin.name)}
+                        onClick={() => setOpen(plugin.name)}
                       >
                         {t('settings.plugins.details')}
-                        <CaretDownIcon
-                          className={
-                            expanded
-                              ? 'h-3 w-3 rotate-180 transition-transform'
-                              : 'h-3 w-3 transition-transform'
-                          }
+                        <ArrowRightIcon
+                          className="h-3 w-3"
                           weight="bold"
                           aria-hidden="true"
                         />
@@ -471,15 +573,6 @@ export function PluginsSettingsSection() {
                       </button>
                     </div>
                   </div>
-                  {expanded && (
-                    <div id={detailId}>
-                      <PluginDetail
-                        plugin={plugin}
-                        onChanged={reload}
-                        notify={notify}
-                      />
-                    </div>
-                  )}
                 </div>
               );
             })}

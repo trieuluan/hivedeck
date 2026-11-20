@@ -15,7 +15,9 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use ts_rs::TS;
 
-use crate::plugins::{InstalledPlugin, PluginError};
+use crate::plugins::{
+    InstalledPlugin, PluginError, PluginMcpEntry, plugin_asset_dir, read_plugin_secrets,
+};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StoredMcpOAuthToken {
@@ -46,6 +48,12 @@ pub struct PluginMcpOAuthStatus {
     pub expires_at: Option<i64>,
     pub authorization_server: Option<String>,
     pub has_refresh_token: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+pub struct PluginMcpToolInfo {
+    pub name: String,
+    pub description: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -669,6 +677,250 @@ pub async fn ensure_fresh_tokens(dir: &Path, plugins: &[InstalledPlugin]) -> Plu
     }
 
     tokens
+}
+
+fn parse_mcp_jsonrpc_body(body: &str, target_id: i64) -> Option<Value> {
+    if let Ok(val) = serde_json::from_str::<Value>(body) {
+        if val.get("id").and_then(Value::as_i64) == Some(target_id)
+            || val.get("result").is_some()
+            || val.get("error").is_some()
+        {
+            return Some(val);
+        }
+    }
+    for line in body.lines() {
+        let trimmed = line.trim();
+        if let Some(data) = trimmed.strip_prefix("data:")
+            && let Ok(val) = serde_json::from_str::<Value>(data.trim())
+            && val.get("id").and_then(Value::as_i64) == Some(target_id)
+        {
+            return Some(val);
+        }
+    }
+    None
+}
+
+fn extract_tools_from_response(val: &Value) -> Result<Vec<PluginMcpToolInfo>, PluginError> {
+    if let Some(err) = val.get("error") {
+        let msg = err
+            .get("message")
+            .and_then(Value::as_str)
+            .unwrap_or("MCP tools/list error");
+        return Err(PluginError::BadRequest(msg.to_owned()));
+    }
+    let tools = val
+        .get("result")
+        .and_then(|r| r.get("tools"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| PluginError::BadRequest("MCP response missing result.tools".into()))?;
+    Ok(tools
+        .iter()
+        .filter_map(|t| {
+            let name = t.get("name")?.as_str()?.to_owned();
+            let description = t
+                .get("description")
+                .and_then(Value::as_str)
+                .map(|s| s.trim().to_owned())
+                .filter(|s| !s.is_empty());
+            Some(PluginMcpToolInfo { name, description })
+        })
+        .collect())
+}
+
+pub async fn list_mcp_tools(
+    dir: &Path,
+    plugin: &InstalledPlugin,
+    mcp: &PluginMcpEntry,
+) -> Result<Vec<PluginMcpToolInfo>, PluginError> {
+    let secrets = read_plugin_secrets(dir).unwrap_or_default();
+    let mcp_secrets = secrets.get(&plugin.name).and_then(|m| m.get(&mcp.name));
+
+    if mcp.transport == "http" {
+        let url = mcp
+            .url
+            .as_deref()
+            .filter(|u| !u.trim().is_empty())
+            .ok_or_else(|| PluginError::BadRequest("MCP server is missing url".into()))?;
+        let client = build_http_client()?;
+
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            reqwest::header::ACCEPT,
+            "application/json, text/event-stream"
+                .parse()
+                .expect("valid accept header"),
+        );
+        headers.insert(
+            reqwest::header::CONTENT_TYPE,
+            "application/json".parse().expect("valid content-type"),
+        );
+
+        let mut has_auth = false;
+        for (hdr_key, secret_ref) in &mcp.headers {
+            if let Some(secret_val) = mcp_secrets.and_then(|m| m.get(secret_ref))
+                && let Ok(name) = reqwest::header::HeaderName::from_bytes(hdr_key.as_bytes())
+            {
+                let formatted = if hdr_key.eq_ignore_ascii_case("authorization")
+                    && !secret_val.to_ascii_lowercase().starts_with("bearer ")
+                {
+                    format!("Bearer {secret_val}")
+                } else {
+                    secret_val.clone()
+                };
+                if let Ok(val) = reqwest::header::HeaderValue::from_str(&formatted) {
+                    if hdr_key.eq_ignore_ascii_case("authorization") {
+                        has_auth = true;
+                    }
+                    headers.insert(name, val);
+                }
+            }
+        }
+
+        if mcp.oauth && !has_auth {
+            let fresh_tokens = ensure_fresh_tokens(dir, std::slice::from_ref(plugin)).await;
+            if let Some(token) = fresh_tokens
+                .get(&plugin.name)
+                .and_then(|m| m.get(&mcp.name))
+                && let Ok(val) = reqwest::header::HeaderValue::from_str(&format!(
+                    "Bearer {}",
+                    token.access_token
+                ))
+            {
+                headers.insert(reqwest::header::AUTHORIZATION, val);
+            } else {
+                return Err(PluginError::BadRequest(
+                    "Chưa đăng nhập OAuth cho MCP server này.".into(),
+                ));
+            }
+        }
+
+        let init_payload = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-03-26",
+                "capabilities": {},
+                "clientInfo": { "name": "HiveDeck", "version": "1.0" }
+            }
+        });
+        let init_resp = client
+            .post(url)
+            .headers(headers.clone())
+            .json(&init_payload)
+            .send()
+            .await
+            .map_err(|err| {
+                PluginError::BadRequest(format!("Không kết nối được tới MCP server: {err}"))
+            })?;
+        if !init_resp.status().is_success() {
+            let status = init_resp.status();
+            let text = init_resp.text().await.unwrap_or_default();
+            return Err(PluginError::BadRequest(format!(
+                "MCP initialize trả về HTTP {status}: {text}"
+            )));
+        }
+        if let Some(session_id) = init_resp.headers().get("mcp-session-id").cloned() {
+            headers.insert("mcp-session-id", session_id);
+        }
+        let _ = init_resp.text().await;
+
+        let list_payload = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/list",
+            "params": {}
+        });
+        let list_resp = client
+            .post(url)
+            .headers(headers)
+            .json(&list_payload)
+            .send()
+            .await
+            .map_err(|err| PluginError::BadRequest(format!("Lỗi gọi tools/list: {err}")))?;
+        let status = list_resp.status();
+        let body = list_resp.text().await.unwrap_or_default();
+        if !status.is_success() {
+            return Err(PluginError::BadRequest(format!(
+                "MCP tools/list trả về HTTP {status}: {body}"
+            )));
+        }
+        let parsed = parse_mcp_jsonrpc_body(&body, 2).ok_or_else(|| {
+            PluginError::BadRequest("Không đọc được JSON-RPC tools/list từ MCP server".into())
+        })?;
+        return extract_tools_from_response(&parsed);
+    }
+
+    if mcp.transport == "stdio" {
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+        let command_raw = mcp
+            .command
+            .as_deref()
+            .filter(|c| !c.trim().is_empty())
+            .ok_or_else(|| PluginError::BadRequest("MCP server is missing command".into()))?;
+        let root = plugin_asset_dir(dir, &plugin.name);
+        let root_str = root.to_string_lossy();
+        let expand = |raw: &str| {
+            raw.replace("${CLAUDE_PLUGIN_ROOT}", &root_str)
+                .replace("${HIVEDECK_PLUGIN_ROOT}", &root_str)
+        };
+
+        let mut cmd = tokio::process::Command::new(expand(command_raw));
+        cmd.args(mcp.args.iter().map(|a| expand(a)));
+        for (env_key, secret_ref) in &mcp.env {
+            if let Some(val) = mcp_secrets.and_then(|m| m.get(secret_ref)) {
+                cmd.env(env_key, val);
+            }
+        }
+        cmd.stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null());
+
+        let mut child = cmd.spawn().map_err(|err| {
+            PluginError::BadRequest(format!(
+                "Không chạy được MCP command '{command_raw}': {err}"
+            ))
+        })?;
+        let mut stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| PluginError::BadRequest("Failed to open MCP stdin".into()))?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| PluginError::BadRequest("Failed to open MCP stdout".into()))?;
+
+        let init_msg = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"HiveDeck\",\"version\":\"1.0\"}}}\n{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}\n";
+        let _ = stdin.write_all(init_msg.as_bytes()).await;
+        let _ = stdin.flush().await;
+
+        let mut lines = BufReader::new(stdout).lines();
+        let result = tokio::time::timeout(Duration::from_secs(12), async {
+            while let Ok(Some(line)) = lines.next_line().await {
+                if let Ok(val) = serde_json::from_str::<Value>(line.trim())
+                    && val.get("id").and_then(Value::as_i64) == Some(2)
+                {
+                    return extract_tools_from_response(&val);
+                }
+            }
+            Err(PluginError::BadRequest(
+                "MCP stdio process closed before returning tools/list".into(),
+            ))
+        })
+        .await;
+        let _ = child.kill().await;
+        return match result {
+            Ok(inner) => inner,
+            Err(_) => Err(PluginError::BadRequest(
+                "MCP tools/list timed out sau 12 giây".into(),
+            )),
+        };
+    }
+
+    Err(PluginError::BadRequest(format!(
+        "Unsupported MCP transport '{}'",
+        mcp.transport
+    )))
 }
 
 #[cfg(test)]

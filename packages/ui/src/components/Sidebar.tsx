@@ -6,6 +6,7 @@ import { SidebarBucketBar } from './SidebarBucketBar';
 import { SidebarSectionHeader } from './SidebarSectionHeader';
 import { SidebarSeparator } from './SidebarSeparator';
 import { SidebarProjectTree } from './SidebarProjectTree';
+import { SidebarProjectCards } from './SidebarProjectCards';
 import type { CaptainState, ProjectTasksData } from './outliner/types';
 import type { SidebarProject } from './outliner/types';
 import type {
@@ -82,6 +83,9 @@ interface SidebarProps {
   /** Bottom bar content (e.g. Notifications / Settings buttons), rendered in
    *  a shared SidebarBar pinned to the bottom. */
   bottomActions?: ReactNode;
+  railHeader?: ReactNode;
+  railNav?: ReactNode;
+  railFooter?: ReactNode;
   className?: string;
 }
 
@@ -113,6 +117,9 @@ export function Sidebar({
   isMultiSelectActive,
   headerActions,
   bottomActions,
+  railHeader,
+  railNav,
+  railFooter,
   className,
   attentionOnlyWorkspaces,
   onMarkSeen,
@@ -121,69 +128,124 @@ export function Sidebar({
 }: SidebarProps) {
   const { t } = useTranslation('common');
   const titleId = useId();
+  const hasRail = Boolean(railHeader || railNav || railFooter);
   return (
     <aside
       aria-label={t('common:ui.primarySidebar')}
       className={cn(
-        'flex h-full w-[256px] shrink-0 flex-col gap-2 overflow-hidden',
-        'border-r border-border bg-secondary px-2 pt-2 pb-2',
+        'flex h-full shrink-0 overflow-hidden border-r border-border bg-secondary',
+        hasRail
+          ? 'w-[304px] flex-row'
+          : 'w-[256px] flex-col gap-2 px-2 pt-2 pb-2',
         className
       )}
     >
-      <SidebarBucketBar
-        workspaces={workspaces}
-        attentionOnlyWorkspaces={attentionOnlyWorkspaces}
-        activeWorkspaceId={activeWorkspaceId}
-        onSelectWorkspace={onSelectWorkspace}
-        onMarkSeen={onMarkSeen}
-      />
-
-      <SidebarSeparator />
-
-      <SidebarSectionHeader
-        title={t('appBar.projects')}
-        titleId={titleId}
-        actions={headerActions}
-      />
-
-      <SidebarProjectTree
-        projects={projects}
-        activeProjectId={activeProjectId}
-        activeProjectPromptId={activeProjectPromptId}
-        workspaces={workspaces}
-        archivedWorkspaces={archivedWorkspaces}
-        membership={membership}
-        activeWorkspaceId={activeWorkspaceId}
-        tasksByProject={tasksByProject}
-        workspaceByIssueId={workspaceByIssueId}
-        captainByProject={captainByProject}
-        loadingTasksProjectIds={loadingTasksProjectIds}
-        activeIssueId={activeIssueId}
-        onTasksExpansionChange={onTasksExpansionChange}
-        onSelectIssue={onSelectIssue}
-        isLoading={isLoadingProjects || isLoadingWorkspaces}
-        onSelectWorkspace={onSelectWorkspace}
-        onOpenProjectPage={onOpenProjectPage}
-        onOpenWorkspacesPage={onOpenWorkspacesPage}
-        onOpenLastWorkspace={onOpenLastWorkspace}
-        onCreateChildBoard={onCreateChildBoard}
-        onDeleteProject={onDeleteProject}
-        onManageRepos={onManageRepos}
-        onArchiveWorkspace={onArchiveWorkspace}
-        onDeleteWorkspace={onDeleteWorkspace}
-        onSelectOrchestratorPrompt={onSelectOrchestratorPrompt}
-        isMultiSelectActive={isMultiSelectActive}
-        ariaLabelledBy={titleId}
-      />
-
-      {bottomActions && (
-        <SidebarBar
-          aria-label={t('sidebar.bottomBarLabel')}
-          className="mt-auto pt-2"
-        >
-          {bottomActions}
-        </SidebarBar>
+      {hasRail && (
+        <div className="flex w-[64px] shrink-0 flex-col items-center border-r border-border bg-primary px-1 py-2.5">
+          {railHeader && (
+            <div className="mb-3 flex flex-col items-center">{railHeader}</div>
+          )}
+          {railNav && (
+            <nav
+              aria-label="Primary navigation"
+              className="flex w-full flex-col items-center gap-1.5"
+            >
+              {railNav}
+            </nav>
+          )}
+          {railFooter && (
+            <div className="mt-auto flex w-full flex-col items-center gap-1.5 pt-2">
+              {railFooter}
+            </div>
+          )}
+        </div>
       )}
+
+      <div
+        className={cn(
+          'flex min-w-0 flex-1 flex-col gap-2 overflow-hidden',
+          hasRail && 'px-2.5 pt-2.5 pb-2'
+        )}
+      >
+        <SidebarBucketBar
+          workspaces={workspaces}
+          attentionOnlyWorkspaces={attentionOnlyWorkspaces}
+          activeWorkspaceId={activeWorkspaceId}
+          onSelectWorkspace={onSelectWorkspace}
+          onMarkSeen={onMarkSeen}
+        />
+
+        <SidebarSeparator />
+
+        <SidebarSectionHeader
+          title={t('appBar.projects')}
+          titleId={titleId}
+          actions={headerActions}
+        />
+
+        {hasRail ? (
+          <SidebarProjectCards
+            projects={projects}
+            activeProjectId={activeProjectId}
+            workspaces={workspaces}
+            archivedWorkspaces={archivedWorkspaces}
+            membership={membership}
+            activeWorkspaceId={activeWorkspaceId}
+            tasksByProject={tasksByProject}
+            workspaceByIssueId={workspaceByIssueId}
+            captainByProject={captainByProject}
+            loadingTasksProjectIds={loadingTasksProjectIds}
+            activeIssueId={activeIssueId}
+            isLoading={isLoadingProjects || isLoadingWorkspaces}
+            onSelectWorkspace={onSelectWorkspace}
+            onSelectIssue={onSelectIssue}
+            onOpenProjectPage={onOpenProjectPage}
+            onCreateChildBoard={onCreateChildBoard}
+            onDeleteProject={onDeleteProject}
+            onManageRepos={onManageRepos}
+            onSelectOrchestratorPrompt={onSelectOrchestratorPrompt}
+          />
+        ) : (
+          <SidebarProjectTree
+            projects={projects}
+            activeProjectId={activeProjectId}
+            activeProjectPromptId={activeProjectPromptId}
+            workspaces={workspaces}
+            archivedWorkspaces={archivedWorkspaces}
+            membership={membership}
+            activeWorkspaceId={activeWorkspaceId}
+            tasksByProject={tasksByProject}
+            workspaceByIssueId={workspaceByIssueId}
+            captainByProject={captainByProject}
+            loadingTasksProjectIds={loadingTasksProjectIds}
+            activeIssueId={activeIssueId}
+            onTasksExpansionChange={onTasksExpansionChange}
+            onSelectIssue={onSelectIssue}
+            isLoading={isLoadingProjects || isLoadingWorkspaces}
+            onSelectWorkspace={onSelectWorkspace}
+            onOpenProjectPage={onOpenProjectPage}
+            onOpenWorkspacesPage={onOpenWorkspacesPage}
+            onOpenLastWorkspace={onOpenLastWorkspace}
+            onCreateChildBoard={onCreateChildBoard}
+            onDeleteProject={onDeleteProject}
+            onManageRepos={onManageRepos}
+            onArchiveWorkspace={onArchiveWorkspace}
+            onDeleteWorkspace={onDeleteWorkspace}
+            onSelectOrchestratorPrompt={onSelectOrchestratorPrompt}
+            isMultiSelectActive={isMultiSelectActive}
+            ariaLabelledBy={titleId}
+          />
+        )}
+
+        {!hasRail && bottomActions && (
+          <SidebarBar
+            aria-label={t('sidebar.bottomBarLabel')}
+            className="mt-auto pt-2"
+          >
+            {bottomActions}
+          </SidebarBar>
+        )}
+      </div>
     </aside>
   );
 }

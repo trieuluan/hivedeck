@@ -74,6 +74,15 @@ pub struct PluginConflict {
     pub action: Option<String>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum McpToolPolicy {
+    Default,
+    Allow,
+    Ask,
+    Block,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct PluginMcpEntry {
     pub name: String,
@@ -96,6 +105,8 @@ pub struct PluginMcpEntry {
     pub oauth: bool,
     #[serde(default = "default_true")]
     pub enabled: bool,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub tool_policies: BTreeMap<String, McpToolPolicy>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -414,6 +425,59 @@ pub fn read_plugins(dir: &Path) -> Result<Vec<InstalledPlugin>, PluginError> {
 
 pub fn read_plugin_secrets(dir: &Path) -> Result<PluginsSecrets, PluginError> {
     read_json_or_default(&secrets_path(dir))
+}
+
+pub fn extract_skill_description(markdown: &str) -> Option<String> {
+    let trimmed = markdown.trim_start();
+    if let Some(after_open) = trimmed.strip_prefix("---") {
+        let end = after_open.find("\n---")?;
+        let frontmatter = &after_open[..end];
+        let mut lines = frontmatter.lines().peekable();
+        while let Some(line) = lines.next() {
+            let line_trimmed = line.trim_start();
+            if let Some(rest) = line_trimmed.strip_prefix("description:") {
+                let value = rest.trim();
+                if value == "|" || value == ">" || value == "|-" || value == ">-" {
+                    let mut collected = Vec::new();
+                    while let Some(next_line) = lines.peek() {
+                        if next_line.starts_with(' ') || next_line.starts_with('\t') {
+                            collected.push(next_line.trim());
+                            lines.next();
+                        } else {
+                            break;
+                        }
+                    }
+                    let joined = collected.join(" ").trim().to_owned();
+                    if !joined.is_empty() {
+                        return Some(joined);
+                    }
+                } else {
+                    let unquoted = value.trim_matches('"').trim_matches('\'').trim();
+                    if !unquoted.is_empty() {
+                        return Some(unquoted.to_owned());
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+pub fn read_plugin_skill_descriptions(
+    asset_dir: &Path,
+    plugin: &InstalledPlugin,
+) -> BTreeMap<String, String> {
+    let root = plugin_asset_dir(asset_dir, &plugin.name);
+    let mut descriptions = BTreeMap::new();
+    for skill in &plugin.skills {
+        let skill_path = root.join(&skill.path);
+        if let Ok(content) = fs::read_to_string(&skill_path)
+            && let Some(desc) = extract_skill_description(&content)
+        {
+            descriptions.insert(skill.name.clone(), desc);
+        }
+    }
+    descriptions
 }
 
 pub fn migrate_mcp_registry(dir: &Path) -> Result<(), PluginError> {
@@ -767,7 +831,10 @@ fn extract_placeholder(
         .strip_prefix("${")
         .and_then(|rest| rest.strip_suffix('}'))
     {
-        let inner = inner.strip_prefix("env:").unwrap_or(inner);
+        let inner = inner
+            .strip_prefix("env:")
+            .or_else(|| inner.strip_prefix("user_config."))
+            .unwrap_or(inner);
         if valid_name(inner) {
             return Ok(inner.to_string());
         }
@@ -792,6 +859,71 @@ fn extract_placeholder(
     Err(PluginError::BadRequest(format!(
         "Manifest must use secret placeholders (${{VAR}} or {{env:VAR}}), got: {raw}"
     )))
+}
+
+fn is_sensitive_key_or_value(key: &str, raw: &str) -> bool {
+    let lower_key = key.to_ascii_lowercase();
+    if [
+        "authorization",
+        "token",
+        "secret",
+        "password",
+        "api_key",
+        "apikey",
+        "credential",
+        "private_key",
+        "cookie",
+    ]
+    .iter()
+    .any(|kw| lower_key.contains(kw))
+    {
+        return true;
+    }
+    let trimmed = raw.trim();
+    let lower_val = trimmed.to_ascii_lowercase();
+    lower_val.starts_with("bearer ")
+        || lower_val.starts_with("basic ")
+        || trimmed.starts_with("sk-")
+        || trimmed.starts_with("ghp_")
+        || trimmed.starts_with("gho_")
+        || trimmed.starts_with("xoxb-")
+        || trimmed.starts_with("AIza")
+}
+
+fn literal_ref_name(key: &str) -> String {
+    let sanitized: String = key
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    if sanitized.is_empty() {
+        "literal_value".into()
+    } else {
+        format!("literal_{sanitized}")
+    }
+}
+
+fn resolve_manifest_value(
+    key: &str,
+    raw: &str,
+    allow_bearer: bool,
+    allow_bare_ref: bool,
+) -> Result<(String, Option<String>), PluginError> {
+    match extract_placeholder(raw, allow_bearer, allow_bare_ref) {
+        Ok(reference) => Ok((reference, None)),
+        Err(err) => {
+            if !is_sensitive_key_or_value(key, raw) && !raw.trim().is_empty() {
+                Ok((literal_ref_name(key), Some(raw.to_owned())))
+            } else {
+                Err(err)
+            }
+        }
+    }
 }
 
 fn validate_mcp_entry(entry: &PluginMcpEntry) -> Result<(), PluginError> {
@@ -872,6 +1004,7 @@ fn parse_mcp_servers_map(
     obj: &serde_json::Map<String, Value>,
     default_roles: &[String],
     default_boards: &[String],
+    literal_secrets: &mut BTreeMap<String, BTreeMap<String, String>>,
 ) -> Result<Vec<PluginMcpEntry>, PluginError> {
     let mut entries = Vec::new();
     for (name, value) in obj {
@@ -924,7 +1057,14 @@ fn parse_mcp_servers_map(
                 let raw = val.as_str().ok_or_else(|| {
                     PluginError::BadRequest(format!("Header {key} in MCP {name} must be string"))
                 })?;
-                headers.insert(key.clone(), extract_placeholder(raw, true, false)?);
+                let (reference, literal) = resolve_manifest_value(key, raw, true, false)?;
+                if let Some(literal_val) = literal {
+                    literal_secrets
+                        .entry(name.clone())
+                        .or_default()
+                        .insert(reference.clone(), literal_val);
+                }
+                headers.insert(key.clone(), reference);
             }
         }
         let mut env = BTreeMap::new();
@@ -936,7 +1076,14 @@ fn parse_mcp_servers_map(
                 let raw = val.as_str().ok_or_else(|| {
                     PluginError::BadRequest(format!("Env {key} in MCP {name} must be string"))
                 })?;
-                env.insert(key.clone(), extract_placeholder(raw, false, false)?);
+                let (reference, literal) = resolve_manifest_value(key, raw, false, false)?;
+                if let Some(literal_val) = literal {
+                    literal_secrets
+                        .entry(name.clone())
+                        .or_default()
+                        .insert(reference.clone(), literal_val);
+                }
+                env.insert(key.clone(), reference);
             }
         }
         let entry = PluginMcpEntry {
@@ -951,6 +1098,7 @@ fn parse_mcp_servers_map(
             boards,
             oauth,
             enabled: true,
+            tool_policies: BTreeMap::new(),
         };
         validate_mcp_entry(&entry)?;
         entries.push(entry);
@@ -1082,6 +1230,7 @@ struct ParsedManifest {
     mcp: Vec<PluginMcpEntry>,
     skills: Vec<PluginSkillEntry>,
     unsupported: Vec<String>,
+    literal_secrets: BTreeMap<String, BTreeMap<String, String>>,
 }
 
 fn marketplace_fallback_version(source: &str, commit: Option<&str>) -> Option<String> {
@@ -1146,6 +1295,7 @@ fn parse_manifest(
     }
 
     let mut mcp = Vec::new();
+    let mut literal_secrets: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
     if let Some(raw_mcp) = obj.get("mcp") {
         let arr = raw_mcp
             .as_array()
@@ -1155,11 +1305,25 @@ fn parse_manifest(
                 serde_json::from_value(item.clone()).map_err(|err| {
                     PluginError::BadRequest(format!("Invalid manifest mcp entry: {err}"))
                 })?;
-            for value in entry.headers.values_mut() {
-                *value = extract_placeholder(value, true, true)?;
+            for (key, value) in entry.headers.iter_mut() {
+                let (reference, literal) = resolve_manifest_value(key, value, true, true)?;
+                if let Some(literal_val) = literal {
+                    literal_secrets
+                        .entry(entry.name.clone())
+                        .or_default()
+                        .insert(reference.clone(), literal_val);
+                }
+                *value = reference;
             }
-            for value in entry.env.values_mut() {
-                *value = extract_placeholder(value, false, true)?;
+            for (key, value) in entry.env.iter_mut() {
+                let (reference, literal) = resolve_manifest_value(key, value, false, true)?;
+                if let Some(literal_val) = literal {
+                    literal_secrets
+                        .entry(entry.name.clone())
+                        .or_default()
+                        .insert(reference.clone(), literal_val);
+                }
+                *value = reference;
             }
             if item.get("roles").is_none() {
                 entry.roles = default_roles.to_vec();
@@ -1183,9 +1347,9 @@ fn parse_manifest(
                 .and_then(Value::as_object)
                 .or_else(|| doc.as_object())
                 .ok_or_else(|| PluginError::BadRequest("Invalid MCP servers object".into()))?;
-            mcp = parse_mcp_servers_map(map, default_roles, default_boards)?;
+            mcp = parse_mcp_servers_map(map, default_roles, default_boards, &mut literal_secrets)?;
         } else if let Some(map) = raw_servers.as_object() {
-            mcp = parse_mcp_servers_map(map, default_roles, default_boards)?;
+            mcp = parse_mcp_servers_map(map, default_roles, default_boards, &mut literal_secrets)?;
         } else {
             return Err(PluginError::BadRequest(
                 "Invalid manifest 'mcpServers'".into(),
@@ -1199,7 +1363,7 @@ fn parse_manifest(
             .and_then(Value::as_object)
             .or_else(|| doc.as_object())
             .ok_or_else(|| PluginError::BadRequest("Invalid .mcp.json object".into()))?;
-        mcp = parse_mcp_servers_map(map, default_roles, default_boards)?;
+        mcp = parse_mcp_servers_map(map, default_roles, default_boards, &mut literal_secrets)?;
     }
 
     let mut skills = Vec::new();
@@ -1344,6 +1508,7 @@ fn parse_manifest(
         mcp,
         skills,
         unsupported: unsupported.into_iter().collect(),
+        literal_secrets,
     })
 }
 
@@ -1612,10 +1777,18 @@ pub fn install_plugin(
     };
     plugins.push(installed.clone());
 
+    let mut merged_secrets = parsed.literal_secrets;
+    for (mcp_name, refs) in req.secrets {
+        let target = merged_secrets.entry(mcp_name).or_default();
+        for (k, v) in refs {
+            target.insert(k, v);
+        }
+    }
+
     if let Err(err) = (|| -> Result<(), PluginError> {
-        if !req.secrets.is_empty() {
+        if !merged_secrets.is_empty() {
             let mut all_secrets = read_plugin_secrets(dir)?;
-            all_secrets.insert(parsed.name.clone(), req.secrets.clone());
+            all_secrets.insert(parsed.name.clone(), merged_secrets);
             write_atomic(&secrets_path(dir), &all_secrets, true)?;
         }
         write_atomic(&plugins_path(dir), &plugins, false)?;
@@ -1954,6 +2127,7 @@ pub fn update_mcp_scope(
     roles: Option<Vec<String>>,
     boards: Option<Vec<String>>,
     enabled: Option<bool>,
+    tool_policies: Option<BTreeMap<String, McpToolPolicy>>,
 ) -> Result<PluginMcpEntry, PluginError> {
     if !valid_name(plugin_name) || !valid_name(mcp_name) {
         return Err(PluginError::BadRequest("Invalid plugin or MCP name".into()));
@@ -1981,9 +2155,50 @@ pub fn update_mcp_scope(
     if let Some(enabled) = enabled {
         mcp.enabled = enabled;
     }
+    if let Some(policies) = tool_policies {
+        mcp.tool_policies = policies
+            .into_iter()
+            .filter(|(_, policy)| *policy != McpToolPolicy::Default)
+            .collect();
+    }
     let updated = mcp.clone();
     write_atomic(&plugins_path(dir), &plugins, false)?;
     Ok(updated)
+}
+
+pub fn claude_tool_policy_args(dir: &Path, injected: &[InjectedMcpServer]) -> Vec<String> {
+    if injected.is_empty() {
+        return Vec::new();
+    }
+    let Ok(plugins) = read_plugins(dir) else {
+        return Vec::new();
+    };
+    let active_names: BTreeSet<&str> = injected.iter().map(|s| s.name.as_str()).collect();
+    let mut allow = Vec::new();
+    let mut block = Vec::new();
+    for plugin in plugins.into_iter().filter(|p| p.enabled) {
+        for mcp in plugin.mcp.into_iter().filter(|m| m.enabled) {
+            if !active_names.contains(mcp.name.as_str()) {
+                continue;
+            }
+            for (tool, policy) in mcp.tool_policies {
+                let qualified = format!("mcp__{}__{}", mcp.name, tool);
+                match policy {
+                    McpToolPolicy::Allow => allow.push(qualified),
+                    McpToolPolicy::Block => block.push(qualified),
+                    McpToolPolicy::Default | McpToolPolicy::Ask => {}
+                }
+            }
+        }
+    }
+    let mut args = Vec::new();
+    if !allow.is_empty() {
+        args.push(format!("--allowedTools={}", allow.join(",")));
+    }
+    if !block.is_empty() {
+        args.push(format!("--disallowedTools={}", block.join(",")));
+    }
+    args
 }
 
 pub fn set_plugin_mcp_secret(
@@ -2136,7 +2351,7 @@ pub fn select_mcp_for_run(
 
         let mut headers = resolve_map(&entry.headers)?;
         let env = resolve_map(&entry.env)?;
-        if entry.oauth
+        if (entry.oauth || entry.transport == "http")
             && !headers
                 .keys()
                 .any(|k| k.eq_ignore_ascii_case("authorization"))
@@ -2594,6 +2809,7 @@ mod tests {
             boards: vec![],
             oauth: false,
             enabled: true,
+            tool_policies: BTreeMap::new(),
         };
         install_plugin(
             other.path(),
@@ -2628,6 +2844,7 @@ mod tests {
             boards: vec!["board".into()],
             oauth: true,
             enabled: true,
+            tool_policies: BTreeMap::new(),
         };
         let req = InstallPluginRequest {
             source: String::new(),
@@ -2827,6 +3044,44 @@ mod tests {
         assert!(!plugin_asset_dir(asset_dir.path(), "sample-plugin").exists());
         assert!(plugin_src.join(".claude-plugin/plugin.json").is_file());
         assert!(plugin_src.join("skills/fixture-skill/SKILL.md").is_file());
+    }
+
+    #[test]
+    fn allows_non_secret_literal_header_while_still_rejecting_plaintext_secrets() {
+        let asset_dir = TempDir::new().unwrap();
+        let src_dir = TempDir::new().unwrap();
+        let pkg = src_dir.path().join("figma-plugin");
+        fs::create_dir_all(pkg.join(".claude-plugin")).unwrap();
+        fs::write(
+            pkg.join(".claude-plugin/plugin.json"),
+            r#"{"name":"figma-plugin","version":"1.0.0","mcpServers":"./.mcp.json"}"#,
+        )
+        .unwrap();
+        fs::write(
+            pkg.join(".mcp.json"),
+            r#"{"mcpServers":{"figma":{"type":"http","url":"https://mcp.figma.com/mcp","headers":{"X-Figma-Env":"figma_prod@2_2_211"}}}}"#,
+        )
+        .unwrap();
+        let installed = install_plugin(
+            asset_dir.path(),
+            InstallPluginRequest {
+                source: pkg.to_string_lossy().to_string(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            installed.mcp[0]
+                .headers
+                .get("X-Figma-Env")
+                .map(String::as_str),
+            Some("literal_X-Figma-Env")
+        );
+        let secrets = read_plugin_secrets(asset_dir.path()).unwrap();
+        assert_eq!(
+            secrets["figma-plugin"]["figma"]["literal_X-Figma-Env"],
+            "figma_prod@2_2_211"
+        );
     }
 
     #[test]

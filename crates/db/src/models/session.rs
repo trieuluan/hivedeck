@@ -251,4 +251,35 @@ impl Session {
         .await?;
         Ok(())
     }
+
+    pub async fn upsert_context_breakdown(
+        pool: &SqlitePool,
+        session_id: Uuid,
+        payload: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            r#"INSERT INTO session_context_breakdowns (session_id, payload, updated_at)
+               VALUES (?1, ?2, datetime('now', 'subsec'))
+               ON CONFLICT(session_id) DO UPDATE SET
+                   payload = excluded.payload,
+                   updated_at = excluded.updated_at"#,
+        )
+        .bind(session_id)
+        .bind(payload)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn get_context_breakdown(
+        pool: &SqlitePool,
+        session_id: Uuid,
+    ) -> Result<Option<String>, sqlx::Error> {
+        sqlx::query_scalar(
+            r#"SELECT payload FROM session_context_breakdowns WHERE session_id = ?1"#,
+        )
+        .bind(session_id)
+        .fetch_optional(pool)
+        .await
+    }
 }

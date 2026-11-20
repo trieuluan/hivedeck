@@ -611,6 +611,7 @@ async fn context7_plugin_reaches_every_installed_cli() {
                 boards: vec![],
                 oauth: false,
                 enabled: true,
+                tool_policies: BTreeMap::new(),
             }),
             ..Default::default()
         },

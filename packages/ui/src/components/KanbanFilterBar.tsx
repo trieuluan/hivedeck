@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import {
   ArrowLeftIcon,
   FunnelIcon,
+  GitBranchIcon,
   MagnifyingGlassIcon,
   PlusIcon,
   XIcon,
@@ -80,6 +81,9 @@ interface KanbanFilterBarProps<
   onShowWorkspacesChange: (show: boolean) => void;
   hideBlocked: boolean;
   onHideBlockedChange: (hide: boolean) => void;
+  onlyWithWorkspace?: boolean;
+  onOnlyWithWorkspaceChange?: (value: boolean) => void;
+  withWorkspaceCount?: number;
   onClearFilters: () => void;
   onCreateIssue: () => void;
   shouldAnimateCreateButton: boolean;
@@ -112,6 +116,9 @@ export function KanbanFilterBar<
   onShowWorkspacesChange,
   hideBlocked,
   onHideBlockedChange,
+  onlyWithWorkspace = false,
+  onOnlyWithWorkspaceChange,
+  withWorkspaceCount = 0,
   onClearFilters,
   onCreateIssue,
   shouldAnimateCreateButton,
@@ -205,6 +212,28 @@ export function KanbanFilterBar<
           >
             <FunnelIcon className="size-icon-sm" weight="bold" />
           </button>
+
+          {onOnlyWithWorkspaceChange && (
+            <button
+              type="button"
+              onClick={() => onOnlyWithWorkspaceChange(!onlyWithWorkspace)}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-sm border px-2 py-1 text-xs font-medium transition-colors',
+                onlyWithWorkspace
+                  ? 'border-brand/60 bg-brand/15 text-brand'
+                  : 'border-border/70 bg-secondary/40 text-low hover:bg-secondary hover:text-normal'
+              )}
+              title="Chỉ hiện các card còn giữ workspace"
+            >
+              <GitBranchIcon className="size-3.5 shrink-0" weight="bold" />
+              <span>Còn workspace</span>
+              {withWorkspaceCount > 0 && (
+                <span className="rounded bg-primary/60 px-1 text-[10px] tabular-nums">
+                  {withWorkspaceCount}
+                </span>
+              )}
+            </button>
+          )}
 
           {hasActiveFilters && (
             <PrimaryButton

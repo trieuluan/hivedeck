@@ -4,8 +4,8 @@
  * reading rhythm, code blocks and a few component states.
  */
 .ship-chat {
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 /* Rows set the rhythm (see DisplayConversationEntry); messages add none. */
@@ -20,8 +20,8 @@
 }
 
 .ship-chat .ship-message-body .wysiwyg {
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .ship-chat .ship-message-body :where(p, ul, ol, pre, blockquote, table) {
@@ -83,6 +83,13 @@
 
 .ship-chat [data-lexical-decorator] {
   max-width: 100%;
+}
+
+.wysiwyg p:has(.ship-img-thumb):not(:has([data-lexical-text='true'])) {
+  display: inline-block;
+  width: auto;
+  margin: 0;
+  vertical-align: bottom;
 }
 
 .ship-code-copy {

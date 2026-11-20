@@ -31,10 +31,9 @@ import { type BulkUpdateIssueItem } from '@/shared/lib/remoteApi';
 import { persistIssues, persistIssueSwap } from '@/shared/lib/persistIssues';
 import {
   ArrowLeftIcon,
-  CaretLeftIcon,
+  ClipboardTextIcon,
   PlusIcon,
   DotsThreeIcon,
-  TrashIcon,
 } from '@phosphor-icons/react';
 import {
   isDoneStatus,
@@ -238,8 +237,7 @@ export function KanbanContainer() {
 
   // Get project name by finding the project matching current projectId
   const projectName = projects.find((p) => p.id === projectId)?.name ?? '';
-  const { isCollapsed: isColumnCollapsed, setCollapsed: setColumnCollapsed } =
-    useCollapsedStatuses(projectId);
+  const { isCollapsed: isColumnCollapsed } = useCollapsedStatuses(projectId);
   // Cards slide to their new place when they change column or order.
   const boardRef = useRef<HTMLDivElement>(null);
   useFlipCards(boardRef);
@@ -359,13 +357,15 @@ export function KanbanContainer() {
   const showWorkspaces =
     projectViewPreferences?.showWorkspaces ?? defaultShowWorkspaces;
   const hideBlocked = projectViewPreferences?.hideBlocked ?? defaultHideBlocked;
+  const [onlyWithWorkspace, setOnlyWithWorkspace] = useState(false);
 
   const hasActiveFilters = useMemo(
     () =>
       !areKanbanFiltersEqual(kanbanFilters, defaultKanbanFilters) ||
       showSubIssues !== defaultShowSubIssues ||
       showWorkspaces !== defaultShowWorkspaces ||
-      hideBlocked !== defaultHideBlocked,
+      hideBlocked !== defaultHideBlocked ||
+      onlyWithWorkspace,
     [
       kanbanFilters,
       defaultKanbanFilters,
@@ -375,6 +375,7 @@ export function KanbanContainer() {
       defaultShowWorkspaces,
       hideBlocked,
       defaultHideBlocked,
+      onlyWithWorkspace,
     ]
   );
   const shouldAnimateCreateButton = issues.length === 0;
@@ -471,6 +472,7 @@ export function KanbanContainer() {
   );
 
   const clearKanbanFilters = useCallback(() => {
+    setOnlyWithWorkspace(false);
     clearKanbanProjectViewPreferences(projectId, activeViewId);
   }, [activeViewId, clearKanbanProjectViewPreferences, projectId]);
 
@@ -532,10 +534,19 @@ export function KanbanContainer() {
     return map;
   }, [visibleStatuses]);
 
-  const hiddenStatuses = useMemo(
-    () => sortedStatuses.filter((s) => s.hidden),
-    [sortedStatuses]
-  );
+  // Active Kanban board columns exclude terminal (Done) and Cancelled statuses,
+  // which live in the header view-switcher pill tabs so active columns fill 100% width.
+  const boardStatuses = useMemo(() => {
+    const active = visibleStatuses.filter(
+      (s) => !isDoneStatus(s) && !isCancelledStatusName(s.name)
+    );
+    return active.length > 0 ? active : visibleStatuses;
+  }, [visibleStatuses]);
+
+  const tabStatuses = useMemo(() => {
+    const boardIds = new Set(boardStatuses.map((s) => s.id));
+    return sortedStatuses.filter((s) => !boardIds.has(s.id));
+  }, [sortedStatuses, boardStatuses]);
 
   const defaultCreateStatusId = useMemo(() => {
     if (kanbanViewMode === 'kanban') {
@@ -570,6 +581,30 @@ export function KanbanContainer() {
   const [isFiltersDialogOpen, setIsFiltersDialogOpen] = useState(false);
 
   // Sync items from filtered issues when they change
+  const localWorkspacesById = useMemo(() => {
+    const map = new Map<string, (typeof activeWorkspaces)[number]>();
+
+    for (const workspace of activeWorkspaces) {
+      map.set(workspace.id, workspace);
+    }
+
+    return map;
+  }, [activeWorkspaces]);
+
+  const retainedIssueIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const issue of issues) {
+      const hasLive = getWorkspacesForIssue(issue.id).some(
+        (workspace) =>
+          !workspace.archived &&
+          !!workspace.local_workspace_id &&
+          localWorkspacesById.has(workspace.local_workspace_id)
+      );
+      if (hasLive) ids.add(issue.id);
+    }
+    return ids;
+  }, [issues, getWorkspacesForIssue, localWorkspacesById]);
+
   useEffect(() => {
     // Skip rebuild during drag-drop sync to prevent flicker
     if (isSyncingCountRef.current > 0) {
@@ -584,6 +619,9 @@ export function KanbanContainer() {
       let statusIssues = filteredIssues.filter(
         (i) => i.status_id === status.id
       );
+      if (onlyWithWorkspace) {
+        statusIssues = statusIssues.filter((i) => retainedIssueIds.has(i.id));
+      }
 
       // Sort within column based on user preference
       statusIssues = [...statusIssues].sort((a, b) => {
@@ -617,7 +655,13 @@ export function KanbanContainer() {
       grouped[status.id] = statusIssues.map((i) => i.id);
     }
     setItems(grouped);
-  }, [filteredIssues, statuses, kanbanFilters]);
+  }, [
+    filteredIssues,
+    statuses,
+    kanbanFilters,
+    onlyWithWorkspace,
+    retainedIssueIds,
+  ]);
 
   // Full-Issue Record intentionally stays local: rendering needs fields beyond
   // the shared drag lookup projection.
@@ -671,16 +715,6 @@ export function KanbanContainer() {
     });
   }, []);
 
-  const localWorkspacesById = useMemo(() => {
-    const map = new Map<string, (typeof activeWorkspaces)[number]>();
-
-    for (const workspace of activeWorkspaces) {
-      map.set(workspace.id, workspace);
-    }
-
-    return map;
-  }, [activeWorkspaces]);
-
   // Map local workspace id -> project id so the per-card dispatch dropdown
   // only offers workspaces linked to the current project.
   const workspaceProjectIdByLocalId = useMemo(() => {
@@ -714,68 +748,124 @@ export function KanbanContainer() {
     queryClient.invalidateQueries({ queryKey: workspaceSummaryKeys.all });
   }, [projectId, queryClient]);
 
-  const handleCleanupFinishedWorkspaces = useCallback(async () => {
-    const count = finishedCleanableWorkspaceIds.length;
-    if (count === 0 || isCleaningFinished) return;
-    const confirmed = await ConfirmDialog.show({
-      title: t('kanban.cleanupFinishedConfirmTitle', {
-        count,
-        defaultValue: 'Clean up {{count}} finished workspace(s)?',
+  const cleanableIdsForStatus = useCallback(
+    (statusId: string) =>
+      findFinishedCleanableWorkspaceIds({
+        issues,
+        statuses,
+        remoteWorkspaces,
+        localWorkspaces: [...activeWorkspaces, ...archivedWorkspaces],
+        statusIdFilter: statusId,
       }),
-      message: t('kanban.cleanupFinishedConfirmMessage', {
-        count,
-        defaultValue:
-          'This deletes {{count}} non-pinned workspace(s) linked to Done or Cancelled cards, including their worktrees and git branches. Pinned workspaces are kept.',
-      }),
-      confirmText: t('kanban.cleanupFinishedConfirmButton', {
-        defaultValue: 'Clean up',
-      }),
-      cancelText: t('common:buttons.cancel'),
-      variant: 'destructive',
-    });
-    if (confirmed !== 'confirmed') return;
+    [issues, statuses, remoteWorkspaces, activeWorkspaces, archivedWorkspaces]
+  );
 
-    setIsCleaningFinished(true);
-    try {
-      const res = await workspacesApi.cleanupFinished({
-        project_id: projectId,
-        dry_run: false,
-      });
-      refreshWorkspaceCaches();
-      if (res.skipped_running_count > 0) {
-        await ConfirmDialog.show({
-          title: t('kanban.cleanupFinishedPartialTitle', {
-            defaultValue: 'Cleanup completed with skipped workspaces',
-          }),
-          message: t('kanban.cleanupFinishedPartialMessage', {
-            deleted: res.deleted_count,
-            skipped: res.skipped_running_count,
-            defaultValue:
-              'Deleted {{deleted}} workspace(s). Skipped {{skipped}} workspace(s) with running processes.',
-          }),
-          confirmText: t('common:ok'),
-          showCancelButton: false,
-          variant: 'info',
-        });
-      }
-    } catch (error) {
-      await ConfirmDialog.show({
-        title: t('common:error'),
-        message: error instanceof Error ? error.message : String(error),
-        confirmText: t('common:ok'),
-        showCancelButton: false,
+  const handleCleanupFinishedWorkspaces = useCallback(
+    async (statusFilter?: { id: string; name: string }) => {
+      const targetIds = statusFilter
+        ? cleanableIdsForStatus(statusFilter.id)
+        : finishedCleanableWorkspaceIds;
+      const count = targetIds.length;
+      if (count === 0 || isCleaningFinished) return;
+      const scopeLabel = statusFilter ? statusFilter.name : 'Done or Cancelled';
+      const confirmed = await ConfirmDialog.show({
+        title: t('kanban.cleanupFinishedConfirmTitle', {
+          count,
+          defaultValue: 'Clean up {{count}} finished workspace(s)?',
+        }),
+        message: statusFilter
+          ? `Thao tác này sẽ xóa ${count} workspace (không ghim) thuộc các card ở cột ${scopeLabel}, bao gồm worktree và git branch. Các workspace đã ghim vẫn được giữ lại.`
+          : t('kanban.cleanupFinishedConfirmMessage', {
+              count,
+              defaultValue:
+                'This deletes {{count}} non-pinned workspace(s) linked to Done or Cancelled cards, including their worktrees and git branches. Pinned workspaces are kept.',
+            }),
+        confirmText: t('kanban.cleanupFinishedConfirmButton', {
+          defaultValue: 'Clean up',
+        }),
+        cancelText: t('common:buttons.cancel'),
         variant: 'destructive',
       });
-    } finally {
-      setIsCleaningFinished(false);
-    }
-  }, [
-    finishedCleanableWorkspaceIds.length,
-    isCleaningFinished,
-    projectId,
-    refreshWorkspaceCaches,
-    t,
-  ]);
+      if (confirmed !== 'confirmed') return;
+
+      setIsCleaningFinished(true);
+      try {
+        if (statusFilter) {
+          const runningIds = new Set(
+            activeWorkspaces.filter((w) => w.isRunning).map((w) => w.id)
+          );
+          let deleted = 0;
+          let skipped = 0;
+          for (const id of targetIds) {
+            if (runningIds.has(id)) {
+              skipped += 1;
+              continue;
+            }
+            await workspacesApi.delete(id, true);
+            deleted += 1;
+          }
+          refreshWorkspaceCaches();
+          if (skipped > 0) {
+            await ConfirmDialog.show({
+              title: t('kanban.cleanupFinishedPartialTitle', {
+                defaultValue: 'Cleanup completed with skipped workspaces',
+              }),
+              message: t('kanban.cleanupFinishedPartialMessage', {
+                deleted,
+                skipped,
+                defaultValue:
+                  'Deleted {{deleted}} workspace(s). Skipped {{skipped}} workspace(s) with running processes.',
+              }),
+              confirmText: t('common:ok'),
+              showCancelButton: false,
+              variant: 'info',
+            });
+          }
+        } else {
+          const res = await workspacesApi.cleanupFinished({
+            project_id: projectId,
+            dry_run: false,
+          });
+          refreshWorkspaceCaches();
+          if (res.skipped_running_count > 0) {
+            await ConfirmDialog.show({
+              title: t('kanban.cleanupFinishedPartialTitle', {
+                defaultValue: 'Cleanup completed with skipped workspaces',
+              }),
+              message: t('kanban.cleanupFinishedPartialMessage', {
+                deleted: res.deleted_count,
+                skipped: res.skipped_running_count,
+                defaultValue:
+                  'Deleted {{deleted}} workspace(s). Skipped {{skipped}} workspace(s) with running processes.',
+              }),
+              confirmText: t('common:ok'),
+              showCancelButton: false,
+              variant: 'info',
+            });
+          }
+        }
+      } catch (error) {
+        await ConfirmDialog.show({
+          title: t('common:error'),
+          message: error instanceof Error ? error.message : String(error),
+          confirmText: t('common:ok'),
+          showCancelButton: false,
+          variant: 'destructive',
+        });
+      } finally {
+        setIsCleaningFinished(false);
+      }
+    },
+    [
+      activeWorkspaces,
+      cleanableIdsForStatus,
+      finishedCleanableWorkspaceIds,
+      isCleaningFinished,
+      projectId,
+      refreshWorkspaceCaches,
+      t,
+    ]
+  );
 
   // Every dispatchable workspace (active, with a local id) for the per-card
   // quick-dispatch dropdown. Orchestrator/recurrent workspaces are excluded:
@@ -979,11 +1069,7 @@ export function KanbanContainer() {
     );
   };
 
-  const workspacesByIssueId = useMemo(() => {
-    if (!showWorkspaces) {
-      return new Map<string, WorkspaceWithStats[]>();
-    }
-
+  const retainedWorkspacesByIssueId = useMemo(() => {
     const map = new Map<string, WorkspaceWithStats[]>();
 
     for (const issue of issues) {
@@ -1026,13 +1112,14 @@ export function KanbanContainer() {
     }
 
     return map;
-  }, [
-    showWorkspaces,
-    issues,
-    getWorkspacesForIssue,
-    localWorkspacesById,
-    prsByWorkspaceId,
-  ]);
+  }, [issues, getWorkspacesForIssue, localWorkspacesById, prsByWorkspaceId]);
+
+  const workspacesByIssueId = useMemo(() => {
+    if (!showWorkspaces) {
+      return new Map<string, WorkspaceWithStats[]>();
+    }
+    return retainedWorkspacesByIssueId;
+  }, [showWorkspaces, retainedWorkspacesByIssueId]);
 
   // Calculate sort_order based on column index and issue position
   // Formula: 1000 * [COLUMN_INDEX] + [ISSUE_INDEX] (both 1-based)
@@ -1423,6 +1510,26 @@ export function KanbanContainer() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [visibleStatuses, isColumnCollapsed, items, keyboardIssueId, openIssue]);
 
+  const activeBoardCount = useMemo(
+    () =>
+      boardStatuses.reduce(
+        (sum, status) => sum + (items[status.id]?.length ?? 0),
+        0
+      ),
+    [boardStatuses, items]
+  );
+
+  const tabStatusesWithCounts = useMemo(
+    () =>
+      tabStatuses.map((s) => ({
+        id: s.id,
+        name: s.name,
+        color: s.color,
+        count: items[s.id]?.length ?? 0,
+      })),
+    [tabStatuses, items]
+  );
+
   if (isLoading) {
     return <LoadingState />;
   }
@@ -1431,67 +1538,55 @@ export function KanbanContainer() {
     <div className="flex flex-col h-full space-y-base">
       <div
         className={cn(
-          'px-double pt-double space-y-base',
+          'px-double pt-double space-y-2.5',
           isMobile && 'px-base pt-base'
         )}
       >
-        <div className="flex items-center gap-half">
-          <h2 className={cn('text-2xl font-medium', isMobile && 'text-lg')}>
-            <ProjectBreadcrumb
-              entries={breadcrumb}
-              fallback={projectName}
-              onNavigateProject={(id) => appNavigation.goToProject(id)}
-            />
-          </h2>
+        <div className="flex flex-wrap items-center justify-between gap-base">
+          <div className="flex items-center gap-half min-w-0">
+            <h2 className={cn('text-xl font-semibold', isMobile && 'text-lg')}>
+              <ProjectBreadcrumb
+                entries={breadcrumb}
+                fallback={projectName}
+                onNavigateProject={(id) => appNavigation.goToProject(id)}
+              />
+            </h2>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="p-half rounded-sm text-low hover:text-normal hover:bg-secondary transition-colors"
-                aria-label={t('common:ui.projectMenu')}
-              >
-                <DotsThreeIcon className="size-icon-sm" weight="bold" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={openProjectsGuide}>
-                {t('kanban.openProjectsGuide', 'Projects guide')}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => executeAction(Actions.ProjectSettings)}
-              >
-                {t('kanban.editProjectSettings', 'Edit project settings')}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={
-                  finishedCleanableWorkspaceIds.length === 0 ||
-                  isCleaningFinished
-                }
-                onClick={() => void handleCleanupFinishedWorkspaces()}
-              >
-                {t('kanban.cleanupFinishedMenuItem', {
-                  count: finishedCleanableWorkspaceIds.length,
-                  defaultValue: 'Clean up finished workspaces ({{count}})',
-                })}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="p-half rounded-sm text-low hover:text-normal hover:bg-secondary transition-colors"
+                  aria-label={t('common:ui.projectMenu')}
+                >
+                  <DotsThreeIcon className="size-icon-sm" weight="bold" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={openProjectsGuide}>
+                  {t('kanban.openProjectsGuide', 'Projects guide')}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => executeAction(Actions.ProjectSettings)}
+                >
+                  {t('kanban.editProjectSettings', 'Edit project settings')}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={
+                    finishedCleanableWorkspaceIds.length === 0 ||
+                    isCleaningFinished
+                  }
+                  onClick={() => void handleCleanupFinishedWorkspaces()}
+                >
+                  {t('kanban.cleanupFinishedMenuItem', {
+                    count: finishedCleanableWorkspaceIds.length,
+                    defaultValue: 'Clean up finished workspaces ({{count}})',
+                  })}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
 
-        <div
-          className={cn(
-            'flex items-start gap-base',
-            isMobile ? 'flex-col' : 'flex-wrap'
-          )}
-        >
-          <ViewNavTabs
-            activeView={kanbanViewMode}
-            onViewChange={setKanbanViewMode}
-            hiddenStatuses={hiddenStatuses}
-            selectedStatusId={listViewStatusFilter}
-            onStatusSelect={setListViewStatusFilter}
-          />
           <KanbanFilterBar
             isFiltersDialogOpen={isFiltersDialogOpen}
             onFiltersDialogOpenChange={setIsFiltersDialogOpen}
@@ -1512,6 +1607,9 @@ export function KanbanContainer() {
             onShowWorkspacesChange={setShowWorkspaces}
             hideBlocked={hideBlocked}
             onHideBlockedChange={setHideBlocked}
+            onlyWithWorkspace={onlyWithWorkspace}
+            onOnlyWithWorkspaceChange={setOnlyWithWorkspace}
+            withWorkspaceCount={retainedWorkspacesByIssueId.size}
             onClearFilters={clearKanbanFilters}
             onCreateIssue={handleAddTask}
             shouldAnimateCreateButton={shouldAnimateCreateButton}
@@ -1519,6 +1617,15 @@ export function KanbanContainer() {
             isMobile={isMobile}
           />
         </div>
+
+        <ViewNavTabs
+          activeView={kanbanViewMode}
+          onViewChange={setKanbanViewMode}
+          hiddenStatuses={tabStatusesWithCounts}
+          selectedStatusId={listViewStatusFilter}
+          onStatusSelect={setListViewStatusFilter}
+          activeCount={activeBoardCount}
+        />
       </div>
 
       {parentIssueId && (
@@ -1548,149 +1655,56 @@ export function KanbanContainer() {
       )}
 
       {kanbanViewMode === 'kanban' ? (
-        visibleStatuses.length === 0 ? (
+        boardStatuses.length === 0 ? (
           <div className="flex-1 flex items-center justify-center">
             <p className="text-low">{t('kanban.noVisibleStatuses')}</p>
           </div>
         ) : (
           <div ref={boardRef} className="flex-1 overflow-x-auto px-double">
             <KanbanProvider
-              className="min-w-full"
+              className="min-w-full gap-3 divide-x-0 border-x-0 pb-4"
               style={{
-                // Empty columns stay narrow so the ones with cards get room.
-                gridTemplateColumns: visibleStatuses
+                gridTemplateColumns: boardStatuses
                   .map((status) =>
-                    isColumnCollapsed(status)
-                      ? '44px'
-                      : (items[status.id]?.length ?? 0) > 0
-                        ? 'minmax(240px, 2fr)'
-                        : 'minmax(130px, 1fr)'
+                    (items[status.id]?.length ?? 0) > 0
+                      ? 'minmax(240px, 1.35fr)'
+                      : 'minmax(180px, 1fr)'
                   )
                   .join(' '),
               }}
             >
-              {visibleStatuses.map((status) => {
+              {boardStatuses.map((status) => {
                 const issueIds = items[status.id] ?? [];
-                const statusIsDone = isDoneStatus(status);
-
-                if (isColumnCollapsed(status)) {
-                  // Folded column: a narrow strip that still accepts drops.
-                  return (
-                    <KanbanBoard key={status.id}>
-                      <button
-                        type="button"
-                        onClick={() => setColumnCollapsed(status.id, false)}
-                        className="sticky top-0 z-20 flex h-full min-h-40 w-full flex-col items-center gap-2 border-y bg-secondary py-base text-low hover:text-normal hover:bg-panel transition-colors"
-                        aria-expanded={false}
-                        aria-label={t('kanban.expandColumn', {
-                          name: status.name,
-                          count: issueIds.length,
-                        })}
-                        title={t('kanban.expandColumn', {
-                          name: status.name,
-                          count: issueIds.length,
-                        })}
-                      >
-                        <span
-                          className="h-2 w-2 shrink-0 rounded-full"
-                          style={{ backgroundColor: `hsl(${status.color})` }}
-                        />
-                        <span className="text-sm [writing-mode:vertical-rl]">
-                          {status.name}
-                        </span>
-                        <span className="text-xs tabular-nums">
-                          {issueIds.length}
-                        </span>
-                      </button>
-                      <KanbanCards
-                        id={status.id}
-                        activeProjectId={projectId}
-                        issueIds={[]}
-                        positionalReorderEnabled={false}
-                      >
-                        {null}
-                      </KanbanCards>
-                    </KanbanBoard>
-                  );
-                }
 
                 return (
-                  <KanbanBoard key={status.id}>
+                  <KanbanBoard
+                    key={status.id}
+                    className="rounded-xl border border-border/80 bg-secondary/35 overflow-hidden"
+                  >
                     <KanbanHeader>
-                      <div className="group/col border-t sticky border-b top-0 z-20 flex shrink-0 items-center gap-1 p-base bg-secondary">
+                      <div
+                        className="h-[2px] w-full shrink-0"
+                        style={{ backgroundColor: `hsl(${status.color})` }}
+                      />
+                      <div className="sticky top-0 z-20 flex shrink-0 items-center justify-between gap-2 border-b border-border/70 bg-secondary/60 px-3 py-2.5">
                         <div className="flex min-w-0 items-center gap-2">
-                          <div
-                            className="h-2 w-2 rounded-full shrink-0"
-                            style={{ backgroundColor: `hsl(${status.color})` }}
-                          />
                           <p
-                            className="m-0 truncate whitespace-nowrap text-sm"
+                            className="m-0 truncate whitespace-nowrap text-sm font-semibold text-high"
                             title={status.name}
                           >
                             {status.name}
                           </p>
-                          {issueIds.length > 0 && (
-                            <span className="text-xs text-low tabular-nums">
-                              {issueIds.length}
-                            </span>
-                          )}
+                          <span className="rounded-full bg-primary/70 px-2 py-0.5 text-[11px] font-medium text-low tabular-nums">
+                            {issueIds.length}
+                          </span>
                         </div>
-                        {statusIsDone && (
-                          <button
-                            type="button"
-                            onClick={() => setColumnCollapsed(status.id, true)}
-                            className="absolute right-9 top-1/2 -translate-y-1/2 p-half rounded-sm bg-secondary text-low opacity-0 group-hover/col:opacity-100 focus-visible:opacity-100 hover:text-normal hover:bg-panel transition"
-                            aria-label={t('kanban.collapseColumn', {
-                              name: status.name,
-                            })}
-                            title={t('kanban.collapseColumn', {
-                              name: status.name,
-                            })}
-                          >
-                            <CaretLeftIcon
-                              className="size-icon-xs"
-                              weight="bold"
-                            />
-                          </button>
-                        )}
-                        {(statusIsDone || isCancelledStatusName(status.name)) &&
-                          finishedCleanableWorkspaceIds.length > 0 && (
-                            <button
-                              type="button"
-                              disabled={isCleaningFinished}
-                              onClick={() =>
-                                void handleCleanupFinishedWorkspaces()
-                              }
-                              className={cn(
-                                'absolute top-1/2 -translate-y-1/2 inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-xs bg-secondary text-low hover:text-normal hover:bg-panel transition disabled:opacity-50',
-                                statusIsDone ? 'right-16' : 'right-9'
-                              )}
-                              aria-label={t('kanban.cleanupFinishedMenuItem', {
-                                count: finishedCleanableWorkspaceIds.length,
-                                defaultValue:
-                                  'Clean up finished workspaces ({{count}})',
-                              })}
-                              title={t('kanban.cleanupFinishedMenuItem', {
-                                count: finishedCleanableWorkspaceIds.length,
-                                defaultValue:
-                                  'Clean up finished workspaces ({{count}})',
-                              })}
-                            >
-                              <TrashIcon
-                                className="size-icon-xs"
-                                weight="bold"
-                              />
-                              <span className="tabular-nums">
-                                {finishedCleanableWorkspaceIds.length}
-                              </span>
-                            </button>
-                          )}
                         {!parentIssueId && (
                           <button
                             type="button"
                             onClick={() => handleAddTask(status.id)}
-                            className="absolute right-base top-1/2 -translate-y-1/2 p-half rounded-sm bg-secondary text-low opacity-0 group-hover/col:opacity-100 focus-visible:opacity-100 hover:text-normal hover:bg-panel transition"
+                            className="rounded-md p-1 text-low transition-colors hover:bg-primary hover:text-high"
                             aria-label={t('common:ui.addTask')}
+                            title={t('common:ui.addTask')}
                           >
                             <PlusIcon className="size-icon-xs" weight="bold" />
                           </button>
@@ -1703,6 +1717,23 @@ export function KanbanContainer() {
                       issueIds={issueIds}
                       positionalReorderEnabled={isManualSort}
                     >
+                      {issueIds.length === 0 && (
+                        <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 py-12 text-center text-low select-none">
+                          <ClipboardTextIcon
+                            className="size-8 text-low/50"
+                            weight="duotone"
+                          />
+                          <p className="text-xs font-medium text-normal">
+                            {t('kanban.emptyColumnTitle', 'Chưa có issue nào')}
+                          </p>
+                          <p className="max-w-[180px] text-[11px] leading-relaxed text-low">
+                            {t(
+                              'kanban.emptyColumnHint',
+                              'Thêm issue mới hoặc kéo thẻ vào cột này.'
+                            )}
+                          </p>
+                        </div>
+                      )}
                       {issueIds.map((issueId) => {
                         const issue = issueMap[issueId];
                         if (!issue) return null;
@@ -1785,7 +1816,24 @@ export function KanbanContainer() {
                                 handleCardMoreActionsClick(issue.id)
                               }
                               footer={renderShipButton(issue)}
-                              compact={statusIsDone}
+                              retainedWorkspace={(() => {
+                                const retained =
+                                  retainedWorkspacesByIssueId.get(issue.id);
+                                if (!retained || retained.length === 0) {
+                                  return null;
+                                }
+                                const newest = retained[0];
+                                const localId = newest?.localWorkspaceId;
+                                return {
+                                  count: retained.length,
+                                  linesAdded: newest?.linesAdded,
+                                  linesRemoved: newest?.linesRemoved,
+                                  onOpen: localId
+                                    ? () =>
+                                        openIssueWorkspace(issue.id, localId)
+                                    : undefined,
+                                };
+                              })()}
                               tagEditProps={{
                                 allTags: tags,
                                 selectedTagIds: getTagsForIssue(issue.id).map(

@@ -17,8 +17,6 @@ import {
   type BarBucketMeta,
 } from '../lib/buckets';
 import { cn } from '../lib/cn';
-import { SidebarBar } from './SidebarBar';
-import { SidebarBarButton } from './SidebarBarButton';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -94,9 +92,12 @@ export function SidebarBucketBar({
   }, [workspaces, attentionOnlyWorkspaces]);
 
   return (
-    <SidebarBar
+    <div
       aria-label={t('workspaces.bucketBarLabel')}
-      className={className}
+      className={cn(
+        'flex w-full items-center gap-0.5 rounded-lg border border-border/70 bg-primary/70 p-0.5',
+        className
+      )}
     >
       {BAR_BUCKET_ORDER.map((id) =>
         id === 'attention' ? (
@@ -119,7 +120,7 @@ export function SidebarBucketBar({
           />
         )
       )}
-    </SidebarBar>
+    </div>
   );
 }
 
@@ -146,14 +147,26 @@ function BucketButton({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <SidebarBarButton
-          className="flex-1"
-          label={label}
-          icon={meta.icon}
-          iconClass={meta.iconClass}
-          badgeCount={showBadge ? count : undefined}
-          badgeClass={meta.badgeClass}
-        />
+        <button
+          type="button"
+          className={cn(
+            'flex flex-1 min-w-0 items-center justify-center gap-1 rounded-md px-1 py-1 text-[10.5px] font-medium whitespace-nowrap transition-colors',
+            showBadge
+              ? 'bg-secondary text-high'
+              : 'text-low hover:bg-secondary/60 hover:text-normal'
+          )}
+        >
+          <meta.icon
+            className={cn('size-3 shrink-0', meta.iconClass)}
+            weight="bold"
+          />
+          <span className="truncate">{label}</span>
+          {showBadge && (
+            <span className="rounded bg-primary/80 px-1 text-[10px] tabular-nums text-normal">
+              {count}
+            </span>
+          )}
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         side="bottom"
@@ -258,14 +271,26 @@ function AttentionInboxButton({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <SidebarBarButton
-          className="flex-1"
-          label={label}
-          icon={meta.icon}
-          iconClass={meta.iconClass}
-          badgeCount={count > 0 ? count : undefined}
-          badgeClass={meta.badgeClass}
-        />
+        <button
+          type="button"
+          className={cn(
+            'flex flex-1 min-w-0 items-center justify-center gap-1 rounded-md px-1 py-1 text-[10.5px] font-medium whitespace-nowrap transition-colors',
+            count > 0
+              ? 'bg-warning/15 text-warning'
+              : 'text-low hover:bg-secondary/60 hover:text-normal'
+          )}
+        >
+          <meta.icon
+            className={cn('size-3 shrink-0', meta.iconClass)}
+            weight="bold"
+          />
+          <span className="truncate">{label}</span>
+          {count > 0 && (
+            <span className="rounded bg-warning/25 px-1 text-[10px] tabular-nums text-warning">
+              {count}
+            </span>
+          )}
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         side="bottom"

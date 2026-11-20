@@ -78,20 +78,10 @@ export function ChatBoxBase({
 
   return (
     <div className="flex w-chat max-w-full flex-col">
-      {/* Status strip above the box: changes, turns, todos, session. */}
-      {visualVariant === VisualVariant.NORMAL &&
-        (headerLeft || headerRight) && (
-          <div className="flex min-h-8 items-center gap-base px-1 pb-1">
-            <div className="flex flex-1 items-center gap-base text-xs text-low min-w-0 overflow-hidden">
-              {headerLeft}
-            </div>
-            <Toolbar className="gap-[9px]">{headerRight}</Toolbar>
-          </div>
-        )}
       <div
         {...(dropzone?.getRootProps() ?? {})}
         className={cn(
-          'relative flex flex-col rounded-2xl border border-border bg-secondary',
+          'relative flex flex-col rounded-xl border border-border/90 bg-secondary/95 shadow-sm transition-colors focus-within:border-brand/50',
           className,
           (visualVariant === VisualVariant.FEEDBACK ||
             visualVariant === VisualVariant.EDIT ||
@@ -100,6 +90,16 @@ export function ChatBoxBase({
           isRunning && 'chat-box-running'
         )}
       >
+        {/* Status strip integrated cleanly at top of the composer card */}
+        {visualVariant === VisualVariant.NORMAL &&
+          (headerLeft || headerRight) && (
+            <div className="flex min-h-9 items-center gap-base rounded-t-xl border-b border-border/60 bg-panel/45 px-3 py-1">
+              <div className="flex min-w-0 flex-1 items-center gap-base overflow-hidden text-xs text-low">
+                {headerLeft}
+              </div>
+              <Toolbar className="gap-1.5">{headerRight}</Toolbar>
+            </div>
+          )}
         {dropzone && <input {...dropzone.getInputProps()} />}
 
         {isDragActive && (

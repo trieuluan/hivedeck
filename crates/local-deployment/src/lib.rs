@@ -50,6 +50,7 @@ pub struct LocalDeployment {
     queued_message_service: QueuedMessageService,
     client_info: ClientInfo,
     preview_proxy: PreviewProxyService,
+    llm_inspector: services::services::llm_inspector::LlmInspector,
     pty: PtyService,
     pr_sync_notify: Arc<Notify>,
 }
@@ -144,6 +145,7 @@ impl Deployment for LocalDeployment {
 
         let client_info = ClientInfo::new();
         let preview_proxy = PreviewProxyService::new();
+        let llm_inspector = services::services::llm_inspector::LlmInspector::new();
 
         let workspace_manager = WorkspaceManager::new(db.clone());
         let container = LocalContainerService::new(
@@ -155,6 +157,7 @@ impl Deployment for LocalDeployment {
             file.clone(),
             approvals.clone(),
             queued_message_service.clone(),
+            llm_inspector.clone(),
         )
         .await;
 
@@ -197,6 +200,7 @@ impl Deployment for LocalDeployment {
             queued_message_service,
             client_info,
             preview_proxy,
+            llm_inspector,
             pty,
             pr_sync_notify,
         };
@@ -254,6 +258,10 @@ impl Deployment for LocalDeployment {
 
     fn preview_proxy(&self) -> &PreviewProxyService {
         &self.preview_proxy
+    }
+
+    fn llm_inspector(&self) -> &services::services::llm_inspector::LlmInspector {
+        &self.llm_inspector
     }
 }
 

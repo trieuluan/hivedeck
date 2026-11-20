@@ -1,18 +1,18 @@
 {
   "createProjectDialog": {
-    "title": "Tạo project",
+    "title": "Tạo project mới",
     "titleChildBoard": "Tạo board con",
-    "description": "Tạo một project mới.",
+    "description": "Thiết lập tên, màu nhận diện và repository.",
     "descriptionChildBoard": "Tạo một board con trong project này.",
     "nameLabel": "Tên project",
-    "namePlaceholder": "Nhập tên project",
-    "selectColor": "Chọn màu project",
+    "namePlaceholder": "Nhập tên project...",
+    "selectColor": "Màu nhận diện",
     "creating": "Đang tạo...",
     "createButton": "Tạo project",
-    "repoLabel": "Repo",
+    "repoLabel": "Repository",
     "repoLater": "Chọn sau",
-    "repoHelper": "Thuyền trưởng và các card của project làm việc trong repo này. Có thể đổi sau ở menu project → Repo…",
-    "repoNone": "Chưa có repo nào — thêm trong Settings → Repo, rồi liên kết từ menu project."
+    "repoHelper": "Gắn repo Git để Thuyền trưởng và card làm việc",
+    "repoNone": "Chưa có repo nào — thêm trong Settings → Repo"
   },
   "deleteProjectDialog": {
     "title": "Xoá project?",

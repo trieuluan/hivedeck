@@ -4,9 +4,11 @@ import type { MouseEvent, ReactNode } from 'react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  ArrowSquareOutIcon,
   CaretRightIcon,
   CircleDashedIcon,
   DotsThreeIcon,
+  GitBranchIcon,
   KanbanIcon,
   PlusIcon,
 } from '@phosphor-icons/react';
@@ -152,6 +154,13 @@ export type KanbanCardContentProps<TTag extends KanbanTag = KanbanTag> = {
   footer?: ReactNode;
   /** Title-only card (e.g. in a done column): no description preview. */
   compact?: boolean;
+  /** Retained local workspace/worktree summary shown directly on the card. */
+  retainedWorkspace?: {
+    count: number;
+    linesAdded?: number;
+    linesRemoved?: number;
+    onOpen?: () => void;
+  } | null;
 };
 
 export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
@@ -175,6 +184,7 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
   isMobile,
   footer,
   compact = false,
+  retainedWorkspace,
 }: KanbanCardContentProps<TTag>) {
   const { t } = useTranslation('common');
   const previewDescription = useMemo(() => {
@@ -301,11 +311,11 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
         </p>
       )}
 
-      {/* Row 4: Tags, PRs, Relationships. An empty tag editor only shows on
-          hover, so cards without tags stay one row shorter. */}
+      {/* Row 4: Tags, PRs, Relationships, Retained Workspace */}
       {(tags.length > 0 ||
         pullRequests.length > 0 ||
-        relationships.length > 0) && (
+        relationships.length > 0 ||
+        (retainedWorkspace && retainedWorkspace.count > 0)) && (
         <div className="flex items-center gap-half flex-wrap min-w-0">
           {tagEditProps ? (
             (tagEditProps.renderTagEditor?.({
@@ -348,6 +358,42 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
             <span className="text-sm text-low">
               +{relationships.length - 2}
             </span>
+          )}
+          {retainedWorkspace && retainedWorkspace.count > 0 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                retainedWorkspace.onOpen?.();
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              title="Mở workspace đang giữ"
+              className="group/ws inline-flex items-center gap-1 rounded border border-emerald-500/35 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-400 transition-colors hover:bg-emerald-500/20"
+            >
+              <GitBranchIcon className="size-3 shrink-0" weight="bold" />
+              <span>
+                {retainedWorkspace.count > 1
+                  ? `${retainedWorkspace.count} ws`
+                  : 'Workspace'}
+              </span>
+              {((retainedWorkspace.linesAdded ?? 0) > 0 ||
+                (retainedWorkspace.linesRemoved ?? 0) > 0) && (
+                <span className="font-ibm-plex-mono text-[10px] tabular-nums">
+                  <span className="text-emerald-300">
+                    +{retainedWorkspace.linesAdded ?? 0}
+                  </span>{' '}
+                  <span className="text-rose-400">
+                    -{retainedWorkspace.linesRemoved ?? 0}
+                  </span>
+                </span>
+              )}
+              {retainedWorkspace.onOpen && (
+                <ArrowSquareOutIcon
+                  className="size-3 shrink-0 opacity-70 group-hover/ws:opacity-100"
+                  weight="bold"
+                />
+              )}
+            </button>
           )}
         </div>
       )}

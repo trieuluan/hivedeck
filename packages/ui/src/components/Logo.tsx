@@ -74,8 +74,13 @@ export function BrandWordmark({ className }: { className?: string }) {
  */
 export function BrandLockup({ className }: { className?: string }) {
   return (
-    <span className={cn('flex items-center gap-3', className)}>
-      <FeatherCaret size={32} className="text-brand" />
+    <span className={cn('flex items-center gap-2.5', className)}>
+      <img
+        src="/hivedeck-mark.png"
+        alt=""
+        aria-hidden="true"
+        className="size-7 shrink-0 rounded-md object-cover"
+      />
       <BrandWordmark />
     </span>
   );

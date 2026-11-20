@@ -110,6 +110,7 @@ pub struct LocalContainerService {
     approvals: Approvals,
     queued_message_service: QueuedMessageService,
     notification_service: NotificationService,
+    llm_inspector: services::services::llm_inspector::LlmInspector,
 }
 
 impl LocalContainerService {
@@ -197,6 +198,150 @@ impl LocalContainerService {
         Some(routed)
     }
 
+    async fn attach_llm_inspector_proxy(
+        &self,
+        execution_id: Uuid,
+        session_id: Uuid,
+        executor_action: &ExecutorAction,
+        env: &mut ExecutionEnv,
+    ) {
+        use executors::executors::codex;
+
+        let Some(base) = executor_action.base_executor() else {
+            return;
+        };
+        let Ok(port) = utils::port_file::read_port_file("hivedeck").await else {
+            return;
+        };
+
+        let resolve_upstream =
+            |env: &ExecutionEnv, key: &str, default_url: &str| -> (String, String) {
+                let candidate = env
+                    .get(key)
+                    .filter(|s| !s.trim().is_empty())
+                    .cloned()
+                    .or_else(|| std::env::var(key).ok().filter(|s| !s.trim().is_empty()));
+                if let Some(v) = candidate {
+                    let label = if v.contains("127.0.0.1") || v.contains("localhost") {
+                        "9router".to_string()
+                    } else {
+                        "custom".to_string()
+                    };
+                    (v, label)
+                } else {
+                    (default_url.to_string(), "upstream".to_string())
+                }
+            };
+
+        match base {
+            BaseCodingAgent::ClaudeCode | BaseCodingAgent::ClaudeCodeHeaded => {
+                let (upstream, label) =
+                    resolve_upstream(env, "ANTHROPIC_BASE_URL", "https://api.anthropic.com");
+                self.llm_inspector.register_route(
+                    execution_id,
+                    "anthropic",
+                    session_id,
+                    upstream,
+                    label,
+                );
+                env.insert(
+                    "ANTHROPIC_BASE_URL",
+                    format!("http://127.0.0.1:{port}/llm-proxy/{execution_id}/anthropic"),
+                );
+            }
+            BaseCodingAgent::Codex => {
+                if let Some(router_url) = env.get(codex::ROUTER_BASE_URL_ENV).cloned() {
+                    self.llm_inspector.register_route(
+                        execution_id,
+                        "openai",
+                        session_id,
+                        router_url,
+                        "9router",
+                    );
+                    env.insert(
+                        codex::ROUTER_BASE_URL_ENV,
+                        format!("http://127.0.0.1:{port}/llm-proxy/{execution_id}/openai"),
+                    );
+                } else if env.get("OPENAI_BASE_URL").is_some()
+                    || env.get("OPENAI_API_KEY").is_some()
+                    || std::env::var("OPENAI_BASE_URL").is_ok()
+                    || std::env::var("OPENAI_API_KEY").is_ok()
+                {
+                    let (upstream, label) =
+                        resolve_upstream(env, "OPENAI_BASE_URL", "https://api.openai.com/v1");
+                    self.llm_inspector.register_route(
+                        execution_id,
+                        "openai",
+                        session_id,
+                        upstream,
+                        label,
+                    );
+                    env.insert(
+                        "OPENAI_BASE_URL",
+                        format!("http://127.0.0.1:{port}/llm-proxy/{execution_id}/openai"),
+                    );
+                }
+            }
+            BaseCodingAgent::Opencode
+            | BaseCodingAgent::Gemini
+            | BaseCodingAgent::QwenCode
+            | BaseCodingAgent::Droid
+            | BaseCodingAgent::Amp
+            | BaseCodingAgent::CursorAgent
+            | BaseCodingAgent::Copilot => {
+                let (anth_up, anth_label) =
+                    resolve_upstream(env, "ANTHROPIC_BASE_URL", "https://api.anthropic.com");
+                self.llm_inspector.register_route(
+                    execution_id,
+                    "anthropic",
+                    session_id,
+                    anth_up,
+                    anth_label,
+                );
+                env.insert(
+                    "ANTHROPIC_BASE_URL",
+                    format!("http://127.0.0.1:{port}/llm-proxy/{execution_id}/anthropic"),
+                );
+
+                let (oai_up, oai_label) =
+                    resolve_upstream(env, "OPENAI_BASE_URL", "https://api.openai.com/v1");
+                self.llm_inspector.register_route(
+                    execution_id,
+                    "openai",
+                    session_id,
+                    oai_up,
+                    oai_label,
+                );
+                env.insert(
+                    "OPENAI_BASE_URL",
+                    format!("http://127.0.0.1:{port}/llm-proxy/{execution_id}/openai"),
+                );
+
+                let (gem_up, gem_label) = resolve_upstream(
+                    env,
+                    "GOOGLE_GEMINI_BASE_URL",
+                    "https://generativelanguage.googleapis.com",
+                );
+                self.llm_inspector.register_route(
+                    execution_id,
+                    "gemini",
+                    session_id,
+                    gem_up,
+                    gem_label,
+                );
+                env.insert(
+                    "GOOGLE_GEMINI_BASE_URL",
+                    format!("http://127.0.0.1:{port}/llm-proxy/{execution_id}/gemini"),
+                );
+                env.insert(
+                    "GEMINI_API_BASE_URL",
+                    format!("http://127.0.0.1:{port}/llm-proxy/{execution_id}/gemini"),
+                );
+            }
+            _ => {}
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
         db: DBService,
@@ -207,6 +352,7 @@ impl LocalContainerService {
         file_service: FileService,
         approvals: Approvals,
         queued_message_service: QueuedMessageService,
+        llm_inspector: services::services::llm_inspector::LlmInspector,
     ) -> Self {
         let child_store = Arc::new(RwLock::new(HashMap::new()));
         let detached_store = Arc::new(RwLock::new(HashMap::new()));
@@ -232,6 +378,7 @@ impl LocalContainerService {
             approvals,
             queued_message_service,
             notification_service,
+            llm_inspector,
         };
 
         container.spawn_workspace_cleanup();
@@ -2854,6 +3001,16 @@ impl ContainerService for LocalContainerService {
             )
             .await;
         let executor_action = routed_action.as_ref().unwrap_or(executor_action);
+
+        // Chain every CLI through HiveDeck's local LLM inspector proxy (preserving
+        // 9router or custom base URLs as upstream) for per-category context telemetry.
+        self.attach_llm_inspector_proxy(
+            execution_process.id,
+            execution_process.session_id,
+            executor_action,
+            &mut env,
+        )
+        .await;
 
         // ADR-031: a headless Codex captain gets the captain's manual as
         // developer instructions and this backend's MCP endpoint. (The headed

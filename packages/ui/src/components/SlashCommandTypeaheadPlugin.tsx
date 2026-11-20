@@ -147,8 +147,17 @@ export function SlashCommandTypeaheadPlugin({
             onClickOutside={closeTypeahead}
           >
             <TypeaheadMenu.Header>
-              <TerminalIcon className="size-icon-xs" weight="bold" />
-              {t('typeahead.commands')}
+              <div className="flex w-full items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-half">
+                  <TerminalIcon className="size-icon-xs text-brand" weight="bold" />
+                  {t('typeahead.commands')}
+                </span>
+                {options.length > 0 && (
+                  <span className="text-2xs font-normal text-low">
+                    {options.length}
+                  </span>
+                )}
+              </div>
             </TypeaheadMenu.Header>
 
             {isEmpty ? (
@@ -174,12 +183,12 @@ export function SlashCommandTypeaheadPlugin({
                       onClick={() => selectOptionAndCleanUp(option)}
                     >
                       <div className="flex items-center gap-half font-medium">
-                        <span className="font-mono">
+                        <span className="truncate font-mono text-xs font-semibold text-brand">
                           /{option.command.name}
                         </span>
                       </div>
                       {details && (
-                        <div className="text-xs text-low truncate">
+                        <div className="truncate text-2xs text-low">
                           {details}
                         </div>
                       )}

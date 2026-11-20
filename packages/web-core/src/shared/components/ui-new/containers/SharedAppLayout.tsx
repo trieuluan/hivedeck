@@ -18,7 +18,12 @@ import { NavbarContainer } from './NavbarContainer';
 import { Sidebar } from '@vibe/ui/components/Sidebar';
 import { MobileDrawer } from '@vibe/ui/components/MobileDrawer';
 import { ProjectColorTransformContext } from '@vibe/ui/lib/projectColor';
-import { SidebarBottomActions } from './SidebarBottomActions';
+import {
+  SidebarBottomActions,
+  SidebarRailFooter,
+  SidebarRailHeader,
+  SidebarRailNav,
+} from './SidebarBottomActions';
 import { useActions } from '@/shared/hooks/useActions';
 import { useShowAdvanced } from '@/shared/stores/useUiPreferencesStore';
 import { Actions } from '@/shared/actions';
@@ -755,7 +760,7 @@ export function SharedAppLayout() {
                 'bg-primary',
                 isMobile
                   ? 'flex fixed inset-0 pb-[env(safe-area-inset-bottom)]'
-                  : 'grid grid-cols-[256px_1fr] grid-rows-[minmax(0,1fr)] h-screen'
+                  : 'grid grid-cols-[304px_1fr] grid-rows-[minmax(0,1fr)] h-screen'
               )}
             >
               {!isMobile && (
@@ -806,6 +811,11 @@ export function SharedAppLayout() {
                       headerActions={
                         <CreateProjectButton onClick={handleCreateProject} />
                       }
+                      railHeader={<SidebarRailHeader />}
+                      railNav={
+                        <SidebarRailNav activeProjectId={activeProjectId} />
+                      }
+                      railFooter={<SidebarRailFooter />}
                       bottomActions={<SidebarBottomActions />}
                     />
                   </ProjectColorTransformContext.Provider>
@@ -913,6 +923,11 @@ export function SharedAppLayout() {
                               onClick={handleCreateProject}
                             />
                           }
+                          railHeader={<SidebarRailHeader />}
+                          railNav={
+                            <SidebarRailNav activeProjectId={activeProjectId} />
+                          }
+                          railFooter={<SidebarRailFooter />}
                           bottomActions={<SidebarBottomActions />}
                         />
                       </ProjectColorTransformContext.Provider>

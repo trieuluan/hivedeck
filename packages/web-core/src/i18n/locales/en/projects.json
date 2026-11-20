@@ -1,18 +1,18 @@
 {
   "createProjectDialog": {
-    "title": "Create Project",
+    "title": "Create new project",
     "titleChildBoard": "Create child board",
-    "description": "Create a new project.",
+    "description": "Set up a name, accent color, and repository.",
     "descriptionChildBoard": "Create a new child board under this project.",
     "nameLabel": "Project name",
-    "namePlaceholder": "Enter project name",
-    "selectColor": "Select project color",
+    "namePlaceholder": "Enter project name...",
+    "selectColor": "Color",
     "creating": "Creating...",
     "createButton": "Create Project",
     "repoLabel": "Repository",
     "repoLater": "Choose later",
-    "repoHelper": "The project's captain and its cards work in this repository. You can change it later from the project menu → Repositories…",
-    "repoNone": "No repositories registered yet — add one in Settings → Repositories, then link it from the project menu."
+    "repoHelper": "Captain and cards will work in this Git repository",
+    "repoNone": "No repositories yet — add one in Settings → Repositories"
   },
   "deleteProjectDialog": {
     "title": "Delete Project?",

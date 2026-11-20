@@ -87,6 +87,8 @@ pub trait Deployment: Clone + Send + Sync + 'static {
 
     fn preview_proxy(&self) -> &PreviewProxyService;
 
+    fn llm_inspector(&self) -> &services::services::llm_inspector::LlmInspector;
+
     async fn stream_events(
         &self,
     ) -> futures::stream::BoxStream<'static, Result<Event, std::io::Error>> {

@@ -241,54 +241,40 @@ export function createImageNode(options: CreateImageNodeOptions) {
     if (isImage) {
       const imageUrl = isDirectAttachmentUrl ? src : metadata?.proxy_url;
       const displayName = truncatePath(workspaceDisplayName);
-      const actionClass =
-        'inline-flex min-w-[36px] min-h-[36px] items-center justify-center rounded text-foreground hover:bg-background focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand';
       return (
-        <span className="inline-flex max-w-full flex-col align-bottom rounded border border-border bg-muted p-1 gap-1">
+        <span className="ship-img-thumb group/img relative mr-1.5 mb-1 inline-flex h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-border/80 bg-panel align-bottom shadow-xs">
           <button
             type="button"
             onClick={handleClick}
             disabled={!imageUrl}
+            title={displayName}
             aria-label={`${t('kanban.previewFile')}: ${displayName}`}
-            className="flex w-[120px] h-[90px] max-w-full items-center justify-center rounded overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:cursor-default"
+            className="flex h-full w-full items-center justify-center overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand disabled:cursor-default"
           >
             {imageUrl ? (
               <img
                 src={imageUrl}
                 alt={displayName}
-                className="max-w-full max-h-full object-contain"
+                className="h-full w-full object-cover transition-transform duration-150 group-hover/img:scale-105"
                 draggable={false}
               />
             ) : loading ? (
-              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             ) : (
-              <HelpCircle className="w-5 h-5 text-muted-foreground" />
+              <HelpCircle className="h-4 w-4 text-muted-foreground" />
             )}
           </button>
-          <span className="max-w-[120px] truncate text-xs text-foreground">
-            {displayName}
-          </span>
-          <span className="flex justify-end">
+          {editor.isEditable() && (
             <button
               type="button"
-              onClick={handleDownload}
-              disabled={!imageUrl}
-              className={`${actionClass} disabled:opacity-50`}
-              aria-label={t('kanban.downloadAttachment')}
+              onClick={handleDelete}
+              aria-label={t('kanban.removeImage')}
+              title={t('kanban.removeImage')}
+              className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-black/75 text-white opacity-85 shadow-sm transition-all hover:scale-105 hover:bg-error hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
             >
-              <Download className="w-4 h-4" />
+              <X className="h-2.5 w-2.5" />
             </button>
-            {editor.isEditable() && (
-              <button
-                type="button"
-                onClick={handleDelete}
-                className={actionClass}
-                aria-label={t('kanban.removeImage')}
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </span>
+          )}
         </span>
       );
     }

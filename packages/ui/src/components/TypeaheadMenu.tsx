@@ -98,7 +98,10 @@ function computePlacement(
   const aboveSpace = topBoundary - marginBottom;
   const belowSpace = viewportHeight - anchorRect.bottom - marginTop;
   const side: VerticalSide =
-    belowSpace >= measuredHeight || belowSpace >= aboveSpace ? 'bottom' : 'top';
+    aboveSpace > belowSpace &&
+    (belowSpace < 240 || belowSpace < measuredHeight)
+      ? 'top'
+      : 'bottom';
   const availableSpace = Math.max(
     side === 'bottom' ? belowSpace : aboveSpace,
     0
@@ -253,7 +256,7 @@ function TypeaheadMenuRoot({
     <div
       ref={menuRef}
       style={style}
-      className="z-[10000] w-auto min-w-80 max-w-full p-0 overflow-hidden bg-panel border border-border rounded-sm shadow-md flex flex-col"
+      className="z-[10000] w-[min(420px,calc(100vw-24px))] min-w-72 max-w-[min(420px,calc(100vw-24px))] p-0 overflow-hidden bg-panel border border-border rounded-md shadow-lg flex flex-col"
     >
       {children}
     </div>
@@ -282,7 +285,9 @@ function TypeaheadMenuScrollArea({ children }: { children: ReactNode }) {
   return (
     <div
       className="py-half overflow-auto flex-1 min-h-0"
-      style={{ maxHeight: 'var(--typeahead-menu-max-height, 100vh)' }}
+      style={{
+        maxHeight: 'min(var(--typeahead-menu-max-height, 320px), 320px)',
+      }}
     >
       {children}
     </div>

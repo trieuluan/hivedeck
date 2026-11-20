@@ -11,7 +11,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
-    sync::RwLock,
+    sync::{Mutex, RwLock},
 };
 
 use serde::{Deserialize, Serialize};
@@ -85,9 +85,20 @@ pub struct ExtensionPrefs {
 }
 
 /// The CLIs HiveDeck knows how to inventory and control.
-pub const SUPPORTED_CLIS: [&str; 2] = ["CLAUDE_CODE", "CODEX"];
+pub const SUPPORTED_CLIS: [&str; 9] = [
+    "CLAUDE_CODE",
+    "CODEX",
+    "OPENCODE",
+    "GEMINI",
+    "CURSOR_AGENT",
+    "COPILOT",
+    "QWEN_CODE",
+    "AMP",
+    "DROID",
+];
 
 static CACHE: RwLock<Option<ExtensionPrefs>> = RwLock::new(None);
+static WRITE_LOCK: Mutex<()> = Mutex::new(());
 
 fn prefs_path() -> PathBuf {
     workspace_utils::assets::asset_dir().join("agent_extensions.json")
@@ -118,6 +129,15 @@ impl ExtensionPrefs {
             *guard = Some(self.clone());
         }
         Ok(())
+    }
+
+    pub fn set_cli(cli: &str, prefs: CliExtensionPrefs) -> std::io::Result<()> {
+        let _guard = WRITE_LOCK
+            .lock()
+            .map_err(|_| std::io::Error::other("ExtensionPrefs lock poisoned"))?;
+        let mut all = Self::load();
+        all.clis.insert(cli.to_owned(), prefs);
+        all.save()
     }
 
     pub fn for_cli(&self, cli: &str) -> CliExtensionPrefs {
@@ -166,13 +186,132 @@ pub struct CliSupports {
     pub max_budget: bool,
 }
 
+struct GenericCliSpec {
+    cli: &'static str,
+    root_dir: &'static str,
+    config_file: &'static str,
+    mcp_key: &'static str,
+    skill_dirs: &'static [&'static str],
+}
+
+const GENERIC_CLI_SPECS: &[GenericCliSpec] = &[
+    GenericCliSpec {
+        cli: "OPENCODE",
+        root_dir: ".config/opencode",
+        config_file: ".config/opencode/opencode.json",
+        mcp_key: "mcp",
+        skill_dirs: &[".config/opencode/skills"],
+    },
+    GenericCliSpec {
+        cli: "GEMINI",
+        root_dir: ".gemini",
+        config_file: ".gemini/settings.json",
+        mcp_key: "mcpServers",
+        skill_dirs: &[".gemini/skills"],
+    },
+    GenericCliSpec {
+        cli: "CURSOR_AGENT",
+        root_dir: ".cursor",
+        config_file: ".cursor/mcp.json",
+        mcp_key: "mcpServers",
+        skill_dirs: &[".cursor/skills"],
+    },
+    GenericCliSpec {
+        cli: "COPILOT",
+        root_dir: ".copilot",
+        config_file: ".copilot/mcp-config.json",
+        mcp_key: "mcpServers",
+        skill_dirs: &[".copilot/skills"],
+    },
+    GenericCliSpec {
+        cli: "QWEN_CODE",
+        root_dir: ".qwen",
+        config_file: ".qwen/settings.json",
+        mcp_key: "mcpServers",
+        skill_dirs: &[".qwen/skills"],
+    },
+    GenericCliSpec {
+        cli: "AMP",
+        root_dir: ".config/amp",
+        config_file: ".config/amp/settings.json",
+        mcp_key: "amp.mcpServers",
+        skill_dirs: &[".config/agents/skills", ".config/amp/skills"],
+    },
+    GenericCliSpec {
+        cli: "DROID",
+        root_dir: ".factory",
+        config_file: ".factory/mcp.json",
+        mcp_key: "mcpServers",
+        skill_dirs: &[".factory/skills"],
+    },
+];
+
 pub fn inventory(cli: &str) -> Option<CliInventory> {
     let home = dirs::home_dir()?;
     match cli {
         "CLAUDE_CODE" => Some(claude_inventory(&home)),
         "CODEX" => Some(codex_inventory(&home)),
-        _ => None,
+        other => GENERIC_CLI_SPECS
+            .iter()
+            .find(|spec| spec.cli == other)
+            .and_then(|spec| generic_cli_inventory(&home, spec)),
     }
+}
+
+fn generic_cli_inventory(home: &Path, spec: &GenericCliSpec) -> Option<CliInventory> {
+    let has_root = home.join(spec.root_dir).exists()
+        || home.join(spec.config_file).is_file()
+        || spec.skill_dirs.iter().any(|dir| home.join(dir).is_dir());
+    if !has_root {
+        return None;
+    }
+
+    let config_path = home.join(spec.config_file);
+    let config = read_json(&config_path);
+    let source_label = format!("~/{}", spec.config_file);
+    let mcp_obj = if spec.cli == "AMP" {
+        config
+            .get("amp.mcpServers")
+            .or_else(|| config.get("amp").and_then(|v| v.get("mcpServers")))
+            .and_then(Value::as_object)
+    } else {
+        config.get(spec.mcp_key).and_then(Value::as_object)
+    };
+    let mcp_servers = mcp_obj
+        .map(|servers| {
+            servers
+                .keys()
+                .map(|name| InstalledItem {
+                    name: name.clone(),
+                    description: None,
+                    source: source_label.clone(),
+                    toggleable: false,
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let mut skills = Vec::new();
+    let mut seen_skills = BTreeSet::new();
+    for rel in spec.skill_dirs {
+        let label = format!("~/{rel}");
+        for item in skill_dirs(&home.join(rel), &label, false) {
+            if seen_skills.insert(item.name.clone()) {
+                skills.push(item);
+            }
+        }
+    }
+    skills.sort_by(|a, b| a.name.cmp(&b.name));
+
+    Some(CliInventory {
+        cli: spec.cli.into(),
+        skills,
+        mcp_servers,
+        plugins: Vec::new(),
+        subagents: Vec::new(),
+        hooks: Vec::new(),
+        supports: CliSupports::default(),
+    })
 }
 
 fn claude_inventory(home: &Path) -> CliInventory {
@@ -254,9 +393,17 @@ fn codex_inventory(home: &Path) -> CliInventory {
         })
         .unwrap_or_default();
     let hooks = read_json(&codex_dir.join("hooks.json"));
+    let mut skills = skill_dirs(&codex_dir.join("skills"), "~/.codex/skills", false);
+    let mut seen_skills: BTreeSet<String> = skills.iter().map(|s| s.name.clone()).collect();
+    for item in skill_dirs(&home.join(".agents/skills"), "~/.agents/skills", false) {
+        if seen_skills.insert(item.name.clone()) {
+            skills.push(item);
+        }
+    }
+    skills.sort_by(|a, b| a.name.cmp(&b.name));
     CliInventory {
         cli: "CODEX".into(),
-        skills: skill_dirs(&codex_dir.join("skills"), "~/.codex/skills", false),
+        skills,
         mcp_servers,
         plugins: Vec::new(),
         subagents: Vec::new(),
@@ -576,6 +723,28 @@ pub fn codex_config_overrides(prefs: &CliExtensionPrefs) -> Vec<(String, Value)>
         .iter()
         .filter(|name| name.as_str() != "hivedeck")
         .map(|name| (format!("mcp_servers.{name}.enabled"), Value::Bool(false)))
+        .collect()
+}
+
+/// Remove slash commands for skills/plugins the owner switched off in `ExtensionPrefs`.
+pub fn filter_slash_commands(
+    cli: &str,
+    commands: Vec<crate::executors::SlashCommandDescription>,
+) -> Vec<crate::executors::SlashCommandDescription> {
+    let prefs = ExtensionPrefs::load().for_cli(cli);
+    commands
+        .into_iter()
+        .filter(|cmd| {
+            if prefs.skills.get(&cmd.name) == Some(&SkillMode::Off) {
+                return false;
+            }
+            if let Some((prefix, _)) = cmd.name.split_once(':')
+                && prefs.disabled_plugins.contains(prefix)
+            {
+                return false;
+            }
+            true
+        })
         .collect()
 }
 

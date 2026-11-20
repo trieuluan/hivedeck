@@ -453,10 +453,30 @@ pub async fn run_setup_script(
     Ok(ResponseJson(ApiResponse::success(execution_process)))
 }
 
+pub async fn get_session_context_breakdown(
+    Extension(session): Extension<Session>,
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<Option<executors::logs::ContextBreakdown>>>, ApiError> {
+    if let Some(breakdown) = deployment.llm_inspector().get_session_telemetry(session.id) {
+        return Ok(ResponseJson(ApiResponse::success(Some(breakdown))));
+    }
+    let persisted = Session::get_context_breakdown(&deployment.db().pool, session.id).await?;
+    let breakdown = persisted
+        .as_deref()
+        .and_then(|json| serde_json::from_str::<executors::logs::ContextBreakdown>(json).ok());
+    if let Some(ref data) = breakdown {
+        deployment
+            .llm_inspector()
+            .seed_session_telemetry(session.id, data.clone());
+    }
+    Ok(ResponseJson(ApiResponse::success(breakdown)))
+}
+
 pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
     let session_id_router = Router::new()
         .route("/", get(get_session).put(update_session))
         .route("/executions", get(get_session_executions))
+        .route("/context-breakdown", get(get_session_context_breakdown))
         .route("/follow-up", post(follow_up))
         .route("/reset", post(reset_process))
         .route("/setup", post(run_setup_script))

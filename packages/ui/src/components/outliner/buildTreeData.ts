@@ -90,12 +90,9 @@ export function buildTreeData(input: BuildTreeDataInput): SidebarTreeNode[] {
     input.unassignedActive.length > 0 ||
     input.unassignedArchived.length > 0
   ) {
-    // Owner decision 2026-08-07: the orphan-workspaces pseudo-project is
-    // labelled "Orchestrator", tinted with the brand orange
-    // (`--brand: 25 82% 54%`), and pinned to the TOP of the list (above
-    // all real projects). The internal id stays `UNASSIGNED_PROJECT_ID`
-    // so open-state persistence and drag-disable logic are unchanged.
-    projectNodes.unshift(buildUnassignedNode(input, t));
+    // Keep standalone/unassigned workspaces below real projects so projects
+    // stay prominent at the top of the sidebar.
+    projectNodes.push(buildUnassignedNode(input, t));
   }
   return projectNodes;
 }

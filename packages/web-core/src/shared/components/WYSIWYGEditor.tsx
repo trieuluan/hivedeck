@@ -42,9 +42,13 @@ import {
 import { TypeaheadOpenProvider } from '@vibe/ui/components/TypeaheadOpenContext';
 import {
   FileTagTypeaheadPlugin,
+  type PluginMentionLike,
   type RepoLike,
   type SearchResultItemLike,
+  type SkillMentionLike,
 } from '@vibe/ui/components/FileTagTypeaheadPlugin';
+import { useQuery } from '@tanstack/react-query';
+import { pluginsApi } from '@/shared/dialogs/settings/settings/plugins/pluginsApi';
 import { SlashCommandTypeaheadPlugin } from '@vibe/ui/components/SlashCommandTypeaheadPlugin';
 import { KeyboardCommandsPlugin } from '@vibe/ui/components/KeyboardCommandsPlugin';
 import { ImageKeyboardPlugin } from '@vibe/ui/components/ImageKeyboardPlugin';
@@ -139,6 +143,8 @@ type WysiwygProps = {
   staticToolbarActions?: ReactNode;
   /** Called when a toolbar button is clicked in preview mode to request edit */
   onRequestEdit?: () => void;
+  /** Role scope used to filter @ plugin/skill mentions ('captain' or 'crew') */
+  pluginRole?: 'captain' | 'crew';
 };
 
 /** Ref interface for WYSIWYGEditor, exposing imperative methods */
@@ -266,6 +272,7 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WysiwygProps>(
       workspaceId,
       sessionId,
       repoId,
+      pluginRole,
       localAttachments,
       onEdit,
       onDelete,
@@ -358,6 +365,52 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WysiwygProps>(
       },
       []
     );
+
+    const { data: installedPlugins } = useQuery({
+      queryKey: ['plugins', 'list'],
+      queryFn: pluginsApi.list,
+      enabled: !disabled,
+      staleTime: 60_000,
+    });
+
+    const { pluginMentions, skillMentions } = useMemo(() => {
+      const pList: PluginMentionLike[] = [];
+      const sList: SkillMentionLike[] = [];
+      const matchesRole = (roles: string[]) =>
+        !pluginRole || roles.includes(pluginRole);
+      for (const plugin of installedPlugins ?? []) {
+        if (!plugin.enabled) continue;
+        const enabledSkills = plugin.skills.filter(
+          (s) => s.enabled && matchesRole(s.roles)
+        );
+        const enabledMcps = plugin.mcp.filter(
+          (m) => m.enabled && matchesRole(m.roles)
+        );
+        if (enabledSkills.length === 0 && enabledMcps.length === 0) continue;
+        const roleSet = new Set<string>();
+        for (const s of enabledSkills) {
+          for (const r of s.roles) roleSet.add(r);
+          sList.push({
+            id: `${plugin.name}:${s.name}`,
+            name: s.name,
+            plugin_name: plugin.name,
+            description: plugin.skill_descriptions?.[s.name] ?? null,
+          });
+        }
+        for (const m of enabledMcps) {
+          for (const r of m.roles) roleSet.add(r);
+        }
+        pList.push({
+          name: plugin.name,
+          display_name: plugin.name,
+          description: null,
+          skills_count: enabledSkills.length,
+          mcp_count: enabledMcps.length,
+          roles: Array.from(roleSet),
+        });
+      }
+      return { pluginMentions: pList, skillMentions: sList };
+    }, [installedPlugins, pluginRole]);
     const handleCopy = useCallback(async () => {
       if (!value) return;
       try {
@@ -572,6 +625,8 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WysiwygProps>(
                         chooseRepo={chooseRepo}
                         onCreateTag={handleCreateTag}
                         searchTagsAndFiles={searchFileTags}
+                        plugins={pluginMentions}
+                        skills={skillMentions}
                       />
                       {executor && (
                         <SlashCommandTypeaheadPlugin

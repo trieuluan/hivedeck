@@ -738,7 +738,10 @@ impl StandardCodingAgentExecutor for Opencode {
                         .filter(|cmd| seen.insert(cmd.name.clone()))
                         .chain(defaults)
                         .collect();
-                    final_options.slash_commands = reorder_slash_commands(discovered);
+                    final_options.slash_commands = crate::extensions::filter_slash_commands(
+                        "OPENCODE",
+                        reorder_slash_commands(discovered),
+                    );
                     yield patch::update_slash_commands(final_options.slash_commands.clone());
                     yield patch::slash_commands_loaded();
                 }

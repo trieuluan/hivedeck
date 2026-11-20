@@ -217,10 +217,7 @@ async fn update_agent_extensions(
     if !executors::extensions::SUPPORTED_CLIS.contains(&req.cli.as_str()) {
         return Ok(ResponseJson(ApiResponse::error("Unsupported CLI")));
     }
-    let mut saved = executors::extensions::ExtensionPrefs::load();
-    saved.clis.insert(req.cli.clone(), req.prefs.clone());
-    saved
-        .save()
+    executors::extensions::ExtensionPrefs::set_cli(&req.cli, req.prefs.clone())
         .map_err(|e| ApiError::BadRequest(format!("could not save: {e}")))?;
     Ok(ResponseJson(ApiResponse::success(req.prefs)))
 }

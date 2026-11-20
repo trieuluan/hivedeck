@@ -83,6 +83,10 @@ pub(super) fn normalize_logs(
                 OpencodeExecutorEvent::TokenUsage {
                     total_tokens,
                     model_context_window,
+                    input_tokens,
+                    output_tokens,
+                    cache_read_tokens,
+                    cache_creation_tokens,
                 } => {
                     add_normalized_entry(
                         &msg_store,
@@ -92,6 +96,10 @@ pub(super) fn normalize_logs(
                             entry_type: NormalizedEntryType::TokenUsageInfo(TokenUsageInfo {
                                 total_tokens,
                                 model_context_window,
+                                input_tokens,
+                                output_tokens,
+                                cache_read_tokens,
+                                cache_creation_tokens,
                             }),
                             content: format!(
                                 "Tokens used: {} / Context window: {}",

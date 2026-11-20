@@ -31,8 +31,8 @@
         "pluginsDesc": "Cài MCP + skill một lần cho mọi CLI",
         "mcp": "MCP server",
         "mcpDesc": "Server Model Context Protocol",
-        "extensions": "Skills & MCP",
-        "extensionsDesc": "Những gì mỗi CLI nạp khi chạy ngầm",
+        "extensions": "Kiểm soát CLI",
+        "extensionsDesc": "Kiểm soát token, ngân sách, skill & MCP của từng CLI",
         "telegram": "Telegram",
         "telegramDesc": "Chuyển yêu cầu của agent tới Telegram"
       }
@@ -910,6 +910,8 @@
       "loading": "Đang đọc những gì CLI đã cài…",
       "loadError": "Không đọc được danh sách skill và MCP server đã cài.",
       "cliLabel": "CLI",
+      "allClis": "Tất cả CLI",
+      "allClisIntro": "Gộp các skill & MCP trùng tên giữa nhiều CLI để bật/tắt hàng loạt, hoặc chọn từng tab CLI để chỉnh riêng.",
       "intro": "Chỉ áp dụng cho các lượt chạy ngầm của HiveDeck (agent của card và thuyền trưởng). Cấu hình riêng của CLI không bị sửa, nên khi bạn tự mở CLI vẫn có đủ mọi thứ.",
       "readOnly": "Chỉ để xem; HiveDeck chưa tắt được các mục này cho CLI này.",
       "readOnlyTag": "Chỉ xem",
@@ -932,9 +934,13 @@
         "bundledHint": "Các skill đi kèm bản thân CLI. Skill bạn tự cài bên dưới không bị ảnh hưởng."
       },
       "skills": {
-        "title": "Skill",
+        "title": "Skills cài ngoài CLI",
         "description": "\"Chỉ tên\" vẫn cho dùng skill nhưng bỏ phần mô tả khỏi mỗi prompt.",
         "empty": "Chưa cài skill nào.",
+        "searchPlaceholder": "Tìm skill...",
+        "filterAll": "Tất cả",
+        "bulkOff": "Tắt {{count}} kết quả",
+        "bulkOn": "Bật {{count}} kết quả",
         "mode": {
           "on": "Bật",
           "name_only": "Chỉ tên",

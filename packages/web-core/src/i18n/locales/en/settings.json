@@ -31,8 +31,8 @@
         "pluginsDesc": "Install MCP + skills once for every CLI",
         "mcp": "MCP Servers",
         "mcpDesc": "Model Context Protocol servers",
-        "extensions": "Skills & MCP",
-        "extensionsDesc": "What each CLI loads in background runs",
+        "extensions": "CLI Controls",
+        "extensionsDesc": "Token, budget, skill & MCP overrides per CLI",
         "telegram": "Telegram",
         "telegramDesc": "Agent escalations to Telegram"
       }
@@ -910,6 +910,8 @@
       "loading": "Loading what your CLIs have installed…",
       "loadError": "Could not read the installed skills and MCP servers.",
       "cliLabel": "CLI",
+      "allClis": "All CLIs",
+      "allClisIntro": "Group matching skills & MCP servers across CLIs to toggle them together, or pick a specific CLI tab for per-CLI settings.",
       "intro": "Applies only to HiveDeck's background runs (card agents and the captain). Your CLI's own config is not changed, so interactive sessions keep everything.",
       "readOnly": "Shown for reference; HiveDeck cannot switch these off for this CLI yet.",
       "readOnlyTag": "View only",
@@ -932,9 +934,13 @@
         "bundledHint": "The skills that ship with the CLI itself. Your own skills below aren't affected."
       },
       "skills": {
-        "title": "Skills",
+        "title": "External CLI skills",
         "description": "\"Name only\" keeps a skill usable but drops its description from every prompt.",
         "empty": "No skills installed.",
+        "searchPlaceholder": "Search skills...",
+        "filterAll": "All",
+        "bulkOff": "Turn off {{count}} results",
+        "bulkOn": "Turn on {{count}} results",
         "mode": {
           "on": "On",
           "name_only": "Name only",

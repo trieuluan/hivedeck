@@ -783,9 +783,9 @@ export function SessionChatBox<TExecutor extends string = string>({
                     <button
                       type="button"
                       onClick={onOpenWorkspace}
-                      className="flex min-w-0 items-center gap-1 rounded-sm text-xs text-low hover:text-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                      className="inline-flex min-w-0 items-center gap-1 rounded border border-border/70 bg-secondary/80 px-2 py-0.5 text-2xs font-medium text-normal transition-colors hover:bg-panel hover:text-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                     >
-                      <ArrowsOutIcon className="size-icon-xs shrink-0" />
+                      <ArrowsOutIcon className="size-icon-xs shrink-0 text-brand" />
                       <span className="truncate">
                         {t('common:ui.openWorkspace')}
                       </span>
@@ -868,7 +868,11 @@ export function SessionChatBox<TExecutor extends string = string>({
           {/* Todo progress popup - always rendered, disabled when no todos */}
           <TodoProgressPopup todos={todos ?? []} />
           {supportsContextUsage && (
-            <ContextUsageGauge tokenUsageInfo={tokenUsageInfo} />
+            <ContextUsageGauge
+              tokenUsageInfo={tokenUsageInfo}
+              sessionId={selectedSessionId}
+              onCompact={() => editor.onChange('/compact')}
+            />
           )}
           <ToolbarDropdown
             label={sessionLabel}

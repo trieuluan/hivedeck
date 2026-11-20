@@ -668,8 +668,9 @@ impl StandardCodingAgentExecutor for ClaudeCode {
                     yield patch::agents_loaded();
 
                     let defaults = Self::hardcoded_slash_commands();
-                    let slash_commands = reorder_slash_commands(
-                        [slash_commands_initial, defaults].concat()
+                    let slash_commands = crate::extensions::filter_slash_commands(
+                        "CLAUDE_CODE",
+                        reorder_slash_commands([slash_commands_initial, defaults].concat()),
                     );
                     final_options.slash_commands = slash_commands.clone();
                     yield patch::update_slash_commands(slash_commands);
@@ -1066,6 +1067,10 @@ impl ClaudeCode {
             mcp_config.as_deref(),
             &model_overrides,
         ));
+        args.extend(crate::plugins::claude_tool_policy_args(
+            &workspace_utils::assets::asset_dir(),
+            &env.mcp_servers,
+        ));
         for dir in &env.skill_dirs {
             args.push(format!("--add-dir={}", dir.display()));
         }
@@ -1182,6 +1187,10 @@ pub struct ClaudeLogProcessor {
     main_model_name: Option<String>,
     main_model_context_window: u32,
     context_tokens_used: u32,
+    session_input_tokens: u32,
+    session_output_tokens: u32,
+    session_cache_read_tokens: u32,
+    session_cache_creation_tokens: u32,
 }
 
 impl ClaudeLogProcessor {
@@ -1214,6 +1223,10 @@ impl ClaudeLogProcessor {
             last_assistant_message: None,
             main_model_context_window: DEFAULT_CLAUDE_CONTEXT_WINDOW,
             context_tokens_used: 0,
+            session_input_tokens: 0,
+            session_output_tokens: 0,
+            session_cache_read_tokens: 0,
+            session_cache_creation_tokens: 0,
         }
     }
 
@@ -2266,12 +2279,24 @@ impl ClaudeLogProcessor {
                     if parent_tool_use_id.is_none()
                         && let Some(usage) = usage
                     {
-                        let input_tokens = usage.input_tokens.unwrap_or(0)
-                            + usage.cache_creation_input_tokens.unwrap_or(0)
-                            + usage.cache_read_input_tokens.unwrap_or(0);
+                        let raw_input = usage.input_tokens.unwrap_or(0);
+                        let cache_creation = usage.cache_creation_input_tokens.unwrap_or(0);
+                        let cache_read = usage.cache_read_input_tokens.unwrap_or(0);
+                        let input_tokens = raw_input + cache_creation + cache_read;
                         let output_tokens = usage.output_tokens.unwrap_or(0);
                         let total_tokens = input_tokens + output_tokens;
                         self.context_tokens_used = total_tokens as u32;
+                        self.session_input_tokens =
+                            self.session_input_tokens.saturating_add(raw_input as u32);
+                        self.session_output_tokens = self
+                            .session_output_tokens
+                            .saturating_add(output_tokens as u32);
+                        self.session_cache_read_tokens = self
+                            .session_cache_read_tokens
+                            .saturating_add(cache_read as u32);
+                        self.session_cache_creation_tokens = self
+                            .session_cache_creation_tokens
+                            .saturating_add(cache_creation as u32);
 
                         patches.push(self.add_token_usage_entry(entry_index_provider));
                     }
@@ -2571,6 +2596,10 @@ impl ClaudeLogProcessor {
             entry_type: NormalizedEntryType::TokenUsageInfo(crate::logs::TokenUsageInfo {
                 total_tokens: self.context_tokens_used,
                 model_context_window: self.main_model_context_window,
+                input_tokens: Some(self.session_input_tokens),
+                output_tokens: Some(self.session_output_tokens),
+                cache_read_tokens: Some(self.session_cache_read_tokens),
+                cache_creation_tokens: Some(self.session_cache_creation_tokens),
             }),
             content: format!(
                 "Tokens used: {} / Context window: {}",

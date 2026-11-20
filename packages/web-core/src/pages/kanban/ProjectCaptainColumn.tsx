@@ -235,15 +235,19 @@ export function ProjectCaptainColumn({
       style={{ width }}
       aria-label={t('captain.title')}
     >
-      <header className="flex items-center gap-2 border-b border-border px-base py-half">
-        <LighthouseIcon className="size-icon-base text-brand" weight="fill" />
+      <header className="flex items-center gap-2.5 border-b border-border px-base py-2.5">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand/15 text-brand ring-1 ring-brand/25">
+          <LighthouseIcon className="size-icon-base" weight="duotone" />
+        </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-high">{t('captain.title')}</p>
-          <p className="flex items-center gap-1 text-xs text-low">
+          <p className="text-sm font-semibold text-high">
+            {t('captain.title')}
+          </p>
+          <p className="flex items-center gap-1.5 text-xs text-low">
             <span
               className={cn(
                 'size-1.5 rounded-full',
-                status?.active ? 'bg-success' : 'bg-border'
+                status?.active ? 'bg-success' : 'bg-low/50'
               )}
               aria-hidden
             />
@@ -259,7 +263,12 @@ export function ProjectCaptainColumn({
         <button
           type="button"
           onClick={openDialog}
-          className="min-h-9 rounded-lg border border-border px-3 text-xs text-normal hover:border-brand hover:bg-primary"
+          className={cn(
+            'min-h-8 rounded-lg border px-3 text-xs font-medium transition-colors',
+            status?.active
+              ? 'border-border text-normal hover:border-brand hover:bg-primary'
+              : 'border-brand/50 bg-brand/10 text-brand hover:bg-brand/20'
+          )}
         >
           {status?.active ? t('captain.manage') : t('captain.start')}
         </button>

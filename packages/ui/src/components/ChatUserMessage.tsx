@@ -47,7 +47,7 @@ export function ChatUserMessage({
     >
       <article
         aria-label={t('conversation.you')}
-        className="ship-message-human min-w-0 max-w-full rounded-2xl bg-secondary px-4 py-2.5 text-high"
+        className="ship-message-human min-w-0 max-w-full rounded-2xl border border-brand/20 bg-brand/[0.08] px-4 py-2.5 text-high shadow-xs"
       >
         <ChatMessageBody>
           {renderMarkdown({ content, workspaceId })}

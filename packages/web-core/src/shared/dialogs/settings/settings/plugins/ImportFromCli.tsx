@@ -12,19 +12,57 @@ import { cn } from '@/shared/lib/utils';
 import { errorText, type Notice } from './pluginNotice';
 import { PluginAvatar } from './PluginAvatar';
 
+type CandidateKind = 'mcp' | 'skill';
+
+type CandidateSource =
+  | 'claude_code'
+  | 'codex'
+  | 'opencode'
+  | 'gemini'
+  | 'cursor_agent'
+  | 'copilot'
+  | 'qwen_code'
+  | 'amp'
+  | 'droid';
+
 type Candidate = {
   name: string;
-  sources: ('claude_code' | 'codex')[];
+  kind: CandidateKind;
+  sources: CandidateSource[];
   exists: boolean;
+  description?: string;
 };
 
-const SOURCE_LABEL = { claude_code: 'Claude Code', codex: 'Codex' } as const;
+const SOURCE_LABEL: Record<CandidateSource, string> = {
+  claude_code: 'Claude Code',
+  codex: 'Codex',
+  opencode: 'OpenCode',
+  gemini: 'Gemini',
+  cursor_agent: 'Cursor',
+  copilot: 'Copilot',
+  qwen_code: 'Qwen',
+  amp: 'Amp',
+  droid: 'Droid',
+};
 
-const SOURCE_BADGE_CLASS = {
+const SOURCE_BADGE_CLASS: Record<CandidateSource, string> = {
   claude_code: 'border-brand/25 bg-brand/10 text-brand',
   codex:
     'border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-} as const;
+  opencode: 'border-sky-500/25 bg-sky-500/10 text-sky-600 dark:text-sky-400',
+  gemini: 'border-blue-500/25 bg-blue-500/10 text-blue-600 dark:text-blue-400',
+  cursor_agent:
+    'border-purple-500/25 bg-purple-500/10 text-purple-600 dark:text-purple-400',
+  copilot:
+    'border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  qwen_code:
+    'border-indigo-500/25 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
+  amp: 'border-rose-500/25 bg-rose-500/10 text-rose-600 dark:text-rose-400',
+  droid: 'border-teal-500/25 bg-teal-500/10 text-teal-600 dark:text-teal-400',
+};
+
+const candidateKey = (c: Pick<Candidate, 'kind' | 'name'>) =>
+  `${c.kind}:${c.name}`;
 
 const request = async <T,>(path: string, init?: RequestInit): Promise<T> =>
   handleApiResponse<T>(await fetch(`/api/mcp-registry/${path}`, init));
@@ -54,6 +92,10 @@ export function ImportFromCli({
   const [busy, setBusy] = useState(false);
 
   const free = candidates?.filter((candidate) => !candidate.exists) ?? [];
+  const mcpCandidates =
+    candidates?.filter((candidate) => candidate.kind !== 'skill') ?? [];
+  const skillCandidates =
+    candidates?.filter((candidate) => candidate.kind === 'skill') ?? [];
   const none = t('settings.plugins.none');
 
   const load = async () => {
@@ -80,12 +122,19 @@ export function ImportFromCli({
   const doImport = async () => {
     setBusy(true);
     try {
+      const items = selected.map((key) => {
+        const idx = key.indexOf(':');
+        return {
+          kind: key.slice(0, idx) as CandidateKind,
+          name: key.slice(idx + 1),
+        };
+      });
       const result = await request<{ imported: string[]; skipped: string[] }>(
         'import',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ names: selected }),
+          body: JSON.stringify({ items }),
         }
       );
       setCandidates(null);
@@ -142,7 +191,7 @@ export function ImportFromCli({
               </span>
               {candidates && candidates.length > 0 && (
                 <span className="rounded bg-secondary px-1.5 py-0.5 text-2xs font-medium text-low">
-                  {candidates.length} server
+                  {mcpCandidates.length} MCP · {skillCandidates.length} skill
                 </span>
               )}
             </div>
@@ -152,13 +201,15 @@ export function ImportFromCli({
                   type="button"
                   onClick={() => {
                     const allSelected = free.every((c) =>
-                      selected.includes(c.name)
+                      selected.includes(candidateKey(c))
                     );
-                    setSelected(allSelected ? [] : free.map((c) => c.name));
+                    setSelected(
+                      allSelected ? [] : free.map((c) => candidateKey(c))
+                    );
                   }}
                   className="rounded-sm border border-border bg-panel px-2.5 py-1 text-xs font-medium text-normal transition-colors hover:bg-secondary hover:text-high"
                 >
-                  {free.every((c) => selected.includes(c.name))
+                  {free.every((c) => selected.includes(candidateKey(c)))
                     ? 'Bỏ chọn tất cả'
                     : t('settings.plugins.import.all')}
                 </button>
@@ -187,74 +238,105 @@ export function ImportFromCli({
           )}
           {candidates && candidates.length > 0 && (
             <>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {candidates.map((candidate) => {
-                  const isSelected = selected.includes(candidate.name);
-                  return (
-                    <button
-                      key={candidate.name}
-                      type="button"
-                      disabled={candidate.exists || busy}
-                      onClick={() =>
-                        setSelected(
-                          isSelected
-                            ? selected.filter((name) => name !== candidate.name)
-                            : [...selected, candidate.name]
-                        )
-                      }
-                      className={cn(
-                        'flex items-center justify-between gap-3 rounded-md border p-2.5 text-left transition-colors',
-                        candidate.exists
-                          ? 'cursor-not-allowed border-border/60 bg-secondary/10 opacity-60'
-                          : isSelected
-                            ? 'border-brand/70 bg-brand/[0.08]'
-                            : 'border-border bg-panel/60 hover:bg-secondary/40'
-                      )}
-                    >
-                      <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                        <PluginAvatar name={candidate.name} size="sm" />
-                        <div className="min-w-0 flex-1 space-y-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="truncate text-xs font-semibold text-high">
-                              {candidate.name}
-                            </span>
-                            {candidate.exists && (
-                              <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-2xs text-low">
-                                {t('settings.plugins.import.exists')}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap gap-1">
-                            {candidate.sources.map((source) => (
+              <div className="space-y-4">
+                {[
+                  {
+                    id: 'mcp',
+                    title: `MCP Servers (${mcpCandidates.length})`,
+                    items: mcpCandidates,
+                  },
+                  {
+                    id: 'skill',
+                    title: `Skills lẻ trên máy (${skillCandidates.length})`,
+                    items: skillCandidates,
+                  },
+                ]
+                  .filter((group) => group.items.length > 0)
+                  .map((group) => (
+                    <div key={group.id} className="space-y-2">
+                      <div className="text-2xs font-semibold uppercase tracking-wide text-low">
+                        {group.title}
+                      </div>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {group.items.map((candidate) => {
+                          const key = candidateKey(candidate);
+                          const isSelected = selected.includes(key);
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              disabled={candidate.exists || busy}
+                              onClick={() =>
+                                setSelected(
+                                  isSelected
+                                    ? selected.filter((item) => item !== key)
+                                    : [...selected, key]
+                                )
+                              }
+                              className={cn(
+                                'flex items-center justify-between gap-3 rounded-md border p-2.5 text-left transition-colors',
+                                candidate.exists
+                                  ? 'cursor-not-allowed border-border/60 bg-secondary/10 opacity-60'
+                                  : isSelected
+                                    ? 'border-brand/70 bg-brand/[0.08]'
+                                    : 'border-border bg-panel/60 hover:bg-secondary/40'
+                              )}
+                            >
+                              <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                                <PluginAvatar name={candidate.name} size="sm" />
+                                <div className="min-w-0 flex-1 space-y-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="truncate text-xs font-semibold text-high">
+                                      {candidate.name}
+                                    </span>
+                                    {candidate.exists && (
+                                      <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-2xs text-low">
+                                        {t('settings.plugins.import.exists')}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {candidate.description && (
+                                    <p className="line-clamp-1 text-2xs text-low">
+                                      {candidate.description}
+                                    </p>
+                                  )}
+                                  <div className="flex flex-wrap gap-1">
+                                    {candidate.sources.map((source) => (
+                                      <span
+                                        key={source}
+                                        className={cn(
+                                          'inline-flex items-center rounded border px-1.5 py-0.5 text-2xs font-medium',
+                                          SOURCE_BADGE_CLASS[source]
+                                        )}
+                                      >
+                                        {SOURCE_LABEL[source]}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
                               <span
-                                key={source}
+                                aria-hidden="true"
                                 className={cn(
-                                  'inline-flex items-center rounded border px-1.5 py-0.5 text-2xs font-medium',
-                                  SOURCE_BADGE_CLASS[source]
+                                  'flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors',
+                                  isSelected
+                                    ? 'border-brand bg-brand text-white'
+                                    : 'border-border bg-secondary/60'
                                 )}
                               >
-                                {SOURCE_LABEL[source]}
+                                {isSelected && (
+                                  <CheckIcon
+                                    className="h-3 w-3"
+                                    weight="bold"
+                                  />
+                                )}
                               </span>
-                            ))}
-                          </div>
-                        </div>
+                            </button>
+                          );
+                        })}
                       </div>
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          'flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors',
-                          isSelected
-                            ? 'border-brand bg-brand text-white'
-                            : 'border-border bg-secondary/60'
-                        )}
-                      >
-                        {isSelected && (
-                          <CheckIcon className="h-3 w-3" weight="bold" />
-                        )}
-                      </span>
-                    </button>
-                  );
-                })}
+                    </div>
+                  ))}
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-3">

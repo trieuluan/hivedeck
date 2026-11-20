@@ -2,22 +2,32 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowSquareOutIcon,
+  CaretDownIcon,
   CheckCircleIcon,
   CheckIcon,
   CodeIcon,
   CopyIcon,
+  DatabaseIcon,
   LinkBreakIcon,
   LinkIcon,
+  MagnifyingGlassIcon,
+  SpinnerIcon,
+  TerminalWindowIcon,
   UsersIcon,
   UserSwitchIcon,
   WarningIcon,
 } from '@phosphor-icons/react';
 import type {
+  McpToolPolicy,
   PluginMcpEntry,
+  PluginMcpToolInfo,
   PluginSkillEntry,
   PluginView,
 } from 'shared/types';
 import { Switch } from '@vibe/ui/components/Switch';
+import { cn } from '@/shared/lib/utils';
+import { useProjects } from '@/shared/hooks/useProjects';
+import { SettingsCheckbox } from '../SettingsComponents';
 import { pluginsApi, type ScopePatch } from './pluginsApi';
 import { CompatBadge, mcpCompat } from './pluginCompat';
 import { PluginScopeEditor } from './PluginScopeEditor';
@@ -42,6 +52,217 @@ const SUPPORTED_OAUTH_CLIS = [
   'Qwen',
 ];
 
+const TOOLS_PAGE_SIZE = 8;
+
+type ToolFilter = 'all' | 'allow' | 'ask' | 'block';
+
+const POLICY_OPTIONS: {
+  value: McpToolPolicy;
+  label: string;
+  className: string;
+}[] = [
+  {
+    value: 'default',
+    label: 'Mặc định',
+    className: 'border-border bg-secondary/70 text-normal',
+  },
+  {
+    value: 'allow',
+    label: 'Luôn cho phép',
+    className:
+      'border-emerald-500/40 bg-emerald-500/15 text-emerald-500 dark:text-emerald-400',
+  },
+  {
+    value: 'ask',
+    label: 'Hỏi',
+    className:
+      'border-amber-500/40 bg-amber-500/15 text-amber-500 dark:text-amber-400',
+  },
+  {
+    value: 'block',
+    label: 'Chặn',
+    className: 'border-error/40 bg-error/15 text-error',
+  },
+];
+
+function McpToolsGrid({
+  tools,
+  policies,
+  disabled,
+  onPolicyChange,
+}: {
+  tools: PluginMcpToolInfo[];
+  policies: Record<string, McpToolPolicy | undefined>;
+  disabled: boolean;
+  onPolicyChange: (toolName: string, policy: McpToolPolicy) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<ToolFilter>('all');
+  const [page, setPage] = useState(1);
+
+  const q = query.trim().toLowerCase();
+  const filtered = tools.filter((tool) => {
+    const policy = policies[tool.name] ?? 'default';
+    if (filter !== 'all' && policy !== filter) return false;
+    if (!q) return true;
+    return (
+      tool.name.toLowerCase().includes(q) ||
+      (tool.description?.toLowerCase().includes(q) ?? false)
+    );
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / TOOLS_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * TOOLS_PAGE_SIZE;
+  const paged = filtered.slice(start, start + TOOLS_PAGE_SIZE);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="relative min-w-[180px] flex-1">
+          <MagnifyingGlassIcon
+            className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-low"
+            aria-hidden
+          />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Tìm công cụ MCP..."
+            className="w-full rounded-md border border-border bg-secondary/50 py-1.5 pl-8 pr-3 text-xs text-normal placeholder:text-low focus:outline-none focus:ring-2 focus:ring-brand/40"
+          />
+        </div>
+        <div className="inline-flex rounded-md border border-border bg-secondary p-0.5">
+          {(
+            [
+              { id: 'all', label: 'Tất cả' },
+              { id: 'allow', label: 'Luôn cho phép' },
+              { id: 'ask', label: 'Hỏi' },
+              { id: 'block', label: 'Chặn' },
+            ] as { id: ToolFilter; label: string }[]
+          ).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                setFilter(item.id);
+                setPage(1);
+              }}
+              className={cn(
+                'rounded-sm px-2.5 py-1 text-xs transition-colors',
+                filter === item.id
+                  ? 'bg-brand font-medium text-white shadow-sm'
+                  : 'text-low hover:text-normal'
+              )}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <span className="text-2xs text-low">
+          Hỗ trợ phân quyền từng tool trên Claude Code
+        </span>
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="py-2 text-xs text-low">Không tìm thấy công cụ phù hợp.</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {paged.map((tool) => {
+              const policy: McpToolPolicy = policies[tool.name] ?? 'default';
+              const meta =
+                POLICY_OPTIONS.find((o) => o.value === policy) ??
+                POLICY_OPTIONS[0]!;
+              return (
+                <div
+                  key={tool.name}
+                  className="flex flex-col justify-between gap-1.5 rounded-md border border-border/80 bg-panel/70 p-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <TerminalWindowIcon
+                        className="h-3.5 w-3.5 shrink-0 text-brand"
+                        weight="duotone"
+                        aria-hidden
+                      />
+                      <code className="truncate font-mono text-xs font-semibold text-high">
+                        {tool.name}
+                      </code>
+                    </div>
+                    <select
+                      aria-label={`Quyền cho ${tool.name}`}
+                      disabled={disabled}
+                      value={policy}
+                      onChange={(e) =>
+                        onPolicyChange(
+                          tool.name,
+                          e.target.value as McpToolPolicy
+                        )
+                      }
+                      className={cn(
+                        'shrink-0 cursor-pointer rounded border px-2 py-0.5 text-2xs font-medium focus:outline-none focus:ring-2 focus:ring-brand/40 disabled:opacity-50',
+                        meta.className
+                      )}
+                    >
+                      {POLICY_OPTIONS.map((opt) => (
+                        <option
+                          key={opt.value}
+                          value={opt.value}
+                          className="bg-panel text-high"
+                        >
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {tool.description && (
+                    <p className="line-clamp-2 text-2xs leading-relaxed text-low">
+                      {tool.description}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between gap-2 pt-1 text-xs text-low">
+              <span>
+                {start + 1}–{Math.min(start + TOOLS_PAGE_SIZE, filtered.length)}{' '}
+                / {filtered.length}
+              </span>
+              <div className="inline-flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={safePage <= 1}
+                  onClick={() => setPage(safePage - 1)}
+                  className="rounded border border-border bg-panel px-2 py-1 text-xs text-normal transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ‹ Trước
+                </button>
+                <span className="px-2 text-2xs font-medium text-high">
+                  {safePage} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage(safePage + 1)}
+                  className="rounded border border-border bg-panel px-2 py-1 text-xs text-normal transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Sau ›
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 const ROLES = [
   { id: 'captain', label: 'Thuyền trưởng' },
   { id: 'crew', label: 'Crew' },
@@ -57,9 +278,46 @@ export function PluginDetail({
   notify: (notice: Notice) => void;
 }) {
   const { t } = useTranslation('settings');
+  const { data: boards } = useProjects();
   const [busy, setBusy] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [mcpSectionOpen, setMcpSectionOpen] = useState(true);
+  const [skillsSectionOpen, setSkillsSectionOpen] = useState(true);
+  const [openScopeSkill, setOpenScopeSkill] = useState<string | null>(null);
+  const [openToolsMcps, setOpenToolsMcps] = useState<Record<string, boolean>>(
+    {}
+  );
+  const [mcpToolsCache, setMcpToolsCache] = useState<
+    Record<string, PluginMcpToolInfo[]>
+  >({});
+  const [mcpToolsLoading, setMcpToolsLoading] = useState<
+    Record<string, boolean>
+  >({});
+  const [mcpToolsError, setMcpToolsError] = useState<Record<string, string>>(
+    {}
+  );
+
+  const toggleMcpTools = async (mcpName: string) => {
+    const nextOpen = !openToolsMcps[mcpName];
+    setOpenToolsMcps((prev) => ({ ...prev, [mcpName]: nextOpen }));
+    if (!nextOpen || mcpToolsCache[mcpName] || mcpToolsLoading[mcpName]) return;
+
+    setMcpToolsLoading((prev) => ({ ...prev, [mcpName]: true }));
+    setMcpToolsError((prev) => {
+      const rest = { ...prev };
+      delete rest[mcpName];
+      return rest;
+    });
+    try {
+      const tools = await pluginsApi.listMcpTools(plugin.name, mcpName);
+      setMcpToolsCache((prev) => ({ ...prev, [mcpName]: tools }));
+    } catch (reason) {
+      setMcpToolsError((prev) => ({ ...prev, [mcpName]: errorText(reason) }));
+    } finally {
+      setMcpToolsLoading((prev) => ({ ...prev, [mcpName]: false }));
+    }
+  };
   const status = (mcp: string, name: string) =>
     plugin.secret_status.find((s) => s.mcp === mcp && s.name === name)
       ?.has_value ?? false;
@@ -87,10 +345,18 @@ export function PluginDetail({
       : null;
 
   const mcpRow = (entry: PluginMcpEntry, isSingleMcp = false) => {
-    const refs = plugin.secret_status.filter((s) => s.mcp === entry.name);
-    const oauthState = entry.oauth ? oauthStatusFor(entry.name) : undefined;
+    const refs = plugin.secret_status.filter(
+      (s) => s.mcp === entry.name && !s.name.startsWith('literal_')
+    );
+    const isHttpMcp = entry.transport === 'http' && Boolean(entry.url);
+    const canOAuth = entry.oauth || isHttpMcp;
+    const oauthState = canOAuth ? oauthStatusFor(entry.name) : undefined;
     const isOAuthConnected = Boolean(oauthState?.connected);
-    const compat = isOAuthConnected ? 'ok' : mcpCompat(entry);
+    const hasMissingSecrets = refs.some((r) => !r.has_value);
+    const compat =
+      isOAuthConnected || (!hasMissingSecrets && refs.length === 0)
+        ? 'ok'
+        : mcpCompat(entry);
     const endpointText =
       entry.transport === 'http'
         ? (entry.url ?? '')
@@ -125,7 +391,7 @@ export function PluginDetail({
                 )
               }
             />
-            {!entry.oauth && <CompatBadge compat={compat} />}
+            {!canOAuth && <CompatBadge compat={compat} />}
           </div>
         )}
 
@@ -162,7 +428,7 @@ export function PluginDetail({
           </div>
         </div>
 
-        {entry.oauth && (
+        {canOAuth && (
           <div className="space-y-3">
             {isOAuthConnected ? (
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-success/30 bg-success/10 px-3 py-2 text-xs text-success">
@@ -176,7 +442,7 @@ export function PluginDetail({
                   {oauthState?.has_refresh_token ? ' + Auto-Refresh' : ''})
                 </span>
               </div>
-            ) : (
+            ) : entry.oauth ? (
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-brand/30 bg-brand/10 px-3 py-2 text-xs">
                 <span className="inline-flex items-center gap-1.5 font-medium text-brand">
                   <WarningIcon
@@ -211,6 +477,43 @@ export function PluginDetail({
                   className={oauthCtaButton}
                 >
                   Đăng nhập OAuth
+                  <ArrowSquareOutIcon
+                    className="h-3.5 w-3.5"
+                    weight="bold"
+                    aria-hidden
+                  />
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-border bg-secondary/40 px-3 py-2 text-xs">
+                <span className="text-low">
+                  Endpoint HTTP (tuỳ chọn kết nối OAuth nếu server yêu cầu)
+                </span>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setBusy(true);
+                    void launchMcpOAuthFlow({
+                      pluginName: plugin.name,
+                      mcpName: entry.name,
+                      onComplete: async () => {
+                        await onChanged();
+                        setBusy(false);
+                        notify({
+                          kind: 'ok',
+                          text: `Đã kết nối OAuth thành công cho ${entry.name}.`,
+                        });
+                      },
+                      onError: (reason) => {
+                        setBusy(false);
+                        notify({ kind: 'error', text: errorText(reason) });
+                      },
+                    });
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-panel px-2.5 py-1 text-xs font-medium text-normal transition-colors hover:bg-secondary hover:text-high disabled:opacity-50"
+                >
+                  Kết nối OAuth
                   <ArrowSquareOutIcon
                     className="h-3.5 w-3.5"
                     weight="bold"
@@ -383,26 +686,232 @@ export function PluginDetail({
             </div>
           );
         })}
+
+        <div className="border-t border-border/60 pt-2.5">
+          <button
+            type="button"
+            aria-expanded={Boolean(openToolsMcps[entry.name])}
+            onClick={() => void toggleMcpTools(entry.name)}
+            className="flex w-full items-center justify-between gap-2 text-left text-xs font-medium text-normal transition-colors hover:text-high"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <CaretDownIcon
+                className={cn(
+                  'h-3.5 w-3.5 transition-transform',
+                  !openToolsMcps[entry.name] && '-rotate-90'
+                )}
+                weight="bold"
+                aria-hidden
+              />
+              <span>
+                Công cụ MCP (Tools
+                {mcpToolsCache[entry.name]
+                  ? ` · ${mcpToolsCache[entry.name]!.length}`
+                  : ''}
+                )
+              </span>
+            </span>
+            <span className="text-2xs font-normal text-low">
+              {openToolsMcps[entry.name] ? 'Thu gọn' : 'Xem danh sách'}
+            </span>
+          </button>
+
+          {openToolsMcps[entry.name] && (
+            <div className="mt-2.5">
+              {mcpToolsLoading[entry.name] && (
+                <p className="flex items-center gap-2 py-2 text-xs text-low">
+                  <SpinnerIcon
+                    className="h-3.5 w-3.5 animate-spin"
+                    aria-hidden
+                  />
+                  Đang lấy danh sách công cụ từ MCP server...
+                </p>
+              )}
+              {mcpToolsError[entry.name] && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-error/30 bg-error/10 px-2.5 py-2 text-xs text-error">
+                  <span className="min-w-0 flex-1 break-words">
+                    {mcpToolsError[entry.name]}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMcpToolsCache((prev) => {
+                        const rest = { ...prev };
+                        delete rest[entry.name];
+                        return rest;
+                      });
+                      setOpenToolsMcps((prev) => ({
+                        ...prev,
+                        [entry.name]: false,
+                      }));
+                      void toggleMcpTools(entry.name);
+                    }}
+                    className="shrink-0 rounded-sm border border-error/40 px-2 py-0.5 text-2xs font-medium hover:bg-error/15"
+                  >
+                    Thử lại
+                  </button>
+                </div>
+              )}
+              {mcpToolsCache[entry.name] &&
+                mcpToolsCache[entry.name]!.length === 0 && (
+                  <p className="text-xs text-low">
+                    MCP server không khai báo tool nào.
+                  </p>
+                )}
+              {mcpToolsCache[entry.name] &&
+                mcpToolsCache[entry.name]!.length > 0 && (
+                  <McpToolsGrid
+                    tools={mcpToolsCache[entry.name]!}
+                    policies={entry.tool_policies ?? {}}
+                    disabled={busy}
+                    onPolicyChange={(toolName, policy) => {
+                      const next = { ...(entry.tool_policies ?? {}) };
+                      if (policy === 'default') delete next[toolName];
+                      else next[toolName] = policy;
+                      void run(
+                        () =>
+                          pluginsApi.updateMcp(plugin.name, entry.name, {
+                            tool_policies: next,
+                          }),
+                        t('settings.plugins.notice.saved')
+                      );
+                    }}
+                  />
+                )}
+            </div>
+          )}
+        </div>
       </li>
     );
   };
 
-  const skillRow = (skill: PluginSkillEntry) => (
-    <li key={skill.name} className="rounded-sm border border-border p-2">
-      <PluginScopeEditor
-        id={`skill-${plugin.name}-${skill.name}`}
-        name={skill.name}
-        scope={skill}
-        disabled={busy}
-        onChange={(patch: ScopePatch) =>
-          void run(
-            () => pluginsApi.updateSkill(plugin.name, skill.name, patch),
-            t('settings.plugins.notice.saved')
-          )
-        }
-      />
-    </li>
-  );
+  const skillRow = (skill: PluginSkillEntry) => {
+    const description = plugin.skill_descriptions?.[skill.name];
+    const scopeOpen = openScopeSkill === skill.name;
+    const toggleRole = (role: string, enabled: boolean) => {
+      const next = enabled
+        ? [...new Set([...skill.roles, role])]
+        : skill.roles.filter((r) => r !== role);
+      if (next.length === 0) return;
+      void run(
+        () => pluginsApi.updateSkill(plugin.name, skill.name, { roles: next }),
+        t('settings.plugins.notice.saved')
+      );
+    };
+    const toggleBoard = (boardId: string, enabled: boolean) => {
+      const next = enabled
+        ? [...new Set([...skill.boards, boardId])]
+        : skill.boards.filter((b) => b !== boardId);
+      void run(
+        () => pluginsApi.updateSkill(plugin.name, skill.name, { boards: next }),
+        t('settings.plugins.notice.saved')
+      );
+    };
+
+    return (
+      <li
+        key={skill.name}
+        className="flex flex-col justify-between gap-2.5 rounded-md border border-border bg-secondary/20 p-3"
+      >
+        <div className="space-y-1.5">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border bg-panel text-low">
+                <CodeIcon className="h-3.5 w-3.5" weight="bold" aria-hidden />
+              </span>
+              <strong className="truncate text-xs font-semibold text-high">
+                {skill.name}
+              </strong>
+            </div>
+            <Switch
+              checked={skill.enabled}
+              disabled={busy}
+              aria-label={t('settings.plugins.detail.itemEnabled', {
+                name: skill.name,
+              })}
+              onCheckedChange={(enabled) =>
+                void run(
+                  () =>
+                    pluginsApi.updateSkill(plugin.name, skill.name, {
+                      enabled,
+                    }),
+                  t('settings.plugins.notice.saved')
+                )
+              }
+            />
+          </div>
+          {description && (
+            <p className="line-clamp-2 text-2xs leading-relaxed text-low">
+              {description}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-1.5">
+            <div className="flex flex-wrap items-center gap-1">
+              {ROLES.map((role) => {
+                const active = skill.roles.includes(role.id);
+                const isOnlyRole = active && skill.roles.length === 1;
+                return (
+                  <button
+                    key={role.id}
+                    type="button"
+                    disabled={busy || isOnlyRole}
+                    onClick={() => toggleRole(role.id, !active)}
+                    className={cn(
+                      'inline-flex items-center gap-1 rounded border px-2 py-0.5 text-2xs font-medium transition-colors disabled:opacity-60',
+                      active
+                        ? 'border-brand/50 bg-brand/15 text-brand'
+                        : 'border-border bg-panel/60 text-low hover:text-normal'
+                    )}
+                  >
+                    {role.label}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              aria-expanded={scopeOpen}
+              onClick={() => setOpenScopeSkill(scopeOpen ? null : skill.name)}
+              className="inline-flex items-center gap-1 rounded border border-border bg-panel/60 px-2 py-0.5 text-2xs text-low transition-colors hover:bg-secondary hover:text-high"
+            >
+              <span>Phạm vi</span>
+              <CaretDownIcon
+                className={cn(
+                  'h-2.5 w-2.5 transition-transform',
+                  scopeOpen && 'rotate-180'
+                )}
+                weight="bold"
+                aria-hidden
+              />
+            </button>
+          </div>
+
+          {scopeOpen && boards.length > 0 && (
+            <div className="space-y-1.5 border-t border-border/60 pt-2">
+              <span className="block text-2xs font-medium text-low">
+                {t('settings.plugins.detail.boards')}
+              </span>
+              <div className="space-y-1">
+                {boards.map((board) => (
+                  <SettingsCheckbox
+                    key={board.id}
+                    id={`skill-${plugin.name}-${skill.name}-board-${board.id}`}
+                    label={board.name}
+                    checked={skill.boards.includes(board.id)}
+                    disabled={busy}
+                    onChange={(on) => toggleBoard(board.id, on)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </li>
+    );
+  };
 
   const isSingleMcp =
     plugin.source === 'mcp-single' &&
@@ -418,56 +927,93 @@ export function PluginDetail({
   }
 
   return (
-    <div className="space-y-4 border-t border-border pt-3">
-      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-        <dt className="text-low">{t('settings.plugins.detail.source')}</dt>
-        <dd className="text-normal break-all">{plugin.source}</dd>
-        {pin ? (
-          <>
-            <dt className="text-low">{pin.label}</dt>
-            <dd className="text-normal break-all">{pin.value}</dd>
-          </>
-        ) : (
-          <>
-            <dt className="text-low">{t('settings.plugins.detail.tag')}</dt>
-            <dd className="text-normal">
-              {t('settings.plugins.detail.noPin')}
-            </dd>
-          </>
+    <div className="space-y-3.5 border-t border-border pt-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm border border-border bg-panel/60 px-3 py-2 text-xs text-low">
+        <span className="min-w-0 truncate">
+          <strong className="font-medium text-normal">
+            {t('settings.plugins.detail.source')}:
+          </strong>{' '}
+          <span className="font-mono">{plugin.source}</span>
+        </span>
+        {pin && (
+          <span className="shrink-0">
+            <strong className="font-medium text-normal">{pin.label}:</strong>{' '}
+            <span className="font-mono">{pin.value}</span>
+          </span>
         )}
-        {plugin.commit && plugin.tag && (
-          <>
-            <dt className="text-low">{t('settings.plugins.detail.commit')}</dt>
-            <dd className="text-normal break-all">{plugin.commit}</dd>
-          </>
-        )}
-      </dl>
-      <section className="space-y-2">
-        <h4 className="text-sm font-medium text-high">
-          {t('settings.plugins.detail.mcpTitle')}
-        </h4>
-        {plugin.mcp.length ? (
-          <ul className="space-y-2">
-            {plugin.mcp.map((m) => mcpRow(m, false))}
-          </ul>
-        ) : (
-          <p className="text-sm text-low">
-            {t('settings.plugins.addDialog.noMcp')}
-          </p>
-        )}
-      </section>
-      <section className="space-y-2">
-        <h4 className="text-sm font-medium text-high">
-          {t('settings.plugins.detail.skillsTitle')}
-        </h4>
-        {plugin.skills.length ? (
-          <ul className="space-y-2">{plugin.skills.map(skillRow)}</ul>
-        ) : (
-          <p className="text-sm text-low">
-            {t('settings.plugins.addDialog.noSkills')}
-          </p>
-        )}
-      </section>
+      </div>
+
+      {plugin.mcp.length > 0 && (
+        <section className="space-y-2">
+          <button
+            type="button"
+            aria-expanded={mcpSectionOpen}
+            onClick={() => setMcpSectionOpen((prev) => !prev)}
+            className="flex w-full items-center justify-between gap-2 text-left"
+          >
+            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-high">
+              <CaretDownIcon
+                className={cn(
+                  'h-3.5 w-3.5 transition-transform',
+                  !mcpSectionOpen && '-rotate-90'
+                )}
+                weight="bold"
+                aria-hidden
+              />
+              <DatabaseIcon
+                className="h-4 w-4 text-low"
+                weight="duotone"
+                aria-hidden
+              />
+              MCP Servers ({plugin.mcp.length})
+            </span>
+            <span className="text-xs text-low">
+              {mcpSectionOpen ? 'Thu gọn' : 'Mở rộng'}
+            </span>
+          </button>
+          {mcpSectionOpen && (
+            <ul className="space-y-2">
+              {plugin.mcp.map((m) => mcpRow(m, false))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {plugin.skills.length > 0 && (
+        <section className="space-y-2">
+          <button
+            type="button"
+            aria-expanded={skillsSectionOpen}
+            onClick={() => setSkillsSectionOpen((prev) => !prev)}
+            className="flex w-full items-center justify-between gap-2 text-left"
+          >
+            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-high">
+              <CaretDownIcon
+                className={cn(
+                  'h-3.5 w-3.5 transition-transform',
+                  !skillsSectionOpen && '-rotate-90'
+                )}
+                weight="bold"
+                aria-hidden
+              />
+              <CodeIcon
+                className="h-4 w-4 text-low"
+                weight="duotone"
+                aria-hidden
+              />
+              Skills ({plugin.skills.length})
+            </span>
+            <span className="text-xs text-low">
+              {skillsSectionOpen ? 'Thu gọn' : 'Mở rộng'}
+            </span>
+          </button>
+          {skillsSectionOpen && (
+            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {plugin.skills.map(skillRow)}
+            </ul>
+          )}
+        </section>
+      )}
       {plugin.unsupported.length > 0 && (
         <section className="space-y-1">
           <h4 className="text-sm font-medium text-high">
