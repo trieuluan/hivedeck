@@ -116,18 +116,46 @@ impl FileService {
         let cached_path = self.cache_dir.join(&new_filename);
         fs::write(&cached_path, data)?;
 
+        // Best-effort downscale of oversized raster screenshots (>350 KB, >1600px)
+        // so Retina screenshots don't bloat agent context windows.
+        let mut final_size = file_size;
+        if file_size > 350 * 1024
+            && matches!(mime_type.as_deref(), Some("image/png" | "image/jpeg"))
+        {
+            Self::try_downscale_image(&cached_path);
+            if let Ok(meta) = fs::metadata(&cached_path) {
+                final_size = meta.len();
+            }
+        }
+
         let file = File::create(
             &self.pool,
             &CreateFile {
                 file_path: new_filename,
                 original_name: original_filename.to_string(),
                 mime_type,
-                size_bytes: file_size as i64,
+                size_bytes: final_size as i64,
                 hash,
             },
         )
         .await?;
         Ok(file)
+    }
+
+    fn try_downscale_image(path: &Path) {
+        #[cfg(target_os = "macos")]
+        {
+            let _ = std::process::Command::new("/usr/bin/sips")
+                .args(["-Z", "1600"])
+                .arg(path)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = path;
+        }
     }
 
     pub async fn delete_orphaned_files(&self) -> Result<(), FileError> {

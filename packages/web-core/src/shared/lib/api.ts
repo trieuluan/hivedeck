@@ -1522,11 +1522,69 @@ export const profilesApi = {
   },
 };
 
+// Downscale oversized raster screenshots (e.g. 3600x2338 Retina PNGs) before
+// uploading so agent tool reads remain fast and within model context limits.
+const MAX_UPLOAD_IMAGE_DIMENSION = 1600;
+const MIN_BYTES_FOR_IMAGE_DOWNSCALE = 350 * 1024;
+
+async function downscaleOversizedImage(file: File): Promise<File> {
+  if (
+    typeof window === 'undefined' ||
+    typeof createImageBitmap !== 'function' ||
+    file.size < MIN_BYTES_FOR_IMAGE_DOWNSCALE ||
+    !['image/png', 'image/jpeg', 'image/webp'].includes(file.type)
+  ) {
+    return file;
+  }
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    const { width, height } = bitmap;
+    const maxSide = Math.max(width, height);
+    if (maxSide <= MAX_UPLOAD_IMAGE_DIMENSION) {
+      bitmap.close();
+      return file;
+    }
+
+    const scale = MAX_UPLOAD_IMAGE_DIMENSION / maxSide;
+    const targetWidth = Math.max(1, Math.round(width * scale));
+    const targetHeight = Math.max(1, Math.round(height * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      bitmap.close();
+      return file;
+    }
+    ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+    bitmap.close();
+
+    const outputType = file.type === 'image/png' ? 'image/png' : file.type;
+    const quality = outputType === 'image/png' ? undefined : 0.88;
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, outputType, quality)
+    );
+    if (!blob || blob.size >= file.size) {
+      return file;
+    }
+
+    return new File([blob], file.name, {
+      type: outputType,
+      lastModified: file.lastModified,
+    });
+  } catch {
+    return file;
+  }
+}
+
 // Workspace attachments API
 export const attachmentsApi = {
   upload: async (attachment: File): Promise<AttachmentResponse> => {
+    const optimized = await downscaleOversizedImage(attachment);
     const formData = new FormData();
-    formData.append('image', attachment);
+    formData.append('image', optimized);
 
     const response = await makeLocalApiRequest('/api/attachments/upload', {
       method: 'POST',
@@ -1551,8 +1609,9 @@ export const attachmentsApi = {
     sessionId: string,
     attachment: File
   ): Promise<AttachmentResponse> => {
+    const optimized = await downscaleOversizedImage(attachment);
     const formData = new FormData();
-    formData.append('image', attachment);
+    formData.append('image', optimized);
 
     const response = await makeLocalApiRequest(
       `/api/workspaces/${workspaceId}/attachments/upload?session_id=${sessionId}`,
@@ -1808,10 +1867,11 @@ export const projectsApi = {
     return handleApiResponse<OrchestratorPromptResponse>(response);
   },
 
-  getGlobalOrchestratorPrompt: async (): Promise<GlobalOrchestratorPromptResponse> => {
-    const response = await makeRequest('/api/orchestrator-prompt/global');
-    return handleApiResponse(response);
-  },
+  getGlobalOrchestratorPrompt:
+    async (): Promise<GlobalOrchestratorPromptResponse> => {
+      const response = await makeRequest('/api/orchestrator-prompt/global');
+      return handleApiResponse(response);
+    },
 
   putGlobalOrchestratorPrompt: async (
     orchestrator_prompt: string

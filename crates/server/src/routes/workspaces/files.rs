@@ -162,6 +162,10 @@ pub async fn get_workspace_file(
         base,
         std::env::temp_dir(),
         PathBuf::from("/tmp"),
+        utils::path::get_hivedeck_home_dir(),
+        utils::path::expand_tilde("~/.hivedeck"),
+        utils::path::expand_tilde("~/.hivedeck-dev"),
+        utils::cache_dir(),
     ];
     let repos =
         WorkspaceRepo::find_repos_for_workspace(&deployment.db().pool, workspace.id).await?;
