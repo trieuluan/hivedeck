@@ -301,6 +301,7 @@ export const ConversationList = forwardRef<
       rafIdRef.current = null;
     }
     pendingUpdateRef.current = null;
+    historyPrependStateRef.current = null;
     scriptOutputCacheRef.current.clear();
     if (planRevealSpacerRef.current) {
       planRevealSpacerRef.current.style.height = '0px';
@@ -325,6 +326,11 @@ export const ConversationList = forwardRef<
 
   // ---- TanStack Virtual plumbing ----
   const tanstackScrollRef = useRef<HTMLDivElement | null>(null);
+  const unvirtualizedTailRef = useRef<HTMLDivElement | null>(null);
+  const historyPrependStateRef = useRef<{
+    lastScrollHeight: number;
+    deadline: number;
+  } | null>(null);
 
   const clearPendingInteractionAnchor = useCallback(() => {
     if (pendingInteractionAnchorFrameRef.current !== null) {
@@ -340,6 +346,8 @@ export const ConversationList = forwardRef<
   const shouldSuppressInteractionDrivenSizeAdjustment = useCallback(
     () =>
       performance.now() < programmaticScrollDeadlineRef.current ||
+      (historyPrependStateRef.current !== null &&
+        performance.now() <= historyPrependStateRef.current.deadline) ||
       (pendingInteractionAnchorRef.current !== null &&
         performance.now() < pendingInteractionAnchorDeadlineRef.current),
     []
@@ -430,6 +438,13 @@ export const ConversationList = forwardRef<
       onNewMessages?.();
     }
 
+    if (pending.addType === 'historic' && tanstackScrollRef.current) {
+      historyPrependStateRef.current = {
+        lastScrollHeight: tanstackScrollRef.current.scrollHeight,
+        deadline: performance.now() + 350,
+      };
+    }
+
     prevEntriesRef.current = derivedTimeline.displayEntries;
     prevRowsRef.current = derivedTimeline.rows;
 
@@ -437,7 +452,12 @@ export const ConversationList = forwardRef<
     setDataVersion((current) => current + 1);
     setEntries(derivedEntries.entries);
 
-    scrollOnEntriesChangedRef.current?.(pending.addType, pending.isInitialLoad);
+    if (pending.addType !== 'historic') {
+      scrollOnEntriesChangedRef.current?.(
+        pending.addType,
+        pending.isInitialLoad
+      );
+    }
 
     if (loading) {
       setLoading(pending.loading);
@@ -468,15 +488,38 @@ export const ConversationList = forwardRef<
       scopeKey: conversationScopeKey,
     });
 
-  const historyPrependBottomOffsetRef = useRef<number | null>(null);
+  const applyHistoryPrependCompensation = useCallback(() => {
+    const prependState = historyPrependStateRef.current;
+    const scrollEl = tanstackScrollRef.current;
+    if (!prependState || !scrollEl) return;
+
+    if (performance.now() > prependState.deadline) {
+      historyPrependStateRef.current = null;
+      return;
+    }
+
+    const deltaHeight = scrollEl.scrollHeight - prependState.lastScrollHeight;
+    if (deltaHeight !== 0) {
+      scrollEl.scrollTop = Math.max(0, scrollEl.scrollTop + deltaHeight);
+      prependState.lastScrollHeight = scrollEl.scrollHeight;
+    }
+  }, []);
 
   useLayoutEffect(() => {
-    const savedBottomOffset = historyPrependBottomOffsetRef.current;
-    const scrollEl = tanstackScrollRef.current;
-    if (savedBottomOffset === null || !scrollEl) return;
-    historyPrependBottomOffsetRef.current = null;
-    scrollEl.scrollTop = Math.max(0, scrollEl.scrollHeight - savedBottomOffset);
-  }, [dataVersion]);
+    applyHistoryPrependCompensation();
+  }, [applyHistoryPrependCompensation, dataVersion]);
+
+  useEffect(() => {
+    const tailEl = unvirtualizedTailRef.current;
+    if (!tailEl || typeof ResizeObserver === 'undefined') return;
+
+    const observer = new ResizeObserver(() => {
+      applyHistoryPrependCompensation();
+    });
+
+    observer.observe(tailEl);
+    return () => observer.disconnect();
+  }, [applyHistoryPrependCompensation]);
 
   const prevEntriesRef = useRef<DisplayEntry[]>([]);
   const prevRowsRef = useRef<ConversationRow[]>([]);
@@ -548,6 +591,7 @@ export const ConversationList = forwardRef<
     rows: virtualizedRows,
     totalRowCount: conversationRows.length,
     scrollContainerRef: tanstackScrollRef,
+    tailContainerRef: unvirtualizedTailRef,
     onAtBottomChange,
     shouldSuppressSizeAdjustment: shouldSuppressInteractionDrivenSizeAdjustment,
   });
@@ -626,11 +670,6 @@ export const ConversationList = forwardRef<
 
   const handleLoadOlderMessages = useCallback(() => {
     if (!hasMoreHistory || isLoadingHistory || loading) return;
-    const scrollEl = tanstackScrollRef.current;
-    if (scrollEl) {
-      historyPrependBottomOffsetRef.current =
-        scrollEl.scrollHeight - scrollEl.scrollTop;
-    }
     conversationVirtualizer.releaseBottomLock();
     void loadMoreHistory();
   }, [
@@ -647,7 +686,7 @@ export const ConversationList = forwardRef<
         return;
       }
       const scrollEl = tanstackScrollRef.current;
-      if (scrollEl && scrollEl.scrollTop <= 100) {
+      if (scrollEl && scrollEl.scrollTop <= 32) {
         handleLoadOlderMessages();
       }
     },
@@ -925,41 +964,25 @@ export const ConversationList = forwardRef<
             )}
           </div>
 
-          {hasMoreHistory && !isLoadingHistory && !showLoader && (
-            <div className="flex justify-center px-double py-2">
-              <button
-                type="button"
-                onClick={handleLoadOlderMessages}
-                className="rounded-full border border-border bg-secondary/40 px-3 py-1 text-xs text-low transition-colors hover:bg-secondary hover:text-normal"
-              >
-                {t('conversation.loadEarlierMessages', {
-                  defaultValue: 'Tải thêm tin nhắn cũ',
-                })}
-              </button>
-            </div>
-          )}
-
-          {isLoadingHistory && !showLoader && (
-            <div className="flex flex-col items-center gap-2 px-double py-3">
-              <div className="flex w-full max-w-md flex-col gap-1.5">
-                <div className="flex items-center gap-2">
-                  <div className="h-2.5 w-16 animate-pulse rounded-full bg-foreground/10" />
-                  <div className="h-2.5 flex-1 animate-pulse rounded-full bg-foreground/[0.06]" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <div
-                    className="h-2.5 w-24 animate-pulse rounded-full bg-foreground/[0.07]"
-                    style={{ animationDelay: '150ms' }}
-                  />
-                  <div
-                    className="h-2.5 w-32 animate-pulse rounded-full bg-foreground/[0.05]"
-                    style={{ animationDelay: '150ms' }}
-                  />
-                </div>
-              </div>
-              <span className="text-xs text-low">
-                {t('conversation.loadingEarlierMessages')}
-              </span>
+          {(hasMoreHistory || isLoadingHistory) && !showLoader && (
+            <div className="flex h-10 items-center justify-center px-double">
+              {isLoadingHistory ? (
+                <span className="text-xs text-low animate-pulse">
+                  {t('conversation.loadingEarlierMessages', {
+                    defaultValue: 'Đang tải tin nhắn cũ...',
+                  })}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleLoadOlderMessages}
+                  className="rounded-full border border-border bg-secondary/40 px-3 py-1 text-xs text-low transition-colors hover:bg-secondary hover:text-normal"
+                >
+                  {t('conversation.loadEarlierMessages', {
+                    defaultValue: 'Tải thêm tin nhắn cũ',
+                  })}
+                </button>
+              )}
             </div>
           )}
 
@@ -1018,18 +1041,20 @@ export const ConversationList = forwardRef<
             </div>
           )}
 
-          {unvirtualizedTailRows.map((row, tailIndex) => {
-            const rowIndex = firstUnvirtualizedRowIndex + tailIndex;
-            return (
-              <div
-                key={row.semanticKey}
-                data-row-index={rowIndex}
-                data-semantic-key={row.semanticKey}
-              >
-                {renderRowContent(row.entry, attempt, resetAction, repos)}
-              </div>
-            );
-          })}
+          <div ref={unvirtualizedTailRef}>
+            {unvirtualizedTailRows.map((row, tailIndex) => {
+              const rowIndex = firstUnvirtualizedRowIndex + tailIndex;
+              return (
+                <div
+                  key={row.semanticKey}
+                  data-row-index={rowIndex}
+                  data-semantic-key={row.semanticKey}
+                >
+                  {renderRowContent(row.entry, attempt, resetAction, repos)}
+                </div>
+              );
+            })}
+          </div>
 
           {/* Plan-reveal spacer: provides extra scroll room so plan-reveal
               can align the plan entry to the top of the viewport. Height is set

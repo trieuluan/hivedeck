@@ -62,6 +62,9 @@ export interface ConversationVirtualizerOptions {
   /** Ref to the scrollable container element. */
   scrollContainerRef: RefObject<HTMLDivElement | null>;
 
+  /** Ref to the unvirtualized tail rows wrapper so ResizeObserver can maintain bottom lock when tail content (e.g. Lexical/Markdown) expands asynchronously. */
+  tailContainerRef?: RefObject<HTMLDivElement | null>;
+
   /**
    * Called when the at-bottom state changes. Shells use this to show/hide
    * the scroll-to-bottom affordance.
@@ -150,6 +153,7 @@ export function useConversationVirtualizer({
   rows,
   totalRowCount,
   scrollContainerRef,
+  tailContainerRef,
   onAtBottomChange,
   shouldSuppressSizeAdjustment,
 }: ConversationVirtualizerOptions): ConversationVirtualizerResult {
@@ -292,13 +296,19 @@ export function useConversationVirtualizer({
       userScrollDeadline = performance.now() + 1000;
     };
     const handleWheel = (event: WheelEvent) => {
-      if (event.deltaY < 0) markUserScroll();
+      if (event.deltaY < 0) {
+        markUserScroll();
+        bottomLockedRef.current = false;
+      }
     };
     const handleTouchStart = (event: TouchEvent) => {
       touchY = event.touches[0]?.clientY ?? 0;
     };
     const handleTouchMove = (event: TouchEvent) => {
-      if ((event.touches[0]?.clientY ?? touchY) > touchY) markUserScroll();
+      if ((event.touches[0]?.clientY ?? touchY) > touchY) {
+        markUserScroll();
+        bottomLockedRef.current = false;
+      }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
@@ -311,8 +321,10 @@ export function useConversationVirtualizer({
       if (
         ['ArrowUp', 'PageUp', 'Home'].includes(event.key) ||
         (event.key === ' ' && event.shiftKey)
-      )
+      ) {
         markUserScroll();
+        bottomLockedRef.current = false;
+      }
     };
     const handlePointerDown = (event: PointerEvent) => {
       if (event.target === el) markUserScroll();
@@ -382,6 +394,28 @@ export function useConversationVirtualizer({
     syncIsAtBottom,
     scrollContainerRef,
   ]);
+
+  useEffect(() => {
+    const tailEl = tailContainerRef?.current;
+    if (!tailEl || typeof ResizeObserver === 'undefined') return;
+
+    const observer = new ResizeObserver(() => {
+      syncIsAtBottom();
+      if (!bottomLockedRef.current) return;
+      if (performance.now() < smoothScrollDeadlineRef.current) return;
+
+      const el = scrollContainerRef.current;
+      if (!el) return;
+
+      const maxScroll = el.scrollHeight - el.clientHeight;
+      if (maxScroll > 0 && Math.abs(maxScroll - el.scrollTop) > 1) {
+        el.scrollTop = maxScroll;
+      }
+    });
+
+    observer.observe(tailEl);
+    return () => observer.disconnect();
+  }, [scrollContainerRef, syncIsAtBottom, tailContainerRef]);
 
   // -------------------------------------------------------------------------
   // Imperative helpers
