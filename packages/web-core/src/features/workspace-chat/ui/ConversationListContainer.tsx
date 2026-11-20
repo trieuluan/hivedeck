@@ -3,10 +3,12 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type MouseEvent,
+  type WheelEvent,
 } from 'react';
 import { LighthouseIcon } from '@phosphor-icons/react';
 import { useTranslation } from 'react-i18next';
@@ -459,11 +461,22 @@ export const ConversationList = forwardRef<
     }
   };
 
-  const { isFirstTurn, isLoadingHistory } = useConversationHistory({
-    attempt,
-    onTimelineUpdated,
-    scopeKey: conversationScopeKey,
-  });
+  const { isFirstTurn, isLoadingHistory, hasMoreHistory, loadMoreHistory } =
+    useConversationHistory({
+      attempt,
+      onTimelineUpdated,
+      scopeKey: conversationScopeKey,
+    });
+
+  const historyPrependBottomOffsetRef = useRef<number | null>(null);
+
+  useLayoutEffect(() => {
+    const savedBottomOffset = historyPrependBottomOffsetRef.current;
+    const scrollEl = tanstackScrollRef.current;
+    if (savedBottomOffset === null || !scrollEl) return;
+    historyPrependBottomOffsetRef.current = null;
+    scrollEl.scrollTop = Math.max(0, scrollEl.scrollHeight - savedBottomOffset);
+  }, [dataVersion]);
 
   const prevEntriesRef = useRef<DisplayEntry[]>([]);
   const prevRowsRef = useRef<ConversationRow[]>([]);
@@ -609,6 +622,36 @@ export const ConversationList = forwardRef<
       conversationVirtualizer.scrollToBottom(behavior);
     },
     [conversationVirtualizer]
+  );
+
+  const handleLoadOlderMessages = useCallback(() => {
+    if (!hasMoreHistory || isLoadingHistory || loading) return;
+    const scrollEl = tanstackScrollRef.current;
+    if (scrollEl) {
+      historyPrependBottomOffsetRef.current =
+        scrollEl.scrollHeight - scrollEl.scrollTop;
+    }
+    conversationVirtualizer.releaseBottomLock();
+    void loadMoreHistory();
+  }, [
+    conversationVirtualizer,
+    hasMoreHistory,
+    isLoadingHistory,
+    loadMoreHistory,
+    loading,
+  ]);
+
+  const handleScrollContainerWheel = useCallback(
+    (event: WheelEvent<HTMLDivElement>) => {
+      if (event.deltaY >= 0 || !hasMoreHistory || isLoadingHistory || loading) {
+        return;
+      }
+      const scrollEl = tanstackScrollRef.current;
+      if (scrollEl && scrollEl.scrollTop <= 100) {
+        handleLoadOlderMessages();
+      }
+    },
+    [handleLoadOlderMessages, hasMoreHistory, isLoadingHistory, loading]
   );
 
   const scrollExecutor = useScrollCommandExecutor({
@@ -869,6 +912,7 @@ export const ConversationList = forwardRef<
           className="h-full overflow-y-auto scrollbar-none"
           style={{ overflowAnchor: 'none', contain: 'strict' }}
           onClickCapture={handleConversationClickCapture}
+          onWheel={handleScrollContainerWheel}
         >
           <div className="pt-2">
             {showSetupPlaceholder && (
@@ -880,6 +924,20 @@ export const ConversationList = forwardRef<
               </div>
             )}
           </div>
+
+          {hasMoreHistory && !isLoadingHistory && !showLoader && (
+            <div className="flex justify-center px-double py-2">
+              <button
+                type="button"
+                onClick={handleLoadOlderMessages}
+                className="rounded-full border border-border bg-secondary/40 px-3 py-1 text-xs text-low transition-colors hover:bg-secondary hover:text-normal"
+              >
+                {t('conversation.loadEarlierMessages', {
+                  defaultValue: 'Tải thêm tin nhắn cũ',
+                })}
+              </button>
+            </div>
+          )}
 
           {isLoadingHistory && !showLoader && (
             <div className="flex flex-col items-center gap-2 px-double py-3">
