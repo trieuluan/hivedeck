@@ -759,7 +759,14 @@ fn add_thread_token_usage(
                     .token_usage
                     .model_context_window
                     .unwrap_or_default() as u32,
-                input_tokens: Some(notification.token_usage.total.input_tokens as u32),
+                input_tokens: Some(
+                    notification
+                        .token_usage
+                        .total
+                        .input_tokens
+                        .saturating_sub(notification.token_usage.total.cached_input_tokens)
+                        as u32,
+                ),
                 output_tokens: Some(notification.token_usage.total.output_tokens as u32),
                 cache_read_tokens: Some(notification.token_usage.total.cached_input_tokens as u32),
                 cache_creation_tokens: None,
@@ -2244,7 +2251,9 @@ pub fn normalize_logs(
                                             .unwrap_or_default()
                                             as u32,
                                         input_tokens: Some(
-                                            info.total_token_usage.input_tokens as u32,
+                                            info.total_token_usage.input_tokens.saturating_sub(
+                                                info.total_token_usage.cached_input_tokens,
+                                            ) as u32,
                                         ),
                                         output_tokens: Some(
                                             info.total_token_usage.output_tokens as u32,
