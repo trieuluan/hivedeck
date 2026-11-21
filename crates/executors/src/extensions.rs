@@ -750,7 +750,7 @@ fn toml_key_segment(name: &str) -> String {
     }
 }
 
-/// Codex config overrides (`thread/start` config) for the owner's choices.
+/// Codex config overrides (`thread/start` config and root `-c` flags) for the owner's choices.
 pub fn codex_config_overrides(prefs: &CliExtensionPrefs) -> Vec<(String, Value)> {
     let mut out: Vec<(String, Value)> = prefs
         .disabled_mcp
@@ -768,6 +768,28 @@ pub fn codex_config_overrides(prefs: &CliExtensionPrefs) -> Vec<(String, Value)>
             format!("plugins.{}.enabled", toml_key_segment(name)),
             Value::Bool(false),
         ));
+    }
+    // Codex's bundled `codex_apps` and `cua_repl` MCP servers are gated by
+    // `[features]` flags in addition to `[plugins]`.
+    if prefs
+        .disabled_plugins
+        .contains("codex-app-tools@openai-bundled")
+    {
+        out.push(("features.apps".to_string(), Value::Bool(false)));
+    }
+    if prefs
+        .disabled_plugins
+        .contains("computer-use@openai-bundled")
+        || prefs
+            .disabled_plugins
+            .contains("unified-computer-use@openai-bundled")
+    {
+        out.push(("features.computer_use".to_string(), Value::Bool(false)));
+    }
+    if prefs.disabled_plugins.contains("browser@openai-bundled")
+        || prefs.disabled_plugins.contains("chrome@openai-bundled")
+    {
+        out.push(("features.browser_use".to_string(), Value::Bool(false)));
     }
     out
 }
@@ -984,6 +1006,7 @@ mod tests {
                     "plugins.\"codex-app-tools@openai-bundled\".enabled".to_string(),
                     Value::Bool(false)
                 ),
+                ("features.apps".to_string(), Value::Bool(false)),
             ]
         );
     }
