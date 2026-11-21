@@ -131,6 +131,18 @@ async fn forward_request(
         return (StatusCode::NOT_FOUND, "unknown LLM proxy execution route").into_response();
     };
 
+    let body = if method == Method::POST
+        && !body.is_empty()
+        && route.upstream_label == "9router"
+        && (rest == "responses" || rest.ends_with("/responses"))
+    {
+        services::services::llm_inspector::flatten_responses_tool_namespaces(&body)
+            .map(Bytes::from)
+            .unwrap_or(body)
+    } else {
+        body
+    };
+
     if method == Method::POST && !body.is_empty() {
         deployment.llm_inspector().inspect_request_payload(
             route.session_id,

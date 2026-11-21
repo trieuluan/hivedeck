@@ -537,6 +537,91 @@ pub fn analyze_payload(path: &str, json: &Value) -> ContextBreakdown {
     }
 }
 
+/// Flatten OpenAI Responses API `{"type": "namespace", "name": "mcp__...", "tools": [...]}`
+/// entries into top-level `"type": "function"` tools (`<namespace>__<tool>`) and drop
+/// `defer_loading` / `tool_search` so upstream proxies (like 9router -> DeepSeek/Claude)
+/// expose every child MCP tool instead of collapsing the namespace into a single empty tool.
+pub fn flatten_responses_tool_namespaces(body: &[u8]) -> Option<Vec<u8>> {
+    let mut json: Value = serde_json::from_slice(body).ok()?;
+    let tools = json.get("tools").and_then(|v| v.as_array())?;
+    let has_namespace = tools.iter().any(|item| {
+        item.get("type").and_then(|v| v.as_str()) == Some("namespace")
+            && item.get("tools").and_then(|v| v.as_array()).is_some()
+    });
+    if !has_namespace {
+        return None;
+    }
+
+    let mut flattened = Vec::with_capacity(tools.len());
+    for item in tools {
+        let item_type = item.get("type").and_then(|v| v.as_str());
+        if item_type == Some("namespace")
+            && let Some(children) = item.get("tools").and_then(|v| v.as_array())
+        {
+            let ns_name = item.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let prefix = if ns_name.is_empty() {
+                String::new()
+            } else {
+                format!("{ns_name}__")
+            };
+            for child in children {
+                let mut child_val = child.clone();
+                if let Some(obj) = child_val.as_object_mut() {
+                    obj.remove("defer_loading");
+                    obj.entry("type".to_string())
+                        .or_insert_with(|| Value::String("function".to_string()));
+                    if !prefix.is_empty()
+                        && let Some(name) = obj.get("name").and_then(|v| v.as_str())
+                        && !name.is_empty()
+                        && !name.starts_with(&prefix)
+                    {
+                        obj.insert("name".to_string(), Value::String(format!("{prefix}{name}")));
+                    }
+                }
+                flattened.push(child_val);
+            }
+            continue;
+        }
+        if item_type == Some("tool_search") {
+            continue;
+        }
+        let mut kept = item.clone();
+        if let Some(obj) = kept.as_object_mut() {
+            obj.remove("defer_loading");
+        }
+        flattened.push(kept);
+    }
+
+    if let Some(obj) = json.as_object_mut() {
+        obj.insert("tools".to_string(), Value::Array(flattened));
+        if let Some(input) = obj.get_mut("input").and_then(|v| v.as_array_mut()) {
+            for entry in input {
+                let Some(entry_obj) = entry.as_object_mut() else {
+                    continue;
+                };
+                if entry_obj.get("type").and_then(|v| v.as_str()) != Some("function_call") {
+                    continue;
+                }
+                let Some(ns) = entry_obj
+                    .remove("namespace")
+                    .and_then(|v| v.as_str().map(str::to_string))
+                    .filter(|s| !s.is_empty())
+                else {
+                    continue;
+                };
+                let prefix = format!("{ns}__");
+                if let Some(name) = entry_obj.get("name").and_then(|v| v.as_str())
+                    && !name.is_empty()
+                    && !name.starts_with(&prefix)
+                {
+                    entry_obj.insert("name".to_string(), Value::String(format!("{prefix}{name}")));
+                }
+            }
+        }
+    }
+    serde_json::to_vec(&json).ok()
+}
+
 fn classify_system_value(acc: &mut CategoryAccumulator, val: &Value) {
     match val {
         Value::String(s) => acc.classify_system_text(s),
@@ -887,5 +972,65 @@ mod tests {
         assert_eq!(ext.snapshot.cache_read_tokens, 8500);
         assert_eq!(ext.snapshot.cache_creation_tokens, 300);
         assert_eq!(ext.snapshot.output_tokens, 250);
+    }
+
+    #[test]
+    fn flattens_responses_tool_namespaces() {
+        let payload = serde_json::json!({
+            "model": "fast",
+            "tools": [
+                { "type": "function", "name": "exec_command", "parameters": {} },
+                { "type": "tool_search", "execution": "client" },
+                {
+                    "type": "namespace",
+                    "name": "mcp__higgsfield",
+                    "description": "Higgsfield tools",
+                    "tools": [
+                        {
+                            "type": "function",
+                            "name": "generate_image_batch",
+                            "description": "Generate images",
+                            "parameters": { "type": "object" },
+                            "defer_loading": true
+                        },
+                        {
+                            "type": "function",
+                            "name": "mcp__higgsfield__models_list",
+                            "parameters": { "type": "object" },
+                            "defer_loading": true
+                        }
+                    ]
+                }
+            ]
+        });
+        let raw = serde_json::to_vec(&payload).unwrap();
+        let rewritten = flatten_responses_tool_namespaces(&raw).expect("should flatten");
+        let parsed: Value = serde_json::from_slice(&rewritten).unwrap();
+        let tools = parsed["tools"].as_array().unwrap();
+        let names: Vec<&str> = tools
+            .iter()
+            .filter_map(|t| t.get("name").and_then(|v| v.as_str()))
+            .collect();
+        assert_eq!(
+            names,
+            vec![
+                "exec_command",
+                "mcp__higgsfield__generate_image_batch",
+                "mcp__higgsfield__models_list"
+            ]
+        );
+        assert!(tools.iter().all(|t| t.get("defer_loading").is_none()));
+        assert!(
+            tools
+                .iter()
+                .all(|t| t.get("type").and_then(|v| v.as_str()) == Some("function"))
+        );
+
+        // Requests without namespace tools pass through untouched.
+        let plain = serde_json::to_vec(&serde_json::json!({
+            "tools": [{ "type": "function", "name": "shell" }]
+        }))
+        .unwrap();
+        assert!(flatten_responses_tool_namespaces(&plain).is_none());
     }
 }
