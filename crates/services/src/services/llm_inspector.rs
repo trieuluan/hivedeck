@@ -269,12 +269,7 @@ impl LlmInspector {
         model: Option<String>,
         context_window: Option<u32>,
     ) {
-        let resolved_window = context_window.filter(|&w| w > 0).or_else(|| {
-            model
-                .as_deref()
-                .filter(|m| !is_combo_alias(m))
-                .map(infer_context_window)
-        });
+        let resolved_window = context_window.filter(|&w| w > 0);
         if let Some(window) = resolved_window {
             self.context_windows.insert(session_id, window);
         }
@@ -290,15 +285,21 @@ impl LlmInspector {
         });
     }
 
-    fn resolve_context_window(&self, session_id: Uuid, model: Option<&str>) -> Option<u32> {
-        if let Some(m) = model
-            && !is_combo_alias(m)
-        {
-            return Some(infer_context_window(m));
+    fn resolve_context_window(
+        &self,
+        session_id: Uuid,
+        model: Option<&str>,
+        upstream: Option<&str>,
+    ) -> Option<u32> {
+        if let Some(entry) = self.context_windows.get(&session_id) {
+            return Some(*entry.value());
         }
-        self.context_windows
-            .get(&session_id)
-            .map(|entry| *entry.value())
+        if upstream == Some("9router") {
+            return None;
+        }
+        model
+            .filter(|m| !is_combo_alias(m))
+            .map(infer_context_window)
     }
 
     /// Analyze an outgoing LLM request JSON body and update the session's context breakdown.
@@ -314,8 +315,11 @@ impl LlmInspector {
         };
         let mut breakdown = analyze_payload(path, &json);
         breakdown.upstream = Some(upstream_label.to_string());
-        breakdown.model_context_window =
-            self.resolve_context_window(session_id, breakdown.model.as_deref());
+        breakdown.model_context_window = self.resolve_context_window(
+            session_id,
+            breakdown.model.as_deref(),
+            Some(upstream_label),
+        );
 
         self.telemetry
             .entry(session_id)
@@ -335,6 +339,7 @@ impl LlmInspector {
                     existing.model_context_window = self.resolve_context_window(
                         session_id,
                         existing.model.as_deref().or(Some(req_model)),
+                        Some(upstream_label),
                     );
                 }
                 existing.upstream = breakdown.upstream.clone();
@@ -362,6 +367,7 @@ impl LlmInspector {
                     existing.model_context_window = self.resolve_context_window(
                         session_id,
                         existing.model.as_deref().or(Some(model)),
+                        existing.upstream.as_deref(),
                     );
                 }
                 if usage.has_usage {
@@ -1117,7 +1123,7 @@ fn is_combo_alias(model: &str) -> bool {
 
 pub fn infer_context_window(model: &str) -> u32 {
     let m = model.to_ascii_lowercase();
-    if m.contains("[1m]") || m.contains("-1m") {
+    if m.contains("[1m]") || m.contains("-1m") || m.contains("deepseek-v4") {
         return 1_000_000;
     }
     if m.contains("gemini-2") || m.contains("gemini-3") || m.contains("gemini-1.5") {

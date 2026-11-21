@@ -891,8 +891,7 @@ impl LocalContainerService {
                             .ok()
                             .and_then(|action| action.next_action())
                             .is_some();
-                        if !has_chained_follow_up
-                            && container.maybe_start_auto_compact(&ctx, exec_id).await
+                        if !has_chained_follow_up && container.maybe_start_auto_compact(&ctx).await
                         {
                             already_finalized = true;
                         } else {
@@ -968,7 +967,7 @@ impl LocalContainerService {
                             container.finalize_task(&ctx).await;
                         }
                     } else if !has_chained_follow_up
-                        && container.maybe_start_auto_compact(&ctx, exec_id).await
+                        && container.maybe_start_auto_compact(&ctx).await
                     {
                         started_queued_follow_up = true;
                     } else {
@@ -1400,8 +1399,8 @@ impl LocalContainerService {
     }
 
     /// Start a follow-up execution from a queued message
-    async fn maybe_start_auto_compact(&self, ctx: &ExecutionContext, exec_id: Uuid) -> bool {
-        if ExecutionProcess::was_stopped(&self.db.pool, exec_id).await
+    async fn maybe_start_auto_compact(&self, ctx: &ExecutionContext) -> bool {
+        if matches!(ctx.execution_process.status, ExecutionProcessStatus::Killed)
             || !matches!(
                 ctx.execution_process.run_reason,
                 ExecutionProcessRunReason::CodingAgent
