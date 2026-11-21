@@ -91,6 +91,8 @@ export function KanbanWorkspaceDispatch({
   return (
     <div
       className={cn("flex items-center gap-half min-w-0", className)}
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
       onMouseUp={(e) => e.stopPropagation()}
     >
       <Select

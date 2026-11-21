@@ -510,6 +510,7 @@
     "addonPlaceholder": "Chọn pipeline ở trên để tạo nội dung, hoặc tự gõ.",
     "resetToGenerated": "Đặt lại nội dung tự tạo",
     "progressTitle": "Tiến độ pipeline",
+    "stagePosition": "Bước {{n}} / {{total}}",
     "progressHeader": "Bước {{n}} / {{total}} — {{label}}",
     "progressNotStarted": "{{total}} bước, chưa bắt đầu",
     "heavyBadge": "nặng",

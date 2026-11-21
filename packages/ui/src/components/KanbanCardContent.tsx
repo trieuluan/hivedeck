@@ -127,6 +127,7 @@ function formatKanbanDescriptionPreview(
 export type KanbanCardContentProps<TTag extends KanbanTag = KanbanTag> = {
   displayId: string;
   title: string;
+  statusName?: string;
   description?: string | null;
   priority: PriorityLevel | null;
   tags: KanbanTag[];
@@ -147,6 +148,7 @@ export type KanbanCardContentProps<TTag extends KanbanTag = KanbanTag> = {
   className?: string;
   onPriorityClick?: (e: MouseEvent) => void;
   onMoreActionsClick?: () => void;
+  moreActions?: ReactNode;
   tagEditProps?: TagEditProps<TTag>;
   isMobile?: boolean;
   /** Optional metadata placed in the top-right header (e.g. artifact count) */
@@ -168,6 +170,7 @@ export type KanbanCardContentProps<TTag extends KanbanTag = KanbanTag> = {
 export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
   displayId,
   title,
+  statusName,
   description,
   priority,
   tags,
@@ -182,6 +185,7 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
   className,
   onPriorityClick,
   onMoreActionsClick,
+  moreActions,
   tagEditProps,
   isMobile,
   headerMeta,
@@ -233,106 +237,114 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
   );
 
   return (
-    <div className={cn("flex flex-col gap-1.5 min-w-0", className)}>
-      {/* Row 1: Priority + Task ID + inline tags (left), headerMeta + more actions (right) */}
-      <div className="flex items-center justify-between gap-1.5 min-w-0">
-        <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
+    <div className={cn("flex flex-col gap-2.5 min-w-0", className)}>
+      <div className="flex items-start justify-between gap-2 min-w-0">
+        <div className="min-w-0 flex-1">
           {isSubIssue && (
-            <span className="text-xs text-low shrink-0">
+            <span className="text-xs text-low mr-1">
               {t("kanban.subIssueIndicator")}
             </span>
           )}
-          {onPriorityClick ? (
-            <button
-              type="button"
-              onClick={onPriorityClick}
-              onMouseDown={(e) => e.stopPropagation()}
-              aria-label={t("kanban.priority")}
-              title={t("kanban.priority")}
-              className="relative after:absolute after:left-1/2 after:top-1/2 after:size-8 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] flex shrink-0 items-center cursor-pointer hover:bg-secondary rounded-sm transition-colors"
-            >
-              <PriorityIcon priority={priority} />
-              {!priority && (
-                <CircleDashedIcon
-                  className="size-icon-xs text-low"
-                  weight="bold"
-                />
-              )}
-            </button>
-          ) : (
-            <PriorityIcon priority={priority} />
-          )}
-          <span className="font-ibm-plex-mono text-xs text-low shrink-0">
+          <span className="font-ibm-plex-mono text-xs font-medium text-low">
             {displayId}
           </span>
-          {tags.length > 0 && (
-            <div className="flex items-center gap-1 min-w-0 overflow-hidden">
-              {tagEditProps ? (
-                (tagEditProps.renderTagEditor?.({
-                  allTags: tagEditProps.allTags,
-                  selectedTagIds: tagEditProps.selectedTagIds,
-                  onTagToggle: tagEditProps.onTagToggle,
-                  onCreateTag: tagEditProps.onCreateTag,
-                  trigger: tagEditorTrigger,
-                }) ?? tagEditorTrigger)
-              ) : (
-                <>
-                  {tags.slice(0, 2).map((tag) => (
-                    <KanbanBadge
-                      key={tag.id}
-                      name={tag.name}
-                      color={tag.color}
-                    />
-                  ))}
-                  {tags.length > 2 && (
-                    <span className="text-xs text-low shrink-0">
-                      +{tags.length - 2}
-                    </span>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-          {tagEditProps && tags.length === 0 && !isMobile && (
-            <div className="opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto transition-opacity shrink-0">
-              {tagEditProps.renderTagEditor?.({
+          <span
+            className="mt-1 block text-lg font-semibold text-high leading-snug line-clamp-2 break-words"
+            title={title}
+          >
+            {title}
+          </span>
+        </div>
+        <div className="flex shrink-0 items-start gap-1.5">
+          {moreActions ??
+            (onMoreActionsClick && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMoreActionsClick();
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                className="-mr-1 -mt-1 rounded p-1.5 text-low hover:text-high hover:bg-secondary focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand"
+                aria-label={t("common:ui.moreActions")}
+                title={t("common:ui.moreActions")}
+              >
+                <DotsThreeIcon className="size-4" weight="bold" />
+              </button>
+            ))}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+        {onPriorityClick ? (
+          <button
+            type="button"
+            onClick={onPriorityClick}
+            onMouseDown={(e) => e.stopPropagation()}
+            aria-label={t("kanban.priority")}
+            title={t("kanban.priority")}
+            className="flex shrink-0 items-center gap-1 rounded bg-secondary px-1.5 py-1 text-xs font-medium text-normal hover:text-high focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand"
+          >
+            <PriorityIcon priority={priority} />
+            {!priority && (
+              <CircleDashedIcon
+                className="size-icon-xs text-low"
+                weight="bold"
+              />
+            )}
+            <span>
+              {priority
+                ? t(`createIssueDialog.priority.${priority}`)
+                : t("kanban.priority")}
+            </span>
+          </button>
+        ) : (
+          <PriorityIcon priority={priority} />
+        )}
+        {statusName && (
+          <span
+            className="rounded bg-secondary px-1.5 py-1 text-xs font-medium text-normal"
+            title={statusName}
+          >
+            {statusName}
+          </span>
+        )}
+        {tags.length > 0 && (
+          <div className="flex items-center gap-1 min-w-0 overflow-hidden">
+            {tagEditProps ? (
+              (tagEditProps.renderTagEditor?.({
                 allTags: tagEditProps.allTags,
                 selectedTagIds: tagEditProps.selectedTagIds,
                 onTagToggle: tagEditProps.onTagToggle,
                 onCreateTag: tagEditProps.onCreateTag,
                 trigger: tagEditorTrigger,
-              }) ?? tagEditorTrigger}
-            </div>
-          )}
-          {isLoading && <RunningDots />}
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {headerMeta}
-          {onMoreActionsClick && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onMoreActionsClick();
-              }}
-              onMouseDown={(e) => e.stopPropagation()}
-              className="relative after:absolute after:left-1/2 after:top-1/2 after:size-8 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] p-half -m-half rounded-sm text-low hover:text-normal hover:bg-secondary shrink-0 transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand"
-              aria-label={t("common:ui.moreActions")}
-              title={t("common:ui.moreActions")}
-            >
-              <DotsThreeIcon className="size-icon-xs" weight="bold" />
-            </button>
-          )}
-        </div>
+              }) ?? tagEditorTrigger)
+            ) : (
+              <>
+                {tags.slice(0, 2).map((tag) => (
+                  <KanbanBadge key={tag.id} name={tag.name} color={tag.color} />
+                ))}
+                {tags.length > 2 && (
+                  <span className="text-xs text-low shrink-0">
+                    +{tags.length - 2}
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+        )}
+        {tagEditProps && tags.length === 0 && !isMobile && (
+          <div className="opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto transition-opacity shrink-0">
+            {tagEditProps.renderTagEditor?.({
+              allTags: tagEditProps.allTags,
+              selectedTagIds: tagEditProps.selectedTagIds,
+              onTagToggle: tagEditProps.onTagToggle,
+              onCreateTag: tagEditProps.onCreateTag,
+              trigger: tagEditorTrigger,
+            }) ?? tagEditorTrigger}
+          </div>
+        )}
+        {isLoading && <RunningDots />}
       </div>
-
-      {/* Row 2: Title */}
-      <span
-        className="text-base font-medium text-high leading-snug line-clamp-2 break-words"
-        title={title}
-      >
-        {title}
-      </span>
 
       {/* Row 3: Description (optional, short; full text in the tooltip) */}
       {previewDescription && !compact && (
@@ -345,10 +357,12 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
       )}
 
       {/* Row 4: PRs, Relationships, Retained Workspace */}
-      {(pullRequests.length > 0 ||
+      {(headerMeta ||
+        pullRequests.length > 0 ||
         relationships.length > 0 ||
         (retainedWorkspace && retainedWorkspace.count > 0)) && (
-        <div className="flex items-center gap-half flex-wrap min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+          {headerMeta}
           {pullRequests.slice(0, 2).map((pr) => (
             <PrBadge
               key={pr.id}
@@ -425,11 +439,12 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
                   onToggleSubIssues();
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
                 aria-expanded={isSubIssuesExpanded}
                 aria-label={t("kanban.subIssuesCount", {
                   count: subIssueCount,
                 })}
-                className="relative after:absolute after:left-1/2 after:top-1/2 after:size-8 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] flex items-center gap-half -m-half px-half rounded-sm text-low hover:text-normal hover:bg-secondary transition-colors"
+                className="flex min-h-8 items-center gap-1 rounded border border-border bg-secondary/60 px-2 text-normal hover:text-high hover:bg-secondary focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand"
               >
                 <CaretRightIcon
                   className={cn(
@@ -438,8 +453,9 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
                   )}
                   weight="bold"
                 />
-                <span className="text-sm">{t("kanban.subIssueIndicator")}</span>
-                <span className="text-sm">{subIssueCount}</span>
+                <span className="text-sm font-medium">
+                  {t("kanban.subIssuesCount", { count: subIssueCount })}
+                </span>
               </button>
             )}
             {onOpenSubBoard && (

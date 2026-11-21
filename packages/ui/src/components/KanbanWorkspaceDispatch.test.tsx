@@ -69,12 +69,15 @@ describe('KanbanWorkspaceDispatch', () => {
 
   it('runs a linked workspace', () => {
     const onDispatch = vi.fn();
+    const onCardClick = vi.fn();
     render(
-      <KanbanWorkspaceDispatch
-        workspaces={[{ id: 'linked', name: 'Linked' }]}
-        currentWorkspaceIds={new Set(['linked'])}
-        onDispatch={onDispatch}
-      />
+      <div onClick={onCardClick}>
+        <KanbanWorkspaceDispatch
+          workspaces={[{ id: 'linked', name: 'Linked' }]}
+          currentWorkspaceIds={new Set(['linked'])}
+          onDispatch={onDispatch}
+        />
+      </div>
     );
 
     fireEvent.click(
@@ -82,6 +85,7 @@ describe('KanbanWorkspaceDispatch', () => {
     );
 
     expect(onDispatch).toHaveBeenCalledWith('linked');
+    expect(onCardClick).not.toHaveBeenCalled();
     expect(ConfirmDialog.show).not.toHaveBeenCalled();
   });
 

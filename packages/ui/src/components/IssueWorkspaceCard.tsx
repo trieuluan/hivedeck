@@ -129,7 +129,7 @@ function IssueWorkspaceCardContainer({
 
 export function pipelineProgressPercent(
   stage: number | null | undefined,
-  total: number | undefined
+  total: number | undefined,
 ): number | null {
   if (stage == null || !total || total <= 0) return null;
   return Math.max(0, Math.min(100, Math.round((stage / total) * 100)));
@@ -165,9 +165,11 @@ export function IssueWorkspaceCard({
     (hasUnseenActivity && !isRunning);
 
   if (compact) {
-    const pipelineProgress = isRunning
-      ? pipelineProgressPercent(pipelineStage, pipelineTotal)
-      : null;
+    const hasStage =
+      isRunning &&
+      pipelineStage != null &&
+      pipelineTotal != null &&
+      pipelineTotal > 0;
 
     return (
       <div
@@ -207,10 +209,7 @@ export function IssueWorkspaceCard({
               <GitBranchIcon className="size-3.5" weight="bold" />
             )}
           </span>
-          <span
-            className="h-3 w-px bg-border/80 shrink-0"
-            aria-hidden="true"
-          />
+          <span className="h-3 w-px bg-border/80 shrink-0" aria-hidden="true" />
           <span className="min-w-[4rem] flex-1 truncate font-medium text-normal">
             {workspace.name ?? "Workspace"}
           </span>
@@ -244,23 +243,36 @@ export function IssueWorkspaceCard({
             </>
           )}
         </div>
-        {pipelineProgress !== null && (
-          <div
-            className="mt-1 flex items-center gap-1 min-w-0"
-            role="progressbar"
-            aria-label={`${pipelineStage}/${pipelineTotal}`}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={pipelineProgress}
-          >
-            <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-border/70">
-              <span
-                className="block h-full rounded-full bg-brand transition-[width] duration-300"
-                style={{ width: `${pipelineProgress}%` }}
-              />
-            </span>
+        {hasStage && (
+          <div className="mt-1 flex items-center gap-1.5">
+            <div
+              className="flex min-w-0 flex-1 items-center gap-0.5"
+              role="progressbar"
+              aria-label={t("cardPipeline.stagePosition", {
+                defaultValue: "Stage {{n}} / {{total}}",
+                n: pipelineStage,
+                total: pipelineTotal,
+              })}
+              aria-valuemin={1}
+              aria-valuemax={pipelineTotal}
+              aria-valuenow={pipelineStage}
+            >
+              {Array.from({ length: pipelineTotal }, (_, index) => (
+                <span
+                  key={index}
+                  className={cn(
+                    "h-1 min-w-0 flex-1 rounded-full",
+                    index < (pipelineStage ?? 0) ? "bg-brand" : "bg-border",
+                  )}
+                />
+              ))}
+            </div>
             <span className="shrink-0 font-ibm-plex-mono text-[10px] tabular-nums text-low">
-              {pipelineProgress}%
+              {t("cardPipeline.stagePosition", {
+                defaultValue: "{{n}} / {{total}}",
+                n: pipelineStage,
+                total: pipelineTotal,
+              })}
             </span>
           </div>
         )}

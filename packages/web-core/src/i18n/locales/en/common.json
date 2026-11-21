@@ -510,6 +510,7 @@
     "addonPlaceholder": "Pick a pipeline above to compose the block, or type your own.",
     "resetToGenerated": "Reset to generated",
     "progressTitle": "Pipeline progress",
+    "stagePosition": "Stage {{n}} / {{total}}",
     "progressHeader": "Stage {{n}} of {{total}} — {{label}}",
     "progressNotStarted": "{{total}} stages, not started yet",
     "heavyBadge": "heavy",

@@ -66,6 +66,7 @@ import {
 } from '@vibe/ui/components/KanbanBoard';
 import { DragDropContext } from '@hello-pangea/dnd';
 import { KanbanCardContent } from '@vibe/ui/components/KanbanCardContent';
+import { PriorityIcon } from '@vibe/ui/components/PriorityIcon';
 import {
   AcceptFindingsButton,
   ShipIssueButton,
@@ -1787,6 +1788,7 @@ export function KanbanContainer() {
                             <KanbanCardContent
                               displayId={issue.simple_id}
                               title={issue.title}
+                              statusName={status.name}
                               compact
                               description={issue.description}
                               priority={issue.priority}
@@ -1820,10 +1822,11 @@ export function KanbanContainer() {
                               headerMeta={
                                 artifacts?.[issue.id]?.length ? (
                                   <span
-                                    className="text-low text-xs flex items-center gap-1 font-ibm-plex-mono tabular-nums"
+                                    className="inline-flex items-center gap-1 rounded bg-secondary px-1.5 py-0.5 text-xs font-medium text-normal"
                                     aria-label={`${artifacts[issue.id].length} artifacts`}
+                                    title={`${artifacts[issue.id].length} artifacts`}
                                   >
-                                    <PaperclipIcon className="size-3.5" />
+                                    <PaperclipIcon className="size-3" />
                                     {artifacts[issue.id].length}
                                   </span>
                                 ) : null
@@ -1880,7 +1883,7 @@ export function KanbanContainer() {
                                 parent card, each row opens that sub-issue. */}
                             {isSubIssuesExpanded &&
                               subIssueChildren.length > 0 && (
-                                <div className="mt-half flex flex-col gap-half border-l-2 border-border pl-half">
+                                <div className="mt-2 flex flex-col gap-1 border-l border-border pl-2">
                                   {subIssueChildren.map((child) => {
                                     const childStatus = statusById.get(
                                       child.status_id
@@ -1894,19 +1897,34 @@ export function KanbanContainer() {
                                           openIssue(child.id);
                                         }}
                                         onMouseDown={(e) => e.stopPropagation()}
-                                        className="flex w-full items-center gap-half rounded-sm px-half py-half text-left text-sm text-normal hover:bg-secondary transition-colors"
+                                        onPointerDown={(e) =>
+                                          e.stopPropagation()
+                                        }
+                                        aria-label={`${child.simple_id} ${child.title}${
+                                          childStatus
+                                            ? `, ${childStatus.name}`
+                                            : ''
+                                        }`}
+                                        title={child.title}
+                                        className="flex w-full min-w-0 flex-col items-start gap-1 rounded border border-border/70 bg-secondary/40 px-2 py-1.5 text-left text-sm text-normal hover:bg-secondary focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand transition-colors"
                                       >
-                                        <span
-                                          aria-hidden="true"
-                                          className="size-2 shrink-0 rounded-full"
-                                          style={{
-                                            backgroundColor: `hsl(${childStatus?.color ?? '0 0% 60%'})`,
-                                          }}
-                                        />
-                                        <span className="shrink-0 font-ibm-plex-mono text-sm text-low">
-                                          {child.simple_id}
+                                        <span className="flex w-full items-center justify-between gap-2">
+                                          <span className="flex min-w-0 items-center gap-1 font-ibm-plex-mono text-xs text-low">
+                                            <PriorityIcon
+                                              priority={child.priority}
+                                            />
+                                            {child.simple_id}
+                                          </span>
+                                          {childStatus && (
+                                            <span
+                                              className="shrink-0 rounded bg-primary px-1.5 py-0.5 text-xs text-normal"
+                                              title={childStatus.name}
+                                            >
+                                              {childStatus.name}
+                                            </span>
+                                          )}
                                         </span>
-                                        <span className="truncate">
+                                        <span className="w-full truncate font-medium text-high">
                                           {child.title}
                                         </span>
                                       </button>
@@ -1915,7 +1933,7 @@ export function KanbanContainer() {
                                 </div>
                               )}
                             {issueWorkspaces.length > 0 && (
-                              <div className="mt-1.5 flex flex-col gap-1">
+                              <div className="mt-2 flex flex-col gap-1">
                                 {issueWorkspaces.map((workspace) => (
                                   <IssueWorkspaceCard
                                     key={workspace.id}
@@ -1945,12 +1963,33 @@ export function KanbanContainer() {
                               const shipButton = renderShipButton(issue);
                               if (
                                 !shipButton &&
-                                dispatchWorkspaces.length === 0
+                                dispatchWorkspaces.length === 0 &&
+                                issue.status_id !== reviewStatusId
                               ) {
                                 return null;
                               }
                               return (
-                                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 min-w-0">
+                                <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border/70 pt-2 min-w-0">
+                                  {issue.status_id === reviewStatusId && (
+                                    <button
+                                      type="button"
+                                      onMouseDown={(event) =>
+                                        event.stopPropagation()
+                                      }
+                                      onPointerDown={(event) =>
+                                        event.stopPropagation()
+                                      }
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        openIssue(issue.id);
+                                      }}
+                                      className="min-h-7 rounded bg-brand px-2.5 text-xs font-semibold text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                                    >
+                                      {t('tasks:ship.review', {
+                                        defaultValue: 'Review',
+                                      })}
+                                    </button>
+                                  )}
                                   {shipButton}
                                   {dispatchWorkspaces.length > 0 && (
                                     <KanbanWorkspaceDispatch
