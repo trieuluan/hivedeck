@@ -726,6 +726,14 @@ impl Codex {
         (env, disabled_registry_names)
     }
 
+    fn codex_extension_overrides(env: &ExecutionEnv) -> Vec<(String, Value)> {
+        let mut prefs = crate::extensions::ExtensionPrefs::load().for_cli("CODEX");
+        for server in &env.mcp_servers {
+            prefs.disabled_mcp.remove(&server.name);
+        }
+        crate::extensions::codex_config_overrides(&prefs)
+    }
+
     async fn spawn_inner(
         &self,
         current_dir: &Path,
@@ -743,11 +751,7 @@ impl Codex {
             ));
         }
         // The owner's per-CLI choices for headless runs (ADR-038).
-        let mut prefs = crate::extensions::ExtensionPrefs::load().for_cli("CODEX");
-        for server in &env.mcp_servers {
-            prefs.disabled_mcp.remove(&server.name);
-        }
-        for (key, value) in crate::extensions::codex_config_overrides(&prefs) {
+        for (key, value) in Self::codex_extension_overrides(&env) {
             params
                 .config
                 .get_or_insert_with(HashMap::new)
@@ -862,6 +866,17 @@ impl Codex {
             at..at,
             crate::mcp_registry::codex_disable_args(disabled_registry_names),
         );
+        let ext_args: Vec<String> = Self::codex_extension_overrides(env)
+            .into_iter()
+            .flat_map(|(key, value)| ["-c".to_string(), format!("{key}={value}")])
+            .collect();
+        if !ext_args.is_empty() {
+            let at = args
+                .iter()
+                .position(|arg| arg == "app-server")
+                .unwrap_or(args.len());
+            args.splice(at..at, ext_args);
+        }
 
         let mut process = Command::new(program_path);
         process
