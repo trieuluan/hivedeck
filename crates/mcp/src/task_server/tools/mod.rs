@@ -535,6 +535,7 @@ mod tests {
             "get_issue".to_string(),
             "get_repo".to_string(),
             "link_workspace_issue".to_string(),
+            "list_artifacts".to_string(),
             "list_issue_priorities".to_string(),
             "list_issue_tags".to_string(),
             "list_issues".to_string(),

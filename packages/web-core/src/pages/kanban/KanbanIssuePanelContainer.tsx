@@ -1093,7 +1093,11 @@ export function KanbanIssuePanelContainer({
         selectedKanbanIssueId ? artifacts?.[selectedKanbanIssueId]?.length : 0
       }
       renderArtifactsSection={(issueId) => (
-        <IssueArtifacts key={issueId} issueId={issueId} />
+        <IssueArtifacts
+          key={issueId}
+          issueId={issueId}
+          description={displayData.description}
+        />
       )}
       mode={mode}
       displayId={displayId}

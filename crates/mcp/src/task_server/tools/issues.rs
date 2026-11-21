@@ -297,6 +297,15 @@ struct McpGetIssueRequest {
     issue_id: Uuid,
 }
 
+#[derive(Debug, Deserialize)]
+struct Artifact {
+    path: String,
+    name: String,
+    mime: String,
+    size: u64,
+    execution_id: Uuid,
+}
+
 #[derive(Debug, Serialize, schemars::JsonSchema)]
 struct McpGetIssueResponse {
     issue: IssueDetails,
@@ -309,6 +318,25 @@ struct McpListIssuePrioritiesResponse {
 
 #[tool_router(router = issues_tools_router, vis = "pub")]
 impl McpServer {
+    #[tool(
+        description = "List generated artifacts for an issue. Compare filenames with the Outputs line in the issue description; URLs are relative to the HiveDeck server."
+    )]
+    async fn list_artifacts(
+        &self,
+        Parameters(McpGetIssueRequest { issue_id }): Parameters<McpGetIssueRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let url = self.url(&format!("/api/issues/{issue_id}/artifacts"));
+        let files: Vec<Artifact> = match self.send_json(self.client.get(&url)).await {
+            Ok(files) => files,
+            Err(error) => return Ok(McpServer::tool_error(error)),
+        };
+        let rows: Vec<_> = files.into_iter().map(|file| {
+            let query: String = reqwest::Url::parse_with_params("http://localhost/", &[("path", &file.path)])
+                .expect("static URL is valid").query().unwrap_or_default().to_owned();
+            serde_json::json!({"name": file.name, "mime": file.mime, "size": file.size, "execution_id": file.execution_id, "url": format!("/api/issues/{issue_id}/artifacts/file?{query}")})
+        }).collect();
+        McpServer::success_compact(&rows)
+    }
     #[tool(
         description = "Create a new issue in a project. `project_id` is optional if running inside a workspace linked to a remote project."
     )]

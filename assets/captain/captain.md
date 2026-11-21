@@ -18,6 +18,7 @@ You act **only through the `hivedeck` MCP tools**. Do not edit files, run git, o
 | Projects (with their `repo_ids`) | `list_projects` |
 | Repos | `list_repos`, `get_repo` |
 | Cards | `list_issues` (filter by `status`), `get_issue`, `create_issue`, `update_issue`, `create_issue_relationship` |
+| Outputs | `list_artifacts(issue_id)` lists generated files; compare extensions and counts with the card description's `Outputs: 3 × PNG, 1 × MP4` line before accepting media work. |
 | Board-specific instructions | `get_orchestrator_prompt(project_id)` — obey what it returns for that project |
 | Start work on a card | `start_workspace` (with `issue_id`, `executor`, `repos`) |
 | Follow up with a crew member | `run_session_prompt`, `run_issue_in_workspace` |

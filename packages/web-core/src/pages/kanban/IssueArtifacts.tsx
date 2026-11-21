@@ -38,7 +38,28 @@ export function size(bytes: number) {
       : `${(bytes / 1048576).toFixed(1)} MB`;
 }
 
-export function IssueArtifacts({ issueId }: { issueId: string }) {
+export function outputs(description: string | null, files: { name: string }[]) {
+  const line = description?.match(/^\s*Outputs\s*:\s*(.*)$/im)?.[1];
+  if (!line) return [];
+  return Array.from(line.matchAll(/(\d+)\s*[×x]\s*([a-z0-9]+)/gi), (match) => {
+    const extension = match[2].toUpperCase();
+    return {
+      extension,
+      expected: Number(match[1]),
+      actual: files.filter((file) =>
+        file.name.toUpperCase().endsWith(`.${extension}`)
+      ).length,
+    };
+  });
+}
+
+export function IssueArtifacts({
+  issueId,
+  description,
+}: {
+  issueId: string;
+  description: string | null;
+}) {
   const {
     data: files = [],
     isLoading,
@@ -59,6 +80,7 @@ export function IssueArtifacts({ issueId }: { issueId: string }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState('');
   const images = files.filter((file) => file.mime.startsWith('image/'));
+  const checklist = outputs(description, files);
   const index = images.findIndex((file) => file.path === selected);
   const current = images[index];
 
@@ -97,6 +119,16 @@ export function IssueArtifacts({ issueId }: { issueId: string }) {
           </button>
         )}
       </div>
+      {!isLoading && !error && checklist.length > 0 && (
+        <ul aria-label="Outputs checklist">
+          {checklist.map(({ extension, actual, expected }, index) => (
+            <li key={`${extension}-${index}`}>
+              {extension} {actual}/{expected}{' '}
+              {actual >= expected ? '✓' : 'thiếu'}
+            </li>
+          ))}
+        </ul>
+      )}
       {isLoading && <p className="text-low">Loading artifacts…</p>}
       {error && (
         <p role="alert" className="text-error">
