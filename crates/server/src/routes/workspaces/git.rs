@@ -365,6 +365,38 @@ pub async fn ship_workspace(
         to_push.push((worktree_path, target));
     }
 
+    // Move the linked issue(s) to Done right after merge so a dev-server
+    // hot-reload triggered by merging `crates/` cannot strand the card in Review.
+    if let Err(e) = sqlx::query(
+        "UPDATE issues
+         SET status_id = (
+             SELECT ps.id
+             FROM project_statuses ps
+             WHERE ps.project_id = issues.project_id
+               AND LOWER(TRIM(ps.name)) = 'done'
+             ORDER BY ps.sort_order ASC
+             LIMIT 1
+         ),
+         updated_at = datetime('now', 'subsec')
+         WHERE id IN (SELECT issue_id FROM issue_workspaces WHERE workspace_id = ?1)
+           AND EXISTS (
+             SELECT 1
+             FROM project_statuses ps
+             WHERE ps.project_id = issues.project_id
+               AND LOWER(TRIM(ps.name)) = 'done'
+           )",
+    )
+    .bind(workspace.id)
+    .execute(pool)
+    .await
+    {
+        tracing::warn!(
+            "Shipped workspace {} but failed to move linked issue to Done: {}",
+            workspace.id,
+            e
+        );
+    }
+
     if request.push && !to_push.is_empty() {
         let mut errors = Vec::new();
         for (worktree_path, target) in &to_push {

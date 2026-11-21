@@ -73,7 +73,6 @@ import {
 } from './ShipIssueButton';
 import { KanbanWorkspaceDispatch } from '@vibe/ui/components/KanbanWorkspaceDispatch';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
-import { ConfirmCheckboxDialog } from '@/shared/dialogs/shared/ConfirmCheckboxDialog';
 import { workspaceSummaryKeys } from '@/shared/hooks/workspaceSummaryKeys';
 import { useQueryClient } from '@tanstack/react-query';
 import { useArtifacts } from '@/pages/kanban/IssueArtifacts';
@@ -961,7 +960,7 @@ export function KanbanContainer() {
     [statuses]
   );
   const handleAcceptFindings = useCallback(
-    async (issueId: string, localWorkspaceId: string, isPinned: boolean) => {
+    async (issueId: string, _localWorkspaceId: string, isPinned: boolean) => {
       if (!doneStatusId) return;
       const openSubIssues = getOpenSubIssuesForDoneMove(
         issueId,
@@ -973,7 +972,7 @@ export function KanbanContainer() {
         await showOpenSubIssuesBlockedDialog(openSubIssues, t);
         return;
       }
-      const result = await ConfirmCheckboxDialog.show({
+      const result = await ConfirmDialog.show({
         title: t('tasks:ship.acceptConfirmTitle', {
           defaultValue: 'Accept findings & complete card?',
         }),
@@ -982,38 +981,21 @@ export function KanbanContainer() {
         }),
         confirmText: t('tasks:ship.acceptFindings'),
         cancelText: t('common:buttons.cancel'),
-        checkboxLabel: t('tasks:ship.cleanupWorkspaceLabel', {
-          defaultValue: 'Delete workspace and git branch',
-        }),
-        checkboxDefaultChecked: !isPinned,
-        checkboxDisabled: isPinned,
-        checkboxHint: isPinned
+        variant: 'success',
+        note: isPinned
           ? t('tasks:ship.pinnedWorkspaceKept', {
               defaultValue: 'Pinned workspace will be kept.',
             })
-          : undefined,
+          : t('tasks:ship.workspaceKeptHint', {
+              defaultValue:
+                'Workspace is kept — clean up later via Clean up finished.',
+            }),
       });
-      if (result.action !== 'confirmed') return;
-
-      if (!isPinned && result.checked) {
-        try {
-          await workspacesApi.delete(localWorkspaceId, true);
-          refreshWorkspaceCaches();
-        } catch (error) {
-          await ConfirmDialog.show({
-            title: t('common:error'),
-            message: error instanceof Error ? error.message : String(error),
-            confirmText: t('common:ok'),
-            showCancelButton: false,
-            variant: 'destructive',
-          });
-          return;
-        }
-      }
+      if (result !== 'confirmed') return;
 
       updateIssue(issueId, { status_id: doneStatusId });
     },
-    [doneStatusId, issues, refreshWorkspaceCaches, statuses, t, updateIssue]
+    [doneStatusId, issues, statuses, t, updateIssue]
   );
   const renderShipButton = (issue: { id: string; status_id: string }) => {
     if (!reviewStatusId || !doneStatusId) return null;
