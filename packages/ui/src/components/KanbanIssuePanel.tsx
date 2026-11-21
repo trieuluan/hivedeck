@@ -554,7 +554,7 @@ export function KanbanIssuePanel({
 
           {/* Create Issue Button (Create mode only) */}
           {isCreateMode && (
-            <div className="px-base pb-base flex items-center gap-half">
+            <div className="sticky bottom-0 z-10 bg-primary border-t p-base flex items-center gap-half">
               <PrimaryButton
                 value={t('kanban.createIssue')}
                 onClick={onSubmit}

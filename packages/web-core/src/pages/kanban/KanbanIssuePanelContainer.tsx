@@ -1018,7 +1018,15 @@ export function KanbanIssuePanelContainer({
     void handleSubmit();
   }, [mode, handleSubmit]);
 
-  const handleDeleteDraft = useCallback(() => {
+  const handleDeleteDraft = useCallback(async () => {
+    const result = await ConfirmDialog.show({
+      title: 'Delete draft?',
+      message:
+        'The unsaved issue draft will be cleared. This cannot be undone.',
+      confirmText: 'Delete draft',
+      variant: 'destructive',
+    });
+    if (result !== 'confirmed') return;
     intakeMetadataRef.current = null;
     pipelineRef.current = null;
     dispatchFormState({

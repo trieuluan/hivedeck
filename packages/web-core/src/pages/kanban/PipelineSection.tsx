@@ -240,6 +240,7 @@ export function PipelineSection({
     <div className="p-base border-t space-y-base">
       <button
         type="button"
+        aria-expanded={expanded}
         onClick={() => setExpanded((v) => !v)}
         className="flex items-center gap-half text-sm font-medium text-high"
       >

@@ -12,6 +12,7 @@ import {
   XIcon,
 } from '@phosphor-icons/react';
 import { cn } from '@/shared/lib/utils';
+import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
 
 type Artifact = {
   path: string;
@@ -145,12 +146,15 @@ export function IssueArtifacts({
   }, [current, images, index]);
 
   async function remove(path?: string) {
-    if (
-      !window.confirm(
-        path ? 'Delete this artifact?' : 'Delete all artifacts for this card?'
-      )
-    )
-      return;
+    const result = await ConfirmDialog.show({
+      title: path ? 'Delete artifact?' : 'Delete all artifacts?',
+      message: path
+        ? `Permanently delete “${path}”? This cannot be undone.`
+        : 'Permanently delete all artifacts for this issue? This cannot be undone.',
+      confirmText: path ? 'Delete artifact' : 'Delete all artifacts',
+      variant: 'destructive',
+    });
+    if (result !== 'confirmed') return;
     setDeleteError('');
     try {
       const query = path ? `?${new URLSearchParams({ path })}` : '';
@@ -158,6 +162,8 @@ export function IssueArtifacts({
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Could not delete artifacts');
+      const body = await response.json();
+      if (!body.success) throw new Error('Could not delete artifacts');
       setSelected(null);
       await client.invalidateQueries({ queryKey: key });
     } catch {
