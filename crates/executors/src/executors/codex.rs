@@ -555,7 +555,10 @@ impl Codex {
         if let Some(catalog_path) = materialize_static_model_catalog() {
             builder = builder.extend_params([
                 "-c".to_string(),
-                format!("model_catalog_json={}", catalog_path.display()),
+                format!(
+                    "model_catalog_json={}",
+                    toml::Value::String(catalog_path.display().to_string())
+                ),
             ]);
         }
         builder = builder.extend_params(["app-server"]);

@@ -496,9 +496,12 @@ pub fn filter_codex_conflicts(
                 .or_else(|| arg.strip_prefix("-c=").or_else(|| arg.strip_prefix("-c")))
         };
         if let Some(value) = override_value {
-            match value.parse::<toml::Value>() {
-                Ok(config) => configs.push(config),
-                Err(_) => unknown = true,
+            let key = value.split('=').next().map(str::trim).unwrap_or("");
+            if key == "mcp_servers" || key.starts_with("mcp_servers.") {
+                match value.parse::<toml::Value>() {
+                    Ok(config) => configs.push(config),
+                    Err(_) => unknown = true,
+                }
             }
         }
         index += 1;
@@ -885,5 +888,26 @@ mod tests {
         std::fs::write(&config, "invalid = [").unwrap();
         filter_codex_conflicts(&mut servers, &[config], &[]);
         assert!(servers.is_empty());
+    }
+
+    #[test]
+    fn codex_ignores_non_mcp_config_overrides() {
+        let secrets = BTreeMap::from([("probe-key".into(), "top-secret".into())]);
+        let (mut servers, _) =
+            select(vec![entry()], &secrets, "codex", "crew", Some("board-a")).unwrap();
+        let disabled = filter_codex_conflicts(
+            &mut servers,
+            &[],
+            &[
+                "-c".into(),
+                "model_catalog_json=/Users/dev/Library/Application Support/hivedeck/models.json"
+                    .into(),
+                "-c".into(),
+                "model=fast".into(),
+            ],
+        );
+        assert!(disabled.is_empty());
+        assert_eq!(servers.len(), 1);
+        assert_eq!(servers[0].name, "probe");
     }
 }
