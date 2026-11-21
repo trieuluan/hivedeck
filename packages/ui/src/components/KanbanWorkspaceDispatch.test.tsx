@@ -40,6 +40,33 @@ afterEach(() => {
 });
 
 describe('KanbanWorkspaceDispatch', () => {
+  it('falls back when the selected workspace disappears', () => {
+    const onDispatch = vi.fn();
+    const view = render(
+      <KanbanWorkspaceDispatch
+        workspaces={[
+          { id: 'first', name: 'First' },
+          { id: 'second', name: 'Second' },
+        ]}
+        currentWorkspaceIds={new Set(['second'])}
+        onDispatch={onDispatch}
+      />
+    );
+    fireEvent.click(screen.getByRole('combobox'));
+    fireEvent.click(screen.getByRole('option', { name: 'First' }));
+    view.rerender(
+      <KanbanWorkspaceDispatch
+        workspaces={[{ id: 'second', name: 'Second' }]}
+        currentWorkspaceIds={new Set(['second'])}
+        onDispatch={onDispatch}
+      />
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Run issue in selected workspace' })
+    );
+    expect(onDispatch).toHaveBeenCalledWith('second');
+  });
+
   it('runs a linked workspace', () => {
     const onDispatch = vi.fn();
     render(

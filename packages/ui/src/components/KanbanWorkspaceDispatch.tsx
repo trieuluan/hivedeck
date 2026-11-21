@@ -66,7 +66,11 @@ export function KanbanWorkspaceDispatch({
     return null;
   }
 
-  const value = selectedId ?? availableWorkspaces[0]?.id;
+  const value = availableWorkspaces.some(
+    (workspace) => workspace.id === selectedId
+  )
+    ? selectedId
+    : availableWorkspaces[0]?.id;
   const empty = availableWorkspaces.length === 0;
   const isLinked = !!value && !!currentWorkspaceIds?.has(value);
 
@@ -115,7 +119,7 @@ export function KanbanWorkspaceDispatch({
         type="button"
         disabled={disabled || empty || !value || (!isLinked && !onLink)}
         onClick={() => value && (isLinked ? onDispatch(value) : handleLink())}
-        className="rounded p-half -m-half shrink-0 text-low transition-colors hover:bg-secondary hover:text-normal disabled:cursor-not-allowed disabled:opacity-40"
+        className="flex max-w-[55%] items-center gap-1 rounded p-half shrink-0 text-left text-low transition-colors hover:bg-secondary hover:text-normal focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40"
         aria-label={t(
           isLinked ? 'kanban.dispatchIssue' : 'kanban.linkThisWorkspace'
         )}
@@ -128,7 +132,9 @@ export function KanbanWorkspaceDispatch({
         ) : (
           <LinkIcon className="size-icon-xs" />
         )}
-        <span className="sr-only">{t('kanban.linkThisWorkspace')}</span>
+        <span className="text-sm leading-tight">
+          {t(isLinked ? 'kanban.dispatchIssue' : 'kanban.linkThisWorkspace')}
+        </span>
       </button>
     </div>
   );

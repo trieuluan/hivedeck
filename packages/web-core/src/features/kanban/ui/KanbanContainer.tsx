@@ -1774,6 +1774,7 @@ export function KanbanContainer() {
                             <KanbanCardContent
                               displayId={issue.simple_id}
                               title={issue.title}
+                              compact
                               description={issue.description}
                               priority={issue.priority}
                               tags={getTagObjectsForIssue(issue.id)}

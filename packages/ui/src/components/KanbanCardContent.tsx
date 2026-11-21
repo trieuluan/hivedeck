@@ -283,13 +283,7 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
               onMoreActionsClick();
             }}
             onMouseDown={(e) => e.stopPropagation()}
-            className={cn(
-              "relative after:absolute after:left-1/2 after:top-1/2 after:size-8 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] p-half -m-half rounded-sm text-low hover:text-normal hover:bg-secondary shrink-0",
-              isMobile
-                ? ''
-                : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto',
-              'transition-[opacity,color,background-color]'
-            )}
+            className="relative after:absolute after:left-1/2 after:top-1/2 after:size-8 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] p-half -m-half rounded-sm text-low hover:text-normal hover:bg-secondary shrink-0 transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand"
             aria-label={t('common:ui.moreActions')}
             title={t('common:ui.moreActions')}
           >
@@ -299,7 +293,12 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
       </div>
 
       {/* Row 2: Title */}
-      <span className="text-base text-normal truncate">{title}</span>
+      <span
+        className="text-base text-normal line-clamp-2 break-words"
+        title={title}
+      >
+        {title}
+      </span>
 
       {/* Row 3: Description (optional, short; full text in the tooltip) */}
       {previewDescription && !compact && (
