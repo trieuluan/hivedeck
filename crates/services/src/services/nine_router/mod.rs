@@ -883,23 +883,6 @@ fn management_client(settings: &NineRouterSettings) -> Result<api::Client, NineR
     Ok(api::Client::new(settings.port)?)
 }
 
-/// Resolve a 9router combo name (e.g. `coder`, `coder-r1`) to its first target
-/// `provider/model` string so HiveDeck can infer its real context window.
-pub async fn resolve_combo_first_model(
-    settings: &NineRouterSettings,
-    combo_or_model: &str,
-) -> Option<String> {
-    if combo_or_model.contains('/') {
-        return Some(combo_or_model.to_string());
-    }
-    let client = management_client(settings).ok()?;
-    let combos = client.combos().await.ok()?;
-    combos
-        .into_iter()
-        .find(|c| c.name == combo_or_model)
-        .and_then(|c| c.models.into_iter().next())
-}
-
 /// Suggest a combo per agent role from the models, provider health and quota
 /// 9router reports right now.
 pub async fn suggestions(

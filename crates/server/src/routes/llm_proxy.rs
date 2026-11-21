@@ -229,6 +229,10 @@ async fn forward_request(
     let pool = deployment.db().pool.clone();
     let session_id = route.session_id;
 
+    let is_9router_bad_request =
+        status == StatusCode::BAD_REQUEST && route.upstream_label == "9router";
+    let mut err_peek = Vec::new();
+
     tokio::spawn(async move {
         let mut stream = upstream_resp.bytes_stream();
         let mut extractor = SseUsageExtractor::default();
@@ -238,6 +242,10 @@ async fn forward_request(
         while let Some(item) = stream.next().await {
             match item {
                 Ok(chunk) => {
+                    if is_9router_bad_request && err_peek.len() < 4096 {
+                        let take = (4096 - err_peek.len()).min(chunk.len());
+                        err_peek.extend_from_slice(&chunk[..take]);
+                    }
                     let out_chunk = if let Some(rw) = rewriter.as_mut() {
                         Bytes::from(rw.push_bytes(&chunk))
                     } else {
@@ -263,6 +271,16 @@ async fn forward_request(
                 let tail_bytes = Bytes::from(tail);
                 extractor.push_bytes(&tail_bytes);
                 let _ = tx.send(Ok(tail_bytes)).await;
+            }
+        }
+        if is_9router_bad_request && !err_peek.is_empty() {
+            let err_lower = String::from_utf8_lossy(&err_peek).to_ascii_lowercase();
+            if err_lower.contains("context_length_exceeded")
+                || err_lower.contains("maximum context length")
+                || err_lower.contains("context window")
+                || err_lower.contains("too many tokens")
+            {
+                inspector.mark_context_overflow(session_id);
             }
         }
         extractor.finish();

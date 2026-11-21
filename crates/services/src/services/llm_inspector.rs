@@ -174,6 +174,10 @@ pub struct LlmInspector {
     telemetry: Arc<DashMap<Uuid, ContextBreakdown>>,
     /// Key: session_id -> resolved context window from 9router combo/model lookup
     context_windows: Arc<DashMap<Uuid, u32>>,
+    /// Key: session_id -> upstream 9router returned 400 context_length_exceeded
+    overflow_sessions: Arc<DashMap<Uuid, bool>>,
+    /// Key: session_id -> last time HiveDeck triggered auto-compact (cooldown guard)
+    last_auto_compact: Arc<DashMap<Uuid, std::time::Instant>>,
 }
 
 impl LlmInspector {
@@ -221,8 +225,39 @@ impl LlmInspector {
         self.telemetry.entry(session_id).or_insert(breakdown);
     }
 
-    pub fn set_session_context_window(&self, session_id: Uuid, window: u32) {
-        self.context_windows.insert(session_id, window);
+    pub fn mark_context_overflow(&self, session_id: Uuid) {
+        self.overflow_sessions.insert(session_id, true);
+    }
+
+    /// Returns `Some(reason)` when a 9router-backed session has hit >=85% of its
+    /// effective context window or returned a 400 context-overflow error, subject to
+    /// a 60s cooldown so auto-compact cannot loop.
+    pub fn take_auto_compact_reason(&self, session_id: Uuid) -> Option<String> {
+        if let Some(last) = self.last_auto_compact.get(&session_id)
+            && last.value().elapsed() < std::time::Duration::from_secs(60)
+        {
+            return None;
+        }
+        let telemetry = self.telemetry.get(&session_id)?;
+        if telemetry.upstream.as_deref() != Some("9router") {
+            return None;
+        }
+        if self.overflow_sessions.remove(&session_id).is_some() {
+            self.last_auto_compact
+                .insert(session_id, std::time::Instant::now());
+            return Some("400".to_string());
+        }
+        let window = telemetry.model_context_window?;
+        if window == 0 || telemetry.payload_tokens == 0 {
+            return None;
+        }
+        let pct = (telemetry.payload_tokens as u64 * 100) / (window as u64);
+        if pct >= 85 {
+            self.last_auto_compact
+                .insert(session_id, std::time::Instant::now());
+            return Some(format!("{pct}%"));
+        }
+        None
     }
 
     /// Record the resolved upstream model and/or context window from response
@@ -1241,5 +1276,57 @@ mod tests {
         }))
         .unwrap();
         assert!(flatten_responses_tool_namespaces(&plain).is_none());
+    }
+
+    #[test]
+    fn take_auto_compact_reason_triggers_on_85_percent_and_400_with_cooldown() {
+        let make_breakdown = |payload_tokens: u32, window: u32, upstream: &str| ContextBreakdown {
+            source: "proxy".to_string(),
+            categories: Vec::new(),
+            payload_tokens,
+            model: None,
+            upstream: Some(upstream.to_string()),
+            input_tokens: None,
+            output_tokens: None,
+            cache_read_tokens: None,
+            cache_creation_tokens: None,
+            model_context_window: Some(window),
+        };
+
+        let inspector = LlmInspector::new();
+        let session_id = Uuid::new_v4();
+
+        // Direct upstream (not 9router) never triggers HiveDeck auto-compact.
+        inspector.seed_session_telemetry(session_id, make_breakdown(180_000, 200_000, "anthropic"));
+        assert_eq!(inspector.take_auto_compact_reason(session_id), None);
+
+        // Switch to 9router at 84% -> still below threshold.
+        inspector
+            .telemetry
+            .insert(session_id, make_breakdown(168_000, 200_000, "9router"));
+        assert_eq!(inspector.take_auto_compact_reason(session_id), None);
+
+        // Hit 85% -> triggers once, then cooldown suppresses immediate repeat.
+        inspector
+            .telemetry
+            .insert(session_id, make_breakdown(170_000, 200_000, "9router"));
+        assert_eq!(
+            inspector.take_auto_compact_reason(session_id),
+            Some("85%".to_string())
+        );
+        assert_eq!(inspector.take_auto_compact_reason(session_id), None);
+
+        // Fresh session with 400 overflow triggers immediately even below 85%.
+        let overflow_session = Uuid::new_v4();
+        inspector.seed_session_telemetry(
+            overflow_session,
+            make_breakdown(100_000, 200_000, "9router"),
+        );
+        inspector.mark_context_overflow(overflow_session);
+        assert_eq!(
+            inspector.take_auto_compact_reason(overflow_session),
+            Some("400".to_string())
+        );
+        assert_eq!(inspector.take_auto_compact_reason(overflow_session), None);
     }
 }

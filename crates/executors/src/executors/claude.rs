@@ -1751,7 +1751,12 @@ impl ClaudeLogProcessor {
                             patches.push(add_system_message(status.clone(), entry_index_provider));
                         }
                     }
-                    Some("compact_boundary") => {}
+                    Some("compact_boundary") => {
+                        patches.push(add_system_message(
+                            "Context compacted".to_string(),
+                            entry_index_provider,
+                        ));
+                    }
                     // Interactive-mode record emitted exactly when a turn ends.
                     // Show its duration in seconds, then emit the (invisible)
                     // `TurnComplete` marker so it is the latest entry — settling

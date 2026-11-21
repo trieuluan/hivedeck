@@ -565,7 +565,7 @@ export type RegistryTransport = "stdio" | "http";
 
 export type RegistryRole = "captain" | "crew";
 
-export type RegistryEntry = { name: string, transport: RegistryTransport, command: string | null, args: Array<string>, url: string | null, headers: { [key in string]?: string }, env: { [key in string]?: string }, roles: Array<RegistryRole>, boards: Array<string>, oauth: boolean, };
+export type RegistryEntry = { name: string, transport: RegistryTransport, command: string | null, args: Array<string>, url: string | null, headers: { [key in string]?: string }, env: { [key in string]?: string }, roles: Array<RegistryRole>, boards: Array<string>, oauth: boolean, instructions?: string | null, };
 
 export type SetRegistrySecret = { value: string, };
 
@@ -581,7 +581,7 @@ export type PluginConflict = { kind: string, name: string, against: string, acti
 
 export type McpToolPolicy = "default" | "allow" | "ask" | "block";
 
-export type PluginMcpEntry = { name: string, transport: string, command?: string | null, args: Array<string>, url?: string | null, headers: { [key in string]?: string }, env: { [key in string]?: string }, roles: Array<string>, boards: Array<string>, oauth: boolean, enabled: boolean, tool_policies?: { [key in string]?: McpToolPolicy }, };
+export type PluginMcpEntry = { name: string, transport: string, command?: string | null, args: Array<string>, url?: string | null, headers: { [key in string]?: string }, env: { [key in string]?: string }, roles: Array<string>, boards: Array<string>, oauth: boolean, enabled: boolean, tool_policies?: { [key in string]?: McpToolPolicy }, instructions?: string | null, server_instructions?: string | null, };
 
 export type PluginSkillEntry = { name: string, path: string, roles: Array<string>, boards: Array<string>, clis: Array<string>, enabled: boolean, };
 

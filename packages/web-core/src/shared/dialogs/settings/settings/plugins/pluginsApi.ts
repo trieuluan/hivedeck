@@ -73,6 +73,7 @@ export type ScopePatch = {
   boards?: string[];
   enabled?: boolean;
   tool_policies?: Record<string, McpToolPolicy | undefined>;
+  instructions?: string;
 };
 
 export const pluginsApi = {

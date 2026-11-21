@@ -18,6 +18,8 @@ pub struct RegistryEntry {
     pub roles: Vec<String>,
     #[serde(default)]
     pub boards: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instructions: Option<String>,
 }
 
 #[derive(Clone)]
@@ -29,6 +31,7 @@ pub struct InjectedMcpServer {
     pub url: Option<String>,
     pub headers: BTreeMap<String, String>,
     pub env: BTreeMap<String, String>,
+    pub instructions: Option<String>,
 }
 
 pub fn select(
@@ -88,9 +91,35 @@ pub fn select(
             url: entry.url,
             headers,
             env,
+            instructions: entry.instructions,
         });
     }
     Ok((servers, variables))
+}
+
+/// Build a `## MCP Tool Guidance` block from the selected servers that carry
+/// non-empty `instructions`. Because `servers` is already filtered by role
+/// (`captain` / `crew`), board, and `enabled`, only instructions for
+/// permitted MCP servers are emitted.
+pub fn format_mcp_instructions(servers: &[InjectedMcpServer]) -> Option<String> {
+    let mut sections = Vec::new();
+    for server in servers {
+        let Some(raw) = server.instructions.as_deref() else {
+            continue;
+        };
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        sections.push(format!("### MCP `{}`\n{}", server.name, trimmed));
+    }
+    if sections.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "## MCP Tool Guidance\nFollow these tool instructions for the MCP servers enabled in this session:\n\n{}",
+        sections.join("\n\n")
+    ))
 }
 
 pub fn claude_config(servers: &[InjectedMcpServer], existing: Option<&str>) -> String {
@@ -547,7 +576,51 @@ mod tests {
             env: BTreeMap::new(),
             roles: vec!["crew".into()],
             boards: vec!["board-a".into()],
+            instructions: None,
         }
+    }
+
+    #[test]
+    fn format_mcp_instructions_filters_by_role_and_non_empty() {
+        let mut crew_entry = entry();
+        crew_entry.name = "codemap".into();
+        crew_entry.instructions = Some("  Use codemap before rg.  ".into());
+
+        let mut captain_only = entry();
+        captain_only.name = "captain-only".into();
+        captain_only.roles = vec!["captain".into()];
+        captain_only.instructions = Some("Captain only guidance".into());
+
+        let mut empty_entry = entry();
+        empty_entry.name = "blank".into();
+        empty_entry.instructions = Some("   ".into());
+
+        let secrets = BTreeMap::from([("probe-key".into(), "secret".into())]);
+        let (crew_servers, _) = select(
+            vec![crew_entry.clone(), captain_only.clone(), empty_entry],
+            &secrets,
+            "codex",
+            "crew",
+            Some("board-a"),
+        )
+        .unwrap();
+        let crew_guidance = format_mcp_instructions(&crew_servers).expect("should emit guidance");
+        assert!(crew_guidance.contains("### MCP `codemap`\nUse codemap before rg."));
+        assert!(!crew_guidance.contains("captain-only"));
+        assert!(!crew_guidance.contains("blank"));
+
+        let (captain_servers, _) = select(
+            vec![crew_entry, captain_only],
+            &secrets,
+            "codex",
+            "captain",
+            Some("board-a"),
+        )
+        .unwrap();
+        let captain_guidance =
+            format_mcp_instructions(&captain_servers).expect("should emit captain guidance");
+        assert!(captain_guidance.contains("captain-only"));
+        assert!(!captain_guidance.contains("codemap"));
     }
 
     #[test]

@@ -477,6 +477,7 @@ mod tests {
                 url: None,
                 headers: Default::default(),
                 env: [("API_KEY".into(), "HIVEDECK_MCP_PROBE_KEY_TOKEN".into())].into(),
+                instructions: None,
             });
         env.mcp_servers
             .push(crate::mcp_registry::InjectedMcpServer {
@@ -487,6 +488,7 @@ mod tests {
                 url: Some("https://example.test/mcp".into()),
                 headers: [("Authorization".into(), "HIVEDECK_MCP_REMOTE_TOKEN".into())].into(),
                 env: Default::default(),
+                instructions: None,
             });
         let arg_after = |args: &[String], flag: &str| {
             args.windows(2)
@@ -593,6 +595,7 @@ mod tests {
                 url: None,
                 headers: Default::default(),
                 env: Default::default(),
+                instructions: None,
             });
         for agent in BaseCodingAgent::iter() {
             let compat = crate::plugins::executor_compatibility_for(agent);

@@ -107,6 +107,10 @@ pub struct PluginMcpEntry {
     pub enabled: bool,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tool_policies: BTreeMap<String, McpToolPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instructions: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_instructions: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -1099,6 +1103,13 @@ fn parse_mcp_servers_map(
             oauth,
             enabled: true,
             tool_policies: BTreeMap::new(),
+            instructions: server
+                .get("instructions")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned),
+            server_instructions: None,
         };
         validate_mcp_entry(&entry)?;
         entries.push(entry);
@@ -2120,6 +2131,7 @@ pub fn update_skill_scope(
     Ok(updated)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn update_mcp_scope(
     dir: &Path,
     plugin_name: &str,
@@ -2128,6 +2140,7 @@ pub fn update_mcp_scope(
     boards: Option<Vec<String>>,
     enabled: Option<bool>,
     tool_policies: Option<BTreeMap<String, McpToolPolicy>>,
+    instructions: Option<String>,
 ) -> Result<PluginMcpEntry, PluginError> {
     if !valid_name(plugin_name) || !valid_name(mcp_name) {
         return Err(PluginError::BadRequest("Invalid plugin or MCP name".into()));
@@ -2161,9 +2174,45 @@ pub fn update_mcp_scope(
             .filter(|(_, policy)| *policy != McpToolPolicy::Default)
             .collect();
     }
+    if let Some(instructions) = instructions {
+        let trimmed = instructions.trim();
+        mcp.instructions = (!trimmed.is_empty()).then(|| trimmed.to_string());
+    }
     let updated = mcp.clone();
     write_atomic(&plugins_path(dir), &plugins, false)?;
     Ok(updated)
+}
+
+pub fn update_mcp_server_instructions(
+    dir: &Path,
+    plugin_name: &str,
+    mcp_name: &str,
+    server_instructions: Option<String>,
+) -> Result<(), PluginError> {
+    if !valid_name(plugin_name) || !valid_name(mcp_name) {
+        return Err(PluginError::BadRequest("Invalid plugin or MCP name".into()));
+    }
+    let normalized = server_instructions
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned);
+    let _lock = WRITE_LOCK
+        .lock()
+        .map_err(|_| std::io::Error::other("Plugin registry lock poisoned"))?;
+    let mut plugins = read_plugins(dir)?;
+    let Some(plugin) = plugins.iter_mut().find(|p| p.name == plugin_name) else {
+        return Ok(());
+    };
+    let Some(mcp) = plugin.mcp.iter_mut().find(|m| m.name == mcp_name) else {
+        return Ok(());
+    };
+    if mcp.server_instructions == normalized {
+        return Ok(());
+    }
+    mcp.server_instructions = normalized;
+    write_atomic(&plugins_path(dir), &plugins, false)?;
+    Ok(())
 }
 
 pub fn claude_tool_policy_args(dir: &Path, injected: &[InjectedMcpServer]) -> Vec<String> {
@@ -2377,6 +2426,7 @@ pub fn select_mcp_for_run(
             url: entry.url,
             headers,
             env,
+            instructions: entry.instructions.or(entry.server_instructions),
         });
     }
 
@@ -2810,6 +2860,8 @@ mod tests {
             oauth: false,
             enabled: true,
             tool_policies: BTreeMap::new(),
+            instructions: None,
+            server_instructions: None,
         };
         install_plugin(
             other.path(),
@@ -2845,6 +2897,8 @@ mod tests {
             oauth: true,
             enabled: true,
             tool_policies: BTreeMap::new(),
+            instructions: None,
+            server_instructions: None,
         };
         let req = InstallPluginRequest {
             source: String::new(),
@@ -3364,6 +3418,7 @@ mod tests {
             url: None,
             headers: BTreeMap::new(),
             env: BTreeMap::from([("TOKEN".into(), "HIVEDECK_MCP_PROBE_TOKEN".into())]),
+            instructions: None,
         }];
 
         assert!(

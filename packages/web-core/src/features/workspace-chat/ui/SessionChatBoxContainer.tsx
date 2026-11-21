@@ -265,6 +265,35 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
       ) ?? null,
     [processes]
   );
+
+  const isCompacting = useMemo(() => {
+    const typ = runningAgentProcess?.executor_action?.typ;
+    if (!typ) return false;
+    if (
+      typ.type === 'CodingAgentInitialRequest' ||
+      typ.type === 'CodingAgentFollowUpRequest'
+    ) {
+      return typ.prompt.trimStart().startsWith('/compact');
+    }
+    return false;
+  }, [runningAgentProcess]);
+
+  const contextPercent = useMemo(() => {
+    if (
+      !tokenUsageInfo ||
+      !tokenUsageInfo.model_context_window ||
+      tokenUsageInfo.model_context_window <= 0
+    ) {
+      return undefined;
+    }
+    return Math.min(
+      100,
+      Math.round(
+        (tokenUsageInfo.total_tokens / tokenUsageInfo.model_context_window) *
+          100
+      )
+    );
+  }, [tokenUsageInfo]);
   const [observedEntryAt, setObservedEntryAt] = useState<number | null>(null);
   useEffect(() => {
     if (entries.length > 0) setObservedEntryAt(Date.now());
@@ -1174,6 +1203,8 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
       repoIds={repoIds}
       tokenUsageInfo={tokenUsageInfo}
       supportsContextUsage={supportsContextUsage}
+      isCompacting={isCompacting}
+      contextPercent={contextPercent}
       sendShortcut={config?.send_message_shortcut ?? 'ModifierEnter'}
       formatExecutorLabel={toPrettyCase}
       formatSessionDate={(createdAt) =>

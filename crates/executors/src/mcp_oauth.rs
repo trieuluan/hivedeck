@@ -757,7 +757,21 @@ fn format_stdio_error(prefix: String, stderr_lines: &[String]) -> PluginError {
     }
 }
 
-type ToolsCacheMap = HashMap<String, (std::time::Instant, Vec<PluginMcpToolInfo>)>;
+#[derive(Clone, Debug)]
+pub struct McpProbeResult {
+    pub tools: Vec<PluginMcpToolInfo>,
+    pub instructions: Option<String>,
+}
+
+fn extract_instructions_from_init(val: &Value) -> Option<String> {
+    val.pointer("/result/instructions")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+}
+
+type ToolsCacheMap = HashMap<String, (std::time::Instant, McpProbeResult)>;
 
 fn tools_cache() -> &'static std::sync::Mutex<ToolsCacheMap> {
     static CACHE: std::sync::OnceLock<std::sync::Mutex<ToolsCacheMap>> = std::sync::OnceLock::new();
@@ -766,34 +780,77 @@ fn tools_cache() -> &'static std::sync::Mutex<ToolsCacheMap> {
 
 const TOOLS_CACHE_TTL: Duration = Duration::from_secs(300);
 
-pub async fn list_mcp_tools(
+pub async fn probe_mcp_server(
     dir: &Path,
     plugin: &InstalledPlugin,
     mcp: &PluginMcpEntry,
-) -> Result<Vec<PluginMcpToolInfo>, PluginError> {
+) -> Result<McpProbeResult, PluginError> {
     let cache_key = format!(
         "{}:{}:{}:{:?}:{:?}:{:?}",
         plugin.name, mcp.name, mcp.transport, mcp.command, mcp.args, mcp.url
     );
     if let Ok(guard) = tools_cache().lock()
-        && let Some((cached_at, tools)) = guard.get(&cache_key)
+        && let Some((cached_at, probed)) = guard.get(&cache_key)
         && cached_at.elapsed() < TOOLS_CACHE_TTL
     {
-        return Ok(tools.clone());
+        return Ok(probed.clone());
     }
 
-    let tools = list_mcp_tools_uncached(dir, plugin, mcp).await?;
+    let probed = probe_mcp_server_uncached(dir, plugin, mcp).await?;
     if let Ok(mut guard) = tools_cache().lock() {
-        guard.insert(cache_key, (std::time::Instant::now(), tools.clone()));
+        guard.insert(cache_key, (std::time::Instant::now(), probed.clone()));
     }
-    Ok(tools)
+    Ok(probed)
 }
 
-async fn list_mcp_tools_uncached(
+pub async fn list_mcp_tools(
     dir: &Path,
     plugin: &InstalledPlugin,
     mcp: &PluginMcpEntry,
 ) -> Result<Vec<PluginMcpToolInfo>, PluginError> {
+    probe_mcp_server(dir, plugin, mcp)
+        .await
+        .map(|probed| probed.tools)
+}
+
+/// Spawn a non-blocking background task to probe any enabled MCP servers that do
+/// not yet have manual `instructions` or cached `server_instructions`.
+pub fn spawn_background_instruction_probe(dir: std::path::PathBuf, plugins: Vec<InstalledPlugin>) {
+    let mut pending = Vec::new();
+    for p in plugins {
+        if !p.enabled {
+            continue;
+        }
+        for m in &p.mcp {
+            if m.enabled && m.instructions.is_none() && m.server_instructions.is_none() {
+                pending.push((p.clone(), m.clone()));
+            }
+        }
+    }
+    if pending.is_empty() {
+        return;
+    }
+    tokio::spawn(async move {
+        for (plugin, mcp) in pending {
+            if let Ok(probed) = probe_mcp_server(&dir, &plugin, &mcp).await
+                && probed.instructions.is_some()
+            {
+                let _ = crate::plugins::update_mcp_server_instructions(
+                    &dir,
+                    &plugin.name,
+                    &mcp.name,
+                    probed.instructions,
+                );
+            }
+        }
+    });
+}
+
+async fn probe_mcp_server_uncached(
+    dir: &Path,
+    plugin: &InstalledPlugin,
+    mcp: &PluginMcpEntry,
+) -> Result<McpProbeResult, PluginError> {
     let secrets = read_plugin_secrets(dir).unwrap_or_default();
     let mcp_secrets = secrets.get(&plugin.name).and_then(|m| m.get(&mcp.name));
 
@@ -885,7 +942,9 @@ async fn list_mcp_tools_uncached(
         if let Some(session_id) = init_resp.headers().get("mcp-session-id").cloned() {
             headers.insert("mcp-session-id", session_id);
         }
-        let _ = init_resp.text().await;
+        let init_body = init_resp.text().await.unwrap_or_default();
+        let instructions = parse_mcp_jsonrpc_body(&init_body, 1)
+            .and_then(|val| extract_instructions_from_init(&val));
 
         let list_payload = serde_json::json!({
             "jsonrpc": "2.0",
@@ -910,7 +969,11 @@ async fn list_mcp_tools_uncached(
         let parsed = parse_mcp_jsonrpc_body(&body, 2).ok_or_else(|| {
             PluginError::BadRequest("Không đọc được JSON-RPC tools/list từ MCP server".into())
         })?;
-        return extract_tools_from_response(&parsed);
+        let tools = extract_tools_from_response(&parsed)?;
+        return Ok(McpProbeResult {
+            tools,
+            instructions,
+        });
     }
 
     if mcp.transport == "stdio" {
@@ -977,12 +1040,23 @@ async fn list_mcp_tools_uncached(
         let _ = stdin.flush().await;
 
         let mut lines = BufReader::new(stdout).lines();
+        let mut init_instructions: Option<String> = None;
         let result = tokio::time::timeout(timeout, async {
             while let Ok(Some(line)) = lines.next_line().await {
-                if let Ok(val) = serde_json::from_str::<Value>(line.trim())
-                    && val.get("id").and_then(Value::as_i64) == Some(2)
-                {
-                    return extract_tools_from_response(&val);
+                if let Ok(val) = serde_json::from_str::<Value>(line.trim()) {
+                    match val.get("id").and_then(Value::as_i64) {
+                        Some(1) => {
+                            init_instructions = extract_instructions_from_init(&val);
+                        }
+                        Some(2) => {
+                            let tools = extract_tools_from_response(&val)?;
+                            return Ok(McpProbeResult {
+                                tools,
+                                instructions: init_instructions,
+                            });
+                        }
+                        _ => {}
+                    }
                 }
             }
             Err(PluginError::BadRequest(

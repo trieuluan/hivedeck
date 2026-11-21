@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowSquareOutIcon,
@@ -774,6 +774,21 @@ export function PluginDetail({
             </div>
           )}
         </div>
+
+        <McpInstructionsEditor
+          value={entry.instructions ?? ''}
+          serverInstructions={entry.server_instructions ?? ''}
+          disabled={busy}
+          onSave={(instructions) =>
+            void run(
+              () =>
+                pluginsApi.updateMcp(plugin.name, entry.name, {
+                  instructions,
+                }),
+              t('settings.plugins.notice.saved')
+            )
+          }
+        />
       </li>
     );
   };
@@ -1041,6 +1056,58 @@ export function PluginDetail({
             ))}
           </ul>
         </section>
+      )}
+    </div>
+  );
+}
+
+function McpInstructionsEditor({
+  value,
+  serverInstructions,
+  disabled,
+  onSave,
+}: {
+  value: string;
+  serverInstructions: string;
+  disabled?: boolean;
+  onSave: (instructions: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => {
+    setDraft(value);
+  }, [value]);
+  const dirty = draft.trim() !== value.trim();
+
+  return (
+    <div className="space-y-1.5 border-t border-border/60 pt-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-low">
+          Hướng dẫn cho agent (chỉ chèn vào role được bật)
+        </span>
+        {dirty && (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onSave(draft)}
+            className="rounded border border-brand/40 bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand hover:bg-brand/20 disabled:opacity-50"
+          >
+            Lưu hướng dẫn
+          </button>
+        )}
+      </div>
+      <textarea
+        rows={2}
+        disabled={disabled}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="Ví dụ: Ưu tiên dùng MCP này để tra cứu cấu trúc/symbol codebase trước khi chạy rg/sed…"
+        className="w-full rounded-sm border border-border bg-panel/80 px-2.5 py-1.5 text-xs text-normal placeholder:text-low/60 focus:border-brand focus:outline-none disabled:opacity-50"
+      />
+      {!value.trim() && serverInstructions.trim() && (
+        <p className="text-xs text-low">
+          Đang tự dùng <code className="font-mono">instructions</code> mặc định
+          từ MCP server (nhập phía trên nếu muốn ghi đè).
+        </p>
       )}
     </div>
   );

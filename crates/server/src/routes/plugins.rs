@@ -97,6 +97,8 @@ pub struct UpdatePluginMcpRequest {
     pub enabled: Option<bool>,
     #[serde(default)]
     pub tool_policies: Option<BTreeMap<String, plugins::McpToolPolicy>>,
+    #[serde(default)]
+    pub instructions: Option<String>,
 }
 
 fn map_err(err: PluginError) -> ApiError {
@@ -204,6 +206,7 @@ async fn install(
 ) -> Result<Json<ApiResponse<PluginView>>, ApiError> {
     let Json(req) = req.map_err(|_| ApiError::BadRequest("Invalid install request".into()))?;
     let installed = plugins::install_plugin(&dir, req).map_err(map_err)?;
+    mcp_oauth::spawn_background_instruction_probe(dir.clone(), vec![installed.clone()]);
     let secrets = plugins::read_plugin_secrets(&dir).map_err(map_err)?;
     let oauth_tokens = mcp_oauth::read_oauth_tokens(&dir).map_err(map_err)?;
     Ok(Json(ApiResponse::success(build_view(
@@ -327,6 +330,7 @@ async fn update_mcp(
         req.boards,
         req.enabled,
         req.tool_policies,
+        req.instructions,
     )
     .map_err(map_err)?;
     Ok(Json(ApiResponse::success(updated)))
@@ -568,10 +572,18 @@ async fn list_mcp_tools(
         .find(|m| m.name == mcp_name)
         .cloned()
         .ok_or_else(|| ApiError::NotFound(format!("MCP '{mcp_name}' not found")))?;
-    let tools = mcp_oauth::list_mcp_tools(&dir, &plugin, &mcp)
+    let probed = mcp_oauth::probe_mcp_server(&dir, &plugin, &mcp)
         .await
         .map_err(map_err)?;
-    Ok(Json(ApiResponse::success(tools)))
+    if probed.instructions.is_some() && probed.instructions != mcp.server_instructions {
+        let _ = plugins::update_mcp_server_instructions(
+            &dir,
+            &plugin_name,
+            &mcp_name,
+            probed.instructions,
+        );
+    }
+    Ok(Json(ApiResponse::success(probed.tools)))
 }
 
 async fn disconnect_oauth(

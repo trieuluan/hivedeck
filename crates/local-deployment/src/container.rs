@@ -208,15 +208,6 @@ impl LocalContainerService {
             model = nine_router::rotation::model_for_session(&router, &model, session_id).await;
             tracing::info!("session {session_id} pinned to {model}");
         }
-        if let Some(resolved_model) = nine_router::resolve_combo_first_model(&router, &model).await
-        {
-            let window = services::services::llm_inspector::infer_context_window(&resolved_model);
-            self.llm_inspector
-                .set_session_context_window(session_id, window);
-            if base == BaseCodingAgent::Codex {
-                env.insert(codex::ROUTER_CONTEXT_WINDOW_ENV, window.to_string());
-            }
-        }
         let mut routed = executor_action.clone();
         routed.executor_config_mut()?.model_id = Some(model);
         Some(routed)
@@ -965,7 +956,67 @@ impl LocalContainerService {
                             container.finalize_task(&ctx).await;
                         }
                     } else {
-                        container.finalize_task(&ctx).await;
+                        let maybe_auto_compact_cfg =
+                            if !ExecutionProcess::was_stopped(&db.pool, exec_id).await
+                                && matches!(
+                                    ctx.execution_process.run_reason,
+                                    ExecutionProcessRunReason::CodingAgent
+                                )
+                                && !has_chained_follow_up
+                            {
+                                ctx.execution_process
+                                    .executor_action()
+                                    .ok()
+                                    .and_then(|action| {
+                                        let is_compact_prompt = match action.typ() {
+                                            ExecutorActionType::CodingAgentInitialRequest(r) => {
+                                                r.prompt.trim_start().starts_with("/compact")
+                                            }
+                                            ExecutorActionType::CodingAgentFollowUpRequest(r) => {
+                                                r.prompt.trim_start().starts_with("/compact")
+                                            }
+                                            _ => false,
+                                        };
+                                        if is_compact_prompt {
+                                            return None;
+                                        }
+                                        action.executor_config().cloned()
+                                    })
+                                    .and_then(|cfg| {
+                                        container
+                                            .llm_inspector
+                                            .take_auto_compact_reason(ctx.session.id)
+                                            .map(|reason| (reason, cfg))
+                                    })
+                            } else {
+                                None
+                            };
+
+                        if let Some((reason, executor_config)) = maybe_auto_compact_cfg {
+                            tracing::info!(
+                                "Auto-compacting session {} (reason: {})",
+                                ctx.session.id,
+                                reason
+                            );
+                            let compact_data = DraftFollowUpData {
+                                message: "/compact".to_string(),
+                                executor_config,
+                            };
+                            if let Err(e) =
+                                container.start_queued_follow_up(&ctx, &compact_data).await
+                            {
+                                tracing::error!(
+                                    "Failed to start auto-compact follow-up for session {}: {}",
+                                    ctx.session.id,
+                                    e
+                                );
+                                container.finalize_task(&ctx).await;
+                            } else {
+                                started_queued_follow_up = true;
+                            }
+                        } else {
+                            container.finalize_task(&ctx).await;
+                        }
                     }
 
                     let should_mark_turn_unseen = matches!(
@@ -2966,6 +3017,7 @@ impl ContainerService for LocalContainerService {
                 board.as_deref(),
             )
             .map_err(|error| anyhow!(error))?;
+            executors::mcp_oauth::spawn_background_instruction_probe(dir.clone(), plugins.clone());
             if matches!(cli, "gemini" | "qwen_code") && !servers.is_empty() {
                 let qwen = cli == "qwen_code";
                 let settings = executors::plugins::write_run_settings(
@@ -3058,6 +3110,29 @@ impl ContainerService for LocalContainerService {
             };
             if let Some(prompt) = prompt {
                 prompt.push_str("\nFile output not committed to git must be written to $HIVEDECK_ARTIFACTS_DIR.");
+            }
+        }
+        // Codex receives MCP guidance via `params.developer_instructions`;
+        // all other CLIs receive it appended to the spawned prompt
+        // (unless it is a slash command such as `/compact`).
+        if !matches!(
+            artifact_action.base_executor(),
+            Some(BaseCodingAgent::Codex)
+        ) && let Some(mcp_guidance) =
+            executors::mcp_registry::format_mcp_instructions(&env.mcp_servers)
+        {
+            let prompt = match &mut artifact_action.typ {
+                ExecutorActionType::CodingAgentInitialRequest(request) => Some(&mut request.prompt),
+                ExecutorActionType::CodingAgentFollowUpRequest(request) => {
+                    Some(&mut request.prompt)
+                }
+                _ => None,
+            };
+            if let Some(prompt) = prompt
+                && !prompt.trim_start().starts_with('/')
+            {
+                prompt.push_str("\n\n");
+                prompt.push_str(&mcp_guidance);
             }
         }
         let executor_action = &artifact_action;

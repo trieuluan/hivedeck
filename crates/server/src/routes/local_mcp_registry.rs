@@ -45,6 +45,8 @@ pub struct RegistryEntry {
     pub boards: Vec<String>,
     #[serde(default)]
     pub oauth: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instructions: Option<String>,
 }
 
 #[derive(Deserialize, TS)]
@@ -475,6 +477,7 @@ async fn import_from(
             roles: vec![RegistryRole::Crew],
             boards: vec![],
             oauth,
+            instructions: None,
         };
         for (field, target) in [
             ("env", &mut entry.env),
