@@ -726,7 +726,70 @@ fn extract_tools_from_response(val: &Value) -> Result<Vec<PluginMcpToolInfo>, Pl
         .collect())
 }
 
+fn stdio_tools_timeout(command: &str) -> Duration {
+    let bin = std::path::Path::new(command.trim())
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let base = bin
+        .strip_suffix(".exe")
+        .or_else(|| bin.strip_suffix(".cmd"))
+        .unwrap_or(&bin);
+    if matches!(base, "npx" | "uvx" | "bunx" | "pnpm" | "pnpx" | "npm") {
+        Duration::from_secs(45)
+    } else {
+        Duration::from_secs(20)
+    }
+}
+
+fn format_stdio_error(prefix: String, stderr_lines: &[String]) -> PluginError {
+    if stderr_lines.is_empty() {
+        PluginError::BadRequest(prefix)
+    } else {
+        let tail = stderr_lines.join(" | ");
+        let clipped = if tail.len() > 400 {
+            format!("{}...", &tail[..400])
+        } else {
+            tail
+        };
+        PluginError::BadRequest(format!("{prefix} (stderr: {clipped})"))
+    }
+}
+
+type ToolsCacheMap = HashMap<String, (std::time::Instant, Vec<PluginMcpToolInfo>)>;
+
+fn tools_cache() -> &'static std::sync::Mutex<ToolsCacheMap> {
+    static CACHE: std::sync::OnceLock<std::sync::Mutex<ToolsCacheMap>> = std::sync::OnceLock::new();
+    CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+}
+
+const TOOLS_CACHE_TTL: Duration = Duration::from_secs(300);
+
 pub async fn list_mcp_tools(
+    dir: &Path,
+    plugin: &InstalledPlugin,
+    mcp: &PluginMcpEntry,
+) -> Result<Vec<PluginMcpToolInfo>, PluginError> {
+    let cache_key = format!(
+        "{}:{}:{}:{:?}:{:?}:{:?}",
+        plugin.name, mcp.name, mcp.transport, mcp.command, mcp.args, mcp.url
+    );
+    if let Ok(guard) = tools_cache().lock()
+        && let Some((cached_at, tools)) = guard.get(&cache_key)
+        && cached_at.elapsed() < TOOLS_CACHE_TTL
+    {
+        return Ok(tools.clone());
+    }
+
+    let tools = list_mcp_tools_uncached(dir, plugin, mcp).await?;
+    if let Ok(mut guard) = tools_cache().lock() {
+        guard.insert(cache_key, (std::time::Instant::now(), tools.clone()));
+    }
+    Ok(tools)
+}
+
+async fn list_mcp_tools_uncached(
     dir: &Path,
     plugin: &InstalledPlugin,
     mcp: &PluginMcpEntry,
@@ -864,16 +927,19 @@ pub async fn list_mcp_tools(
                 .replace("${HIVEDECK_PLUGIN_ROOT}", &root_str)
         };
 
-        let mut cmd = tokio::process::Command::new(expand(command_raw));
+        let expanded_cmd = expand(command_raw);
+        let timeout = stdio_tools_timeout(&expanded_cmd);
+        let mut cmd = tokio::process::Command::new(&expanded_cmd);
         cmd.args(mcp.args.iter().map(|a| expand(a)));
         for (env_key, secret_ref) in &mcp.env {
             if let Some(val) = mcp_secrets.and_then(|m| m.get(secret_ref)) {
                 cmd.env(env_key, val);
             }
         }
-        cmd.stdin(std::process::Stdio::piped())
+        cmd.kill_on_drop(true)
+            .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null());
+            .stderr(std::process::Stdio::piped());
 
         let mut child = cmd.spawn().map_err(|err| {
             PluginError::BadRequest(format!(
@@ -888,13 +954,30 @@ pub async fn list_mcp_tools(
             .stdout
             .take()
             .ok_or_else(|| PluginError::BadRequest("Failed to open MCP stdout".into()))?;
+        let stderr_task = child.stderr.take().map(|stderr| {
+            tokio::spawn(async move {
+                let mut err_lines = BufReader::new(stderr).lines();
+                let mut buf = Vec::new();
+                while let Ok(Some(line)) = err_lines.next_line().await {
+                    let trimmed = line.trim();
+                    if trimmed.is_empty() {
+                        continue;
+                    }
+                    if buf.len() >= 5 {
+                        buf.remove(0);
+                    }
+                    buf.push(trimmed.to_string());
+                }
+                buf
+            })
+        });
 
         let init_msg = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"HiveDeck\",\"version\":\"1.0\"}}}\n{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}\n";
         let _ = stdin.write_all(init_msg.as_bytes()).await;
         let _ = stdin.flush().await;
 
         let mut lines = BufReader::new(stdout).lines();
-        let result = tokio::time::timeout(Duration::from_secs(12), async {
+        let result = tokio::time::timeout(timeout, async {
             while let Ok(Some(line)) = lines.next_line().await {
                 if let Ok(val) = serde_json::from_str::<Value>(line.trim())
                     && val.get("id").and_then(Value::as_i64) == Some(2)
@@ -908,10 +991,21 @@ pub async fn list_mcp_tools(
         })
         .await;
         let _ = child.kill().await;
+        let stderr_tail = match stderr_task {
+            Some(handle) => tokio::time::timeout(Duration::from_millis(200), handle)
+                .await
+                .ok()
+                .and_then(|res| res.ok())
+                .unwrap_or_default(),
+            None => Vec::new(),
+        };
         return match result {
-            Ok(inner) => inner,
-            Err(_) => Err(PluginError::BadRequest(
-                "MCP tools/list timed out sau 12 giây".into(),
+            Ok(Ok(tools)) => Ok(tools),
+            Ok(Err(PluginError::BadRequest(msg))) => Err(format_stdio_error(msg, &stderr_tail)),
+            Ok(Err(other)) => Err(other),
+            Err(_) => Err(format_stdio_error(
+                format!("MCP tools/list timed out sau {} giây", timeout.as_secs()),
+                &stderr_tail,
             )),
         };
     }
@@ -975,5 +1069,28 @@ mod tests {
         assert_eq!(loaded["higgsfield"]["higgsfield"].access_token, "acc-123");
         assert!(remove_oauth_token(dir.path(), "higgsfield", "higgsfield").unwrap());
         assert!(read_oauth_tokens(dir.path()).unwrap().is_empty());
+    }
+
+    #[test]
+    fn stdio_tools_timeout_scales_for_package_runners() {
+        assert_eq!(stdio_tools_timeout("npx"), Duration::from_secs(45));
+        assert_eq!(
+            stdio_tools_timeout("/Users/dev/.nvm/bin/npx"),
+            Duration::from_secs(45)
+        );
+        assert_eq!(stdio_tools_timeout("uvx"), Duration::from_secs(45));
+        assert_eq!(stdio_tools_timeout("codemap-mcp"), Duration::from_secs(20));
+    }
+
+    #[test]
+    fn format_stdio_error_appends_stderr_tail() {
+        let err = format_stdio_error(
+            "MCP tools/list timed out sau 45 giây".into(),
+            &["npm warn exec".into(), "ENOENT missing binary".into()],
+        );
+        assert!(
+            err.to_string()
+                .contains("stderr: npm warn exec | ENOENT missing binary")
+        );
     }
 }
