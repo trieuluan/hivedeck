@@ -1089,6 +1089,11 @@ export function KanbanIssuePanelContainer({
 
   return (
     <KanbanIssuePanel
+      initialTab={
+        new URLSearchParams(window.location.search).get('tab') === 'artifacts'
+          ? 'artifacts'
+          : 'details'
+      }
       artifactCount={
         selectedKanbanIssueId ? artifacts?.[selectedKanbanIssueId]?.length : 0
       }

@@ -16,6 +16,7 @@ import { Route as AppWorkspacesRouteImport } from './routes/_app.workspaces'
 import { Route as AppRouterRouteImport } from './routes/_app.router'
 import { Route as AppCommonTasksRouteImport } from './routes/_app.common-tasks'
 import { Route as AppChatRouteImport } from './routes/_app.chat'
+import { Route as AppArtifactsRouteImport } from './routes/_app.artifacts'
 import { Route as WorkspacesWorkspaceIdVscodeRouteImport } from './routes/workspaces.$workspaceId.vscode'
 import { Route as AppWorkspacesCreateRouteImport } from './routes/_app.workspaces_.create'
 import { Route as AppWorkspacesWorkspaceIdRouteImport } from './routes/_app.workspaces_.$workspaceId'
@@ -67,6 +68,11 @@ const AppCommonTasksRoute = AppCommonTasksRouteImport.update({
 const AppChatRoute = AppChatRouteImport.update({
   id: '/chat',
   path: '/chat',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppArtifactsRoute = AppArtifactsRouteImport.update({
+  id: '/artifacts',
+  path: '/artifacts',
   getParentRoute: () => AppRoute,
 } as any)
 const WorkspacesWorkspaceIdVscodeRoute =
@@ -183,6 +189,7 @@ const AppProjectsProjectIdIssuesIssueIdHostsHostIdWorkspacesCreateDraftIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/onboarding': typeof OnboardingRoute
+  '/artifacts': typeof AppArtifactsRoute
   '/chat': typeof AppChatRoute
   '/common-tasks': typeof AppCommonTasksRoute
   '/router': typeof AppRouterRoute
@@ -209,6 +216,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/onboarding': typeof OnboardingRoute
+  '/artifacts': typeof AppArtifactsRoute
   '/chat': typeof AppChatRoute
   '/common-tasks': typeof AppCommonTasksRoute
   '/router': typeof AppRouterRoute
@@ -237,6 +245,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
   '/onboarding': typeof OnboardingRoute
+  '/_app/artifacts': typeof AppArtifactsRoute
   '/_app/chat': typeof AppChatRoute
   '/_app/common-tasks': typeof AppCommonTasksRoute
   '/_app/router': typeof AppRouterRoute
@@ -265,6 +274,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/onboarding'
+    | '/artifacts'
     | '/chat'
     | '/common-tasks'
     | '/router'
@@ -291,6 +301,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/onboarding'
+    | '/artifacts'
     | '/chat'
     | '/common-tasks'
     | '/router'
@@ -318,6 +329,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_app'
     | '/onboarding'
+    | '/_app/artifacts'
     | '/_app/chat'
     | '/_app/common-tasks'
     | '/_app/router'
@@ -399,6 +411,13 @@ declare module '@tanstack/react-router' {
       path: '/chat'
       fullPath: '/chat'
       preLoaderRoute: typeof AppChatRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/artifacts': {
+      id: '/_app/artifacts'
+      path: '/artifacts'
+      fullPath: '/artifacts'
+      preLoaderRoute: typeof AppArtifactsRouteImport
       parentRoute: typeof AppRoute
     }
     '/workspaces/$workspaceId/vscode': {
@@ -531,6 +550,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppArtifactsRoute: typeof AppArtifactsRoute
   AppChatRoute: typeof AppChatRoute
   AppCommonTasksRoute: typeof AppCommonTasksRoute
   AppRouterRoute: typeof AppRouterRoute
@@ -554,6 +574,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppArtifactsRoute: AppArtifactsRoute,
   AppChatRoute: AppChatRoute,
   AppCommonTasksRoute: AppCommonTasksRoute,
   AppRouterRoute: AppRouterRoute,

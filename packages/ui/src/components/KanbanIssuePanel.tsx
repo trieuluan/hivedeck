@@ -75,6 +75,7 @@ export interface KanbanIssueDescriptionEditorProps {
 }
 
 export interface KanbanIssuePanelProps {
+  initialTab?: 'details' | 'artifacts';
   mode: IssuePanelMode;
   displayId: string;
 
@@ -204,6 +205,7 @@ export function KanbanIssuePanel({
   renderCommentsSection,
   renderArtifactsSection,
   artifactCount,
+  initialTab = 'details',
 }: KanbanIssuePanelProps) {
   const { t } = useTranslation('common');
   const isCreateMode = mode === 'create';
@@ -214,13 +216,13 @@ export function KanbanIssuePanel({
   const [isDescriptionEditing, setIsDescriptionEditing] =
     useState(isCreateMode);
   const descriptionContainerRef = useRef<HTMLDivElement>(null);
-  const [tab, setTab] = useState<'details' | 'artifacts'>('details');
+  const [tab, setTab] = useState<'details' | 'artifacts'>(initialTab);
 
   // Reset description editing state when switching between create/edit mode or when issue changes
   useEffect(() => {
     setIsDescriptionEditing(isCreateMode);
-    setTab('details');
-  }, [isCreateMode, issueId]);
+    setTab(isCreateMode ? 'details' : initialTab);
+  }, [isCreateMode, issueId, initialTab]);
 
   // Click outside the description area to exit editing
   const handleDescriptionBlur = useCallback(() => {

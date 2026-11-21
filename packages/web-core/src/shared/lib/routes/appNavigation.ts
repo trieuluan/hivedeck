@@ -3,6 +3,7 @@ export type AppDestination =
   | { kind: 'onboarding' }
   | { kind: 'workspaces'; hostId?: string }
   | { kind: 'chat' }
+  | { kind: 'artifacts' }
   | { kind: 'workspaces-create'; hostId?: string }
   | { kind: 'workspace'; workspaceId: string; hostId?: string }
   | { kind: 'workspace-vscode'; workspaceId: string; hostId?: string }

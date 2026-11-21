@@ -1,10 +1,11 @@
 import {
   FolderSimpleIcon,
+  FileImageIcon,
   GearIcon,
   KanbanIcon,
   ShuffleIcon,
 } from '@phosphor-icons/react';
-import { useLocation } from '@tanstack/react-router';
+import { useLocation, useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { SidebarBarButton } from '@vibe/ui/components/SidebarBarButton';
@@ -40,6 +41,7 @@ export function SidebarRailNav({
   const { t } = useTranslation('common');
   const appNavigation = useAppNavigation();
   const { pathname } = useLocation();
+  const navigate = useNavigate();
 
   const { data: routerStatus } = useQuery({
     queryKey: ['nineRouter', 'status'],
@@ -52,6 +54,7 @@ export function SidebarRailNav({
 
   const isProjects = pathname.startsWith('/projects');
   const isWorkspaces = pathname.startsWith('/workspaces');
+  const isArtifacts = pathname.startsWith('/artifacts');
   const isRouter = pathname.startsWith('/router');
 
   const activeCls = 'bg-brand/15 text-brand border border-brand/30';
@@ -82,6 +85,16 @@ export function SidebarRailNav({
           isWorkspaces ? activeCls : idleCls
         )}
         iconClass={isWorkspaces ? 'text-brand' : undefined}
+      />
+      <SidebarBarButton
+        label="Artifacts"
+        icon={FileImageIcon}
+        onClick={() => void navigate({ to: '/artifacts' })}
+        className={cn(
+          'w-full py-1.5 h-auto [&>span:last-child]:text-[10px]',
+          isArtifacts ? activeCls : idleCls
+        )}
+        iconClass={isArtifacts ? 'text-brand' : undefined}
       />
       <div className="relative w-full">
         <SidebarBarButton

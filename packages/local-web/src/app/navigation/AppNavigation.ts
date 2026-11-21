@@ -42,6 +42,8 @@ function resolveLocalDestinationFromPath(path: string): AppDestination | null {
       return { kind: 'workspaces' };
     case '/_app/chat':
       return { kind: 'chat' };
+    case '/_app/artifacts':
+      return { kind: 'artifacts' };
     case '/_app/common-tasks':
       return { kind: 'common-tasks' };
     case '/_app/router':
@@ -210,6 +212,8 @@ function destinationToLocalTarget(
       return { to: '/onboarding' } as const;
     case 'chat':
       return { to: '/chat' } as const;
+    case 'artifacts':
+      return { to: '/artifacts' } as const;
     case 'workspaces':
       if (effectiveHostId) {
         return {
