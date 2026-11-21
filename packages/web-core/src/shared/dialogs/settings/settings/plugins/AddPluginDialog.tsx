@@ -185,6 +185,25 @@ export function AddPluginDialog({
     onClose();
   };
 
+  function parseCliArgs(raw: string): string[] {
+    const result: string[] = [];
+    for (const line of raw.split('\n')) {
+      const matches = line.match(/"([^"]*)"|'([^']*)'|\S+/g);
+      if (!matches) continue;
+      for (const token of matches) {
+        if (
+          (token.startsWith('"') && token.endsWith('"')) ||
+          (token.startsWith("'") && token.endsWith("'"))
+        ) {
+          result.push(token.slice(1, -1));
+        } else {
+          result.push(token);
+        }
+      }
+    }
+    return result;
+  }
+
   const input = () => ({
     source,
     tag: kind === 'repo' ? tag : '',
@@ -196,7 +215,7 @@ export function AddPluginDialog({
             name: name.trim(),
             transport: kind,
             command: kind === 'stdio' ? source.trim() : null,
-            args: kind === 'stdio' ? args.split('\n').filter(Boolean) : [],
+            args: kind === 'stdio' ? parseCliArgs(args) : [],
             url: kind === 'http' ? source.trim() : null,
             headers:
               kind === 'http'
