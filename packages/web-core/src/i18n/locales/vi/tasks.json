@@ -622,6 +622,7 @@
     "confirmTitle": "Merge card này?",
     "confirmMessage": "HiveDeck sẽ commit phần còn sót, rebase lên branch đích nếu cần, merge thay đổi, push branch, lưu trữ workspace và chuyển card sang Done.",
     "confirm": "Merge & push",
+    "workspaceKeptHint": "Workspace được giữ lại — có thể dọn sau ở nút Dọn đã xong.",
     "cleanupWorkspaceLabel": "Xoá luôn workspace và nhánh git",
     "pinnedWorkspaceKept": "Workspace đang được ghim nên sẽ được giữ lại.",
     "conflictsTitle": "Có conflict — chưa merge gì",

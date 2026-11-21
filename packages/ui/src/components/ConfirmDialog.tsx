@@ -1,30 +1,32 @@
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from './KeyboardDialog';
-import NiceModal, { useModal } from '@ebay/nice-modal-react';
+} from "./KeyboardDialog";
+import NiceModal, { useModal } from "@ebay/nice-modal-react";
 import {
   WarningIcon,
   InfoIcon,
   CheckCircleIcon,
   XCircleIcon,
   GitBranchIcon,
-} from '@phosphor-icons/react';
-import { cn } from '../lib/cn';
-import { defineModal, type ConfirmResult } from '../lib/modals';
+  GitMergeIcon,
+} from "@phosphor-icons/react";
+import { cn } from "../lib/cn";
+import { defineModal, type ConfirmResult } from "../lib/modals";
 
 export interface ConfirmDialogProps {
   title: string;
   message: string;
   confirmText?: string;
   cancelText?: string;
-  variant?: 'default' | 'destructive' | 'info' | 'success';
+  variant?: "default" | "destructive" | "info" | "success" | "merge";
   icon?: boolean;
   showCancelButton?: boolean;
+  note?: string;
   target?: {
     label: string;
     branch?: string | null;
@@ -32,26 +34,27 @@ export interface ConfirmDialogProps {
 }
 
 const ConfirmDialogImpl = NiceModal.create<ConfirmDialogProps>((props) => {
-  const { t } = useTranslation(['tasks', 'common']);
+  const { t } = useTranslation(["tasks", "common"]);
   const modal = useModal();
   const {
     title,
     message,
-    confirmText = t('common:confirm.defaultConfirm'),
-    cancelText = t('common:confirm.defaultCancel'),
-    variant = 'default',
+    confirmText = t("common:confirm.defaultConfirm"),
+    cancelText = t("common:confirm.defaultCancel"),
+    variant = "default",
     icon = true,
     showCancelButton = true,
+    note,
     target,
   } = props;
 
   const handleConfirm = () => {
-    modal.resolve('confirmed' as ConfirmResult);
+    modal.resolve("confirmed" as ConfirmResult);
     modal.hide();
   };
 
   const handleCancel = () => {
-    modal.resolve('canceled' as ConfirmResult);
+    modal.resolve("canceled" as ConfirmResult);
     modal.hide();
   };
 
@@ -59,28 +62,32 @@ const ConfirmDialogImpl = NiceModal.create<ConfirmDialogProps>((props) => {
     if (!icon) return null;
 
     const badgeStyle =
-      variant === 'destructive'
-        ? 'bg-rose-500/15 text-rose-400 ring-1 ring-rose-500/35 shadow-[0_0_20px_-4px_rgba(244,63,94,0.35)]'
-        : variant === 'info'
-          ? 'bg-sky-500/15 text-sky-400 ring-1 ring-sky-500/35'
-          : variant === 'success'
-            ? 'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/35'
-            : 'bg-secondary text-normal ring-1 ring-border';
+      variant === "destructive"
+        ? "bg-rose-500/15 text-rose-400 ring-1 ring-rose-500/35 shadow-[0_0_20px_-4px_rgba(244,63,94,0.35)]"
+        : variant === "merge"
+          ? "bg-brand/15 text-brand ring-1 ring-brand/35 shadow-[0_0_20px_-4px_rgba(245,158,11,0.35)]"
+          : variant === "info"
+            ? "bg-sky-500/15 text-sky-400 ring-1 ring-sky-500/35"
+            : variant === "success"
+              ? "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/35"
+              : "bg-secondary text-normal ring-1 ring-border";
 
     const IconComponent =
-      variant === 'destructive'
+      variant === "destructive"
         ? WarningIcon
-        : variant === 'info'
-          ? InfoIcon
-          : variant === 'success'
-            ? CheckCircleIcon
-            : XCircleIcon;
+        : variant === "merge"
+          ? GitMergeIcon
+          : variant === "info"
+            ? InfoIcon
+            : variant === "success"
+              ? CheckCircleIcon
+              : XCircleIcon;
 
     return (
       <div
         className={cn(
-          'mx-auto flex h-12 w-12 items-center justify-center rounded-full',
-          badgeStyle
+          "mx-auto flex h-12 w-12 items-center justify-center rounded-full",
+          badgeStyle,
         )}
       >
         <IconComponent className="size-6" weight="duotone" />
@@ -89,9 +96,9 @@ const ConfirmDialogImpl = NiceModal.create<ConfirmDialogProps>((props) => {
   };
 
   const confirmBtnClass =
-    variant === 'destructive'
-      ? 'bg-rose-600 text-white hover:bg-rose-500'
-      : 'bg-brand text-white hover:bg-brand-hover';
+    variant === "destructive"
+      ? "bg-rose-600 text-white hover:bg-rose-500"
+      : "bg-brand text-white hover:bg-brand-hover";
 
   return (
     <Dialog
@@ -126,12 +133,19 @@ const ConfirmDialogImpl = NiceModal.create<ConfirmDialogProps>((props) => {
           <DialogDescription className="mx-auto max-w-[330px] text-center text-xs leading-relaxed text-low whitespace-pre-line">
             {message}
           </DialogDescription>
+          {note && (
+            <div className="w-full rounded-lg border border-border/80 bg-secondary/50 px-3 py-2 text-center text-[11px] text-normal">
+              {note}
+            </div>
+          )}
         </DialogHeader>
 
         <div
           className={cn(
-            'w-full pt-1',
-            showCancelButton ? 'grid grid-cols-2 gap-2.5' : 'flex justify-center'
+            "w-full pt-1",
+            showCancelButton
+              ? "grid grid-cols-2 gap-2.5"
+              : "flex justify-center",
           )}
         >
           {showCancelButton && (
@@ -147,9 +161,9 @@ const ConfirmDialogImpl = NiceModal.create<ConfirmDialogProps>((props) => {
             type="button"
             onClick={handleConfirm}
             className={cn(
-              'rounded-lg px-4 py-2 text-xs font-semibold transition-colors',
-              showCancelButton ? 'w-full' : 'min-w-[140px]',
-              confirmBtnClass
+              "rounded-lg px-4 py-2 text-xs font-semibold transition-colors",
+              showCancelButton ? "w-full" : "min-w-[140px]",
+              confirmBtnClass,
             )}
           >
             {confirmText}
@@ -161,5 +175,5 @@ const ConfirmDialogImpl = NiceModal.create<ConfirmDialogProps>((props) => {
 });
 
 export const ConfirmDialog = defineModal<ConfirmDialogProps, ConfirmResult>(
-  ConfirmDialogImpl
+  ConfirmDialogImpl,
 );

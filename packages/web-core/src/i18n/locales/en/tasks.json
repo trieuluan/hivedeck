@@ -623,6 +623,7 @@
     "confirmTitle": "Merge this card?",
     "confirmMessage": "HiveDeck commits anything left over, rebases onto the target branch if needed, merges the changes, pushes the branch, archives the workspace and moves the card to Done.",
     "confirm": "Merge & push",
+    "workspaceKeptHint": "Workspace is kept — clean up later via Clean up finished.",
     "cleanupWorkspaceLabel": "Delete workspace and git branch",
     "pinnedWorkspaceKept": "Workspace is pinned and will be kept.",
     "conflictsTitle": "Conflicts — nothing was merged",

@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MouseEvent, PointerEvent, ReactElement } from 'react';
 
-const { shipMock, checkboxConfirmMock } = vi.hoisted(() => ({
+const { shipMock, confirmMock } = vi.hoisted(() => ({
   shipMock: vi.fn(),
-  checkboxConfirmMock: vi.fn(),
+  confirmMock: vi.fn(),
 }));
 
 vi.mock('react-i18next', () => ({
@@ -20,11 +20,7 @@ vi.mock('@phosphor-icons/react', () => ({
 }));
 
 vi.mock('@vibe/ui/components/ConfirmDialog', () => ({
-  ConfirmDialog: { show: vi.fn() },
-}));
-
-vi.mock('@/shared/dialogs/shared/ConfirmCheckboxDialog', () => ({
-  ConfirmCheckboxDialog: { show: checkboxConfirmMock },
+  ConfirmDialog: { show: confirmMock },
 }));
 
 vi.mock('@/shared/lib/api', () => ({
@@ -93,14 +89,11 @@ vi.mock('react', async () => {
 describe('ShipIssueButton', () => {
   beforeEach(() => {
     shipMock.mockReset();
-    checkboxConfirmMock.mockReset();
+    confirmMock.mockReset();
   });
 
-  it('passes cleanup=true when confirmed with cleanup checked for non-pinned workspace', async () => {
-    checkboxConfirmMock.mockResolvedValue({
-      action: 'confirmed',
-      checked: true,
-    });
+  it('always passes cleanup=false when confirmed so cleanup happens via Dọn đã xong', async () => {
+    confirmMock.mockResolvedValue('confirmed');
     shipMock.mockResolvedValue({
       success: true,
       data: {
@@ -126,25 +119,22 @@ describe('ShipIssueButton', () => {
       stopPropagation: vi.fn(),
     } as unknown as MouseEvent<HTMLButtonElement>);
 
-    expect(checkboxConfirmMock).toHaveBeenCalledWith(
+    expect(confirmMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        checkboxDefaultChecked: true,
-        checkboxDisabled: false,
+        variant: 'merge',
+        note: 'ship.workspaceKeptHint',
       })
     );
     expect(shipMock).toHaveBeenCalledWith('ws-1', {
       push: true,
-      cleanup: true,
+      cleanup: false,
     });
     expect(onShipped).toHaveBeenCalledTimes(1);
-    expect(onCleanup).toHaveBeenCalledTimes(1);
+    expect(onCleanup).not.toHaveBeenCalled();
   });
 
-  it('forces cleanup=false when workspace is pinned', async () => {
-    checkboxConfirmMock.mockResolvedValue({
-      action: 'confirmed',
-      checked: true,
-    });
+  it('shows pinned hint when workspace is pinned', async () => {
+    confirmMock.mockResolvedValue('confirmed');
     shipMock.mockResolvedValue({
       success: true,
       data: {
@@ -169,10 +159,10 @@ describe('ShipIssueButton', () => {
       stopPropagation: vi.fn(),
     } as unknown as MouseEvent<HTMLButtonElement>);
 
-    expect(checkboxConfirmMock).toHaveBeenCalledWith(
+    expect(confirmMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        checkboxDefaultChecked: false,
-        checkboxDisabled: true,
+        variant: 'merge',
+        note: 'ship.pinnedWorkspaceKept',
       })
     );
     expect(shipMock).toHaveBeenCalledWith('ws-2', {
@@ -197,7 +187,7 @@ describe('ShipIssueButton', () => {
       stopPropagation: vi.fn(),
     } as unknown as MouseEvent<HTMLButtonElement>);
 
-    expect(checkboxConfirmMock).not.toHaveBeenCalled();
+    expect(confirmMock).not.toHaveBeenCalled();
     expect(shipMock).not.toHaveBeenCalled();
     expect(onShipped).not.toHaveBeenCalled();
   });

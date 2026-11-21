@@ -1613,6 +1613,9 @@ export function KanbanContainer() {
             onlyWithWorkspace={onlyWithWorkspace}
             onOnlyWithWorkspaceChange={setOnlyWithWorkspace}
             withWorkspaceCount={retainedWorkspacesByIssueId.size}
+            finishedCleanableCount={finishedCleanableWorkspaceIds.length}
+            isCleaningFinished={isCleaningFinished}
+            onCleanupFinished={() => void handleCleanupFinishedWorkspaces()}
             onClearFilters={clearKanbanFilters}
             onCreateIssue={handleAddTask}
             shouldAnimateCreateButton={shouldAnimateCreateButton}
