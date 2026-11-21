@@ -618,6 +618,10 @@ impl LocalContainerService {
                     .unwrap_or_else(|e| {
                         tracing::error!("Failed to clean up expired workspaces: {}", e)
                     });
+                container
+                    .workspace_manager
+                    .cleanup_orphan_workspaces_older_than(tokio::time::Duration::from_secs(3600))
+                    .await;
             }
         });
     }

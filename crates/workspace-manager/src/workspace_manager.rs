@@ -546,6 +546,18 @@ impl WorkspaceManager {
     }
 
     pub async fn cleanup_orphan_workspaces(&self) {
+        self.cleanup_orphan_workspaces_with_min_age(None).await;
+    }
+
+    /// Periodic variant that skips freshly-created directories (younger than
+    /// `min_age`) so an in-flight workspace creation is never reaped before its
+    /// DB row is committed.
+    pub async fn cleanup_orphan_workspaces_older_than(&self, min_age: std::time::Duration) {
+        self.cleanup_orphan_workspaces_with_min_age(Some(min_age))
+            .await;
+    }
+
+    async fn cleanup_orphan_workspaces_with_min_age(&self, min_age: Option<std::time::Duration>) {
         if std::env::var("DISABLE_WORKTREE_CLEANUP").is_ok() {
             info!(
                 "Orphan workspace cleanup is disabled via DISABLE_WORKTREE_CLEANUP environment variable"
@@ -555,16 +567,22 @@ impl WorkspaceManager {
 
         // Always clean up the default directory
         let default_dir = WorktreeManager::get_default_worktree_base_dir();
-        self.cleanup_orphans_in_directory(&default_dir).await;
+        self.cleanup_orphans_in_directory(&default_dir, min_age)
+            .await;
 
         // Also clean up custom directory if it's different from the default
         let current_dir = Self::get_workspace_base_dir();
         if current_dir != default_dir {
-            self.cleanup_orphans_in_directory(&current_dir).await;
+            self.cleanup_orphans_in_directory(&current_dir, min_age)
+                .await;
         }
     }
 
-    async fn cleanup_orphans_in_directory(&self, workspace_base_dir: &Path) {
+    async fn cleanup_orphans_in_directory(
+        &self,
+        workspace_base_dir: &Path,
+        min_age: Option<std::time::Duration>,
+    ) {
         if !workspace_base_dir.exists() {
             debug!(
                 "Workspace base directory {} does not exist, skipping orphan cleanup",
@@ -596,6 +614,15 @@ impl WorkspaceManager {
 
             let path = entry.path();
             if !path.is_dir() {
+                continue;
+            }
+
+            if let Some(min_age) = min_age
+                && let Ok(meta) = entry.metadata()
+                && let Ok(modified) = meta.modified()
+                && let Ok(age) = modified.elapsed()
+                && age < min_age
+            {
                 continue;
             }
 
