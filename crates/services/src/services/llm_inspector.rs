@@ -172,6 +172,8 @@ pub struct LlmInspector {
     routes: Arc<DashMap<(Uuid, String), LlmProxyRoute>>,
     /// Key: session_id
     telemetry: Arc<DashMap<Uuid, ContextBreakdown>>,
+    /// Key: session_id -> resolved context window from 9router combo/model lookup
+    context_windows: Arc<DashMap<Uuid, u32>>,
 }
 
 impl LlmInspector {
@@ -219,6 +221,22 @@ impl LlmInspector {
         self.telemetry.entry(session_id).or_insert(breakdown);
     }
 
+    pub fn set_session_context_window(&self, session_id: Uuid, window: u32) {
+        self.context_windows.insert(session_id, window);
+    }
+
+    fn resolve_context_window(&self, session_id: Uuid, model: Option<&str>) -> Option<u32> {
+        if let Some(m) = model
+            && !is_combo_alias(m)
+        {
+            return Some(infer_context_window(m));
+        }
+        self.context_windows
+            .get(&session_id)
+            .map(|entry| *entry.value())
+            .or_else(|| model.map(infer_context_window))
+    }
+
     /// Analyze an outgoing LLM request JSON body and update the session's context breakdown.
     pub fn inspect_request_payload(
         &self,
@@ -232,9 +250,8 @@ impl LlmInspector {
         };
         let mut breakdown = analyze_payload(path, &json);
         breakdown.upstream = Some(upstream_label.to_string());
-        if let Some(model) = breakdown.model.as_deref() {
-            breakdown.model_context_window = Some(infer_context_window(model));
-        }
+        breakdown.model_context_window =
+            self.resolve_context_window(session_id, breakdown.model.as_deref());
 
         self.telemetry
             .entry(session_id)
@@ -261,7 +278,8 @@ impl LlmInspector {
             .and_modify(|existing| {
                 if let Some(ref model) = usage.model {
                     existing.model = Some(model.clone());
-                    existing.model_context_window = Some(infer_context_window(model));
+                    existing.model_context_window =
+                        self.resolve_context_window(session_id, Some(model));
                 }
                 if usage.has_usage {
                     existing.input_tokens = Some(
@@ -537,11 +555,15 @@ pub fn analyze_payload(path: &str, json: &Value) -> ContextBreakdown {
     }
 }
 
+pub type NamespaceToolMap = std::collections::HashMap<String, (String, String)>;
+
 /// Flatten OpenAI Responses API `{"type": "namespace", "name": "mcp__...", "tools": [...]}`
 /// entries into top-level `"type": "function"` tools (`<namespace>__<tool>`) and drop
 /// `defer_loading` / `tool_search` so upstream proxies (like 9router -> DeepSeek/Claude)
 /// expose every child MCP tool instead of collapsing the namespace into a single empty tool.
-pub fn flatten_responses_tool_namespaces(body: &[u8]) -> Option<Vec<u8>> {
+/// Returns the rewritten JSON body plus a map `flat_name -> (namespace, child_name)` for
+/// restoring `namespace` + `name` on `function_call` items in the response.
+pub fn flatten_responses_tool_namespaces(body: &[u8]) -> Option<(Vec<u8>, NamespaceToolMap)> {
     let mut json: Value = serde_json::from_slice(body).ok()?;
     let tools = json.get("tools").and_then(|v| v.as_array())?;
     let has_namespace = tools.iter().any(|item| {
@@ -552,6 +574,7 @@ pub fn flatten_responses_tool_namespaces(body: &[u8]) -> Option<Vec<u8>> {
         return None;
     }
 
+    let mut namespace_map = NamespaceToolMap::new();
     let mut flattened = Vec::with_capacity(tools.len());
     for item in tools {
         let item_type = item.get("type").and_then(|v| v.as_str());
@@ -571,11 +594,21 @@ pub fn flatten_responses_tool_namespaces(body: &[u8]) -> Option<Vec<u8>> {
                     obj.entry("type".to_string())
                         .or_insert_with(|| Value::String("function".to_string()));
                     if !prefix.is_empty()
-                        && let Some(name) = obj.get("name").and_then(|v| v.as_str())
-                        && !name.is_empty()
-                        && !name.starts_with(&prefix)
+                        && let Some(orig_name) =
+                            obj.get("name").and_then(|v| v.as_str()).map(str::to_string)
+                        && !orig_name.is_empty()
                     {
-                        obj.insert("name".to_string(), Value::String(format!("{prefix}{name}")));
+                        let flat_name = if orig_name.starts_with(&prefix) {
+                            orig_name.clone()
+                        } else {
+                            format!("{prefix}{orig_name}")
+                        };
+                        let child_name = orig_name
+                            .strip_prefix(&prefix)
+                            .unwrap_or(&orig_name)
+                            .to_string();
+                        namespace_map.insert(flat_name.clone(), (ns_name.to_string(), child_name));
+                        obj.insert("name".to_string(), Value::String(flat_name));
                     }
                 }
                 flattened.push(child_val);
@@ -619,7 +652,127 @@ pub fn flatten_responses_tool_namespaces(body: &[u8]) -> Option<Vec<u8>> {
             }
         }
     }
-    serde_json::to_vec(&json).ok()
+    serde_json::to_vec(&json)
+        .ok()
+        .map(|bytes| (bytes, namespace_map))
+}
+
+fn restore_item_namespace(item: &mut Value, map: &NamespaceToolMap) -> bool {
+    let Some(obj) = item.as_object_mut() else {
+        return false;
+    };
+    if obj.get("type").and_then(|v| v.as_str()) != Some("function_call") {
+        return false;
+    }
+    let Some(name) = obj.get("name").and_then(|v| v.as_str()) else {
+        return false;
+    };
+    let Some((ns, child_name)) = map.get(name) else {
+        return false;
+    };
+    obj.insert("namespace".to_string(), Value::String(ns.clone()));
+    obj.insert("name".to_string(), Value::String(child_name.clone()));
+    true
+}
+
+fn restore_responses_payload(json: &mut Value, map: &NamespaceToolMap) -> bool {
+    let mut changed = false;
+    if let Some(item) = json.get_mut("item") {
+        changed |= restore_item_namespace(item, map);
+    }
+    if let Some(output) = json.get_mut("output").and_then(|v| v.as_array_mut()) {
+        for item in output {
+            changed |= restore_item_namespace(item, map);
+        }
+    }
+    if let Some(output) = json
+        .pointer_mut("/response/output")
+        .and_then(|v| v.as_array_mut())
+    {
+        for item in output {
+            changed |= restore_item_namespace(item, map);
+        }
+    }
+    changed
+}
+
+/// Line-buffered rewriter that restores `namespace` + child `name` on Responses API
+/// `function_call` items (both SSE `data: ...` frames and non-streaming JSON responses).
+pub struct NamespaceSseRewriter {
+    map: NamespaceToolMap,
+    buf: Vec<u8>,
+}
+
+impl NamespaceSseRewriter {
+    pub fn new(map: NamespaceToolMap) -> Self {
+        Self {
+            map,
+            buf: Vec::new(),
+        }
+    }
+
+    pub fn push_bytes(&mut self, chunk: &[u8]) -> Vec<u8> {
+        self.buf.extend_from_slice(chunk);
+        let mut out = Vec::new();
+        while let Some(pos) = self.buf.iter().position(|&b| b == b'\n') {
+            let line: Vec<u8> = self.buf.drain(..=pos).collect();
+            self.rewrite_line(&line, &mut out);
+        }
+        out
+    }
+
+    pub fn finish(mut self) -> Vec<u8> {
+        let mut out = Vec::new();
+        if !self.buf.is_empty() {
+            let tail = std::mem::take(&mut self.buf);
+            self.rewrite_line(&tail, &mut out);
+        }
+        out
+    }
+
+    fn rewrite_line(&self, raw_line: &[u8], out: &mut Vec<u8>) {
+        let has_nl = raw_line.ends_with(b"\n");
+        let without_nl = if has_nl {
+            &raw_line[..raw_line.len() - 1]
+        } else {
+            raw_line
+        };
+        let has_cr = without_nl.ends_with(b"\r");
+        let line_bytes = if has_cr {
+            &without_nl[..without_nl.len() - 1]
+        } else {
+            without_nl
+        };
+
+        if let Ok(line_str) = std::str::from_utf8(line_bytes) {
+            let (prefix, json_str) = if let Some(rest) = line_str.strip_prefix("data:") {
+                let trimmed = rest.trim_start();
+                let ws_len = rest.len() - trimmed.len();
+                (&line_str[..5 + ws_len], trimmed)
+            } else {
+                ("", line_str.trim())
+            };
+
+            if json_str.starts_with('{')
+                && json_str.contains("function_call")
+                && let Ok(mut parsed) = serde_json::from_str::<Value>(json_str)
+                && restore_responses_payload(&mut parsed, &self.map)
+                && let Ok(serialized) = serde_json::to_string(&parsed)
+            {
+                out.extend_from_slice(prefix.as_bytes());
+                out.extend_from_slice(serialized.as_bytes());
+                if has_cr {
+                    out.push(b'\r');
+                }
+                if has_nl {
+                    out.push(b'\n');
+                }
+                return;
+            }
+        }
+
+        out.extend_from_slice(raw_line);
+    }
 }
 
 fn classify_system_value(acc: &mut CategoryAccumulator, val: &Value) {
@@ -870,6 +1023,15 @@ pub fn estimate_json_tokens(val: &Value) -> u32 {
 }
 
 /// Infer context window size from a model identifier when the CLI doesn't emit one.
+fn is_combo_alias(model: &str) -> bool {
+    let base = model
+        .trim()
+        .split_once("-r")
+        .and_then(|(b, n)| n.parse::<usize>().ok().map(|_| b))
+        .unwrap_or_else(|| model.trim());
+    matches!(base, "fast" | "coder" | "planner" | "reviewer")
+}
+
 pub fn infer_context_window(model: &str) -> u32 {
     let m = model.to_ascii_lowercase();
     if m.contains("[1m]") || m.contains("-1m") {
@@ -884,7 +1046,10 @@ pub fn infer_context_window(model: &str) -> u32 {
     if m.contains("claude-") || m.contains("sonnet") || m.contains("opus") || m.contains("haiku") {
         return 200_000;
     }
-    if m.contains("gpt-5") || m.contains("o3") || m.contains("o4") || m.contains("codex") {
+    if m.contains("gpt-5") || m.contains("codex") {
+        return 272_000;
+    }
+    if m.contains("o3") || m.contains("o4") {
         return 200_000;
     }
     if m.contains("gpt-4o") {
@@ -1004,7 +1169,7 @@ mod tests {
             ]
         });
         let raw = serde_json::to_vec(&payload).unwrap();
-        let rewritten = flatten_responses_tool_namespaces(&raw).expect("should flatten");
+        let (rewritten, ns_map) = flatten_responses_tool_namespaces(&raw).expect("should flatten");
         let parsed: Value = serde_json::from_slice(&rewritten).unwrap();
         let tools = parsed["tools"].as_array().unwrap();
         let names: Vec<&str> = tools
@@ -1025,6 +1190,25 @@ mod tests {
                 .iter()
                 .all(|t| t.get("type").and_then(|v| v.as_str()) == Some("function"))
         );
+        assert_eq!(
+            ns_map.get("mcp__higgsfield__generate_image_batch"),
+            Some(&(
+                "mcp__higgsfield".to_string(),
+                "generate_image_batch".to_string()
+            ))
+        );
+
+        let mut rewriter = NamespaceSseRewriter::new(ns_map);
+        let sse = concat!(
+            "event: response.output_item.done\n",
+            "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"function_call\",\"call_id\":\"c1\",\"name\":\"mcp__higgsfield__generate_image_batch\",\"arguments\":\"{}\"}}\n\n"
+        );
+        let mut out = rewriter.push_bytes(&sse.as_bytes()[..45]);
+        out.extend_from_slice(&rewriter.push_bytes(&sse.as_bytes()[45..]));
+        out.extend_from_slice(&rewriter.finish());
+        let out_str = String::from_utf8(out).unwrap();
+        assert!(out_str.contains("\"namespace\":\"mcp__higgsfield\""));
+        assert!(out_str.contains("\"name\":\"generate_image_batch\""));
 
         // Requests without namespace tools pass through untouched.
         let plain = serde_json::to_vec(&serde_json::json!({

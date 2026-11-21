@@ -474,6 +474,10 @@ impl StandardCodingAgentExecutor for Codex {
 /// declare a custom provider and make it the default, so the app server (and
 /// its account check) talks to the router. Not forwarded to the process.
 pub const ROUTER_BASE_URL_ENV: &str = "HIVEDECK_CODEX_ROUTER_BASE_URL";
+/// Real context window of the 9router target model (tokens), forwarded to Codex
+/// as `-c model_context_window=<n>` and `-c model_auto_compact_token_limit=<85%>`
+/// so Codex does not fall back to 258K for combo names like `coder`.
+pub const ROUTER_CONTEXT_WINDOW_ENV: &str = "HIVEDECK_CODEX_CONTEXT_WINDOW";
 /// Provider id HiveDeck declares for the router.
 pub const ROUTER_PROVIDER_ID: &str = "hivedeck_9router";
 
@@ -849,6 +853,27 @@ impl Codex {
                 .unwrap_or(args.len());
             args.splice(at..at, router_config_args(base_url));
         }
+        if let Some(window) = env
+            .vars
+            .get(ROUTER_CONTEXT_WINDOW_ENV)
+            .and_then(|raw| raw.trim().parse::<u64>().ok())
+            .filter(|&w| w > 0)
+        {
+            let compact_limit = (window * 85) / 100;
+            let at = args
+                .iter()
+                .position(|a| a == "app-server")
+                .unwrap_or(args.len());
+            args.splice(
+                at..at,
+                [
+                    "-c".to_string(),
+                    format!("model_context_window={window}"),
+                    "-c".to_string(),
+                    format!("model_auto_compact_token_limit={compact_limit}"),
+                ],
+            );
+        }
         if let Some(url) = env.vars.get(CAPTAIN_MCP_URL_ENV) {
             let at = args
                 .iter()
@@ -905,6 +930,7 @@ impl Codex {
             }
         }
         process.env_remove(ROUTER_BASE_URL_ENV);
+        process.env_remove(ROUTER_CONTEXT_WINDOW_ENV);
         process.env_remove(CAPTAIN_MCP_URL_ENV);
         process.env_remove(CAPTAIN_INSTRUCTIONS_ENV);
 

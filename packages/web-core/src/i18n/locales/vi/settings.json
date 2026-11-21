@@ -888,13 +888,13 @@
       "routing": {
         "on": "Đang định tuyến",
         "enable": "Cho agent đi qua 9router",
-        "enableHint": "Các lượt chạy Claude Code và Codex sẽ đi qua 9router và dùng combo theo vai trò.",
+        "enableHint": "Các lượt chạy Claude Code, Codex, OpenCode, Gemini, Qwen Code và Droid sẽ đi qua 9router và dùng combo theo vai trò.",
         "notRunning": "9router chưa chạy nên agent hiện chạy không qua nó. Khởi động ở trang này.",
         "roles": "Combo cho từng vai trò",
         "agentDefault": "Mặc định của agent",
         "missingCombo": "Combo \"{{name}}\" không còn trong 9router; vai trò này dùng mặc định của agent.",
         "noCombos": "9router chưa có combo nào. Tạo ở tab Combo.",
-        "scope": "Áp dụng cho Claude Code (headless và headed) và Codex. Các agent khác chạy như cũ. Request Codex đi qua combo không được cache prompt như khi đăng nhập ChatGPT trực tiếp, nên có thể tốn nhiều token đầu vào hơn.",
+        "scope": "Áp dụng cho Claude Code (headless và headed), Codex, OpenCode, Gemini, Qwen Code và Droid. Cursor Agent, Copilot và Amp vẫn chạy trực tiếp.",
         "precedence": "Model bạn chọn trong ô chọn model hoặc đặt trong profile luôn được ưu tiên hơn combo của vai trò.",
         "usedFor": {
           "planner": "Phiên thuyền trưởng. Cũng là alias \"opus\" và \"fable\" của Claude.",

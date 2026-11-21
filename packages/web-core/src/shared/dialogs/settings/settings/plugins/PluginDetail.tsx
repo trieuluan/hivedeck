@@ -441,6 +441,50 @@ export function PluginDetail({
                   Đã xác thực qua OAuth 2.1 (PKCE
                   {oauthState?.has_refresh_token ? ' + Auto-Refresh' : ''})
                 </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      setBusy(true);
+                      void launchMcpOAuthFlow({
+                        pluginName: plugin.name,
+                        mcpName: entry.name,
+                        onComplete: async () => {
+                          await onChanged();
+                          setBusy(false);
+                          notify({
+                            kind: 'ok',
+                            text: `Đã cập nhật đăng nhập OAuth cho ${entry.name}.`,
+                          });
+                        },
+                        onError: (reason) => {
+                          setBusy(false);
+                          notify({ kind: 'error', text: errorText(reason) });
+                        },
+                      });
+                    }}
+                    className="inline-flex items-center gap-1 rounded-sm border border-border bg-panel/90 px-2 py-1 text-2xs font-medium text-normal transition-colors hover:bg-secondary hover:text-high disabled:opacity-50"
+                  >
+                    <UserSwitchIcon className="h-3.5 w-3.5" aria-hidden />
+                    Đổi tài khoản
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(
+                        () =>
+                          pluginsApi.disconnectOAuth(plugin.name, entry.name),
+                        `Đã huỷ kết nối OAuth cho ${entry.name}.`
+                      )
+                    }
+                    className="inline-flex items-center gap-1 rounded-sm border border-error/30 bg-error/10 px-2 py-1 text-2xs font-medium text-error transition-colors hover:bg-error/20 disabled:opacity-50"
+                  >
+                    <LinkBreakIcon className="h-3.5 w-3.5" aria-hidden />
+                    Huỷ kết nối
+                  </button>
+                </div>
               </div>
             ) : entry.oauth ? (
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-brand/30 bg-brand/10 px-3 py-2 text-xs">
@@ -522,102 +566,51 @@ export function PluginDetail({
                 </button>
               </div>
             )}
-
-            <div className="flex flex-wrap items-center gap-3 text-xs">
-              <span className="inline-flex w-28 shrink-0 items-center gap-1.5 font-medium text-low">
-                <CodeIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                Tương thích
-              </span>
-              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-2xs">
-                {SUPPORTED_OAUTH_CLIS.map((cliLabel) => (
-                  <span
-                    key={cliLabel}
-                    className="rounded border border-border bg-secondary/70 px-2 py-0.5 text-normal"
-                  >
-                    {cliLabel}
-                  </span>
-                ))}
-              </div>
+          </div>
+        )}
+        {(canOAuth || isSingleMcp) && (
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <span className="inline-flex w-28 shrink-0 items-center gap-1.5 font-medium text-low">
+              <CodeIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              Tương thích
+            </span>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-2xs">
+              {SUPPORTED_OAUTH_CLIS.map((cliLabel) => (
+                <span
+                  key={cliLabel}
+                  className="rounded border border-border bg-secondary/70 px-2 py-0.5 text-normal"
+                >
+                  {cliLabel}
+                </span>
+              ))}
             </div>
-
-            {isSingleMcp && (
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-0.5 text-xs">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="inline-flex w-28 shrink-0 items-center gap-1.5 font-medium text-low">
-                    <UsersIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                    Cấp vai trò
-                  </span>
-                  <div className="flex flex-wrap items-center gap-4">
-                    {ROLES.map((role) => {
-                      const checked = entry.roles.includes(role.id);
-                      const isOnlyRole = checked && entry.roles.length === 1;
-                      return (
-                        <label
-                          key={role.id}
-                          className="inline-flex cursor-pointer items-center gap-2 text-xs text-normal"
-                        >
-                          <Switch
-                            checked={checked}
-                            disabled={busy || isOnlyRole}
-                            onCheckedChange={(next) =>
-                              toggleRole(role.id, next)
-                            }
-                          />
-                          <span>{role.label}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {isOAuthConnected && (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => {
-                        setBusy(true);
-                        void launchMcpOAuthFlow({
-                          pluginName: plugin.name,
-                          mcpName: entry.name,
-                          onComplete: async () => {
-                            await onChanged();
-                            setBusy(false);
-                            notify({
-                              kind: 'ok',
-                              text: `Đã cập nhật đăng nhập OAuth cho ${entry.name}.`,
-                            });
-                          },
-                          onError: (reason) => {
-                            setBusy(false);
-                            notify({ kind: 'error', text: errorText(reason) });
-                          },
-                        });
-                      }}
-                      className="inline-flex items-center gap-1 rounded-sm border border-border bg-panel px-2.5 py-1 text-xs font-medium text-normal transition-colors hover:bg-secondary hover:text-high disabled:opacity-50"
-                    >
-                      <UserSwitchIcon className="h-3.5 w-3.5" aria-hidden />
-                      Đổi tài khoản
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() =>
-                        void run(
-                          () =>
-                            pluginsApi.disconnectOAuth(plugin.name, entry.name),
-                          `Đã huỷ kết nối OAuth cho ${entry.name}.`
-                        )
-                      }
-                      className="inline-flex items-center gap-1 rounded-sm border border-error/30 bg-error/10 px-2.5 py-1 text-xs font-medium text-error transition-colors hover:bg-error/20 disabled:opacity-50"
-                    >
-                      <LinkBreakIcon className="h-3.5 w-3.5" aria-hidden />
-                      Huỷ kết nối
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+          </div>
+        )}
+        {isSingleMcp && (
+          <div className="flex flex-wrap items-center gap-3 pt-0.5 text-xs">
+            <span className="inline-flex w-28 shrink-0 items-center gap-1.5 font-medium text-low">
+              <UsersIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              Cấp vai trò
+            </span>
+            <div className="flex flex-wrap items-center gap-4">
+              {ROLES.map((role) => {
+                const checked = entry.roles.includes(role.id);
+                const isOnlyRole = checked && entry.roles.length === 1;
+                return (
+                  <label
+                    key={role.id}
+                    className="inline-flex cursor-pointer items-center gap-2 text-xs text-normal"
+                  >
+                    <Switch
+                      checked={checked}
+                      disabled={busy || isOnlyRole}
+                      onCheckedChange={(next) => toggleRole(role.id, next)}
+                    />
+                    <span>{role.label}</span>
+                  </label>
+                );
+              })}
+            </div>
           </div>
         )}
         {refs.map((ref) => {

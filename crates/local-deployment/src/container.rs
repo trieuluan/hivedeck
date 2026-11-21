@@ -134,6 +134,11 @@ impl LocalContainerService {
             BaseCodingAgent::ClaudeCode
                 | BaseCodingAgent::ClaudeCodeHeaded
                 | BaseCodingAgent::Codex
+                | BaseCodingAgent::Opencode
+                | BaseCodingAgent::OpencodeHeaded
+                | BaseCodingAgent::Gemini
+                | BaseCodingAgent::QwenCode
+                | BaseCodingAgent::Droid
         ) {
             return None;
         }
@@ -169,10 +174,20 @@ impl LocalContainerService {
             _ => ComboRole::Coder,
         };
         let config = executor_action.executor_config()?;
-        let route = if base == BaseCodingAgent::Codex {
-            routing::codex_route(&router, role, codex::has_explicit_model(config))?
-        } else {
-            routing::claude_route(&router, role, claude::has_explicit_model(config))?
+        let route = match base {
+            BaseCodingAgent::Codex => {
+                routing::codex_route(&router, role, codex::has_explicit_model(config))?
+            }
+            BaseCodingAgent::ClaudeCode | BaseCodingAgent::ClaudeCodeHeaded => {
+                routing::claude_route(&router, role, claude::has_explicit_model(config))?
+            }
+            _ => {
+                let explicit = config
+                    .model_id
+                    .as_deref()
+                    .is_some_and(|m| !m.trim().is_empty());
+                routing::openai_compat_route(&router, role, explicit)?
+            }
         };
         for (key, value) in &route.env {
             env.insert(key, value);
@@ -192,6 +207,15 @@ impl LocalContainerService {
         {
             model = nine_router::rotation::model_for_session(&router, &model, session_id).await;
             tracing::info!("session {session_id} pinned to {model}");
+        }
+        if let Some(resolved_model) = nine_router::resolve_combo_first_model(&router, &model).await
+        {
+            let window = services::services::llm_inspector::infer_context_window(&resolved_model);
+            self.llm_inspector
+                .set_session_context_window(session_id, window);
+            if base == BaseCodingAgent::Codex {
+                env.insert(codex::ROUTER_CONTEXT_WINDOW_ENV, window.to_string());
+            }
         }
         let mut routed = executor_action.clone();
         routed.executor_config_mut()?.model_id = Some(model);

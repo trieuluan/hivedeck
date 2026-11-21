@@ -118,6 +118,38 @@ pub fn codex_route(
     })
 }
 
+/// Routing decision for OpenAI/Anthropic/Gemini-compatible CLIs (OpenCode,
+/// QwenCode, Droid, Gemini) when `route_agents` is enabled.
+pub fn openai_compat_route(
+    settings: &NineRouterSettings,
+    role: ComboRole,
+    explicit_model: bool,
+) -> Option<AgentRoute> {
+    if !settings.route_agents {
+        return None;
+    }
+    let v1_url = base_url(settings.port);
+    let root_url = format!("http://127.0.0.1:{}", settings.port);
+    Some(AgentRoute {
+        role,
+        model: (!explicit_model)
+            .then(|| settings.roles.get(role).map(str::to_string))
+            .flatten(),
+        env: vec![
+            ("OPENAI_BASE_URL".to_string(), v1_url.clone()),
+            ("OPENAI_API_KEY".to_string(), "hivedeck-local".to_string()),
+            ("ANTHROPIC_BASE_URL".to_string(), v1_url),
+            (
+                "ANTHROPIC_AUTH_TOKEN".to_string(),
+                "hivedeck-local".to_string(),
+            ),
+            ("GOOGLE_GEMINI_BASE_URL".to_string(), root_url.clone()),
+            ("GEMINI_API_BASE_URL".to_string(), root_url),
+            ("GEMINI_API_KEY".to_string(), "hivedeck-local".to_string()),
+        ],
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,5 +212,24 @@ mod tests {
         assert_eq!(r.model, None);
         // Still routed through 9router.
         assert!(r.env.iter().any(|(k, _)| k == "ANTHROPIC_BASE_URL"));
+    }
+
+    #[test]
+    fn openai_compat_route_sets_base_urls_and_role_combo() {
+        assert!(openai_compat_route(&settings(false), ComboRole::Coder, false).is_none());
+        let r = openai_compat_route(&settings(true), ComboRole::Coder, false).unwrap();
+        assert_eq!(r.model.as_deref(), Some("coder"));
+        let env = |k: &str| {
+            r.env
+                .iter()
+                .find(|(key, _)| key == k)
+                .map(|(_, v)| v.as_str())
+        };
+        assert_eq!(env("OPENAI_BASE_URL"), Some("http://127.0.0.1:20128/v1"));
+        assert_eq!(env("ANTHROPIC_BASE_URL"), Some("http://127.0.0.1:20128/v1"));
+        assert_eq!(
+            env("GOOGLE_GEMINI_BASE_URL"),
+            Some("http://127.0.0.1:20128")
+        );
     }
 }

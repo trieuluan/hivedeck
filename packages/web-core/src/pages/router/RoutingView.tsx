@@ -11,7 +11,6 @@ import {
   SettingsSelect,
 } from '@/shared/dialogs/settings/settings/SettingsComponents';
 import { cn } from '@/shared/lib/utils';
-import { nineRouterApi } from '@/shared/lib/api';
 
 const ROLES: ComboRole[] = ['planner', 'coder', 'reviewer', 'fast'];
 /** Select value for "leave this role on the agent's own default model". */
@@ -54,17 +53,6 @@ export function RoutingView({
         : settings.roles,
     });
 
-  // Rotations are walked as fallback (one provider per session); turning
-  // this off uses the plain combos, still as fallback (ADR-040).
-  const setRotate = (rotate: boolean) => {
-    onSave({ ...settings, rotate_per_session: rotate });
-    void nineRouterApi
-      .setSessionRotation(rotate)
-      .catch((error: unknown) =>
-        console.error('Failed to set session rotation', error)
-      );
-  };
-
   const setRole = (role: ComboRole, value: string) =>
     onSave({
       ...settings,
@@ -86,14 +74,6 @@ export function RoutingView({
             description={t('settings.router.routing.enableHint')}
             checked={settings.route_agents}
             onChange={setEnabled}
-          />
-          <SettingsCheckbox
-            id="nine-router-rotate-per-session"
-            label={t('settings.router.routing.rotate')}
-            description={t('settings.router.routing.rotateHint')}
-            checked={settings.rotate_per_session}
-            onChange={setRotate}
-            disabled={!settings.route_agents}
           />
           {settings.route_agents && !up && (
             <p className="flex items-center gap-2 text-sm text-warning">

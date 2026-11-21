@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { useTranslation } from 'react-i18next';
-import { cn } from '../lib/cn';
-import { Tooltip } from './Tooltip';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
+import { cn } from "../lib/cn";
+import { Tooltip } from "./Tooltip";
 
 export interface ContextUsageInfo {
   total_tokens: number;
@@ -33,15 +33,15 @@ export interface ContextBreakdown {
 }
 
 const CATEGORY_META: Record<string, { label: string; color: string }> = {
-  messages: { label: 'Messages', color: 'bg-brand' },
-  mcp_tools: { label: 'MCP tools', color: 'bg-orange-500' },
-  system_tools: { label: 'System tools', color: 'bg-emerald-500' },
-  system_prompt: { label: 'System prompt', color: 'bg-amber-500' },
-  skills: { label: 'Skills', color: 'bg-sky-500' },
-  memory_files: { label: 'Memory files', color: 'bg-violet-500' },
-  mcp_instructions: { label: 'MCP instructions', color: 'bg-cyan-500' },
-  custom_agents: { label: 'Custom agents', color: 'bg-pink-500' },
-  deferred_tools: { label: 'MCP tools (deferred)', color: 'bg-low/50' },
+  messages: { label: "Messages", color: "bg-brand" },
+  mcp_tools: { label: "MCP tools", color: "bg-orange-500" },
+  system_tools: { label: "System tools", color: "bg-emerald-500" },
+  system_prompt: { label: "System prompt", color: "bg-amber-500" },
+  skills: { label: "Skills", color: "bg-sky-500" },
+  memory_files: { label: "Memory files", color: "bg-violet-500" },
+  mcp_instructions: { label: "MCP instructions", color: "bg-cyan-500" },
+  custom_agents: { label: "Custom agents", color: "bg-pink-500" },
+  deferred_tools: { label: "MCP tools (deferred)", color: "bg-low/50" },
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -55,7 +55,9 @@ const formatTokens = (n: number) => {
   }
   if (n >= 1_000) {
     const k = n / 1_000;
-    return k >= 100 ? `${Math.round(k)}K` : `${k.toFixed(1).replace(/\.0$/, '')}K`;
+    return k >= 100
+      ? `${Math.round(k)}K`
+      : `${k.toFixed(1).replace(/\.0$/, "")}K`;
   }
   return n.toString();
 };
@@ -73,13 +75,13 @@ export function ContextUsageGauge({
   className,
   onCompact,
 }: ContextUsageGaugeProps) {
-  const { t } = useTranslation('common');
+  const { t } = useTranslation("common");
   const [open, setOpen] = useState(false);
   const [breakdown, setBreakdown] = useState<ContextBreakdown | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [coords, setCoords] = useState<{ left: number; top: number } | null>(
-    null
+    null,
   );
 
   useEffect(() => {
@@ -91,7 +93,7 @@ export function ContextUsageGauge({
     const fetchBreakdown = async () => {
       try {
         const res = await fetch(
-          `/api/sessions/${encodeURIComponent(sessionId)}/context-breakdown`
+          `/api/sessions/${encodeURIComponent(sessionId)}/context-breakdown`,
         );
         if (!res.ok) return;
         const json = (await res.json()) as {
@@ -137,9 +139,11 @@ export function ContextUsageGauge({
     contextWindow,
   } = useMemo(() => {
     const windowSize =
-      tokenUsageInfo?.model_context_window ||
-      breakdown?.model_context_window ||
-      0;
+      breakdown?.upstream === "9router" && breakdown.model_context_window
+        ? breakdown.model_context_window
+        : tokenUsageInfo?.model_context_window ||
+          breakdown?.model_context_window ||
+          0;
 
     const rIn = tokenUsageInfo?.input_tokens ?? breakdown?.input_tokens ?? 0;
     const cRead =
@@ -160,10 +164,10 @@ export function ContextUsageGauge({
     if (windowSize === 0 && usedTokens === 0) {
       return {
         percentage: 0,
-        formattedUsed: '0',
-        formattedTotal: '0',
-        formattedFree: '0',
-        status: 'empty' as const,
+        formattedUsed: "0",
+        formattedTotal: "0",
+        formattedFree: "0",
+        status: "empty" as const,
         cacheHitPct: null as number | null,
         sessionIn: 0,
         sessionOut: 0,
@@ -180,11 +184,11 @@ export function ContextUsageGauge({
     const effectiveWindow = windowSize > 0 ? windowSize : 200_000;
     const pct = Math.min(100, (usedTokens / effectiveWindow) * 100);
 
-    let statusValue: 'low' | 'medium' | 'high' | 'critical' | 'empty';
-    if (pct < 50) statusValue = 'low';
-    else if (pct < 75) statusValue = 'medium';
-    else if (pct < 90) statusValue = 'high';
-    else statusValue = 'critical';
+    let statusValue: "low" | "medium" | "high" | "critical" | "empty";
+    if (pct < 50) statusValue = "low";
+    else if (pct < 75) statusValue = "medium";
+    else if (pct < 90) statusValue = "high";
+    else statusValue = "critical";
 
     const totalIn = rIn + cRead + cCreate;
     const hitPct = totalIn > 0 ? Math.round((cRead / totalIn) * 100) : null;
@@ -198,10 +202,9 @@ export function ContextUsageGauge({
     const calibrated = rawCats.map((cat) => {
       const meta = CATEGORY_META[cat.key] ?? {
         label: cat.key,
-        color: 'bg-normal',
+        color: "bg-normal",
       };
-      const scaledTokens =
-        cat.tokens > 0 ? Math.round(cat.tokens * scale) : 0;
+      const scaledTokens = cat.tokens > 0 ? Math.round(cat.tokens * scale) : 0;
       const catPct =
         effectiveWindow > 0 ? (scaledTokens / effectiveWindow) * 100 : 0;
       return {
@@ -238,7 +241,7 @@ export function ContextUsageGauge({
       const width = 340;
       const left = Math.max(
         12,
-        Math.min(window.innerWidth - width - 12, rect.right - width)
+        Math.min(window.innerWidth - width - 12, rect.right - width),
       );
       const top = Math.max(12, rect.top - 8);
       setCoords({ left, top });
@@ -254,39 +257,39 @@ export function ContextUsageGauge({
       }
     };
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === "Escape") setOpen(false);
     };
-    window.addEventListener('mousedown', onPointerDown);
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('resize', updatePosition);
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", updatePosition);
     return () => {
-      window.removeEventListener('mousedown', onPointerDown);
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", updatePosition);
     };
   }, [open]);
 
   const progress = clamp(percentage / 100, 0, 1);
 
   const tooltip =
-    status === 'empty'
-      ? t('contextUsage.emptyTooltip')
-      : t('contextUsage.tooltip', {
+    status === "empty"
+      ? t("contextUsage.emptyTooltip")
+      : t("contextUsage.tooltip", {
           percentage: Math.round(percentage),
           used: formattedUsed,
           total: formattedTotal,
         });
 
   const progressColor =
-    status === 'empty'
-      ? 'text-low/40'
-      : status === 'critical'
-        ? 'text-error'
-        : status === 'high'
-          ? 'text-brand-secondary'
-          : status === 'medium'
-            ? 'text-normal'
-            : 'text-low';
+    status === "empty"
+      ? "text-low/40"
+      : status === "critical"
+        ? "text-error"
+        : status === "high"
+          ? "text-brand-secondary"
+          : status === "medium"
+            ? "text-normal"
+            : "text-low";
 
   const radius = 8;
   const strokeWidth = 2;
@@ -305,16 +308,16 @@ export function ContextUsageGauge({
           type="button"
           onClick={() => setOpen((prev) => !prev)}
           className={cn(
-            'inline-flex items-center gap-1 rounded border border-border/60 bg-secondary/60 px-1.5 py-0.5',
-            'hover:bg-panel transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
-            open && 'border-brand/50 bg-panel',
-            className
+            "inline-flex items-center gap-1 rounded border border-border/60 bg-secondary/60 px-1.5 py-0.5",
+            "hover:bg-panel transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+            open && "border-brand/50 bg-panel",
+            className,
           )}
           aria-expanded={open}
           aria-label={
-            status === 'empty'
-              ? t('contextUsage.label')
-              : t('contextUsage.ariaLabel', {
+            status === "empty"
+              ? t("contextUsage.label")
+              : t("contextUsage.ariaLabel", {
                   percentage: roundedPct,
                 })
           }
@@ -345,7 +348,7 @@ export function ContextUsageGauge({
               strokeDashoffset={dashOffset}
               className={cn(
                 progressColor,
-                'transition-all duration-500 ease-out'
+                "transition-all duration-500 ease-out",
               )}
             />
           </svg>
@@ -363,10 +366,10 @@ export function ContextUsageGauge({
             role="dialog"
             aria-label="Token & Context"
             style={{
-              position: 'fixed',
+              position: "fixed",
               left: coords.left,
               top: coords.top,
-              transform: 'translateY(-100%)',
+              transform: "translateY(-100%)",
               width: 340,
             }}
             className="z-[10000] max-h-[80vh] overflow-y-auto space-y-3 rounded-xl border border-border bg-panel p-3.5 text-xs shadow-xl"
@@ -384,7 +387,8 @@ export function ContextUsageGauge({
                   )}
                 </div>
                 <div className="truncate text-2xs text-low">
-                  {breakdown?.model || 'Phân bổ context và token phiên hiện tại'}
+                  {breakdown?.model ||
+                    "Phân bổ context và token phiên hiện tại"}
                 </div>
               </div>
               <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-2xs font-medium tabular-nums text-normal">
@@ -409,12 +413,12 @@ export function ContextUsageGauge({
                 <div className="mt-1 truncate text-xs font-semibold tabular-nums text-high">
                   {sessionIn > 0 || sessionOut > 0
                     ? `${formatTokens(sessionIn)} in · ${formatTokens(sessionOut)} out`
-                    : 'Chưa có dữ liệu'}
+                    : "Chưa có dữ liệu"}
                 </div>
                 <div className="text-2xs text-low">
-                  Cache hit{' '}
+                  Cache hit{" "}
                   <span className="font-medium text-brand">
-                    {cacheHitPct !== null ? `${cacheHitPct}%` : '—'}
+                    {cacheHitPct !== null ? `${cacheHitPct}%` : "—"}
                   </span>
                 </div>
               </div>
@@ -423,7 +427,9 @@ export function ContextUsageGauge({
             <div className="space-y-2">
               <div className="flex items-center justify-between text-2xs text-low">
                 <span>
-                  {hasCategories ? 'Chi tiết Context (Proxy)' : 'Bóc tách context'}
+                  {hasCategories
+                    ? "Chi tiết Context (Proxy)"
+                    : "Bóc tách context"}
                 </span>
                 <span className="tabular-nums text-normal">
                   {formattedUsed} / {formattedTotal} ({roundedPct}%)
@@ -437,7 +443,10 @@ export function ContextUsageGauge({
                     .map((cat) => (
                       <div
                         key={cat.key}
-                        className={cn(cat.color, 'h-full transition-all duration-300')}
+                        className={cn(
+                          cat.color,
+                          "h-full transition-all duration-300",
+                        )}
                         style={{ width: `${clamp(cat.pct, 0.5, 100)}%` }}
                         title={`${cat.label}: ${formatTokens(cat.tokens)}`}
                       />
@@ -458,7 +467,9 @@ export function ContextUsageGauge({
                       className="flex items-center justify-between rounded-md bg-secondary/35 px-2.5 py-1.5"
                     >
                       <span className="inline-flex items-center gap-2 text-normal">
-                        <span className={cn('h-2 w-2 rounded-full', cat.color)} />
+                        <span
+                          className={cn("h-2 w-2 rounded-full", cat.color)}
+                        />
                         <span>{cat.label}</span>
                         {cat.count != null && cat.count > 0 && (
                           <span className="rounded bg-secondary px-1 py-0.2 text-[10px] tabular-nums text-low">
@@ -467,7 +478,7 @@ export function ContextUsageGauge({
                         )}
                       </span>
                       <span className="font-medium tabular-nums text-high">
-                        {cat.tokens > 0 ? formatTokens(cat.tokens) : '—'}
+                        {cat.tokens > 0 ? formatTokens(cat.tokens) : "—"}
                         {cat.tokens > 0 && contextWindow > 0 && (
                           <span className="ml-1.5 text-2xs font-normal text-low">
                             {cat.pct.toFixed(1)}%
@@ -550,7 +561,7 @@ export function ContextUsageGauge({
               </div>
             )}
           </div>,
-          document.body
+          document.body,
         )}
     </>
   );
