@@ -23,6 +23,7 @@ import { useReviewOptional } from '@/shared/hooks/useReview';
 import { useActions } from '@/shared/hooks/useActions';
 import { useTodos } from '../model/hooks/useTodos';
 import { getLatestConfigFromProcesses } from '@/shared/lib/executor';
+import { WorkspaceMcpSelector } from './WorkspaceMcpSelector';
 import { useExecutorConfig } from '@/shared/hooks/useExecutorConfig';
 import { useSessionMessageEditor } from '../model/hooks/useSessionMessageEditor';
 import { useSessionQueueInteraction } from '../model/hooks/useSessionQueueInteraction';
@@ -1203,6 +1204,14 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
       repoIds={repoIds}
       tokenUsageInfo={tokenUsageInfo}
       supportsContextUsage={supportsContextUsage}
+      workspaceMcpControl={
+        !isCaptain && workspaceId ? (
+          <WorkspaceMcpSelector
+            workspaceId={workspaceId}
+            isRunning={isAttemptRunning}
+          />
+        ) : undefined
+      }
       isCompacting={isCompacting}
       contextPercent={contextPercent}
       sendShortcut={config?.send_message_shortcut ?? 'ModifierEnter'}

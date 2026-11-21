@@ -269,14 +269,19 @@ impl LlmInspector {
         model: Option<String>,
         context_window: Option<u32>,
     ) {
-        if let Some(window) = context_window.filter(|&w| w > 0) {
+        let resolved_window = context_window.filter(|&w| w > 0).or_else(|| {
+            model
+                .as_deref()
+                .filter(|m| !is_combo_alias(m))
+                .map(infer_context_window)
+        });
+        if let Some(window) = resolved_window {
             self.context_windows.insert(session_id, window);
         }
-        let resolved_window = context_window
-            .filter(|&w| w > 0)
-            .or_else(|| model.as_deref().map(infer_context_window));
         self.telemetry.entry(session_id).and_modify(|existing| {
-            if let Some(ref m) = model {
+            if let Some(ref m) = model
+                && (!is_combo_alias(m) || existing.model.is_none())
+            {
                 existing.model = Some(m.clone());
             }
             if let Some(w) = resolved_window {
@@ -294,7 +299,6 @@ impl LlmInspector {
         self.context_windows
             .get(&session_id)
             .map(|entry| *entry.value())
-            .or_else(|| model.map(infer_context_window))
     }
 
     /// Analyze an outgoing LLM request JSON body and update the session's context breakdown.
@@ -319,9 +323,19 @@ impl LlmInspector {
                 existing.source = breakdown.source.clone();
                 existing.categories = breakdown.categories.clone();
                 existing.payload_tokens = breakdown.payload_tokens;
-                if breakdown.model.is_some() {
-                    existing.model = breakdown.model.clone();
-                    existing.model_context_window = breakdown.model_context_window;
+                if let Some(ref req_model) = breakdown.model {
+                    let keep_existing_real_model = existing
+                        .model
+                        .as_deref()
+                        .is_some_and(|m| !is_combo_alias(m))
+                        && is_combo_alias(req_model);
+                    if !keep_existing_real_model {
+                        existing.model = Some(req_model.clone());
+                    }
+                    existing.model_context_window = self.resolve_context_window(
+                        session_id,
+                        existing.model.as_deref().or(Some(req_model)),
+                    );
                 }
                 existing.upstream = breakdown.upstream.clone();
             })
@@ -337,9 +351,18 @@ impl LlmInspector {
             .entry(session_id)
             .and_modify(|existing| {
                 if let Some(ref model) = usage.model {
-                    existing.model = Some(model.clone());
-                    existing.model_context_window =
-                        self.resolve_context_window(session_id, Some(model));
+                    let keep_existing_real_model = existing
+                        .model
+                        .as_deref()
+                        .is_some_and(|m| !is_combo_alias(m))
+                        && is_combo_alias(model);
+                    if !keep_existing_real_model {
+                        existing.model = Some(model.clone());
+                    }
+                    existing.model_context_window = self.resolve_context_window(
+                        session_id,
+                        existing.model.as_deref().or(Some(model)),
+                    );
                 }
                 if usage.has_usage {
                     existing.input_tokens = Some(

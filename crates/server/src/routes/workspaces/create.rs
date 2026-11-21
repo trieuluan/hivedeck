@@ -113,6 +113,7 @@ pub async fn create_and_start_workspace(
         prompt,
         attachment_ids,
         kind,
+        mcp_servers,
     } = payload;
 
     let workspace_prompt = normalize_prompt(&prompt).ok_or_else(|| {
@@ -217,6 +218,16 @@ pub async fn create_and_start_workspace(
 
     let workspace = managed_workspace.workspace.clone();
     tracing::info!("Created workspace {}", workspace.id);
+
+    if let Some(ref servers) = mcp_servers
+        && let Err(e) = Workspace::set_selected_mcp_servers(pool, workspace.id, servers).await
+    {
+        tracing::warn!(
+            "failed to save selected MCP servers for workspace {}: {}",
+            workspace.id,
+            e
+        );
+    }
 
     // Fix 1: create the local issue<->workspace link before the terminal tab
     // opens (inside `start_workspace`) so `interactive_tab_title` finds it and

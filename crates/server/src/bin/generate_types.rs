@@ -116,6 +116,7 @@ fn generate_types_content() -> String {
         executors::plugins::InjectionSupport::decl(),
         executors::plugins::ExecutorCompatibility::decl(),
         executors::plugins::PluginConflict::decl(),
+        executors::plugins::McpInjectionMode::decl(),
         executors::plugins::McpToolPolicy::decl(),
         executors::plugins::PluginMcpEntry::decl(),
         executors::plugins::PluginSkillEntry::decl(),

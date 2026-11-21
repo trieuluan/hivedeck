@@ -227,3 +227,84 @@ pub async fn mark_seen(
     CodingAgentTurn::mark_seen_by_workspace_id(pool, workspace.id).await?;
     Ok(ResponseJson(ApiResponse::success(())))
 }
+
+#[derive(Debug, Serialize)]
+pub struct WorkspaceMcpItem {
+    pub name: String,
+    pub summary: String,
+    pub injection_mode: executors::plugins::McpInjectionMode,
+    pub selected: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WorkspaceMcpResponse {
+    pub items: Vec<WorkspaceMcpItem>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateWorkspaceMcpRequest {
+    pub selected: Vec<String>,
+}
+
+#[axum::debug_handler]
+pub async fn get_workspace_mcp_servers(
+    Extension(workspace): Extension<Workspace>,
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<WorkspaceMcpResponse>>, ApiError> {
+    let pool = &deployment.db().pool;
+    let selected = Workspace::get_selected_mcp_servers(pool, workspace.id).await?;
+    let dir = utils::assets::asset_dir();
+    let plugins = executors::plugins::read_plugins(&dir).unwrap_or_default();
+
+    let mut items = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
+    for plugin in plugins {
+        if !plugin.enabled {
+            continue;
+        }
+        for entry in plugin.mcp {
+            if !entry.enabled
+                || entry.name == "hivedeck"
+                || !entry.roles.iter().any(|r| r == "crew")
+                || !seen.insert(entry.name.clone())
+            {
+                continue;
+            }
+            let summary: String = entry
+                .instructions
+                .as_deref()
+                .or(entry.server_instructions.as_deref())
+                .unwrap_or("")
+                .lines()
+                .map(str::trim)
+                .find(|l| !l.is_empty() && !l.starts_with('#'))
+                .unwrap_or("")
+                .chars()
+                .take(100)
+                .collect();
+            let is_selected = entry.injection_mode == executors::plugins::McpInjectionMode::Always
+                || selected.iter().any(|s| s == &entry.name);
+            items.push(WorkspaceMcpItem {
+                name: entry.name,
+                summary,
+                injection_mode: entry.injection_mode,
+                selected: is_selected,
+            });
+        }
+    }
+    Ok(ResponseJson(ApiResponse::success(WorkspaceMcpResponse {
+        items,
+    })))
+}
+
+#[axum::debug_handler]
+pub async fn update_workspace_mcp_servers(
+    Extension(workspace): Extension<Workspace>,
+    State(deployment): State<DeploymentImpl>,
+    Json(req): Json<UpdateWorkspaceMcpRequest>,
+) -> Result<ResponseJson<ApiResponse<Vec<String>>>, ApiError> {
+    let pool = &deployment.db().pool;
+    Workspace::set_selected_mcp_servers(pool, workspace.id, &req.selected).await?;
+    let updated = Workspace::get_selected_mcp_servers(pool, workspace.id).await?;
+    Ok(ResponseJson(ApiResponse::success(updated)))
+}

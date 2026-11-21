@@ -395,6 +395,63 @@ export function PluginDetail({
           </div>
         )}
 
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="inline-flex rounded-md border border-border bg-panel/80 p-0.5 text-xs">
+            {(
+              [
+                {
+                  id: 'always',
+                  label: 'Always',
+                  active: entry.enabled && entry.injection_mode !== 'on_demand',
+                  activeClass: 'bg-brand text-black font-medium',
+                  patch: { enabled: true, injection_mode: 'always' as const },
+                },
+                {
+                  id: 'on_demand',
+                  label: 'On-demand',
+                  active: entry.enabled && entry.injection_mode === 'on_demand',
+                  activeClass: 'bg-sky-500/20 text-sky-300 font-medium',
+                  patch: {
+                    enabled: true,
+                    injection_mode: 'on_demand' as const,
+                  },
+                },
+                {
+                  id: 'off',
+                  label: 'Off',
+                  active: !entry.enabled,
+                  activeClass: 'bg-secondary text-normal font-medium',
+                  patch: { enabled: false },
+                },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  void run(
+                    () =>
+                      pluginsApi.updateMcp(plugin.name, entry.name, opt.patch),
+                    t('settings.plugins.notice.saved')
+                  )
+                }
+                className={cn(
+                  'rounded px-2.5 py-1 transition-colors disabled:opacity-50',
+                  opt.active ? opt.activeClass : 'text-low hover:text-normal'
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {mcpToolsCache[entry.name] && (
+            <span className="rounded bg-panel/80 px-2 py-0.5 text-xs text-low border border-border">
+              {mcpToolsCache[entry.name]!.length} tools
+            </span>
+          )}
+        </div>
+
         <div className="flex items-center gap-3 text-xs">
           <span className="inline-flex w-28 shrink-0 items-center gap-1.5 font-medium text-low">
             <LinkIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />

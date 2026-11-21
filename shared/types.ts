@@ -579,9 +579,11 @@ export type ExecutorCompatibility = { executor: BaseCodingAgent, cli: string | n
 
 export type PluginConflict = { kind: string, name: string, against: string, action?: string | null, };
 
+export type McpInjectionMode = "always" | "on_demand";
+
 export type McpToolPolicy = "default" | "allow" | "ask" | "block";
 
-export type PluginMcpEntry = { name: string, transport: string, command?: string | null, args: Array<string>, url?: string | null, headers: { [key in string]?: string }, env: { [key in string]?: string }, roles: Array<string>, boards: Array<string>, oauth: boolean, enabled: boolean, tool_policies?: { [key in string]?: McpToolPolicy }, instructions?: string | null, server_instructions?: string | null, };
+export type PluginMcpEntry = { name: string, transport: string, command?: string | null, args: Array<string>, url?: string | null, headers: { [key in string]?: string }, env: { [key in string]?: string }, roles: Array<string>, boards: Array<string>, oauth: boolean, enabled: boolean, injection_mode: McpInjectionMode, tool_policies?: { [key in string]?: McpToolPolicy }, instructions?: string | null, server_instructions?: string | null, };
 
 export type PluginSkillEntry = { name: string, path: string, roles: Array<string>, boards: Array<string>, clis: Array<string>, enabled: boolean, };
 
@@ -732,7 +734,11 @@ export type CreateAndStartWorkspaceRequest = { name: string | null, repos: Array
  * Omitted by older clients and the MCP crate; defaults to a normal
  * workspace.
  */
-kind?: WorkspaceKind, };
+kind?: WorkspaceKind, 
+/**
+ * Optional list of on-demand MCP server names to enable for this workspace.
+ */
+mcp_servers?: Array<string>, };
 
 export type CreateAndStartWorkspaceResponse = { workspace: Workspace, execution_process: ExecutionProcess, };
 

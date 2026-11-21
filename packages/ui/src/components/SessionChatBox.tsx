@@ -212,6 +212,7 @@ interface SessionChatBoxProps<TExecutor extends string = string> {
   getActiveTurnPatchKey?: () => string | null;
   tokenUsageInfo?: ContextUsageInfo | null;
   supportsContextUsage?: boolean;
+  workspaceMcpControl?: ReactNode;
   isCompacting?: boolean;
   contextPercent?: number;
   sendShortcut?: SendMessageShortcut;
@@ -290,6 +291,7 @@ export function SessionChatBox<TExecutor extends string = string>({
   getActiveTurnPatchKey,
   tokenUsageInfo,
   supportsContextUsage,
+  workspaceMcpControl,
   isCompacting = false,
   contextPercent,
   sendShortcut = "ModifierEnter",
@@ -901,6 +903,7 @@ export function SessionChatBox<TExecutor extends string = string>({
               onCompact={() => editor.onChange("/compact")}
             />
           )}
+          {workspaceMcpControl}
           <ToolbarDropdown
             label={sessionLabel}
             disabled={isInFeedbackMode || isInEditMode || isInApprovalMode}

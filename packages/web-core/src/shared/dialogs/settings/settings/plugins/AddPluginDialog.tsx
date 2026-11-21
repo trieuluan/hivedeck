@@ -239,6 +239,7 @@ export function AddPluginDialog({
             boards: [],
             oauth,
             enabled: true,
+            injection_mode: 'always' as const,
           },
         }),
   });

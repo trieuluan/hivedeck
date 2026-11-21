@@ -96,6 +96,8 @@ pub struct UpdatePluginMcpRequest {
     #[serde(default)]
     pub enabled: Option<bool>,
     #[serde(default)]
+    pub injection_mode: Option<plugins::McpInjectionMode>,
+    #[serde(default)]
     pub tool_policies: Option<BTreeMap<String, plugins::McpToolPolicy>>,
     #[serde(default)]
     pub instructions: Option<String>,
@@ -329,6 +331,7 @@ async fn update_mcp(
         req.roles,
         req.boards,
         req.enabled,
+        req.injection_mode,
         req.tool_policies,
         req.instructions,
     )

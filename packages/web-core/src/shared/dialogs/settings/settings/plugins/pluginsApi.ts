@@ -72,6 +72,7 @@ export type ScopePatch = {
   roles?: string[];
   boards?: string[];
   enabled?: boolean;
+  injection_mode?: 'always' | 'on_demand';
   tool_policies?: Record<string, McpToolPolicy | undefined>;
   instructions?: string;
 };

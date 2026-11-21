@@ -885,14 +885,26 @@ impl LocalContainerService {
                             tracing::error!("Failed to start next action after completion: {}", e);
                         }
                     } else {
-                        tracing::info!(
-                            "Skipping cleanup script for workspace {} - no changes made by coding agent",
-                            ctx.workspace.id
-                        );
+                        let has_chained_follow_up = ctx
+                            .execution_process
+                            .executor_action()
+                            .ok()
+                            .and_then(|action| action.next_action())
+                            .is_some();
+                        if !has_chained_follow_up
+                            && container.maybe_start_auto_compact(&ctx, exec_id).await
+                        {
+                            already_finalized = true;
+                        } else {
+                            tracing::info!(
+                                "Skipping cleanup script for workspace {} - no changes made by coding agent",
+                                ctx.workspace.id
+                            );
 
-                        // Manually finalize task since we're bypassing normal execution flow
-                        container.finalize_task(&ctx).await;
-                        already_finalized = true;
+                            // Manually finalize task since we're bypassing normal execution flow
+                            container.finalize_task(&ctx).await;
+                            already_finalized = true;
+                        }
                     }
                 }
 
@@ -955,68 +967,12 @@ impl LocalContainerService {
                             );
                             container.finalize_task(&ctx).await;
                         }
+                    } else if !has_chained_follow_up
+                        && container.maybe_start_auto_compact(&ctx, exec_id).await
+                    {
+                        started_queued_follow_up = true;
                     } else {
-                        let maybe_auto_compact_cfg =
-                            if !ExecutionProcess::was_stopped(&db.pool, exec_id).await
-                                && matches!(
-                                    ctx.execution_process.run_reason,
-                                    ExecutionProcessRunReason::CodingAgent
-                                )
-                                && !has_chained_follow_up
-                            {
-                                ctx.execution_process
-                                    .executor_action()
-                                    .ok()
-                                    .and_then(|action| {
-                                        let is_compact_prompt = match action.typ() {
-                                            ExecutorActionType::CodingAgentInitialRequest(r) => {
-                                                r.prompt.trim_start().starts_with("/compact")
-                                            }
-                                            ExecutorActionType::CodingAgentFollowUpRequest(r) => {
-                                                r.prompt.trim_start().starts_with("/compact")
-                                            }
-                                            _ => false,
-                                        };
-                                        if is_compact_prompt {
-                                            return None;
-                                        }
-                                        action.executor_config().cloned()
-                                    })
-                                    .and_then(|cfg| {
-                                        container
-                                            .llm_inspector
-                                            .take_auto_compact_reason(ctx.session.id)
-                                            .map(|reason| (reason, cfg))
-                                    })
-                            } else {
-                                None
-                            };
-
-                        if let Some((reason, executor_config)) = maybe_auto_compact_cfg {
-                            tracing::info!(
-                                "Auto-compacting session {} (reason: {})",
-                                ctx.session.id,
-                                reason
-                            );
-                            let compact_data = DraftFollowUpData {
-                                message: "/compact".to_string(),
-                                executor_config,
-                            };
-                            if let Err(e) =
-                                container.start_queued_follow_up(&ctx, &compact_data).await
-                            {
-                                tracing::error!(
-                                    "Failed to start auto-compact follow-up for session {}: {}",
-                                    ctx.session.id,
-                                    e
-                                );
-                                container.finalize_task(&ctx).await;
-                            } else {
-                                started_queued_follow_up = true;
-                            }
-                        } else {
-                            container.finalize_task(&ctx).await;
-                        }
+                        container.finalize_task(&ctx).await;
                     }
 
                     let should_mark_turn_unseen = matches!(
@@ -1444,6 +1400,61 @@ impl LocalContainerService {
     }
 
     /// Start a follow-up execution from a queued message
+    async fn maybe_start_auto_compact(&self, ctx: &ExecutionContext, exec_id: Uuid) -> bool {
+        if ExecutionProcess::was_stopped(&self.db.pool, exec_id).await
+            || !matches!(
+                ctx.execution_process.run_reason,
+                ExecutionProcessRunReason::CodingAgent
+            )
+        {
+            return false;
+        }
+        let Some(executor_config) =
+            ctx.execution_process
+                .executor_action()
+                .ok()
+                .and_then(|action| {
+                    let is_compact_prompt = match action.typ() {
+                        ExecutorActionType::CodingAgentInitialRequest(r) => {
+                            r.prompt.trim_start().starts_with("/compact")
+                        }
+                        ExecutorActionType::CodingAgentFollowUpRequest(r) => {
+                            r.prompt.trim_start().starts_with("/compact")
+                        }
+                        _ => false,
+                    };
+                    if is_compact_prompt {
+                        return None;
+                    }
+                    action.executor_config().cloned()
+                })
+        else {
+            return false;
+        };
+        let Some(reason) = self.llm_inspector.take_auto_compact_reason(ctx.session.id) else {
+            return false;
+        };
+
+        tracing::info!(
+            "Auto-compacting session {} (reason: {})",
+            ctx.session.id,
+            reason
+        );
+        let compact_data = DraftFollowUpData {
+            message: "/compact".to_string(),
+            executor_config,
+        };
+        if let Err(e) = self.start_queued_follow_up(ctx, &compact_data).await {
+            tracing::error!(
+                "Failed to start auto-compact follow-up for session {}: {}",
+                ctx.session.id,
+                e
+            );
+            return false;
+        }
+        true
+    }
+
     async fn start_queued_follow_up(
         &self,
         ctx: &ExecutionContext,
@@ -3006,7 +3017,11 @@ impl ContainerService for LocalContainerService {
             }
             .map(|id| id.to_string());
             let _ = executors::mcp_oauth::ensure_fresh_tokens(&dir, &plugins).await;
-            let (servers, secrets) = executors::plugins::select_mcp_for_run(
+            let selected_on_demand =
+                Workspace::get_selected_mcp_servers(&self.db().pool, workspace.id)
+                    .await
+                    .unwrap_or_default();
+            let (servers, secrets) = executors::plugins::select_mcp_for_run_with_on_demand(
                 &dir,
                 vec![],
                 &Default::default(),
@@ -3015,6 +3030,7 @@ impl ContainerService for LocalContainerService {
                 cli,
                 role,
                 board.as_deref(),
+                &selected_on_demand,
             )
             .map_err(|error| anyhow!(error))?;
             executors::mcp_oauth::spawn_background_instruction_probe(dir.clone(), plugins.clone());
@@ -3168,10 +3184,23 @@ impl ContainerService for LocalContainerService {
                     services::services::captain::MCP_PATH
                 ),
             );
-            env.insert(
-                codex::CAPTAIN_INSTRUCTIONS_ENV,
-                services::services::captain::prompt(),
+            let mut captain_prompt = services::services::captain::prompt().to_string();
+            let on_demand = executors::plugins::list_on_demand_mcps(
+                &executors::plugins::read_plugins(&utils::assets::asset_dir()).unwrap_or_default(),
+                "crew",
+                None,
             );
+            if !on_demand.is_empty() {
+                captain_prompt.push_str("\n\n## Available On-Demand MCPs for Crew\nPass `mcp_servers: [\"name\"]` to `start_workspace` when a card needs any of these optional MCPs:\n");
+                for item in on_demand {
+                    if item.summary.is_empty() {
+                        captain_prompt.push_str(&format!("- `{}`\n", item.name));
+                    } else {
+                        captain_prompt.push_str(&format!("- `{}`: {}\n", item.name, item.summary));
+                    }
+                }
+            }
+            env.insert(codex::CAPTAIN_INSTRUCTIONS_ENV, captain_prompt);
         }
 
         // ADR-033: a headless Claude captain gets its definition and the MCP

@@ -611,6 +611,7 @@ async fn context7_plugin_reaches_every_installed_cli() {
                 boards: vec![],
                 oauth: false,
                 enabled: true,
+                injection_mode: plugins::McpInjectionMode::Always,
                 tool_policies: BTreeMap::new(),
                 instructions: None,
                 server_instructions: None,

@@ -45,6 +45,10 @@ pub struct CreateAndStartWorkspaceRequest {
     #[serde(default)]
     #[ts(optional)]
     pub kind: Option<WorkspaceKind>,
+    /// Optional list of on-demand MCP server names to enable for this workspace.
+    #[serde(default)]
+    #[ts(optional)]
+    pub mcp_servers: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS)]

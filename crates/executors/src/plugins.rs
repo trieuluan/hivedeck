@@ -83,6 +83,14 @@ pub enum McpToolPolicy {
     Block,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+pub enum McpInjectionMode {
+    #[default]
+    Always,
+    OnDemand,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct PluginMcpEntry {
     pub name: String,
@@ -105,6 +113,8 @@ pub struct PluginMcpEntry {
     pub oauth: bool,
     #[serde(default = "default_true")]
     pub enabled: bool,
+    #[serde(default)]
+    pub injection_mode: McpInjectionMode,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tool_policies: BTreeMap<String, McpToolPolicy>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1102,6 +1112,7 @@ fn parse_mcp_servers_map(
             boards,
             oauth,
             enabled: true,
+            injection_mode: McpInjectionMode::Always,
             tool_policies: BTreeMap::new(),
             instructions: server
                 .get("instructions")
@@ -2139,6 +2150,7 @@ pub fn update_mcp_scope(
     roles: Option<Vec<String>>,
     boards: Option<Vec<String>>,
     enabled: Option<bool>,
+    injection_mode: Option<McpInjectionMode>,
     tool_policies: Option<BTreeMap<String, McpToolPolicy>>,
     instructions: Option<String>,
 ) -> Result<PluginMcpEntry, PluginError> {
@@ -2167,6 +2179,9 @@ pub fn update_mcp_scope(
     }
     if let Some(enabled) = enabled {
         mcp.enabled = enabled;
+    }
+    if let Some(mode) = injection_mode {
+        mcp.injection_mode = mode;
     }
     if let Some(policies) = tool_policies {
         mcp.tool_policies = policies
@@ -2321,6 +2336,53 @@ fn sanitize_env_part(raw: &str) -> String {
     raw.replace('-', "_").to_ascii_uppercase()
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OnDemandMcpInfo {
+    pub name: String,
+    pub summary: String,
+}
+
+pub fn list_on_demand_mcps(
+    plugins: &[InstalledPlugin],
+    role: &str,
+    board: Option<&str>,
+) -> Vec<OnDemandMcpInfo> {
+    let mut out = Vec::new();
+    let mut seen = BTreeSet::new();
+    for plugin in plugins {
+        if !plugin.enabled {
+            continue;
+        }
+        for entry in &plugin.mcp {
+            if !entry.enabled
+                || entry.name == "hivedeck"
+                || entry.injection_mode != McpInjectionMode::OnDemand
+                || !entry.roles.iter().any(|item| item == role)
+                || (!entry.boards.is_empty()
+                    && !board.is_some_and(|b| entry.boards.iter().any(|item| item == b)))
+                || !seen.insert(entry.name.clone())
+            {
+                continue;
+            }
+            let raw_summary = entry
+                .instructions
+                .as_deref()
+                .or(entry.server_instructions.as_deref())
+                .unwrap_or("")
+                .lines()
+                .map(str::trim)
+                .find(|l| !l.is_empty() && !l.starts_with('#'))
+                .unwrap_or("");
+            let summary: String = raw_summary.chars().take(120).collect();
+            out.push(OnDemandMcpInfo {
+                name: entry.name.clone(),
+                summary,
+            });
+        }
+    }
+    out
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn select_mcp_for_run(
     asset_dir: &Path,
@@ -2331,6 +2393,31 @@ pub fn select_mcp_for_run(
     cli: &str,
     role: &str,
     board: Option<&str>,
+) -> Result<(Vec<InjectedMcpServer>, HashMap<String, String>), String> {
+    select_mcp_for_run_with_on_demand(
+        asset_dir,
+        mcp_entries,
+        mcp_secrets,
+        plugins,
+        plugin_secrets,
+        cli,
+        role,
+        board,
+        &[],
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn select_mcp_for_run_with_on_demand(
+    asset_dir: &Path,
+    mcp_entries: Vec<RegistryEntry>,
+    mcp_secrets: &BTreeMap<String, String>,
+    plugins: &[InstalledPlugin],
+    plugin_secrets: &PluginsSecrets,
+    cli: &str,
+    role: &str,
+    board: Option<&str>,
+    selected_on_demand: &[String],
 ) -> Result<(Vec<InjectedMcpServer>, HashMap<String, String>), String> {
     let mut selected_plugins: Vec<(String, PluginMcpEntry)> = Vec::new();
     let mut overridden_names = BTreeSet::new();
@@ -2344,6 +2431,12 @@ pub fn select_mcp_for_run(
                 || !entry.roles.iter().any(|item| item == role)
                 || (!entry.boards.is_empty()
                     && !board.is_some_and(|board| entry.boards.iter().any(|item| item == board)))
+            {
+                continue;
+            }
+            if entry.injection_mode == McpInjectionMode::OnDemand
+                && role == "crew"
+                && !selected_on_demand.iter().any(|n| n == &entry.name)
             {
                 continue;
             }
@@ -2859,6 +2952,7 @@ mod tests {
             boards: vec![],
             oauth: false,
             enabled: true,
+            injection_mode: McpInjectionMode::Always,
             tool_policies: BTreeMap::new(),
             instructions: None,
             server_instructions: None,
@@ -2896,6 +2990,7 @@ mod tests {
             boards: vec!["board".into()],
             oauth: true,
             enabled: true,
+            injection_mode: McpInjectionMode::Always,
             tool_policies: BTreeMap::new(),
             instructions: None,
             server_instructions: None,

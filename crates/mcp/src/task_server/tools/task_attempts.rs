@@ -42,6 +42,10 @@ struct StartWorkspaceRequest {
         description = "Optional issue ID to link the workspace to. When provided, the workspace will be associated with this remote issue."
     )]
     issue_id: Option<Uuid>,
+    #[schemars(
+        description = "Optional list of on-demand MCP server names (e.g. ['higgsfield']) to inject into this workspace's crew sessions. Always-on MCPs (e.g. codemap) are included automatically."
+    )]
+    mcp_servers: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]
@@ -111,6 +115,7 @@ impl McpServer {
             variant,
             repositories,
             issue_id,
+            mcp_servers,
         }): Parameters<StartWorkspaceRequest>,
     ) -> Result<CallToolResult, ErrorData> {
         if repositories.is_empty() {
@@ -201,6 +206,7 @@ impl McpServer {
             prompt: workspace_prompt,
             attachment_ids: None,
             kind: None,
+            mcp_servers,
         };
 
         let create_and_start_url = self.url("/api/workspaces/start");
