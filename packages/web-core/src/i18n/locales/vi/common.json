@@ -438,9 +438,7 @@
     },
     "currentWorkspace": "đang chạy ở đây",
     "hideBlockedFilterLabel": "Ẩn issue bị chặn",
-    "closeSearch": "Đóng tìm kiếm",
-    "expandColumn": "Mở {{name}} ({{count}})",
-    "collapseColumn": "Thu gọn {{name}}"
+    "closeSearch": "Đóng tìm kiếm"
   },
   "createMode": {
     "headings": {

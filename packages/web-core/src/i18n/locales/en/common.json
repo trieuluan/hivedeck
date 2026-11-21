@@ -438,9 +438,7 @@
     },
     "currentWorkspace": "running here",
     "hideBlockedFilterLabel": "Hide blocked",
-    "closeSearch": "Close search",
-    "expandColumn": "Show {{name}} ({{count}})",
-    "collapseColumn": "Fold {{name}}"
+    "closeSearch": "Close search"
   },
   "createMode": {
     "headings": {

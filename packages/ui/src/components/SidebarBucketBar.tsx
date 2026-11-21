@@ -93,6 +93,7 @@ export function SidebarBucketBar({
 
   return (
     <div
+      role="toolbar"
       aria-label={t('workspaces.bucketBarLabel')}
       className={cn(
         'flex w-full items-center gap-0.5 rounded-lg border border-border/70 bg-primary/70 p-0.5',
@@ -149,6 +150,7 @@ function BucketButton({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
+          aria-label={showBadge ? `${label} — ${count}` : undefined}
           className={cn(
             'flex flex-1 min-w-0 items-center justify-center gap-1 rounded-md px-1 py-1 text-[10.5px] font-medium whitespace-nowrap transition-colors',
             showBadge
@@ -273,6 +275,7 @@ function AttentionInboxButton({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
+          aria-label={count > 0 ? `${label} — ${count}` : undefined}
           className={cn(
             'flex flex-1 min-w-0 items-center justify-center gap-1 rounded-md px-1 py-1 text-[10.5px] font-medium whitespace-nowrap transition-colors',
             count > 0

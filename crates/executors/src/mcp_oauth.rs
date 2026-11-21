@@ -680,13 +680,12 @@ pub async fn ensure_fresh_tokens(dir: &Path, plugins: &[InstalledPlugin]) -> Plu
 }
 
 fn parse_mcp_jsonrpc_body(body: &str, target_id: i64) -> Option<Value> {
-    if let Ok(val) = serde_json::from_str::<Value>(body) {
-        if val.get("id").and_then(Value::as_i64) == Some(target_id)
+    if let Ok(val) = serde_json::from_str::<Value>(body)
+        && (val.get("id").and_then(Value::as_i64) == Some(target_id)
             || val.get("result").is_some()
-            || val.get("error").is_some()
-        {
-            return Some(val);
-        }
+            || val.get("error").is_some())
+    {
+        return Some(val);
     }
     for line in body.lines() {
         let trimmed = line.trim();
