@@ -1804,21 +1804,21 @@ export function KanbanContainer() {
                               onMoreActionsClick={() =>
                                 handleCardMoreActionsClick(issue.id)
                               }
-                              footer={
-                                <>
-                                  {artifacts?.[issue.id]?.length ? (
-                                    <span
-                                      className="text-low text-sm mr-auto flex items-center gap-1"
-                                      aria-label={`${artifacts[issue.id].length} artifacts`}
-                                    >
-                                      <PaperclipIcon />{' '}
-                                      {artifacts[issue.id].length}
-                                    </span>
-                                  ) : null}
-                                  {renderShipButton(issue)}
-                                </>
+                              headerMeta={
+                                artifacts?.[issue.id]?.length ? (
+                                  <span
+                                    className="text-low text-xs flex items-center gap-1 font-ibm-plex-mono tabular-nums"
+                                    aria-label={`${artifacts[issue.id].length} artifacts`}
+                                  >
+                                    <PaperclipIcon className="size-3.5" />
+                                    {artifacts[issue.id].length}
+                                  </span>
+                                ) : null
                               }
                               retainedWorkspace={(() => {
+                                if (issueWorkspaces.length > 0) {
+                                  return null;
+                                }
                                 const retained =
                                   retainedWorkspacesByIssueId.get(issue.id);
                                 if (!retained || retained.length === 0) {
@@ -1902,11 +1902,12 @@ export function KanbanContainer() {
                                 </div>
                               )}
                             {issueWorkspaces.length > 0 && (
-                              <div className="mt-base flex flex-col gap-half">
+                              <div className="mt-1.5 flex flex-col gap-1">
                                 {issueWorkspaces.map((workspace) => (
                                   <IssueWorkspaceCard
                                     key={workspace.id}
                                     workspace={workspace}
+                                    compact
                                     onClick={
                                       workspace.localWorkspaceId
                                         ? () =>
@@ -1923,31 +1924,46 @@ export function KanbanContainer() {
                                 ))}
                               </div>
                             )}
-                            {dispatchWorkspaces.length > 0 && (
-                              <div className="mt-half">
-                                <KanbanWorkspaceDispatch
-                                  workspaces={dispatchWorkspaces}
-                                  currentWorkspaceIds={workspaceIdsShownOnCard}
-                                  issueStatusIsDone={
-                                    statusById.get(issue.status_id)
-                                      ?.is_terminal ?? false
-                                  }
-                                  currentProjectId={projectId}
-                                  onDispatch={(workspaceId) =>
-                                    handleDispatchIssueToWorkspace(
-                                      issue.id,
-                                      workspaceId
-                                    )
-                                  }
-                                  onLink={(workspaceId) =>
-                                    handleLinkIssueWorkspace(
-                                      issue.id,
-                                      workspaceId
-                                    )
-                                  }
-                                />
-                              </div>
-                            )}
+                            {(() => {
+                              const shipButton = renderShipButton(issue);
+                              if (
+                                !shipButton &&
+                                dispatchWorkspaces.length === 0
+                              ) {
+                                return null;
+                              }
+                              return (
+                                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 min-w-0">
+                                  {shipButton}
+                                  {dispatchWorkspaces.length > 0 && (
+                                    <KanbanWorkspaceDispatch
+                                      className="min-w-[160px] flex-1"
+                                      workspaces={dispatchWorkspaces}
+                                      currentWorkspaceIds={
+                                        workspaceIdsShownOnCard
+                                      }
+                                      issueStatusIsDone={
+                                        statusById.get(issue.status_id)
+                                          ?.is_terminal ?? false
+                                      }
+                                      currentProjectId={projectId}
+                                      onDispatch={(workspaceId) =>
+                                        handleDispatchIssueToWorkspace(
+                                          issue.id,
+                                          workspaceId
+                                        )
+                                      }
+                                      onLink={(workspaceId) =>
+                                        handleLinkIssueWorkspace(
+                                          issue.id,
+                                          workspaceId
+                                        )
+                                      }
+                                    />
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </KanbanCard>
                         );
                       })}

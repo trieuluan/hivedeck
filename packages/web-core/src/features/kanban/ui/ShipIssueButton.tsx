@@ -29,7 +29,7 @@ export function AcceptFindingsButton({ onAccept }: AcceptFindingsButtonProps) {
         onAccept();
       }}
       onPointerDown={(e) => e.stopPropagation()}
-      className="inline-flex items-center gap-1 rounded-sm border border-brand/60 bg-brand/10 px-2 py-0.5 text-xs font-medium text-high hover:bg-brand/20"
+      className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded bg-brand px-2.5 text-xs font-semibold text-on-brand transition-colors hover:bg-brand-hover"
     >
       <CheckIcon className="size-3.5" weight="bold" />
       {t('ship.acceptFindings')}
@@ -149,7 +149,7 @@ export function ShipIssueButton({
       onClick={ship}
       onPointerDown={(e) => e.stopPropagation()}
       disabled={busy}
-      className="inline-flex items-center gap-1 rounded-sm border border-brand/60 bg-brand/10 px-2 py-0.5 text-xs font-medium text-high hover:bg-brand/20 disabled:opacity-60"
+      className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded bg-brand px-2.5 text-xs font-semibold text-on-brand transition-colors hover:bg-brand-hover disabled:opacity-60"
     >
       {busy ? (
         <SpinnerIcon className="size-3.5 animate-spin" />
