@@ -47,6 +47,7 @@ export interface WorkspaceWithStats {
   latestProcessCompletedAt?: string;
   latestProcessStartedAt?: string;
   latestProcessStatus?: "running" | "completed" | "failed" | "killed";
+  currentPipelineStage?: number | null;
 }
 
 export interface IssueWorkspaceCardProps {
@@ -59,6 +60,10 @@ export interface IssueWorkspaceCardProps {
   showStatusBadge?: boolean;
   showNoPrText?: boolean;
   compact?: boolean;
+  /** Current 1-based pipeline stage reported by the running agent. */
+  pipelineStage?: number | null;
+  /** Total pipeline stages parsed from the card description. */
+  pipelineTotal?: number;
   className?: string;
 }
 
@@ -122,6 +127,14 @@ function IssueWorkspaceCardContainer({
   );
 }
 
+export function pipelineProgressPercent(
+  stage: number | null | undefined,
+  total: number | undefined
+): number | null {
+  if (stage == null || !total || total <= 0) return null;
+  return Math.max(0, Math.min(100, Math.round((stage / total) * 100)));
+}
+
 export function IssueWorkspaceCard({
   workspace,
   onClick,
@@ -132,6 +145,8 @@ export function IssueWorkspaceCard({
   showStatusBadge = true,
   showNoPrText = true,
   compact = false,
+  pipelineStage,
+  pipelineTotal,
   className,
 }: IssueWorkspaceCardProps) {
   const { t } = useTranslation("common");
@@ -150,6 +165,10 @@ export function IssueWorkspaceCard({
     (hasUnseenActivity && !isRunning);
 
   if (compact) {
+    const pipelineProgress = isRunning
+      ? pipelineProgressPercent(pipelineStage, pipelineTotal)
+      : null;
+
     return (
       <div
         role={onClick ? "button" : undefined}
@@ -169,56 +188,81 @@ export function IssueWorkspaceCard({
         }}
         title={workspace.name ?? undefined}
         className={cn(
-          "group/ws flex items-center gap-1.5 rounded border border-border/70 bg-secondary/45 px-2 py-1 text-xs transition-colors min-w-0",
+          "group/ws min-w-0 rounded border border-border/70 bg-secondary/45 px-2 py-1 text-xs transition-colors",
           onClick && "cursor-pointer hover:bg-secondary/80",
           className,
         )}
       >
-        <span className="flex items-center shrink-0 text-low">
-          {isRunning ? (
-            hasPendingApproval ? (
-              <HandIcon className="size-3.5 text-brand" weight="fill" />
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="flex items-center shrink-0 text-low">
+            {isRunning ? (
+              hasPendingApproval ? (
+                <HandIcon className="size-3.5 text-brand" weight="fill" />
+              ) : (
+                <RunningDots />
+              )
+            ) : isFailed ? (
+              <TriangleIcon className="size-3.5 text-error" weight="fill" />
             ) : (
-              <RunningDots />
-            )
-          ) : isFailed ? (
-            <TriangleIcon className="size-3.5 text-error" weight="fill" />
-          ) : (
-            <GitBranchIcon className="size-3.5" weight="bold" />
-          )}
-        </span>
-        <span className="h-3 w-px bg-border/80 shrink-0" aria-hidden="true" />
-        <span className="min-w-[4rem] flex-1 truncate font-medium text-normal">
-          {workspace.name ?? "Workspace"}
-        </span>
-        {(workspace.linesAdded > 0 || workspace.linesRemoved > 0) && (
-          <span className="font-ibm-plex-mono text-[10px] tabular-nums shrink-0">
-            <span className="text-success">+{workspace.linesAdded}</span>{" "}
-            <span className="text-error">-{workspace.linesRemoved}</span>
-          </span>
-        )}
-        {timeAgo && (
-          <span
-            title={timeAgo}
-            className={cn(
-              "max-w-[6.5rem] truncate text-[11px] text-low shrink-0",
-              isFailed && "text-error",
+              <GitBranchIcon className="size-3.5" weight="bold" />
             )}
-          >
-            {timeAgo}
           </span>
-        )}
-        {onClick && (
-          <>
+          <span
+            className="h-3 w-px bg-border/80 shrink-0"
+            aria-hidden="true"
+          />
+          <span className="min-w-[4rem] flex-1 truncate font-medium text-normal">
+            {workspace.name ?? "Workspace"}
+          </span>
+          {(workspace.linesAdded > 0 || workspace.linesRemoved > 0) && (
+            <span className="font-ibm-plex-mono text-[10px] tabular-nums shrink-0">
+              <span className="text-success">+{workspace.linesAdded}</span>{" "}
+              <span className="text-error">-{workspace.linesRemoved}</span>
+            </span>
+          )}
+          {timeAgo && (
             <span
-              className="h-3 w-px bg-border/80 shrink-0"
-              aria-hidden="true"
-            />
-            <ArrowSquareOutIcon
-              className="size-3.5 shrink-0 text-low group-hover/ws:text-high transition-colors"
-              weight="bold"
-            />
-          </>
+              title={timeAgo}
+              className={cn(
+                "max-w-[6.5rem] truncate text-[11px] text-low shrink-0",
+                isFailed && "text-error",
+              )}
+            >
+              {timeAgo}
+            </span>
+          )}
+          {onClick && (
+            <>
+              <span
+                className="h-3 w-px bg-border/80 shrink-0"
+                aria-hidden="true"
+              />
+              <ArrowSquareOutIcon
+                className="size-3.5 shrink-0 text-low group-hover/ws:text-high transition-colors"
+                weight="bold"
+              />
+            </>
+          )}
+        </div>
+        {pipelineProgress !== null && (
+          <div
+            className="mt-1 flex items-center gap-1 min-w-0"
+            role="progressbar"
+            aria-label={`${pipelineStage}/${pipelineTotal}`}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={pipelineProgress}
+          >
+            <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-border/70">
+              <span
+                className="block h-full rounded-full bg-brand transition-[width] duration-300"
+                style={{ width: `${pipelineProgress}%` }}
+              />
+            </span>
+            <span className="shrink-0 font-ibm-plex-mono text-[10px] tabular-nums text-low">
+              {pipelineProgress}%
+            </span>
+          </div>
         )}
       </div>
     );

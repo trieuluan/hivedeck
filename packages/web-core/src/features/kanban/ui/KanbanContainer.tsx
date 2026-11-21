@@ -77,6 +77,7 @@ import { workspaceSummaryKeys } from '@/shared/hooks/workspaceSummaryKeys';
 import { useQueryClient } from '@tanstack/react-query';
 import { useArtifacts } from '@/pages/kanban/IssueArtifacts';
 import { workspacesApi } from '@/shared/lib/api';
+import { parsePipelineStages } from '@/shared/lib/pipeline/cardPipeline';
 import {
   IssueWorkspaceCard,
   type WorkspaceWithStats,
@@ -1069,6 +1070,11 @@ export function KanbanContainer() {
           const localWorkspace = localWorkspacesById.get(
             workspace.local_workspace_id!
           );
+          const currentPipelineStage = (
+            workspace as unknown as {
+              current_pipeline_stage?: number | bigint | null;
+            }
+          ).current_pipeline_stage;
 
           return {
             id: workspace.id,
@@ -1088,6 +1094,10 @@ export function KanbanContainer() {
             latestProcessCompletedAt: localWorkspace?.latestProcessCompletedAt,
             latestProcessStartedAt: localWorkspace?.latestProcessStartedAt,
             latestProcessStatus: localWorkspace?.latestProcessStatus,
+            currentPipelineStage:
+              currentPipelineStage == null
+                ? null
+                : Number(currentPipelineStage),
           };
         });
 
@@ -1747,6 +1757,9 @@ export function KanbanContainer() {
                         const isSubIssuesExpanded = expandedSubIssueParents.has(
                           issue.id
                         );
+                        const pipelineStages = parsePipelineStages(
+                          issue.description ?? null
+                        );
 
                         return (
                           <KanbanCard
@@ -1920,6 +1933,10 @@ export function KanbanContainer() {
                                     showOwner={false}
                                     showStatusBadge={false}
                                     showNoPrText={false}
+                                    pipelineStage={
+                                      workspace.currentPipelineStage
+                                    }
+                                    pipelineTotal={pipelineStages.length}
                                   />
                                 ))}
                               </div>
