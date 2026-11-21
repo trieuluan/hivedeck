@@ -187,6 +187,27 @@ async fn forward_request(
         }
     };
 
+    let upstream_model_header = upstream_resp
+        .headers()
+        .get("x-9router-model")
+        .and_then(|v| v.to_str().ok())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+    let upstream_window_header = upstream_resp
+        .headers()
+        .get("x-9router-context-window")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.trim().parse::<u32>().ok())
+        .filter(|&w| w > 0);
+    if upstream_model_header.is_some() || upstream_window_header.is_some() {
+        deployment.llm_inspector().record_upstream_model_headers(
+            route.session_id,
+            upstream_model_header,
+            upstream_window_header,
+        );
+    }
+
     let status =
         StatusCode::from_u16(upstream_resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
 

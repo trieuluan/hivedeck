@@ -225,6 +225,31 @@ impl LlmInspector {
         self.context_windows.insert(session_id, window);
     }
 
+    /// Record the resolved upstream model and/or context window from response
+    /// headers (e.g. `x-9router-model`, `x-9router-context-window`) so combo
+    /// fallbacks update telemetry immediately.
+    pub fn record_upstream_model_headers(
+        &self,
+        session_id: Uuid,
+        model: Option<String>,
+        context_window: Option<u32>,
+    ) {
+        if let Some(window) = context_window.filter(|&w| w > 0) {
+            self.context_windows.insert(session_id, window);
+        }
+        let resolved_window = context_window
+            .filter(|&w| w > 0)
+            .or_else(|| model.as_deref().map(infer_context_window));
+        self.telemetry.entry(session_id).and_modify(|existing| {
+            if let Some(ref m) = model {
+                existing.model = Some(m.clone());
+            }
+            if let Some(w) = resolved_window {
+                existing.model_context_window = Some(w);
+            }
+        });
+    }
+
     fn resolve_context_window(&self, session_id: Uuid, model: Option<&str>) -> Option<u32> {
         if let Some(m) = model
             && !is_combo_alias(m)
