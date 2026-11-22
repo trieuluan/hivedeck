@@ -68,6 +68,26 @@ export function GitPanelContainer({
     return matching?.head_oid ?? branchStatus[0]?.head_oid ?? null;
   }, [branchStatus, repos]);
 
+  const selectedSummaryWs = useMemo(() => {
+    if (!selectedWorkspace?.id) return undefined;
+    return (
+      activeWorkspaces.find((w) => w.id === selectedWorkspace.id) ??
+      archivedWorkspaces.find((w) => w.id === selectedWorkspace.id)
+    );
+  }, [selectedWorkspace?.id, activeWorkspaces, archivedWorkspaces]);
+
+  const isMerged =
+    selectedSummaryWs?.prStatus === 'merged' ||
+    Boolean(
+      branchStatus?.some((repoStatus) =>
+        repoStatus.merges.some(
+          (m) =>
+            m.type === 'direct' ||
+            (m.type === 'pr' && m.pr_info.status === 'merged')
+        )
+      )
+    );
+
   const isRevisionApproved = Boolean(
     linkedIssue && revisionApprovalMatchesHead(linkedIssue, headOid)
   );
@@ -95,6 +115,27 @@ export function GitPanelContainer({
   const approvalGate = useMemo(() => {
     if (!linkedIssue || !headOid) return undefined;
     const shortSha = headOid.slice(0, 8);
+    if (isMerged) {
+      const target =
+        branchStatus?.[0]?.target_branch_name ??
+        repos[0]?.target_branch ??
+        'main';
+      return (
+        <div className="flex items-center justify-between gap-2 rounded border border-emerald-500/35 bg-emerald-500/10 px-2.5 py-2 text-xs text-emerald-200">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <CheckIcon
+              className="size-3.5 shrink-0 text-emerald-400"
+              weight="bold"
+            />
+            <span className="truncate font-medium">Đã merge vào {target}</span>
+          </div>
+          <span className="rounded bg-emerald-950/60 px-1.5 py-0.5 font-ibm-plex-mono text-[11px] text-emerald-300 shrink-0">
+            {shortSha}
+          </span>
+        </div>
+      );
+    }
+
     if (isRevisionApproved) {
       return (
         <div className="flex items-center justify-between gap-2 rounded border border-emerald-500/35 bg-emerald-500/10 px-2.5 py-2 text-xs text-emerald-200">
@@ -142,6 +183,9 @@ export function GitPanelContainer({
   }, [
     linkedIssue,
     headOid,
+    isMerged,
+    branchStatus,
+    repos,
     isRevisionApproved,
     approvingRevision,
     handleApproveRevision,
@@ -192,6 +236,10 @@ export function GitPanelContainer({
             prNumber = Number(relevantPR.pr_info.number);
             prUrl = relevantPR.pr_info.url;
             prStatus = relevantPR.pr_info.status;
+          } else if (
+            repoStatus.merges.some((m: Merge) => m.type === 'direct')
+          ) {
+            prStatus = 'merged';
           }
         } else if (summaryPr) {
           // Use workspace summary PR data as a fast fallback while branchStatus loads.
@@ -199,6 +247,8 @@ export function GitPanelContainer({
           prNumber = summaryPr.prNumber;
           prUrl = summaryPr.prUrl;
           prStatus = summaryPr.prStatus;
+        } else if (selectedSummaryWs?.prStatus === 'merged') {
+          prStatus = 'merged';
         }
 
         return {
@@ -308,10 +358,12 @@ export function GitPanelContainer({
           isPushPending: state === 'pending',
           isPushSuccess: state === 'success',
           isPushError: state === 'error',
-          actionsLocked: Boolean(linkedIssue && !isRevisionApproved),
+          actionsLocked: Boolean(
+            linkedIssue && !isRevisionApproved && !isMerged
+          ),
         };
       }),
-    [repoInfos, pushStates, linkedIssue, isRevisionApproved]
+    [repoInfos, pushStates, linkedIssue, isRevisionApproved, isMerged]
   );
 
   // Handle opening command bar for repo actions

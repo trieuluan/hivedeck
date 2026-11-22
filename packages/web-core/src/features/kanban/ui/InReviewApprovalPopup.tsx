@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  ArrowsClockwiseIcon,
   CaretDownIcon,
   CheckIcon,
   GitMergeIcon,
@@ -22,6 +23,7 @@ import { useBranchStatus } from '@/shared/hooks/useBranchStatus';
 import { useWorkspaceRepo } from '@/shared/hooks/useWorkspaceRepo';
 import { useMerge } from '@/shared/hooks/useMerge';
 import { usePush } from '@/shared/hooks/usePush';
+import { useRebase } from '@/shared/hooks/useRebase';
 import { refreshShapeSource } from '@/shared/lib/electric/collections';
 import { formatDateShortWithTime } from '@/shared/lib/date';
 import { cn } from '@/shared/lib/utils';
@@ -56,6 +58,7 @@ export interface InReviewApprovalPopupProps {
   branch: string;
   hasCodeChanges?: boolean;
   onApprovedWithoutChanges?: () => Promise<void> | void;
+  onMerged?: () => Promise<void> | void;
 }
 
 export function InReviewApprovalPopup({
@@ -65,6 +68,7 @@ export function InReviewApprovalPopup({
   branch,
   hasCodeChanges = true,
   onApprovedWithoutChanges,
+  onMerged,
 }: InReviewApprovalPopupProps) {
   const { t } = useTranslation('kanban');
   const queryClient = useQueryClient();
@@ -72,13 +76,16 @@ export function InReviewApprovalPopup({
   const { repos, selectedRepoId } = useWorkspaceRepo(workspaceId);
   const repoId = selectedRepoId ?? repos[0]?.id ?? null;
   const { data: branchStatuses } = useBranchStatus(workspaceId);
-  const headOid = useMemo(() => {
+  const matchingBranchStatus = useMemo(() => {
     if (!branchStatuses || branchStatuses.length === 0) return null;
     const matching = repoId
       ? branchStatuses.find((status) => status.repo_id === repoId)
       : undefined;
-    return matching?.head_oid ?? branchStatuses[0]?.head_oid ?? null;
+    return matching ?? branchStatuses[0] ?? null;
   }, [branchStatuses, repoId]);
+  const headOid = matchingBranchStatus?.head_oid ?? null;
+  const commitsBehind = matchingBranchStatus?.commits_behind ?? 0;
+  const targetBranchName = matchingBranchStatus?.target_branch_name ?? 'target';
 
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<'approve' | 'merge' | 'push' | null>(null);
@@ -103,19 +110,46 @@ export function InReviewApprovalPopup({
     void invalidateProject();
   }, [invalidateProject]);
 
+  const handleMergeSuccess = useCallback(async () => {
+    setOpen(false);
+    setError(null);
+    if (onMerged) {
+      await onMerged();
+    }
+    await invalidateProject();
+  }, [invalidateProject, onMerged]);
+
   const handleGitError = useCallback((err: unknown) => {
     setError(err instanceof Error ? err.message : String(err));
   }, []);
 
-  const mergeMutation = useMerge(workspaceId, handleGitSuccess, handleGitError);
+  const mergeMutation = useMerge(
+    workspaceId,
+    () => void handleMergeSuccess(),
+    handleGitError
+  );
   const pushMutation = usePush(workspaceId, handleGitSuccess, handleGitError);
+  const rebaseMutation = useRebase(
+    workspaceId,
+    repoId ?? undefined,
+    () => {
+      setError(null);
+      void invalidateProject();
+    },
+    (err) => {
+      const msg = 'message' in err && err.message ? err.message : null;
+      setError(msg ?? 'Rebase thất bại.');
+    }
+  );
 
   const gitUnlocked = revisionApprovalMatchesHead(issue, headOid);
   const runningAction = mergeMutation.isPending
     ? 'merge'
     : pushMutation.isPending
       ? 'push'
-      : busy;
+      : rebaseMutation.isPending
+        ? 'rebase'
+        : busy;
 
   const approve = async () => {
     if (busy) return;
@@ -388,6 +422,28 @@ export function InReviewApprovalPopup({
               {t('review.push', 'Push')}
             </button>
           </div>
+          {commitsBehind > 0 && repoId && (
+            <button
+              type="button"
+              onClick={() => void rebaseMutation.mutateAsync({ repoId })}
+              disabled={runningAction !== null}
+              aria-busy={runningAction === 'rebase'}
+              className={cn(
+                'inline-flex h-8 w-full items-center justify-center gap-1.5 rounded border border-border bg-secondary/70 px-3 text-xs font-medium text-normal transition-colors hover:bg-secondary hover:text-high',
+                'focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
+              )}
+            >
+              {runningAction === 'rebase' ? (
+                <SpinnerIcon className="size-3.5 animate-spin" weight="bold" />
+              ) : (
+                <ArrowsClockwiseIcon className="size-3.5" weight="bold" />
+              )}
+              {t('review.rebaseBehind', 'Rebase lên {{target}} (↓ {{count}})', {
+                target: targetBranchName,
+                count: commitsBehind,
+              })}
+            </button>
+          )}
           {!gitUnlocked && (
             <p className="flex items-center justify-center gap-1 text-[11px] text-low">
               <span>

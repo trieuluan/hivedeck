@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use axum::{Json, extract::State, response::Json as ResponseJson};
 use db::models::{
@@ -114,6 +114,18 @@ pub async fn get_workspace_summaries(
     // 6. Get PR status for each workspace
     let pr_statuses = PullRequest::get_latest_for_workspaces(pool, archived).await?;
 
+    let direct_merged_ids: HashSet<Uuid> = sqlx::query_scalar::<_, Uuid>(
+        "SELECT DISTINCT m.workspace_id
+         FROM merges m
+         JOIN workspaces w ON w.id = m.workspace_id
+         WHERE w.archived = ? AND m.merge_type = 'direct'",
+    )
+    .bind(archived)
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .collect();
+
     // 7. Compute diff stats for each workspace (in parallel)
     let diff_futures: Vec<_> = workspaces
         .iter()
@@ -159,7 +171,14 @@ pub async fn get_workspace_summaries(
                 latest_process_status: latest.map(|p| p.status.clone()),
                 has_running_dev_server: dev_server_workspaces.contains(&id),
                 has_unseen_turns: unseen_workspaces.contains(&id),
-                pr_status: pr_statuses.get(&id).map(|pr| pr.pr_status.clone()),
+                pr_status: pr_statuses
+                    .get(&id)
+                    .map(|pr| pr.pr_status.clone())
+                    .or_else(|| {
+                        direct_merged_ids
+                            .contains(&id)
+                            .then_some(MergeStatus::Merged)
+                    }),
                 pr_number: pr_statuses.get(&id).map(|pr| pr.pr_number),
                 pr_url: pr_statuses.get(&id).map(|pr| pr.pr_url.clone()),
             }

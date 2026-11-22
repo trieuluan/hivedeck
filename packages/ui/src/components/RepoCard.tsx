@@ -264,87 +264,106 @@ export function RepoCard({
         </div>
       )}
 
-      {/* Primary Merge / Push row */}
-      <div className="space-y-1.5 pt-0.5">
-        <div className="grid grid-cols-2 gap-1.5">
-          <button
-            type="button"
-            onClick={() => onActionsClick?.("merge")}
-            disabled={
-              actionsLocked || hasPrOpen || isTargetRemote || commitsAhead === 0
-            }
-            className={`inline-flex h-8 w-full items-center justify-center gap-1.5 rounded border px-2.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-              actionsLocked
-                ? "border-border bg-secondary/70 text-low"
-                : "border-emerald-500/40 bg-emerald-600 text-white hover:bg-emerald-500"
-            }`}
-          >
-            {actionsLocked ? (
-              <LockSimpleIcon className="size-3.5 shrink-0" weight="bold" />
-            ) : (
-              <GitMergeIcon className="size-3.5 shrink-0" weight="bold" />
+      {prStatus === "merged" && commitsAhead === 0 ? (
+        <div className="inline-flex items-center gap-1.5 rounded border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-medium text-emerald-300">
+          <CheckCircleIcon className="size-3.5 shrink-0" weight="fill" />
+          <span>Đã hợp nhất vào {targetBranch}</span>
+        </div>
+      ) : (
+        <>
+          {/* Primary Merge / Push row */}
+          <div className="space-y-1.5 pt-0.5">
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => onActionsClick?.("merge")}
+                disabled={
+                  actionsLocked ||
+                  hasPrOpen ||
+                  isTargetRemote ||
+                  commitsAhead === 0
+                }
+                className={`inline-flex h-8 w-full items-center justify-center gap-1.5 rounded border px-2.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                  actionsLocked
+                    ? "border-border bg-secondary/70 text-low"
+                    : "border-emerald-500/40 bg-emerald-600 text-white hover:bg-emerald-500"
+                }`}
+              >
+                {actionsLocked ? (
+                  <LockSimpleIcon className="size-3.5 shrink-0" weight="bold" />
+                ) : (
+                  <GitMergeIcon className="size-3.5 shrink-0" weight="bold" />
+                )}
+                <span>Merge</span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  showPushButton && onPushClick
+                    ? onPushClick()
+                    : onActionsClick?.("push")
+                }
+                disabled={actionsLocked || isPushPending}
+                className={`inline-flex h-8 w-full items-center justify-center gap-1.5 rounded border px-2.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                  actionsLocked
+                    ? "border-border bg-secondary/70 text-low"
+                    : "border-sky-500/40 bg-sky-600 text-white hover:bg-sky-500"
+                }`}
+              >
+                {isPushPending ? (
+                  <SpinnerGapIcon
+                    className="size-3.5 shrink-0 animate-spin"
+                    weight="bold"
+                  />
+                ) : actionsLocked ? (
+                  <LockSimpleIcon className="size-3.5 shrink-0" weight="bold" />
+                ) : (
+                  <ArrowUpIcon className="size-3.5 shrink-0" weight="bold" />
+                )}
+                <span>
+                  {isPushPending
+                    ? t("git.states.pushing")
+                    : t("git.states.push", { defaultValue: "Push" })}
+                </span>
+              </button>
+            </div>
+            {actionsLocked && (
+              <p className="text-center text-[11px] text-low">
+                Duyệt revision để mở khóa Merge &amp; Push
+              </p>
             )}
-            <span>Merge</span>
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              showPushButton && onPushClick
-                ? onPushClick()
-                : onActionsClick?.("push")
-            }
-            disabled={actionsLocked || isPushPending}
-            className={`inline-flex h-8 w-full items-center justify-center gap-1.5 rounded border px-2.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-              actionsLocked
-                ? "border-border bg-secondary/70 text-low"
-                : "border-sky-500/40 bg-sky-600 text-white hover:bg-sky-500"
-            }`}
-          >
-            {isPushPending ? (
-              <SpinnerGapIcon
-                className="size-3.5 shrink-0 animate-spin"
+          </div>
+
+          {/* Secondary Rebase + Open PR dropdown row */}
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              onClick={onRebase}
+              className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded border border-border bg-panel px-2.5 text-xs font-medium text-normal transition-colors hover:bg-tertiary hover:text-high"
+            >
+              <ArrowsClockwiseIcon
+                className="size-3.5 shrink-0"
                 weight="bold"
               />
-            ) : actionsLocked ? (
-              <LockSimpleIcon className="size-3.5 shrink-0" weight="bold" />
-            ) : (
-              <ArrowUpIcon className="size-3.5 shrink-0" weight="bold" />
+              <span>
+                {t("rebase.common.action", { defaultValue: "Rebase" })}
+              </span>
+            </button>
+            {availableActionOptions.length > 0 && (
+              <div className="min-w-0">
+                <SplitButton
+                  options={availableActionOptions}
+                  selectedValue={effectiveSelectedAction}
+                  onSelectionChange={(action) =>
+                    onSelectedActionChange?.(action)
+                  }
+                  onAction={(action) => onActionsClick?.(action)}
+                />
+              </div>
             )}
-            <span>
-              {isPushPending
-                ? t("git.states.pushing")
-                : t("git.states.push", { defaultValue: "Push" })}
-            </span>
-          </button>
-        </div>
-        {actionsLocked && (
-          <p className="text-center text-[11px] text-low">
-            Duyệt revision để mở khóa Merge &amp; Push
-          </p>
-        )}
-      </div>
-
-      {/* Secondary Rebase + Open PR dropdown row */}
-      <div className="grid grid-cols-2 gap-1.5">
-        <button
-          type="button"
-          onClick={onRebase}
-          className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded border border-border bg-panel px-2.5 text-xs font-medium text-normal transition-colors hover:bg-tertiary hover:text-high"
-        >
-          <ArrowsClockwiseIcon className="size-3.5 shrink-0" weight="bold" />
-          <span>{t("rebase.common.action", { defaultValue: "Rebase" })}</span>
-        </button>
-        {availableActionOptions.length > 0 && (
-          <div className="min-w-0">
-            <SplitButton
-              options={availableActionOptions}
-              selectedValue={effectiveSelectedAction}
-              onSelectionChange={(action) => onSelectedActionChange?.(action)}
-              onAction={(action) => onActionsClick?.(action)}
-            />
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }

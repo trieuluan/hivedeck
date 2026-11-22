@@ -38,6 +38,10 @@ import {
   PaperclipIcon,
 } from '@phosphor-icons/react';
 import {
+  ArchivedWorkspacesChip,
+  type ArchivedWorkspaceItem,
+} from './ArchivedWorkspacesChip';
+import {
   isDoneStatus,
   useCollapsedStatuses,
   isCancelledStatusName,
@@ -1033,6 +1037,46 @@ export function KanbanContainer() {
     return retainedWorkspacesByIssueId;
   }, [showWorkspaces, retainedWorkspacesByIssueId]);
 
+  const archivedWorkspacesById = useMemo(
+    () => new Map(archivedWorkspaces.map((w) => [w.id, w])),
+    [archivedWorkspaces]
+  );
+
+  const archivedWorkspacesByIssueId = useMemo(() => {
+    const map = new Map<string, ArchivedWorkspaceItem[]>();
+    if (!showWorkspaces) return map;
+    for (const issue of issues) {
+      const items: ArchivedWorkspaceItem[] = [];
+      for (const workspace of getWorkspacesForIssue(issue.id)) {
+        if (!workspace.archived || !workspace.local_workspace_id) continue;
+        const local = archivedWorkspacesById.get(workspace.local_workspace_id);
+        if (!local) continue;
+        const prs = prsByWorkspaceId.get(workspace.id) ?? [];
+        const hasMergedPr = prs.some((p) => p.status === 'merged');
+        items.push({
+          id: local.id,
+          name: workspace.name ?? local.name,
+          branch: local.branch,
+          updatedAt: workspace.updated_at ?? local.updatedAt,
+          linesAdded: workspace.lines_added ?? local.linesAdded,
+          linesRemoved: workspace.lines_removed ?? local.linesRemoved,
+          latestProcessStatus: local.latestProcessStatus,
+          prStatus: hasMergedPr ? 'merged' : local.prStatus,
+        });
+      }
+      if (items.length > 0) {
+        map.set(issue.id, items);
+      }
+    }
+    return map;
+  }, [
+    showWorkspaces,
+    issues,
+    getWorkspacesForIssue,
+    archivedWorkspacesById,
+    prsByWorkspaceId,
+  ]);
+
   const hasAnyRunningWorkspace = useMemo(
     () =>
       Array.from(workspacesByIssueId.values()).some((list) =>
@@ -1691,6 +1735,8 @@ export function KanbanContainer() {
                         if (!issue) return null;
                         const issueWorkspaces =
                           workspacesByIssueId.get(issue.id) ?? [];
+                        const archivedWorkspaceItems =
+                          archivedWorkspacesByIssueId.get(issue.id) ?? [];
                         const workspaceIdsShownOnCard = new Set(
                           issueWorkspaces.map((workspace) => workspace.id)
                         );
@@ -1966,6 +2012,14 @@ export function KanbanContainer() {
                                 })}
                               </div>
                             )}
+                            {archivedWorkspaceItems.length > 0 && (
+                              <ArchivedWorkspacesChip
+                                items={archivedWorkspaceItems}
+                                onOpen={(wsId) =>
+                                  openIssueWorkspace(issue.id, wsId)
+                                }
+                              />
+                            )}
                             {(() => {
                               const isDoneOrCancelled =
                                 isDoneStatus(status) ||
@@ -2031,6 +2085,15 @@ export function KanbanContainer() {
                                           inReviewGitWorkspace.filesChanged > 0
                                         }
                                         onApprovedWithoutChanges={
+                                          doneStatusId
+                                            ? () => {
+                                                updateIssue(issue.id, {
+                                                  status_id: doneStatusId,
+                                                });
+                                              }
+                                            : undefined
+                                        }
+                                        onMerged={
                                           doneStatusId
                                             ? () => {
                                                 updateIssue(issue.id, {
