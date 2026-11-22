@@ -34,6 +34,14 @@ pub struct Issue {
     pub parent_issue_id: Option<Uuid>,
     pub parent_issue_sort_order: Option<f64>,
     pub extension_metadata: Value,
+    #[ts(optional)]
+    pub approval_owner: Option<String>,
+    #[ts(optional)]
+    pub approval_at: Option<DateTime<Utc>>,
+    #[ts(optional)]
+    pub approval_revision: Option<String>,
+    #[ts(optional)]
+    pub approval_scope: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

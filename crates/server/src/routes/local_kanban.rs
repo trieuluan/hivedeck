@@ -36,7 +36,7 @@ use db::models::{
 use deployment::Deployment;
 use serde::Deserialize;
 use serde_json::{Value, json};
-use services::services::{container::ContainerService, project_config};
+use services::services::container::ContainerService;
 use sqlx::SqlitePool;
 use std::time::SystemTime;
 use uuid::Uuid;
@@ -888,6 +888,28 @@ pub(crate) async fn validate_issue_parent(
     Ok(())
 }
 
+/// A status write must reference a status in the same project. This is the
+/// shared guard for every issue create/update path.
+async fn validate_status_belongs_to_project(
+    pool: &SqlitePool,
+    project_id: Uuid,
+    status_id: Uuid,
+) -> Result<(), ApiError> {
+    let status_project_id =
+        sqlx::query_scalar::<_, Uuid>("SELECT project_id FROM project_statuses WHERE id = $1")
+            .bind(status_id)
+            .fetch_optional(pool)
+            .await?;
+
+    match status_project_id {
+        Some(status_project_id) if status_project_id == project_id => Ok(()),
+        Some(_) => Err(ApiError::BadRequest(
+            "status does not belong to the issue's project".into(),
+        )),
+        None => Err(ApiError::BadRequest("status not found".into())),
+    }
+}
+
 /// Shared create path for both kanban routers (`/v1/issues` and
 /// `/v1/fallback`-paired mutations). Validates the project and the parent
 /// hierarchy before writing.
@@ -898,6 +920,7 @@ pub(crate) async fn create_issue_record(
     if DbProject::find_by_id(pool, req.project_id).await?.is_none() {
         return Err(ApiError::BadRequest("project not found".into()));
     }
+    validate_status_belongs_to_project(pool, req.project_id, req.status_id).await?;
     let id = req.id.unwrap_or_else(Uuid::new_v4);
     if let Some(parent_id) = req.parent_issue_id {
         validate_issue_parent(pool, id, req.project_id, parent_id).await?;
@@ -937,76 +960,36 @@ async fn create_issue(
     Ok(mutation(issue))
 }
 
-/// Update an issue; when the update moves it into a cancelled column, stop
-/// the agents still running on its workspaces (dropped work shouldn't keep
-/// burning tokens). Used by every HTTP path that edits an issue.
-pub(crate) async fn update_issue_and_stop_if_cancelled(
-    deployment: &DeploymentImpl,
+/// Update an issue without side effects. Status changes are just status
+/// changes (HIVE-82): cancelling a card no longer stops its agents.
+pub(crate) async fn update_issue_record(
+    pool: &SqlitePool,
     id: Uuid,
     req: UpdateIssueRequest,
 ) -> Result<Option<DbIssue>, ApiError> {
-    let pool = &deployment.db().pool;
-    let before = DbIssue::find_by_id(pool, id).await?.map(|i| i.status_id);
-    let updated = merge_and_update_issue(pool, id, req).await?;
-    if let Some(issue) = &updated
-        && before.is_some_and(|status| status != issue.status_id)
-        && status_is_cancelled(pool, issue.status_id).await
-    {
-        stop_issue_agents(deployment, issue.id).await;
-    }
-    Ok(updated)
+    merge_and_update_issue(pool, id, req).await
 }
 
-async fn status_is_cancelled(pool: &SqlitePool, status_id: Uuid) -> bool {
-    sqlx::query_scalar::<_, String>("SELECT name FROM project_statuses WHERE id = $1")
-        .bind(status_id)
-        .fetch_optional(pool)
-        .await
-        .ok()
-        .flatten()
-        .is_some_and(|name| project_config::is_cancelled_status_name(&name))
-}
-
-/// Stop every running agent (not dev servers) on the issue's workspaces.
-async fn stop_issue_agents(deployment: &DeploymentImpl, issue_id: Uuid) {
-    let pool = &deployment.db().pool;
-    let ids: Vec<Uuid> =
-        sqlx::query_scalar("SELECT workspace_id FROM issue_workspaces WHERE issue_id = $1")
-            .bind(issue_id)
-            .fetch_all(pool)
-            .await
-            .unwrap_or_default();
-    for id in ids {
-        if let Ok(Some(workspace)) = db::models::workspace::Workspace::find_by_id(pool, id).await {
-            tracing::info!("card {issue_id} cancelled: stopping agents in workspace {id}");
-            deployment.container().try_stop(&workspace, false).await;
-        }
-    }
-}
-
-async fn validate_sub_issues_closed_for_done(
+async fn validate_sub_issues_closed_for_terminal(
     pool: &SqlitePool,
     issue_id: Uuid,
     target_status_id: Uuid,
 ) -> Result<(), ApiError> {
-    let Some((target_name, target_is_terminal)) = sqlx::query_as::<_, (String, bool)>(
-        "SELECT name, is_terminal FROM project_statuses WHERE id = $1",
-    )
-    .bind(target_status_id)
-    .fetch_optional(pool)
-    .await?
+    let Some((target_is_terminal,)) =
+        sqlx::query_as::<_, (bool,)>("SELECT is_terminal FROM project_statuses WHERE id = $1")
+            .bind(target_status_id)
+            .fetch_optional(pool)
+            .await?
     else {
         return Ok(());
     };
 
-    let is_done_target = project_config::is_finished_status(&target_name, target_is_terminal)
-        && !project_config::is_cancelled_status_name(&target_name);
-    if !is_done_target {
+    if !target_is_terminal {
         return Ok(());
     }
 
-    let sub_issues = sqlx::query_as::<_, (String, String, bool)>(
-        "SELECT i.simple_id, ps.name, ps.is_terminal
+    let sub_issues = sqlx::query_as::<_, (String, bool)>(
+        "SELECT i.simple_id, ps.is_terminal
          FROM issues i
          JOIN project_statuses ps ON ps.id = i.status_id
          WHERE i.parent_issue_id = $1
@@ -1018,10 +1001,8 @@ async fn validate_sub_issues_closed_for_done(
 
     let open: Vec<String> = sub_issues
         .into_iter()
-        .filter(|(_, status_name, is_terminal)| {
-            !project_config::is_finished_status(status_name, *is_terminal)
-        })
-        .map(|(simple_id, status_name, _)| format!("{simple_id} ({status_name})"))
+        .filter(|(_, is_terminal)| !is_terminal)
+        .map(|(simple_id, _)| simple_id)
         .collect();
 
     if open.is_empty() {
@@ -1029,7 +1010,7 @@ async fn validate_sub_issues_closed_for_done(
     }
 
     Err(ApiError::BadRequest(format!(
-        "Cannot move issue to Done while sub-issues are still open: {}",
+        "Cannot move issue to a terminal column while sub-issues are still open: {}",
         open.join(", ")
     )))
 }
@@ -1043,10 +1024,11 @@ pub(crate) async fn merge_and_update_issue(
         return Ok(None);
     };
     let status_id = req.status_id.unwrap_or(existing.status_id);
-    if let Some(target_status_id) = req.status_id
-        && target_status_id != existing.status_id
-    {
-        validate_sub_issues_closed_for_done(pool, id, target_status_id).await?;
+    if let Some(target_status_id) = req.status_id {
+        validate_status_belongs_to_project(pool, existing.project_id, target_status_id).await?;
+        if target_status_id != existing.status_id {
+            validate_sub_issues_closed_for_terminal(pool, id, target_status_id).await?;
+        }
     }
     let title = req.title.unwrap_or(existing.title);
     let description = match req.description {
@@ -1117,11 +1099,17 @@ pub(crate) async fn merge_and_update_issue(
         }
     };
 
+    let expected_status_id = if status_id == existing.status_id {
+        None
+    } else {
+        Some(existing.status_id)
+    };
     let updated = DbIssue::update(
         pool,
         id,
         IssueUpdate {
             status_id,
+            expected_status_id,
             title: &title,
             description: description.as_deref(),
             priority: priority.as_deref(),
@@ -1135,6 +1123,11 @@ pub(crate) async fn merge_and_update_issue(
         },
     )
     .await?;
+    if updated.is_none() && expected_status_id.is_some() {
+        return Err(ApiError::Conflict(
+            "issue status changed while moving; reload and retry".into(),
+        ));
+    }
     Ok(updated)
 }
 
@@ -1143,7 +1136,7 @@ async fn update_issue(
     Path(id): Path<Uuid>,
     ResponseJson(req): ResponseJson<UpdateIssueRequest>,
 ) -> Result<ResponseJson<MutationResponse<DbIssue>>, ApiError> {
-    let issue = update_issue_and_stop_if_cancelled(&deployment, id, req)
+    let issue = update_issue_record(&deployment.db().pool, id, req)
         .await?
         .ok_or_else(|| ApiError::BadRequest("issue not found".into()))?;
     Ok(mutation(issue))
@@ -1167,7 +1160,7 @@ async fn bulk_issues(
     let mut out = Vec::with_capacity(req.updates.len());
     for item in req.updates {
         if let Some(issue) =
-            update_issue_and_stop_if_cancelled(&deployment, item.id, item.changes).await?
+            update_issue_record(&deployment.db().pool, item.id, item.changes).await?
         {
             out.push(issue);
         }
@@ -1885,6 +1878,7 @@ mod tests {
             issue.id,
             IssueUpdate {
                 status_id: status.id,
+                expected_status_id: None,
                 title: &issue.title,
                 description: None,
                 priority: None,
@@ -2271,6 +2265,64 @@ mod tests {
         assert_eq!(grandchild_after.parent_issue_id, Some(child.id));
     }
 
+    #[tokio::test]
+    async fn status_writes_reject_statuses_from_other_projects() {
+        clear_key_chain_cache();
+        let pool = pool().await;
+
+        let (project_a, status_a) = project_with_status(&pool, "A").await;
+        let (project_b, status_b) = project_with_status(&pool, "B").await;
+
+        let err = super::validate_status_belongs_to_project(&pool, project_a.id, status_b.id)
+            .await
+            .expect_err("status from another project must be rejected");
+        assert!(matches!(err, ApiError::BadRequest(_)));
+
+        super::validate_status_belongs_to_project(&pool, project_b.id, status_b.id)
+            .await
+            .expect("same-project status must pass");
+
+        let issue = create_issue_for(&pool, &project_a, &status_a, "Move me")
+            .await
+            .unwrap();
+        let err = super::merge_and_update_issue(&pool, issue.id, patch_status(status_b.id))
+            .await
+            .expect_err("manual status move must validate the project");
+        assert!(matches!(err, ApiError::BadRequest(_)));
+    }
+
+    #[tokio::test]
+    async fn issue_update_cas_rejects_stale_status() {
+        clear_key_chain_cache();
+        let pool = pool().await;
+        let (project, status) = project_with_status(&pool, "CAS").await;
+        let issue = create_issue_for(&pool, &project, &status, "CAS card")
+            .await
+            .unwrap();
+
+        let updated = DbIssue::update(
+            &pool,
+            issue.id,
+            IssueUpdate {
+                status_id: status.id,
+                expected_status_id: Some(Uuid::new_v4()),
+                title: &issue.title,
+                description: None,
+                priority: None,
+                start_date: None,
+                target_date: None,
+                completed_at: None,
+                sort_order: issue.sort_order,
+                parent_issue_id: issue.parent_issue_id,
+                parent_issue_sort_order: issue.parent_issue_sort_order,
+                extension_metadata: "{}",
+            },
+        )
+        .await
+        .unwrap();
+        assert!(updated.is_none(), "CAS must not update a stale status read");
+    }
+
     fn patch_status(status_id: Uuid) -> api_types::UpdateIssueRequest {
         api_types::UpdateIssueRequest {
             status_id: Some(status_id),
@@ -2288,7 +2340,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn merge_and_update_issue_blocks_done_when_sub_issues_open() {
+    async fn merge_and_update_issue_blocks_terminal_when_sub_issues_open() {
         clear_key_chain_cache();
         let pool = pool().await;
         let project = create_project_record(&pool, Uuid::new_v4(), "Hive", "#6366f1", None)
@@ -2359,30 +2411,26 @@ mod tests {
         .await
         .unwrap();
 
-        let err = super::merge_and_update_issue(&pool, parent.id, patch_status(done.id))
-            .await
-            .expect_err("moving parent with open sub-issues to Done must fail");
-        match err {
-            ApiError::BadRequest(msg) => {
-                assert!(
-                    msg.starts_with("Cannot move issue to Done while sub-issues are still open:"),
-                    "unexpected message: {msg}"
-                );
-                assert!(msg.contains(&format!("{} (Todo)", child1.simple_id)));
-                assert!(msg.contains(&format!("{} (In Progress)", child2.simple_id)));
+        for target in [done.id, cancelled.id] {
+            let err = super::merge_and_update_issue(&pool, parent.id, patch_status(target))
+                .await
+                .expect_err("moving parent with open sub-issues to a terminal column must fail");
+            match err {
+                ApiError::BadRequest(msg) => {
+                    assert!(
+                        msg.starts_with(
+                            "Cannot move issue to a terminal column while sub-issues are still open:"
+                        ),
+                        "unexpected message: {msg}"
+                    );
+                    assert!(msg.contains(&child1.simple_id));
+                    assert!(msg.contains(&child2.simple_id));
+                }
+                other => panic!("expected BadRequest, got {other:?}"),
             }
-            other => panic!("expected BadRequest, got {other:?}"),
         }
 
-        // Moving parent to Cancelled is allowed even with open sub-issues.
-        let cancelled_parent =
-            super::merge_and_update_issue(&pool, parent.id, patch_status(cancelled.id))
-                .await
-                .unwrap()
-                .expect("parent exists");
-        assert_eq!(cancelled_parent.status_id, cancelled.id);
-
-        // Moving one sub-issue to Done and the other to Cancelled unblocks the parent.
+        // Moving each sub-issue to a terminal column unblocks the parent.
         super::merge_and_update_issue(&pool, child1.id, patch_status(done.id))
             .await
             .unwrap();

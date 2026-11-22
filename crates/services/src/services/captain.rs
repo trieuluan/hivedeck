@@ -99,10 +99,13 @@ mod tests {
     fn bundled_prompt_names_only_real_tools() {
         for tool in [
             "list_projects",
+            "list_project_statuses",
             "list_issues",
             "get_issue",
             "create_issue",
             "update_issue",
+            "update_issue_status",
+            "approve_issue",
             "get_orchestrator_prompt",
             "start_workspace",
             "run_session_prompt",
@@ -113,5 +116,31 @@ mod tests {
         ] {
             assert!(BUNDLED_PROMPT.contains(tool), "{tool} missing");
         }
+    }
+
+    #[test]
+    fn bundled_prompt_resolves_statuses_at_runtime_not_by_name() {
+        assert!(BUNDLED_PROMPT.contains("list_project_statuses"));
+        assert!(BUNDLED_PROMPT.contains("update_issue_status"));
+        assert!(BUNDLED_PROMPT.contains("hidden"));
+        assert!(BUNDLED_PROMPT.contains("is_terminal"));
+        assert!(BUNDLED_PROMPT.contains("needs_attention"));
+
+        for fixed_column in ["Todo", "In Progress", "In Review", "Done", "Cancelled"] {
+            assert!(
+                !BUNDLED_PROMPT.contains(fixed_column),
+                "captain prompt must not hardcode the status name {fixed_column}"
+            );
+        }
+    }
+
+    #[test]
+    fn bundled_prompt_makes_approval_the_only_close_signal() {
+        assert!(BUNDLED_PROMPT.contains("approve_issue"));
+        assert!(BUNDLED_PROMPT.contains("approval_scope"));
+        assert!(BUNDLED_PROMPT.contains("approval_at"));
+        assert!(BUNDLED_PROMPT.contains("Never merge, push, or open a pull request."));
+        assert!(!BUNDLED_PROMPT.contains("merge_issue"));
+        assert!(!BUNDLED_PROMPT.contains("push_issue"));
     }
 }

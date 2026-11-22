@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "UPDATE issues\n               SET status_id = $2,\n                   title = $3,\n                   description = $4,\n                   priority = $5,\n                   start_date = $6,\n                   target_date = $7,\n                   completed_at = $8,\n                   sort_order = $9,\n                   parent_issue_id = $10,\n                   parent_issue_sort_order = $11,\n                   extension_metadata = $12,\n                   updated_at = datetime('now', 'subsec')\n               WHERE id = $1\n               RETURNING id as \"id!: Uuid\",\n                         project_id as \"project_id!: Uuid\",\n                         issue_number,\n                         simple_id,\n                         status_id as \"status_id!: Uuid\",\n                         title,\n                         description,\n                         priority,\n                         start_date as \"start_date: DateTime<Utc>\",\n                         target_date as \"target_date: DateTime<Utc>\",\n                         completed_at as \"completed_at: DateTime<Utc>\",\n                         sort_order as \"sort_order!: f64\",\n                         parent_issue_id as \"parent_issue_id: Uuid\",\n                         parent_issue_sort_order as \"parent_issue_sort_order: f64\",\n                         extension_metadata,\n                         created_at as \"created_at!: DateTime<Utc>\",\n                         updated_at as \"updated_at!: DateTime<Utc>\"",
+  "query": "INSERT INTO issues (\n                   id, project_id, issue_number, simple_id, status_id, title,\n                   description, priority, start_date, target_date, completed_at,\n                   sort_order, parent_issue_id, parent_issue_sort_order,\n                   extension_metadata\n               ) VALUES (\n                   $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15\n               )\n               RETURNING id as \"id!: Uuid\",\n                         project_id as \"project_id!: Uuid\",\n                         issue_number,\n                         simple_id,\n                         status_id as \"status_id!: Uuid\",\n                         title,\n                         description,\n                         priority,\n                         start_date as \"start_date: DateTime<Utc>\",\n                         target_date as \"target_date: DateTime<Utc>\",\n                         completed_at as \"completed_at: DateTime<Utc>\",\n                         sort_order as \"sort_order!: f64\",\n                         parent_issue_id as \"parent_issue_id: Uuid\",\n                         parent_issue_sort_order as \"parent_issue_sort_order: f64\",\n                         extension_metadata,\n                         approval_owner,\n                         approval_at as \"approval_at: DateTime<Utc>\",\n                         approval_revision,\n                         approval_scope,\n                         created_at as \"created_at!: DateTime<Utc>\",\n                         updated_at as \"updated_at!: DateTime<Utc>\"",
   "describe": {
     "columns": [
       {
@@ -169,8 +169,52 @@
         }
       },
       {
-        "name": "created_at!: DateTime<Utc>",
+        "name": "approval_owner",
         "ordinal": 15,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "approval_owner"
+          }
+        }
+      },
+      {
+        "name": "approval_at: DateTime<Utc>",
+        "ordinal": 16,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "approval_at"
+          }
+        }
+      },
+      {
+        "name": "approval_revision",
+        "ordinal": 17,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "approval_revision"
+          }
+        }
+      },
+      {
+        "name": "approval_scope",
+        "ordinal": 18,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "issues",
+            "name": "approval_scope"
+          }
+        }
+      },
+      {
+        "name": "created_at!: DateTime<Utc>",
+        "ordinal": 19,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -181,7 +225,7 @@
       },
       {
         "name": "updated_at!: DateTime<Utc>",
-        "ordinal": 16,
+        "ordinal": 20,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -192,7 +236,7 @@
       }
     ],
     "parameters": {
-      "Right": 12
+      "Right": 15
     },
     "nullable": [
       true,
@@ -210,9 +254,13 @@
       true,
       true,
       false,
+      true,
+      true,
+      true,
+      true,
       false,
       false
     ]
   },
-  "hash": "8acc853f363078be0c297b478d4586fbd3b9074982a9e88ff2a24d4aa3363c4c"
+  "hash": "b91502c8dbbbb5005b18657907bcf06294afbb47c5f5af1ff534daecfffeb1e4"
 }

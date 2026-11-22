@@ -10,6 +10,8 @@ use axum::{
     routing::{get, post},
 };
 use db::models::{
+    issue::Issue as DbIssue,
+    issue_workspace::IssueWorkspace,
     merge::{Merge, MergeStatus, PrMerge, PullRequestInfo},
     repo::{Repo, RepoError},
     workspace::Workspace,
@@ -204,6 +206,51 @@ pub async fn stream_diff_ws(
     stream_workspace_diff_ws(ws, query, workspace, deployment).await
 }
 
+/// HIVE-85: a linked board issue must carry a `revision`-scoped approval
+/// whose SHA matches the current workspace head before merge/push is allowed.
+async fn ensure_revision_approval(
+    deployment: &DeploymentImpl,
+    workspace_id: Uuid,
+    head_oid: Option<&str>,
+) -> Result<(), ApiError> {
+    let Some((issue_id, _)) =
+        IssueWorkspace::find_issue_and_project_by_workspace(&deployment.db().pool, workspace_id)
+            .await?
+    else {
+        // Workspaces not linked to a board issue keep the legacy local-git
+        // behaviour; board-driven agents always link a card.
+        return Ok(());
+    };
+    let Some(issue) = DbIssue::find_by_id(&deployment.db().pool, issue_id).await? else {
+        return Ok(());
+    };
+    if issue.approval_scope.as_deref() != Some("revision") {
+        return Err(ApiError::BadRequest(
+            "merge/push requires a revision-scoped approval".into(),
+        ));
+    }
+    let Some(approved) = issue.approval_revision.as_deref() else {
+        return Err(ApiError::BadRequest(
+            "revision-scoped approval is missing a revision SHA".into(),
+        ));
+    };
+    if !revision_approval_matches(issue.approval_scope.as_deref(), Some(approved), head_oid) {
+        return Err(ApiError::BadRequest(format!(
+            "revision approval does not match workspace head (approved {approved}, head {})",
+            head_oid.unwrap_or("unborn")
+        )));
+    }
+    Ok(())
+}
+
+fn revision_approval_matches(
+    scope: Option<&str>,
+    revision: Option<&str>,
+    head_oid: Option<&str>,
+) -> bool {
+    scope == Some("revision") && revision.is_some() && revision == head_oid
+}
+
 #[axum::debug_handler]
 pub async fn merge_workspace(
     Extension(workspace): Extension<Workspace>,
@@ -247,6 +294,13 @@ pub async fn merge_workspace(
         .await?;
     let workspace_path = Path::new(&container_ref);
     let worktree_path = workspace_path.join(repo.name);
+
+    let head_oid = deployment
+        .git()
+        .get_head_info(&worktree_path)
+        .ok()
+        .map(|h| h.oid);
+    ensure_revision_approval(&deployment, workspace.id, head_oid.as_deref()).await?;
 
     let workspace_label = workspace.name.as_deref().unwrap_or(&workspace.branch);
     let vk_id = resolve_hivedeck_identifier(&deployment, workspace.id).await;
@@ -316,6 +370,9 @@ pub async fn ship_workspace(
         }
         let worktree_path = workspace_path.join(&repo.name);
 
+        let head_oid = git.get_head_info(&worktree_path).ok().map(|h| h.oid);
+        ensure_revision_approval(&deployment, workspace.id, head_oid.as_deref()).await?;
+
         // Work an agent left uncommitted (headed sessions don't auto-commit).
         git.commit(&worktree_path, &commit_message)?;
 
@@ -365,37 +422,12 @@ pub async fn ship_workspace(
         to_push.push((worktree_path, target));
     }
 
-    // Move the linked issue(s) to Done right after merge so a dev-server
-    // hot-reload triggered by merging `crates/` cannot strand the card in Review.
-    if let Err(e) = sqlx::query(
-        "UPDATE issues
-         SET status_id = (
-             SELECT ps.id
-             FROM project_statuses ps
-             WHERE ps.project_id = issues.project_id
-               AND LOWER(TRIM(ps.name)) = 'done'
-             ORDER BY ps.sort_order ASC
-             LIMIT 1
-         ),
-         updated_at = datetime('now', 'subsec')
-         WHERE id IN (SELECT issue_id FROM issue_workspaces WHERE workspace_id = ?1)
-           AND EXISTS (
-             SELECT 1
-             FROM project_statuses ps
-             WHERE ps.project_id = issues.project_id
-               AND LOWER(TRIM(ps.name)) = 'done'
-           )",
-    )
-    .bind(workspace.id)
-    .execute(pool)
-    .await
-    {
-        tracing::warn!(
-            "Shipped workspace {} but failed to move linked issue to Done: {}",
-            workspace.id,
-            e
-        );
-    }
+    // The captain owns issue status transitions now (HIVE-82). Merging/shipping
+    // must only audit the event, never move linked cards by status name.
+    tracing::info!(
+        "Shipped workspace {}; issue status transitions are left to the captain",
+        workspace.id
+    );
 
     if request.push && !to_push.is_empty() {
         let mut errors = Vec::new();
@@ -520,6 +552,13 @@ pub async fn push_workspace_branch(
     let workspace_path = Path::new(&container_ref);
     let worktree_path = workspace_path.join(&repo.name);
 
+    let head_oid = deployment
+        .git()
+        .get_head_info(&worktree_path)
+        .ok()
+        .map(|h| h.oid);
+    ensure_revision_approval(&deployment, workspace.id, head_oid.as_deref()).await?;
+
     match deployment
         .git()
         .push_to_remote(&worktree_path, &workspace.branch, false)
@@ -554,6 +593,13 @@ pub async fn force_push_workspace_branch(
         .await?;
     let workspace_path = Path::new(&container_ref);
     let worktree_path = workspace_path.join(&repo.name);
+
+    let head_oid = deployment
+        .git()
+        .get_head_info(&worktree_path)
+        .ok()
+        .map(|h| h.oid);
+    ensure_revision_approval(&deployment, workspace.id, head_oid.as_deref()).await?;
 
     deployment
         .git()
@@ -1010,4 +1056,38 @@ pub async fn continue_workspace_rebase(
     deployment.git().continue_rebase(&worktree_path)?;
 
     Ok(ResponseJson(ApiResponse::success(())))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn revision_approval_requires_matching_revision_scope() {
+        assert!(!revision_approval_matches(
+            Some("issue"),
+            Some("abc123"),
+            Some("abc123")
+        ));
+        assert!(!revision_approval_matches(
+            Some("revision"),
+            None,
+            Some("abc123")
+        ));
+        assert!(!revision_approval_matches(
+            Some("revision"),
+            Some("abc123"),
+            Some("def456")
+        ));
+        assert!(!revision_approval_matches(
+            Some("revision"),
+            Some("abc123"),
+            None
+        ));
+        assert!(revision_approval_matches(
+            Some("revision"),
+            Some("abc123"),
+            Some("abc123")
+        ));
+    }
 }

@@ -24,11 +24,21 @@ pub struct Issue {
     pub parent_issue_id: Option<Uuid>,
     pub parent_issue_sort_order: Option<f64>,
     pub extension_metadata: Value,
+    /// HIVE-85 approval: who approved this card.
+    pub approval_owner: Option<String>,
+    /// HIVE-85 approval: when the card was approved.
+    pub approval_at: Option<DateTime<Utc>>,
+    /// HIVE-85 approval: revision/commit SHA approved for merge/push.
+    pub approval_revision: Option<String>,
+    /// HIVE-85 approval scope: `issue` marks the card approved; only
+    /// `revision` authorizes merge/push for the matching workspace head.
+    pub approval_scope: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
 /// Row representation: `extension_metadata` is stored as a JSON TEXT column.
+#[derive(sqlx::FromRow)]
 struct IssueRow {
     id: Uuid,
     project_id: Uuid,
@@ -45,6 +55,10 @@ struct IssueRow {
     parent_issue_id: Option<Uuid>,
     parent_issue_sort_order: Option<f64>,
     extension_metadata: String,
+    approval_owner: Option<String>,
+    approval_at: Option<DateTime<Utc>>,
+    approval_revision: Option<String>,
+    approval_scope: Option<String>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
 }
@@ -68,6 +82,10 @@ impl From<IssueRow> for Issue {
             parent_issue_sort_order: r.parent_issue_sort_order,
             extension_metadata: serde_json::from_str(&r.extension_metadata)
                 .unwrap_or(Value::Object(Default::default())),
+            approval_owner: r.approval_owner,
+            approval_at: r.approval_at,
+            approval_revision: r.approval_revision,
+            approval_scope: r.approval_scope,
             created_at: r.created_at,
             updated_at: r.updated_at,
         }
@@ -96,6 +114,9 @@ pub struct NewIssue<'a> {
 /// Full new state for an update (the route merges partial requests first).
 pub struct IssueUpdate<'a> {
     pub status_id: Uuid,
+    /// Optional compare-and-swap guard: when set, the UPDATE only matches
+    /// if the row is still in this status.
+    pub expected_status_id: Option<Uuid>,
     pub title: &'a str,
     pub description: Option<&'a str>,
     pub priority: Option<&'a str>,
@@ -130,6 +151,10 @@ impl Issue {
                       parent_issue_id as "parent_issue_id: Uuid",
                       parent_issue_sort_order as "parent_issue_sort_order: f64",
                       extension_metadata,
+                      approval_owner,
+                      approval_at as "approval_at: DateTime<Utc>",
+                      approval_revision,
+                      approval_scope,
                       created_at as "created_at!: DateTime<Utc>",
                       updated_at as "updated_at!: DateTime<Utc>"
                FROM issues
@@ -160,6 +185,10 @@ impl Issue {
                       parent_issue_id as "parent_issue_id: Uuid",
                       parent_issue_sort_order as "parent_issue_sort_order: f64",
                       extension_metadata,
+                      approval_owner,
+                      approval_at as "approval_at: DateTime<Utc>",
+                      approval_revision,
+                      approval_scope,
                       created_at as "created_at!: DateTime<Utc>",
                       updated_at as "updated_at!: DateTime<Utc>"
                FROM issues
@@ -207,6 +236,10 @@ impl Issue {
                          parent_issue_id as "parent_issue_id: Uuid",
                          parent_issue_sort_order as "parent_issue_sort_order: f64",
                          extension_metadata,
+                         approval_owner,
+                         approval_at as "approval_at: DateTime<Utc>",
+                         approval_revision,
+                         approval_scope,
                          created_at as "created_at!: DateTime<Utc>",
                          updated_at as "updated_at!: DateTime<Utc>""#,
             new.id,
@@ -235,52 +268,74 @@ impl Issue {
         id: Uuid,
         u: IssueUpdate<'_>,
     ) -> Result<Option<Self>, sqlx::Error> {
-        let row = sqlx::query_as!(
-            IssueRow,
+        let row = sqlx::query_as::<_, IssueRow>(
             r#"UPDATE issues
                SET status_id = $2,
-                   title = $3,
-                   description = $4,
-                   priority = $5,
-                   start_date = $6,
-                   target_date = $7,
-                   completed_at = $8,
-                   sort_order = $9,
-                   parent_issue_id = $10,
-                   parent_issue_sort_order = $11,
-                   extension_metadata = $12,
+                   title = $4,
+                   description = $5,
+                   priority = $6,
+                   start_date = $7,
+                   target_date = $8,
+                   completed_at = $9,
+                   sort_order = $10,
+                   parent_issue_id = $11,
+                   parent_issue_sort_order = $12,
+                   extension_metadata = $13,
                    updated_at = datetime('now', 'subsec')
                WHERE id = $1
-               RETURNING id as "id!: Uuid",
-                         project_id as "project_id!: Uuid",
-                         issue_number,
-                         simple_id,
-                         status_id as "status_id!: Uuid",
-                         title,
-                         description,
-                         priority,
-                         start_date as "start_date: DateTime<Utc>",
-                         target_date as "target_date: DateTime<Utc>",
-                         completed_at as "completed_at: DateTime<Utc>",
-                         sort_order as "sort_order!: f64",
-                         parent_issue_id as "parent_issue_id: Uuid",
-                         parent_issue_sort_order as "parent_issue_sort_order: f64",
-                         extension_metadata,
-                         created_at as "created_at!: DateTime<Utc>",
-                         updated_at as "updated_at!: DateTime<Utc>""#,
-            id,
-            u.status_id,
-            u.title,
-            u.description,
-            u.priority,
-            u.start_date,
-            u.target_date,
-            u.completed_at,
-            u.sort_order,
-            u.parent_issue_id,
-            u.parent_issue_sort_order,
-            u.extension_metadata,
+                 AND ($3 IS NULL OR status_id = $3)
+               RETURNING id, project_id, issue_number, simple_id, status_id, title,
+                         description, priority, start_date, target_date, completed_at,
+                         sort_order, parent_issue_id, parent_issue_sort_order,
+                         extension_metadata, approval_owner, approval_at, approval_revision,
+                         approval_scope, created_at, updated_at"#,
         )
+        .bind(id)
+        .bind(u.status_id)
+        .bind(u.expected_status_id)
+        .bind(u.title)
+        .bind(u.description)
+        .bind(u.priority)
+        .bind(u.start_date)
+        .bind(u.target_date)
+        .bind(u.completed_at)
+        .bind(u.sort_order)
+        .bind(u.parent_issue_id)
+        .bind(u.parent_issue_sort_order)
+        .bind(u.extension_metadata)
+        .fetch_optional(pool)
+        .await?;
+        Ok(row.map(Issue::from))
+    }
+
+    /// Record an approval on the issue. `scope` is either `issue` (card is
+    /// accepted) or `revision` (a specific commit SHA is cleared for
+    /// merge/push). Only `revision` scope authorizes git operations.
+    pub async fn set_approval(
+        pool: &SqlitePool,
+        id: Uuid,
+        owner: &str,
+        revision: Option<&str>,
+        scope: &str,
+    ) -> Result<Option<Self>, sqlx::Error> {
+        let row = sqlx::query_as::<_, IssueRow>(
+            r#"UPDATE issues
+               SET approval_owner = $2,
+                   approval_at = datetime('now', 'subsec'),
+                   approval_revision = $3,
+                   approval_scope = $4,
+                   updated_at = datetime('now', 'subsec')
+               WHERE id = $1
+               RETURNING id, project_id, issue_number, simple_id, status_id, title,
+                         description, priority, start_date, target_date, completed_at,
+                         sort_order, parent_issue_id, parent_issue_sort_order,
+                         extension_metadata, approval_owner, approval_at, approval_revision,
+                         approval_scope, created_at, updated_at"#,
+        )
+        .bind(id)
+        .bind(owner)
+        .bind(revision)
+        .bind(scope)
         .fetch_optional(pool)
         .await?;
         Ok(row.map(Issue::from))

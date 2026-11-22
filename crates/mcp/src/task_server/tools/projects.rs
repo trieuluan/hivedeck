@@ -52,6 +52,37 @@ struct McpListProjectsResponse {
     count: usize,
 }
 
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct McpListProjectStatusesRequest {
+    #[schemars(
+        description = "The ID of the project whose statuses to list. Optional if running inside a workspace linked to a project."
+    )]
+    project_id: Option<Uuid>,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+struct ProjectStatusSummary {
+    #[schemars(description = "The status ID (UUID)")]
+    id: String,
+    #[schemars(description = "The status name")]
+    name: String,
+    #[schemars(description = "The status color")]
+    color: String,
+    #[schemars(description = "The status sort order")]
+    sort_order: i32,
+    #[schemars(description = "Whether the status is hidden")]
+    hidden: bool,
+    #[schemars(description = "Whether the status is terminal (finished)")]
+    is_terminal: bool,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+struct McpListProjectStatusesResponse {
+    project_id: String,
+    statuses: Vec<ProjectStatusSummary>,
+    count: usize,
+}
+
 impl McpServer {
     /// Repo IDs linked to a project (`GET /v1/projects/{id}/repos`, a plain
     /// `{ "repos": [...] }` body). Best effort: an error yields an empty list.
@@ -102,6 +133,43 @@ impl McpServer {
         McpServer::success(&McpListProjectsResponse {
             count: project_summaries.len(),
             projects: project_summaries,
+        })
+    }
+
+    #[tool(description = "List all the statuses (kanban columns) for a project.")]
+    async fn list_project_statuses(
+        &self,
+        Parameters(McpListProjectStatusesRequest { project_id }): Parameters<
+            McpListProjectStatusesRequest,
+        >,
+    ) -> Result<CallToolResult, ErrorData> {
+        let project_id = match self.resolve_project_id(project_id) {
+            Ok(id) => id,
+            Err(e) => return Ok(McpServer::tool_error(e)),
+        };
+
+        let project_statuses = match self.fetch_project_statuses(project_id).await {
+            Ok(statuses) => statuses,
+            Err(e) => return Ok(McpServer::tool_error(e)),
+        };
+
+        let statuses = project_statuses
+            .into_iter()
+            .map(|status| ProjectStatusSummary {
+                id: status.id.to_string(),
+                name: status.name,
+                color: status.color,
+                sort_order: status.sort_order,
+                hidden: status.hidden,
+                is_terminal: status.is_terminal,
+            })
+            .collect::<Vec<_>>();
+        let count = statuses.len();
+
+        McpServer::success(&McpListProjectStatusesResponse {
+            project_id: project_id.to_string(),
+            statuses,
+            count,
         })
     }
 }

@@ -6,8 +6,8 @@
 //! Ticks are event-driven: the loop polls a cheap fingerprint of what the
 //! captain watches (its cards, the agent runs on those cards, agents waiting
 //! for approval or an answer) and wakes the captain when it changes. While
-//! cards are in Todo or In Progress a slow heartbeat also wakes it, as a
-//! safety net. An idle board costs nothing.
+//! cards are in visible non-terminal columns a slow heartbeat also wakes it,
+//! as a safety net. An idle board costs nothing.
 //!
 //! There is at most one loop per captain workspace (the global captain and
 //! one per project, ADR-032). Loops live in memory: a backend restart stops
@@ -46,8 +46,8 @@ pub fn startup_message(body: &str) -> String {
     format!("{TICK_MARKER}\n{STARTUP_MARKER}\n{body}")
 }
 
-/// Safety-net tick while cards are in Todo or In Progress and nothing else
-/// woke the captain.
+/// Safety-net tick while cards are in visible non-terminal columns and
+/// nothing else woke the captain.
 pub const HEARTBEAT: Duration = Duration::from_secs(30 * 60);
 /// Wait this long after the previous tick finished, so a burst of changes
 /// (and the captain's own moves) wakes it once.
@@ -309,8 +309,7 @@ async fn step(
 }
 
 struct BoardState {
-    /// A card the captain must act on: one to dispatch (Todo) or to watch
-    /// (In Progress).
+    /// A card the captain must act on: visible and not yet terminal.
     active: bool,
     /// Changes when any card is added, removed, moved or edited.
     signature: u64,
@@ -324,10 +323,10 @@ async fn watch_state(
     project_id: Option<Uuid>,
 ) -> Result<BoardState, sqlx::Error> {
     let pool = &deployment.db().pool;
-    let rows: Vec<(Uuid, String, String)> = match project_id {
+    let rows: Vec<(Uuid, bool, bool, String)> = match project_id {
         Some(project_id) => {
             sqlx::query_as(
-                "SELECT i.id, ps.name, i.updated_at FROM issues i
+                "SELECT i.id, ps.hidden, ps.is_terminal, i.updated_at FROM issues i
                  JOIN project_statuses ps ON ps.id = i.status_id
                  WHERE i.project_id = ?",
             )
@@ -337,7 +336,7 @@ async fn watch_state(
         }
         None => {
             sqlx::query_as(
-                "SELECT i.id, ps.name, i.updated_at FROM issues i
+                "SELECT i.id, ps.hidden, ps.is_terminal, i.updated_at FROM issues i
                  JOIN project_statuses ps ON ps.id = i.status_id",
             )
             .fetch_all(pool)
@@ -383,17 +382,16 @@ async fn watch_state(
 }
 
 fn summarize(
-    mut rows: Vec<(Uuid, String, String)>,
+    mut rows: Vec<(Uuid, bool, bool, String)>,
     mut runs: Vec<(Uuid, String, Option<String>)>,
     waiting: Vec<Uuid>,
 ) -> BoardState {
     use std::hash::{Hash, Hasher};
     rows.sort();
     runs.sort();
-    let active = rows.iter().any(|(_, status, _)| {
-        let status = status.trim().to_ascii_lowercase();
-        status == "todo" || status == "in progress"
-    });
+    let active = rows
+        .iter()
+        .any(|(_, hidden, is_terminal, _)| !hidden && !is_terminal);
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     rows.hash(&mut hasher);
     runs.hash(&mut hasher);
@@ -414,34 +412,37 @@ mod tests {
         STARTUP_MARKER, TICK_MARKER, split_loop_prompt, startup_message, summarize, tick_message,
     };
 
-    fn summarize_board(rows: Vec<(Uuid, String, String)>) -> super::BoardState {
+    fn summarize_board(rows: Vec<(Uuid, bool, bool, String)>) -> super::BoardState {
         summarize(rows, vec![], vec![])
     }
 
-    fn row(status: &str, updated: &str) -> (Uuid, String, String) {
-        (Uuid::from_u128(1), status.to_string(), updated.to_string())
+    fn row(hidden: bool, is_terminal: bool, updated: &str) -> (Uuid, bool, bool, String) {
+        (Uuid::from_u128(1), hidden, is_terminal, updated.to_string())
     }
 
     #[test]
-    fn board_is_active_only_with_todo_or_in_progress() {
+    fn board_is_active_only_for_visible_non_terminal_cards() {
         assert!(!summarize_board(vec![]).active);
-        assert!(!summarize_board(vec![row("In Review", "t1")]).active);
-        assert!(!summarize_board(vec![row("Done", "t1")]).active);
-        assert!(summarize_board(vec![row("Todo", "t1")]).active);
-        assert!(summarize_board(vec![row("in progress", "t1")]).active);
+        assert!(summarize_board(vec![row(false, false, "t1")]).active);
+        assert!(!summarize_board(vec![row(false, true, "t1")]).active);
+        assert!(!summarize_board(vec![row(true, false, "t1")]).active);
+        assert!(!summarize_board(vec![row(true, true, "t1")]).active);
     }
 
     #[test]
     fn signature_changes_when_a_card_moves_or_is_edited() {
-        let base = summarize_board(vec![row("In Review", "t1")]).signature;
+        let base = summarize_board(vec![row(false, false, "t1")]).signature;
         assert_eq!(
             base,
-            summarize_board(vec![row("In Review", "t1")]).signature
+            summarize_board(vec![row(false, false, "t1")]).signature
         );
-        assert_ne!(base, summarize_board(vec![row("Done", "t1")]).signature);
         assert_ne!(
             base,
-            summarize_board(vec![row("In Review", "t2")]).signature
+            summarize_board(vec![row(false, true, "t1")]).signature
+        );
+        assert_ne!(
+            base,
+            summarize_board(vec![row(false, false, "t2")]).signature
         );
     }
 
