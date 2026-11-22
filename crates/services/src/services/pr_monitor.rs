@@ -3,11 +3,7 @@ use std::{sync::Arc, time::Duration};
 use chrono::Utc;
 use db::{
     DBService,
-    models::{
-        merge::MergeStatus,
-        pull_request::PullRequest,
-        workspace::{Workspace, WorkspaceError},
-    },
+    models::{merge::MergeStatus, pull_request::PullRequest},
 };
 use git_host::{GitHostError, GitHostProvider, GitHostService};
 use sqlx::error::Error as SqlxError;
@@ -15,14 +11,10 @@ use thiserror::Error;
 use tokio::{sync::Notify, time::interval};
 use tracing::{debug, error, info, warn};
 
-use crate::services::container::ContainerService;
-
 #[derive(Debug, Error)]
 enum PrMonitorError {
     #[error(transparent)]
     GitHostError(#[from] GitHostError),
-    #[error(transparent)]
-    WorkspaceError(#[from] WorkspaceError),
     #[error(transparent)]
     Sqlx(#[from] SqlxError),
 }
@@ -39,23 +31,17 @@ impl PrMonitorError {
 }
 
 /// Service to monitor PRs and update task status when they are merged
-pub struct PrMonitorService<C: ContainerService> {
+pub struct PrMonitorService {
     db: DBService,
     poll_interval: Duration,
-    container: C,
     sync_notify: Arc<Notify>,
 }
 
-impl<C: ContainerService + Send + Sync + 'static> PrMonitorService<C> {
-    pub async fn spawn(
-        db: DBService,
-        container: C,
-        sync_notify: Arc<Notify>,
-    ) -> tokio::task::JoinHandle<()> {
+impl PrMonitorService {
+    pub async fn spawn(db: DBService, sync_notify: Arc<Notify>) -> tokio::task::JoinHandle<()> {
         let service = Self {
             db,
             poll_interval: Duration::from_secs(60),
-            container,
             sync_notify,
         };
         tokio::spawn(async move {
@@ -140,47 +126,7 @@ impl<C: ContainerService + Send + Sync + 'static> PrMonitorService<C> {
         )
         .await?;
 
-        // If this is a workspace PR and it was merged, try to archive
-        if matches!(&status.status, MergeStatus::Merged)
-            && let Some(workspace_id) = pr.workspace_id
-        {
-            self.try_archive_workspace(workspace_id, pr.pr_number)
-                .await?;
-        }
-
         info!("PR #{} status changed to {:?}", pr.pr_number, status.status);
-
-        Ok(())
-    }
-
-    /// Archive workspace if all its PRs are merged/closed
-    async fn try_archive_workspace(
-        &self,
-        workspace_id: uuid::Uuid,
-        pr_number: i64,
-    ) -> Result<(), PrMonitorError> {
-        let Some(workspace) = Workspace::find_by_id(&self.db.pool, workspace_id).await? else {
-            return Ok(());
-        };
-        let open_pr_count =
-            PullRequest::count_open_for_workspace(&self.db.pool, workspace_id).await?;
-
-        if open_pr_count == 0 {
-            info!(
-                "PR #{} was merged, archiving workspace {}",
-                pr_number, workspace.id
-            );
-            if !workspace.pinned
-                && let Err(e) = self.container.archive_workspace(workspace.id).await
-            {
-                error!("Failed to archive workspace {}: {}", workspace.id, e);
-            }
-        } else {
-            info!(
-                "PR #{} was merged, leaving workspace {} active with {} open PR(s)",
-                pr_number, workspace.id, open_pr_count
-            );
-        }
 
         Ok(())
     }

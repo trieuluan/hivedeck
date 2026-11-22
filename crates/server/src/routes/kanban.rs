@@ -55,8 +55,7 @@ use utils::response::ApiResponse;
 use uuid::Uuid;
 
 use super::local_kanban::{
-    DeleteIssueQuery, create_issue_record, delete_issue_workspaces,
-    update_issue_and_stop_if_cancelled,
+    DeleteIssueQuery, create_issue_record, delete_issue_workspaces, update_issue_record,
 };
 use crate::{
     DeploymentImpl,
@@ -613,7 +612,7 @@ async fn update_issue(
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateIssueRequest>,
 ) -> Result<ResponseJson<ApiResponse<MutationResponse<ApiIssue>>>, ApiError> {
-    let issue = update_issue_and_stop_if_cancelled(&deployment, id, req)
+    let issue = update_issue_record(&deployment.db().pool, id, req)
         .await?
         .ok_or_else(|| ApiError::BadRequest("issue not found".into()))?;
     Ok(mutated(to_api_issue(issue)))

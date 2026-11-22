@@ -29,6 +29,7 @@ pub struct Issue {
 }
 
 /// Row representation: `extension_metadata` is stored as a JSON TEXT column.
+#[derive(sqlx::FromRow)]
 struct IssueRow {
     id: Uuid,
     project_id: Uuid,
@@ -96,6 +97,9 @@ pub struct NewIssue<'a> {
 /// Full new state for an update (the route merges partial requests first).
 pub struct IssueUpdate<'a> {
     pub status_id: Uuid,
+    /// Optional compare-and-swap guard: when set, the UPDATE only matches
+    /// if the row is still in this status.
+    pub expected_status_id: Option<Uuid>,
     pub title: &'a str,
     pub description: Option<&'a str>,
     pub priority: Option<&'a str>,
@@ -235,52 +239,40 @@ impl Issue {
         id: Uuid,
         u: IssueUpdate<'_>,
     ) -> Result<Option<Self>, sqlx::Error> {
-        let row = sqlx::query_as!(
-            IssueRow,
+        let row = sqlx::query_as::<_, IssueRow>(
             r#"UPDATE issues
                SET status_id = $2,
-                   title = $3,
-                   description = $4,
-                   priority = $5,
-                   start_date = $6,
-                   target_date = $7,
-                   completed_at = $8,
-                   sort_order = $9,
-                   parent_issue_id = $10,
-                   parent_issue_sort_order = $11,
-                   extension_metadata = $12,
+                   title = $4,
+                   description = $5,
+                   priority = $6,
+                   start_date = $7,
+                   target_date = $8,
+                   completed_at = $9,
+                   sort_order = $10,
+                   parent_issue_id = $11,
+                   parent_issue_sort_order = $12,
+                   extension_metadata = $13,
                    updated_at = datetime('now', 'subsec')
                WHERE id = $1
-               RETURNING id as "id!: Uuid",
-                         project_id as "project_id!: Uuid",
-                         issue_number,
-                         simple_id,
-                         status_id as "status_id!: Uuid",
-                         title,
-                         description,
-                         priority,
-                         start_date as "start_date: DateTime<Utc>",
-                         target_date as "target_date: DateTime<Utc>",
-                         completed_at as "completed_at: DateTime<Utc>",
-                         sort_order as "sort_order!: f64",
-                         parent_issue_id as "parent_issue_id: Uuid",
-                         parent_issue_sort_order as "parent_issue_sort_order: f64",
-                         extension_metadata,
-                         created_at as "created_at!: DateTime<Utc>",
-                         updated_at as "updated_at!: DateTime<Utc>""#,
-            id,
-            u.status_id,
-            u.title,
-            u.description,
-            u.priority,
-            u.start_date,
-            u.target_date,
-            u.completed_at,
-            u.sort_order,
-            u.parent_issue_id,
-            u.parent_issue_sort_order,
-            u.extension_metadata,
+                 AND ($3 IS NULL OR status_id = $3)
+               RETURNING id, project_id, issue_number, simple_id, status_id, title,
+                         description, priority, start_date, target_date, completed_at,
+                         sort_order, parent_issue_id, parent_issue_sort_order,
+                         extension_metadata, created_at, updated_at"#,
         )
+        .bind(id)
+        .bind(u.status_id)
+        .bind(u.expected_status_id)
+        .bind(u.title)
+        .bind(u.description)
+        .bind(u.priority)
+        .bind(u.start_date)
+        .bind(u.target_date)
+        .bind(u.completed_at)
+        .bind(u.sort_order)
+        .bind(u.parent_issue_id)
+        .bind(u.parent_issue_sort_order)
+        .bind(u.extension_metadata)
         .fetch_optional(pool)
         .await?;
         Ok(row.map(Issue::from))

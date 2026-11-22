@@ -169,8 +169,7 @@ impl Deployment for LocalDeployment {
         let pr_sync_notify = Arc::new(Notify::new());
         {
             let db = db.clone();
-            let container = container.clone();
-            PrMonitorService::spawn(db, container, pr_sync_notify.clone()).await;
+            PrMonitorService::spawn(db, pr_sync_notify.clone()).await;
         }
         {
             let db = db.clone();
