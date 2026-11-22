@@ -80,6 +80,7 @@ import {
   type WorkspaceWithStats,
   type WorkspacePr,
 } from '@vibe/ui/components/IssueWorkspaceCard';
+import { InReviewApprovalPopup } from './InReviewApprovalPopup';
 import { resolveRelationshipsForIssue } from '@/shared/lib/resolveRelationships';
 import { KanbanFilterBar } from '@vibe/ui/components/KanbanFilterBar';
 import { ViewNavTabs } from '@vibe/ui/components/ViewNavTabs';
@@ -1702,6 +1703,28 @@ export function KanbanContainer() {
                         const pipelineStages = parsePipelineStages(
                           issue.description ?? null
                         );
+                        const inReviewGitWorkspace = (() => {
+                          if (issue.status_id !== reviewStatusId) {
+                            return undefined;
+                          }
+                          return issueWorkspaces.find((workspace) => {
+                            const localWorkspace = workspace.localWorkspaceId
+                              ? localWorkspacesById.get(
+                                  workspace.localWorkspaceId
+                                )
+                              : undefined;
+                            return (
+                              !!localWorkspace?.branch &&
+                              localWorkspace.kind !== 'orchestrator'
+                            );
+                          });
+                        })();
+                        const inReviewGitLocalWorkspace =
+                          inReviewGitWorkspace?.localWorkspaceId
+                            ? localWorkspacesById.get(
+                                inReviewGitWorkspace.localWorkspaceId
+                              )
+                            : undefined;
 
                         return (
                           <KanbanCard
@@ -1925,6 +1948,17 @@ export function KanbanContainer() {
                                 })}
                               </div>
                             )}
+                            {inReviewGitWorkspace?.localWorkspaceId &&
+                              inReviewGitLocalWorkspace && (
+                                <InReviewApprovalPopup
+                                  issue={issue}
+                                  projectId={projectId}
+                                  workspaceId={
+                                    inReviewGitWorkspace.localWorkspaceId
+                                  }
+                                  branch={inReviewGitLocalWorkspace.branch}
+                                />
+                              )}
                             {(() => {
                               const isDoneOrCancelled =
                                 isDoneStatus(status) ||

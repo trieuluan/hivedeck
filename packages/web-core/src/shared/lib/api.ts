@@ -109,6 +109,7 @@ import {
   CliExtensionPrefs,
 } from 'shared/types';
 import type { WorkspaceWithSession } from '@/shared/types/attempt';
+import type { Issue as RemoteIssue } from 'shared/remote-types';
 import { createWorkspaceWithSession } from '@/shared/types/attempt';
 import { resolveHostRequestScope } from '@/shared/lib/hostRequestScope';
 import { makeLocalApiRequest } from '@/shared/lib/localApiTransport';
@@ -1901,5 +1902,33 @@ export const projectsApi = {
       { method: 'PUT', body: JSON.stringify(data) }
     );
     return handleApiResponse<OrchestratorPromptResponse>(response);
+  },
+};
+
+export type ApproveIssueScope = 'issue' | 'revision';
+
+export interface ApproveIssueRequest {
+  owner: string;
+  revision?: string | null;
+  scope: ApproveIssueScope;
+}
+
+/**
+ * MCP-facing `/api/issues/{id}/approve` contract (HIVE-85). The UI uses this
+ * REST route directly rather than calling MCP from the frontend.
+ */
+export const kanbanApi = {
+  approveIssue: async (
+    issueId: string,
+    data: ApproveIssueRequest
+  ): Promise<RemoteIssue> => {
+    const response = await makeRequest(`/api/issues/${issueId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    const result = await handleApiResponse<{ data: RemoteIssue; txid: number }>(
+      response
+    );
+    return result.data;
   },
 };
