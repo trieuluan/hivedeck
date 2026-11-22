@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import {
   ArrowLeftIcon,
   FunnelIcon,
-  GitBranchIcon,
   MagnifyingGlassIcon,
   PlusIcon,
   TrashIcon,
@@ -12,6 +11,7 @@ import {
 import { cn } from "../lib/cn";
 import type { PriorityLevel } from "./PriorityIcon";
 import { InputField } from "./InputField";
+import { Popover, PopoverContent, PopoverTrigger } from "./Popover";
 import { PrimaryButton } from "./PrimaryButton";
 import { ButtonGroup, ButtonGroupItem } from "./IconButtonGroup";
 
@@ -57,6 +57,11 @@ export interface RenderKanbanFiltersDialogProps<
   onShowWorkspacesChange: (show: boolean) => void;
   hideBlocked: boolean;
   onHideBlockedChange: (hide: boolean) => void;
+  onlyWithWorkspace?: boolean;
+  onOnlyWithWorkspaceChange?: (only: boolean) => void;
+  withWorkspaceCount?: number;
+  onClearFilters?: () => void;
+  asPopover?: boolean;
 }
 
 interface KanbanFilterBarProps<
@@ -165,8 +170,8 @@ export function KanbanFilterBar<
       ) : (
         <div
           className={cn(
-            "flex min-w-0 flex-wrap items-center",
-            isMobile ? "gap-half" : "gap-base",
+            "flex min-w-0 items-center",
+            isMobile ? "flex-wrap gap-half" : "flex-nowrap gap-1.5",
           )}
         >
           {/* HiveDeck has one user, so the Team / Personal switch is gone;
@@ -201,44 +206,114 @@ export function KanbanFilterBar<
               variant="search"
               actionIcon={filters.searchQuery ? XIcon : undefined}
               onAction={handleClearSearch}
-              className="min-w-[160px] w-[220px] max-w-full"
+              className="min-w-[110px] w-[140px] xl:w-[190px] shrink max-w-full"
             />
           )}
 
-          <button
-            type="button"
-            onClick={() => onFiltersDialogOpenChange(true)}
-            className={cn(
-              "flex items-center justify-center p-half rounded-sm transition-colors",
-              hasActiveFilters
-                ? "text-brand hover:text-brand"
-                : "text-low hover:text-normal hover:bg-secondary",
-            )}
-            aria-label={t("kanban.filters", "Open filters")}
-            title={t("kanban.filters", "Open filters")}
-          >
-            <FunnelIcon className="size-icon-sm" weight="bold" />
-          </button>
+          {(() => {
+            const activeFilterCount =
+              (filters.priorities.length > 0 ? 1 : 0) +
+              (filters.tagIds.length > 0 ? 1 : 0) +
+              (hideBlocked ? 1 : 0) +
+              (onlyWithWorkspace ? 1 : 0);
+            const triggerButton = (
+              <button
+                type="button"
+                onClick={
+                  renderFiltersDialog
+                    ? undefined
+                    : () => onFiltersDialogOpenChange(true)
+                }
+                className={cn(
+                  "inline-flex h-7 shrink-0 whitespace-nowrap items-center gap-1 rounded-sm border px-2 text-xs font-medium transition-colors",
+                  hasActiveFilters || activeFilterCount > 0
+                    ? "border-brand/60 bg-brand/15 text-brand hover:bg-brand/20"
+                    : "border-border/70 bg-secondary/40 text-low hover:text-normal hover:bg-secondary",
+                )}
+                aria-label={t("kanban.filters", "Open filters")}
+                title={t("kanban.filters", "Open filters")}
+              >
+                <FunnelIcon className="size-3.5 shrink-0" weight="bold" />
+                <span>Filter</span>
+                {activeFilterCount > 0 && (
+                  <span className="rounded bg-brand px-1 text-[10px] font-semibold text-white tabular-nums">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+            );
 
-          {onOnlyWithWorkspaceChange && (
+            if (!renderFiltersDialog) return triggerButton;
+
+            return (
+              <Popover
+                open={isFiltersDialogOpen}
+                onOpenChange={onFiltersDialogOpenChange}
+              >
+                <PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
+                <PopoverContent
+                  align="end"
+                  sideOffset={8}
+                  className="z-[9999] w-[min(23rem,calc(100vw-2rem))] p-0"
+                  onOpenAutoFocus={(event) => event.preventDefault()}
+                  onInteractOutside={(event) => {
+                    const target = event.target as HTMLElement | null;
+                    if (
+                      target?.closest(
+                        '[data-radix-popper-content-wrapper], [role="menu"]',
+                      ) ||
+                      document.querySelector(
+                        '[role="menu"][data-state="open"], [data-radix-menu-content][data-state="open"]',
+                      )
+                    ) {
+                      event.preventDefault();
+                    }
+                  }}
+                  onEscapeKeyDown={(event) => {
+                    if (
+                      document.querySelector(
+                        '[role="menu"][data-state="open"], [data-radix-menu-content][data-state="open"]',
+                      )
+                    ) {
+                      event.preventDefault();
+                    }
+                  }}
+                >
+                  {renderFiltersDialog({
+                    open: isFiltersDialogOpen,
+                    onOpenChange: onFiltersDialogOpenChange,
+                    projectId,
+                    tags,
+                    filters,
+                    showSubIssues,
+                    showWorkspaces,
+                    onPrioritiesChange,
+                    onTagsChange,
+                    onSortChange,
+                    onShowSubIssuesChange,
+                    onShowWorkspacesChange,
+                    hideBlocked,
+                    onHideBlockedChange,
+                    onlyWithWorkspace,
+                    onOnlyWithWorkspaceChange,
+                    withWorkspaceCount,
+                    onClearFilters,
+                    asPopover: true,
+                  })}
+                </PopoverContent>
+              </Popover>
+            );
+          })()}
+
+          {hasActiveFilters && (
             <button
               type="button"
-              onClick={() => onOnlyWithWorkspaceChange(!onlyWithWorkspace)}
-              className={cn(
-                "inline-flex items-center gap-1 rounded-sm border px-2 py-1 text-xs font-medium transition-colors",
-                onlyWithWorkspace
-                  ? "border-brand/60 bg-brand/15 text-brand"
-                  : "border-border/70 bg-secondary/40 text-low hover:bg-secondary hover:text-normal",
-              )}
-              title="Chỉ hiện các card còn giữ workspace"
+              onClick={onClearFilters}
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border border-border/70 bg-secondary/40 text-low transition-colors hover:bg-secondary hover:text-normal"
+              aria-label={t("kanban.clearFilters", "Clear filters")}
+              title={t("kanban.clearFilters", "Clear filters")}
             >
-              <GitBranchIcon className="size-3.5 shrink-0" weight="bold" />
-              <span>Còn workspace</span>
-              {withWorkspaceCount > 0 && (
-                <span className="rounded bg-primary/60 px-1 text-[10px] tabular-nums">
-                  {withWorkspaceCount}
-                </span>
-              )}
+              <XIcon className="size-3.5" weight="bold" />
             </button>
           )}
 
@@ -247,27 +322,18 @@ export function KanbanFilterBar<
               type="button"
               disabled={isCleaningFinished}
               onClick={onCleanupFinished}
-              className="inline-flex items-center gap-1.5 rounded-sm border border-rose-500/45 bg-rose-500/10 px-2.5 py-1 text-xs font-medium text-rose-300 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-7 shrink-0 whitespace-nowrap items-center gap-1 rounded-sm border border-rose-500/45 bg-rose-500/10 px-2 text-xs font-medium text-rose-300 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
               title={t("kanban.cleanupFinishedMenuItem", {
                 count: finishedCleanableCount,
                 defaultValue: "Dọn workspace đã xong ({{count}})",
               })}
             >
               <TrashIcon className="size-3.5 shrink-0" weight="bold" />
-              <span>Dọn đã xong</span>
+              <span>Dọn</span>
               <span className="rounded bg-rose-500/20 px-1 text-[10px] tabular-nums">
                 {finishedCleanableCount}
               </span>
             </button>
-          )}
-
-          {hasActiveFilters && (
-            <PrimaryButton
-              variant="tertiary"
-              value={t("kanban.clearFilters", "Clear filters")}
-              actionIcon={XIcon}
-              onClick={onClearFilters}
-            />
           )}
 
           {isMobile ? (
@@ -289,29 +355,13 @@ export function KanbanFilterBar<
               actionIcon={PlusIcon}
               onClick={() => onCreateIssue()}
               className={cn(
+                "shrink-0 whitespace-nowrap",
                 shouldAnimateCreateButton && "create-issue-attention",
               )}
             />
           )}
         </div>
       )}
-
-      {renderFiltersDialog?.({
-        open: isFiltersDialogOpen,
-        onOpenChange: onFiltersDialogOpenChange,
-        projectId,
-        tags,
-        filters,
-        showSubIssues,
-        showWorkspaces,
-        onPrioritiesChange,
-        onTagsChange,
-        onSortChange,
-        onShowSubIssuesChange,
-        onShowWorkspacesChange,
-        hideBlocked,
-        onHideBlockedChange,
-      })}
     </>
   );
 }

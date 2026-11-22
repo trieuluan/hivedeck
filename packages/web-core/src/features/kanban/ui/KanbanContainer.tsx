@@ -87,10 +87,14 @@ import {
 import { InReviewApprovalPopup } from './InReviewApprovalPopup';
 import { resolveRelationshipsForIssue } from '@/shared/lib/resolveRelationships';
 import { KanbanFilterBar } from '@vibe/ui/components/KanbanFilterBar';
-import { ViewNavTabs } from '@vibe/ui/components/ViewNavTabs';
+import { ViewModeToggle, ViewNavTabs } from '@vibe/ui/components/ViewNavTabs';
 import { IssueListView } from '@vibe/ui/components/IssueListView';
 import { CommandBarDialog } from '@/shared/dialogs/command-bar/CommandBarDialog';
 import { KanbanFiltersDialog } from '@/shared/dialogs/kanban/KanbanFiltersDialog';
+import {
+  KanbanDiffDialog,
+  type KanbanDiffTarget,
+} from '@/shared/dialogs/kanban/KanbanDiffDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -542,13 +546,7 @@ export function KanbanContainer() {
 
   // All statuses render as fixed-width horizontally-scrollable Kanban columns.
   const boardStatuses = sortedStatuses;
-  const boardStatusesFiltered = useMemo(
-    () =>
-      listViewStatusFilter
-        ? boardStatuses.filter((s) => s.id === listViewStatusFilter)
-        : boardStatuses,
-    [boardStatuses, listViewStatusFilter]
-  );
+  const boardStatusesFiltered = boardStatuses;
 
   const [columnLimits, setColumnLimits] = useState<Record<string, number>>({});
   const [liveTelemetry, setLiveTelemetry] = useState<
@@ -590,6 +588,7 @@ export function KanbanContainer() {
   const itemsRef = useRef<Record<string, string[]>>({});
   itemsRef.current = items;
   const [isFiltersDialogOpen, setIsFiltersDialogOpen] = useState(false);
+  const [diffTarget, setDiffTarget] = useState<KanbanDiffTarget | null>(null);
 
   // Sync items from filtered issues when they change
   const localWorkspacesById = useMemo(() => {
@@ -1532,7 +1531,12 @@ export function KanbanContainer() {
           isMobile && 'px-base pt-base'
         )}
       >
-        <div className="flex flex-wrap items-center justify-between gap-base">
+        <div
+          className={cn(
+            'flex items-center justify-between gap-2',
+            isMobile ? 'flex-wrap' : 'flex-nowrap'
+          )}
+        >
           <div className="flex items-center gap-half min-w-0">
             <h2 className={cn('text-xl font-semibold', isMobile && 'text-lg')}>
               <ProjectBreadcrumb
@@ -1575,6 +1579,11 @@ export function KanbanContainer() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+
+            <ViewModeToggle
+              activeView={kanbanViewMode}
+              onViewChange={setKanbanViewMode}
+            />
           </div>
 
           <KanbanFilterBar
@@ -1611,13 +1620,16 @@ export function KanbanContainer() {
           />
         </div>
 
-        <ViewNavTabs
-          activeView={kanbanViewMode}
-          onViewChange={setKanbanViewMode}
-          statuses={tabStatusesWithCounts}
-          selectedStatusId={listViewStatusFilter}
-          onStatusSelect={setListViewStatusFilter}
-        />
+        {kanbanViewMode === 'list' && (
+          <ViewNavTabs
+            activeView={kanbanViewMode}
+            onViewChange={setKanbanViewMode}
+            statuses={tabStatusesWithCounts}
+            selectedStatusId={listViewStatusFilter}
+            onStatusSelect={setListViewStatusFilter}
+            showViewSwitcher={false}
+          />
+        )}
       </div>
 
       {parentIssueId && (
@@ -2143,15 +2155,14 @@ export function KanbanContainer() {
                                       }
                                       onClick={(event) => {
                                         event.stopPropagation();
-                                        const wsId =
-                                          singleDiffWs.localWorkspaceId!;
-                                        useUiPreferencesStore
-                                          .getState()
-                                          .setWorkspacePanelState(wsId, {
-                                            rightMainPanelMode:
-                                              RIGHT_MAIN_PANEL_MODES.CHANGES,
-                                          });
-                                        openIssueWorkspace(issue.id, wsId);
+                                        setDiffTarget({
+                                          issueId: issue.id,
+                                          issueKey: issue.simple_id,
+                                          issueTitle: issue.title,
+                                          workspaceId:
+                                            singleDiffWs.localWorkspaceId!,
+                                          workspaceName: singleDiffWs.name,
+                                        });
                                       }}
                                       className="min-h-7 rounded border border-border bg-secondary/70 px-2.5 text-xs font-medium text-normal transition-colors hover:bg-secondary hover:text-high"
                                     >
@@ -2255,6 +2266,19 @@ export function KanbanContainer() {
       )}
 
       {isMultiSelectActive && <BulkActionBarContainer projectId={projectId} />}
+
+      <KanbanDiffDialog
+        target={diffTarget}
+        onOpenChange={(open) => {
+          if (!open) setDiffTarget(null);
+        }}
+        onOpenWorkspace={(issueId, wsId) => {
+          useUiPreferencesStore.getState().setWorkspacePanelState(wsId, {
+            rightMainPanelMode: RIGHT_MAIN_PANEL_MODES.CHANGES,
+          });
+          openIssueWorkspace(issueId, wsId);
+        }}
+      />
     </div>
   );
 }

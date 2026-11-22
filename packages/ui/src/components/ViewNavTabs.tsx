@@ -21,14 +21,65 @@ export interface ViewNavTabsProps {
   className?: string;
 }
 
+export interface ViewModeToggleProps {
+  activeView: ViewNavMode;
+  onViewChange: (view: ViewNavMode) => void;
+  className?: string;
+}
+
+export function ViewModeToggle({
+  activeView,
+  onViewChange,
+  className,
+}: ViewModeToggleProps) {
+  const { t } = useTranslation("common");
+
+  const itemClass = (active: boolean) =>
+    cn(
+      "inline-flex h-7 shrink-0 items-center justify-center rounded px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand",
+      active
+        ? "bg-brand/15 text-brand border border-brand/40"
+        : "text-low hover:text-normal",
+    );
+
+  return (
+    <div
+      role="group"
+      aria-label={t("kanban.viewTabs.viewSwitcher", "View switcher")}
+      className={cn(
+        "inline-flex shrink-0 items-center gap-0.5 rounded-md border border-border/70 bg-secondary/40 p-0.5",
+        className,
+      )}
+    >
+      <button
+        type="button"
+        aria-pressed={activeView === "kanban"}
+        onClick={() => onViewChange("kanban")}
+        className={itemClass(activeView === "kanban")}
+      >
+        {t("kanban.viewTabs.board", "Board")}
+      </button>
+      <button
+        type="button"
+        aria-pressed={activeView === "list"}
+        onClick={() => onViewChange("list")}
+        className={itemClass(activeView === "list")}
+      >
+        {t("kanban.viewTabs.list", "List")}
+      </button>
+    </div>
+  );
+}
+
 export function ViewNavTabs({
   activeView,
   onViewChange,
   statuses,
   selectedStatusId,
   onStatusSelect,
+  showViewSwitcher = true,
   className,
-}: ViewNavTabsProps) {
+}: ViewNavTabsProps & { showViewSwitcher?: boolean }) {
   const { t } = useTranslation("common");
 
   const controlClass = (active: boolean) =>
@@ -41,28 +92,9 @@ export function ViewNavTabs({
 
   return (
     <div className={cn("flex min-w-0 flex-col gap-2", className)}>
-      <div
-        role="group"
-        aria-label={t("kanban.viewTabs.viewSwitcher", "View switcher")}
-        className="flex min-w-0 items-center gap-1.5"
-      >
-        <button
-          type="button"
-          aria-pressed={activeView === "kanban"}
-          onClick={() => onViewChange("kanban")}
-          className={controlClass(activeView === "kanban")}
-        >
-          {t("kanban.viewTabs.board", "Board")}
-        </button>
-        <button
-          type="button"
-          aria-pressed={activeView === "list"}
-          onClick={() => onViewChange("list")}
-          className={controlClass(activeView === "list")}
-        >
-          {t("kanban.viewTabs.list", "List")}
-        </button>
-      </div>
+      {showViewSwitcher && (
+        <ViewModeToggle activeView={activeView} onViewChange={onViewChange} />
+      )}
 
       <div
         role="group"
