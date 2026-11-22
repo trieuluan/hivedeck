@@ -43,7 +43,6 @@ import {
   isCancelledStatusName,
 } from '../model/useCollapsedStatuses';
 import { findFinishedCleanableWorkspaceIds } from '../model/finishedWorkspaces';
-import { selectCardActionWorkspace } from '@/shared/lib/pipeline/selectActiveWorkspace';
 import {
   getOpenSubIssuesForDoneMove,
   showOpenSubIssuesBlockedDialog,
@@ -68,11 +67,6 @@ import {
 import { DragDropContext } from '@hello-pangea/dnd';
 import { KanbanCardContent } from '@vibe/ui/components/KanbanCardContent';
 import { PriorityIcon } from '@vibe/ui/components/PriorityIcon';
-import {
-  AcceptFindingsButton,
-  ShipIssueButton,
-  resolveInReviewAction,
-} from './ShipIssueButton';
 import { KanbanWorkspaceDispatch } from '@vibe/ui/components/KanbanWorkspaceDispatch';
 import { handleApiResponse } from '@/shared/lib/api';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
@@ -525,8 +519,9 @@ export function KanbanContainer() {
     [statuses]
   );
 
-  // Filter statuses: visible (non-hidden) for kanban, hidden for tabs
-  const visibleStatuses = useMemo(
+  // Status filter tabs come from non-hidden statuses. Hidden statuses still
+  // render as board columns, but get no quick-filter tab.
+  const quickFilterStatuses = useMemo(
     () => sortedStatuses.filter((s) => !s.hidden),
     [sortedStatuses]
   );
@@ -534,22 +529,20 @@ export function KanbanContainer() {
   // Map status ID to 1-based column index for sort_order calculation
   const statusColumnIndexMap = useMemo(() => {
     const map = new Map<string, number>();
-    visibleStatuses.forEach((status, index) => {
+    sortedStatuses.forEach((status, index) => {
       map.set(status.id, index + 1);
     });
     return map;
-  }, [visibleStatuses]);
+  }, [sortedStatuses]);
 
-  // All visible statuses (including Done & Cancelled) render as fixed-width
-  // horizontally-scrollable Kanban columns; list tabs remain available too.
-  const boardStatuses = visibleStatuses;
-
-  const tabStatuses = useMemo(
+  // All statuses render as fixed-width horizontally-scrollable Kanban columns.
+  const boardStatuses = sortedStatuses;
+  const boardStatusesFiltered = useMemo(
     () =>
-      sortedStatuses.filter(
-        (s) => isDoneStatus(s) || isCancelledStatusName(s.name)
-      ),
-    [sortedStatuses]
+      listViewStatusFilter
+        ? boardStatuses.filter((s) => s.id === listViewStatusFilter)
+        : boardStatuses,
+    [boardStatuses, listViewStatusFilter]
   );
 
   const [columnLimits, setColumnLimits] = useState<Record<string, number>>({});
@@ -565,14 +558,11 @@ export function KanbanContainer() {
   >({});
 
   const defaultCreateStatusId = useMemo(() => {
-    if (kanbanViewMode === 'kanban') {
-      return visibleStatuses[0]?.id;
-    }
     if (listViewStatusFilter) {
       return listViewStatusFilter;
     }
-    return sortedStatuses[0]?.id;
-  }, [kanbanViewMode, visibleStatuses, listViewStatusFilter, sortedStatuses]);
+    return quickFilterStatuses[0]?.id;
+  }, [quickFilterStatuses, listViewStatusFilter]);
 
   // Update default create status for command bar based on current tab
   useEffect(() => {
@@ -961,113 +951,14 @@ export function KanbanContainer() {
     return map;
   }, [pullRequests]);
 
-  // Phase 1 cockpit: an In Review card with a live workspace gets a Merge
-  // button that ships the work and moves the card to Done.
+  // In Review is identified dynamically; it is used for card highlighting and
+  // workspace quick actions. Review/Merge buttons have been removed.
   const reviewStatusId = useMemo(
     () =>
       statuses.find((s) => s.name.trim().toLowerCase() === 'in review')?.id ??
       null,
     [statuses]
   );
-  const doneStatusId = useMemo(
-    () =>
-      statuses.find((s) => s.name.trim().toLowerCase() === 'done')?.id ?? null,
-    [statuses]
-  );
-  const handleAcceptFindings = useCallback(
-    async (issueId: string, _localWorkspaceId: string, isPinned: boolean) => {
-      if (!doneStatusId) return;
-      const openSubIssues = getOpenSubIssuesForDoneMove(
-        issueId,
-        doneStatusId,
-        issues,
-        statuses
-      );
-      if (openSubIssues.length > 0) {
-        await showOpenSubIssuesBlockedDialog(openSubIssues, t);
-        return;
-      }
-      const result = await ConfirmDialog.show({
-        title: t('tasks:ship.acceptConfirmTitle', {
-          defaultValue: 'Accept findings & complete card?',
-        }),
-        message: t('tasks:ship.acceptConfirmMessage', {
-          defaultValue: 'Moves the card to Done without running git merge.',
-        }),
-        confirmText: t('tasks:ship.acceptFindings'),
-        cancelText: t('common:buttons.cancel'),
-        variant: 'success',
-        note: isPinned
-          ? t('tasks:ship.pinnedWorkspaceKept', {
-              defaultValue: 'Pinned workspace will be kept.',
-            })
-          : t('tasks:ship.workspaceKeptHint', {
-              defaultValue:
-                'Workspace is kept — clean up later via Clean up finished.',
-            }),
-      });
-      if (result !== 'confirmed') return;
-
-      updateIssue(issueId, { status_id: doneStatusId });
-    },
-    [doneStatusId, issues, statuses, t, updateIssue]
-  );
-  const renderShipButton = (issue: { id: string; status_id: string }) => {
-    if (!reviewStatusId || !doneStatusId) return null;
-    if (issue.status_id !== reviewStatusId) return null;
-    const live = getWorkspacesForIssue(issue.id).filter(
-      (w) =>
-        !w.archived &&
-        !!w.local_workspace_id &&
-        localWorkspacesById.has(w.local_workspace_id)
-    );
-    const workspace = selectCardActionWorkspace(live, (candidate) => {
-      const local = candidate.local_workspace_id
-        ? localWorkspacesById.get(candidate.local_workspace_id)
-        : undefined;
-      return local?.filesChanged ?? candidate.files_changed ?? 0;
-    });
-    const localId = workspace?.local_workspace_id;
-    if (!localId) return null;
-    const localWorkspace = localWorkspacesById.get(localId);
-    const action = resolveInReviewAction(localWorkspace?.filesChanged);
-    if (action === 'accept') {
-      return (
-        <AcceptFindingsButton
-          onAccept={() =>
-            void handleAcceptFindings(
-              issue.id,
-              localId,
-              Boolean(localWorkspace?.isPinned)
-            )
-          }
-        />
-      );
-    }
-    if (action !== 'merge') return null;
-    return (
-      <ShipIssueButton
-        workspaceId={localId}
-        isPinned={Boolean(localWorkspace?.isPinned)}
-        onBeforeShip={async () => {
-          const openSubIssues = getOpenSubIssuesForDoneMove(
-            issue.id,
-            doneStatusId,
-            issues,
-            statuses
-          );
-          if (openSubIssues.length > 0) {
-            await showOpenSubIssuesBlockedDialog(openSubIssues, t);
-            return false;
-          }
-          return true;
-        }}
-        onShipped={() => updateIssue(issue.id, { status_id: doneStatusId })}
-        onOpenWorkspace={() => openIssueWorkspace(issue.id, localId)}
-        onCleanup={refreshWorkspaceCaches}
-      />
-    );
-  };
 
   const retainedWorkspacesByIssueId = useMemo(() => {
     const map = new Map<string, WorkspaceWithStats[]>();
@@ -1363,7 +1254,7 @@ export function KanbanContainer() {
   // The handler is registered ONCE on mount and reads the latest
   // `handleKanbanMove` through a ref. This is deliberate: handler identity
   // churns whenever `statuses` refetches via the ~30s fallback poll
-  // (the chained `useMemo`s — `sortedStatuses` → `visibleStatuses` →
+  // (the chained `useMemo`s — `sortedStatuses` → `quickFilterStatuses` →
   // `statusColumnIndexMap` → `calculateSortOrder` — produce fresh
   // identities even for content-equal data), and re-registering on every
   // churn means the bridge cleanup nulls `kanbanHandlerRef.current` and
@@ -1395,9 +1286,9 @@ export function KanbanContainer() {
   // Compute ordered issue IDs for range selection
   const orderedIssueIds = useMemo(() => {
     const statusOrder =
-      kanbanViewMode === 'kanban' ? visibleStatuses : listViewStatuses;
+      kanbanViewMode === 'kanban' ? boardStatusesFiltered : listViewStatuses;
     return statusOrder.flatMap((status) => items[status.id] ?? []);
-  }, [kanbanViewMode, visibleStatuses, listViewStatuses, items]);
+  }, [kanbanViewMode, boardStatusesFiltered, listViewStatuses, items]);
 
   // Keep the store's ordered IDs in sync
   useEffect(() => {
@@ -1528,7 +1419,7 @@ export function KanbanContainer() {
       ) {
         return;
       }
-      const order = visibleStatuses
+      const order = boardStatusesFiltered
         .filter((status) => !isColumnCollapsed(status))
         .flatMap((status) => items[status.id] ?? []);
       if (order.length === 0) return;
@@ -1554,26 +1445,23 @@ export function KanbanContainer() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [visibleStatuses, isColumnCollapsed, items, keyboardIssueId, openIssue]);
-
-  const activeBoardCount = useMemo(
-    () =>
-      boardStatuses.reduce(
-        (sum, status) => sum + (items[status.id]?.length ?? 0),
-        0
-      ),
-    [boardStatuses, items]
-  );
+  }, [
+    boardStatusesFiltered,
+    isColumnCollapsed,
+    items,
+    keyboardIssueId,
+    openIssue,
+  ]);
 
   const tabStatusesWithCounts = useMemo(
     () =>
-      tabStatuses.map((s) => ({
+      quickFilterStatuses.map((s) => ({
         id: s.id,
         name: s.name,
         color: s.color,
         count: items[s.id]?.length ?? 0,
       })),
-    [tabStatuses, items]
+    [quickFilterStatuses, items]
   );
 
   if (isLoading) {
@@ -1670,10 +1558,9 @@ export function KanbanContainer() {
         <ViewNavTabs
           activeView={kanbanViewMode}
           onViewChange={setKanbanViewMode}
-          hiddenStatuses={tabStatusesWithCounts}
+          statuses={tabStatusesWithCounts}
           selectedStatusId={listViewStatusFilter}
           onStatusSelect={setListViewStatusFilter}
-          activeCount={activeBoardCount}
         />
       </div>
 
@@ -1704,7 +1591,7 @@ export function KanbanContainer() {
       )}
 
       {kanbanViewMode === 'kanban' ? (
-        boardStatuses.length === 0 ? (
+        boardStatusesFiltered.length === 0 ? (
           <div className="flex-1 flex items-center justify-center">
             <p className="text-low">{t('kanban.noVisibleStatuses')}</p>
           </div>
@@ -1716,10 +1603,10 @@ export function KanbanContainer() {
             <KanbanProvider
               className="w-max min-w-full h-full min-h-0 gap-3 divide-x-0 border-x-0 pb-4"
               style={{
-                gridTemplateColumns: `repeat(${boardStatuses.length}, 336px)`,
+                gridTemplateColumns: `repeat(${boardStatusesFiltered.length}, 336px)`,
               }}
             >
-              {boardStatuses.map((status) => {
+              {boardStatusesFiltered.map((status) => {
                 const allIssueIds = items[status.id] ?? [];
                 const isTerminalColumn =
                   isDoneStatus(status) || isCancelledStatusName(status.name);
@@ -2039,7 +1926,6 @@ export function KanbanContainer() {
                               </div>
                             )}
                             {(() => {
-                              const shipButton = renderShipButton(issue);
                               const isDoneOrCancelled =
                                 isDoneStatus(status) ||
                                 isCancelledStatusName(status.name);
@@ -2070,7 +1956,6 @@ export function KanbanContainer() {
                                 !!singleInReviewWs?.localWorkspaceId;
 
                               if (
-                                !shipButton &&
                                 !showQuickDispatch &&
                                 !hasOpenWorkspaceBtn &&
                                 !singleDiffWs &&
@@ -2108,7 +1993,6 @@ export function KanbanContainer() {
                                           : 'Reopen'}
                                       </button>
                                     )}
-                                  {shipButton}
                                   {singleDiffWs?.localWorkspaceId && (
                                     <button
                                       type="button"

@@ -15,108 +15,102 @@ export type ViewNavStatus = {
 export interface ViewNavTabsProps {
   activeView: ViewNavMode;
   onViewChange: (view: ViewNavMode) => void;
-  hiddenStatuses: ViewNavStatus[];
+  statuses: ViewNavStatus[];
   selectedStatusId: string | null;
   onStatusSelect: (statusId: string | null) => void;
-  activeCount?: number;
   className?: string;
 }
 
 export function ViewNavTabs({
   activeView,
   onViewChange,
-  hiddenStatuses,
+  statuses,
   selectedStatusId,
   onStatusSelect,
-  activeCount,
   className,
 }: ViewNavTabsProps) {
   const { t } = useTranslation("common");
-  const isActiveTab = activeView === "kanban";
-  const isAllTab = activeView === "list" && selectedStatusId === null;
 
-  const pillClass = (active: boolean) =>
+  const controlClass = (active: boolean) =>
     cn(
-      "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
+      "inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1",
       active
         ? "border-brand/50 bg-brand/15 text-brand"
         : "border-border/70 bg-secondary/40 text-low hover:bg-secondary hover:text-normal",
     );
 
   return (
-    <div
-      className={cn("flex min-w-0 flex-wrap items-center gap-1.5", className)}
-    >
-      {/* Active (Kanban) tab */}
-      <button
-        type="button"
-        onClick={() => {
-          onViewChange("kanban");
-          onStatusSelect(null);
-        }}
-        className={pillClass(isActiveTab)}
+    <div className={cn("flex min-w-0 flex-col gap-2", className)}>
+      <div
+        role="group"
+        aria-label={t("kanban.viewTabs.viewSwitcher", "View switcher")}
+        className="flex min-w-0 items-center gap-1.5"
       >
-        <span>{t("kanban.viewTabs.active")}</span>
-        {typeof activeCount === "number" && (
-          <span
-            className={cn(
-              "rounded px-1.5 py-0.2 text-[10px] tabular-nums",
-              isActiveTab ? "bg-brand/20 text-brand" : "bg-primary/70 text-low",
-            )}
-          >
-            {activeCount}
-          </span>
-        )}
-      </button>
+        <button
+          type="button"
+          aria-pressed={activeView === "kanban"}
+          onClick={() => onViewChange("kanban")}
+          className={controlClass(activeView === "kanban")}
+        >
+          {t("kanban.viewTabs.board", "Board")}
+        </button>
+        <button
+          type="button"
+          aria-pressed={activeView === "list"}
+          onClick={() => onViewChange("list")}
+          className={controlClass(activeView === "list")}
+        >
+          {t("kanban.viewTabs.list", "List")}
+        </button>
+      </div>
 
-      {/* Hidden / terminal status tabs (Done, Cancelled, etc.) */}
-      {hiddenStatuses.map((status) => {
-        const isStatusActive =
-          activeView === "list" && selectedStatusId === status.id;
-        return (
-          <button
-            key={status.id}
-            type="button"
-            onClick={() => {
-              onViewChange("list");
-              onStatusSelect(status.id);
-            }}
-            className={pillClass(isStatusActive)}
-          >
-            {status.color && (
-              <span
-                className="h-1.5 w-1.5 shrink-0 rounded-full"
-                style={{ backgroundColor: `hsl(${status.color})` }}
-              />
-            )}
-            <span>{status.name}</span>
-            {typeof status.count === "number" && (
-              <span
-                className={cn(
-                  "rounded px-1.5 py-0.2 text-[10px] tabular-nums",
-                  isStatusActive
-                    ? "bg-brand/20 text-brand"
-                    : "bg-primary/70 text-low",
-                )}
-              >
-                {status.count}
-              </span>
-            )}
-          </button>
-        );
-      })}
-
-      {/* All (List) tab */}
-      <button
-        type="button"
-        onClick={() => {
-          onViewChange("list");
-          onStatusSelect(null);
-        }}
-        className={pillClass(isAllTab)}
+      <div
+        role="group"
+        aria-label={t("kanban.viewTabs.statusFilter", "Status filter")}
+        className="flex min-w-0 items-center gap-1.5 overflow-x-auto pb-1"
       >
-        <span>{t("kanban.viewTabs.all")}</span>
-      </button>
+        <button
+          type="button"
+          aria-pressed={selectedStatusId === null}
+          onClick={() => onStatusSelect(null)}
+          className={controlClass(selectedStatusId === null)}
+        >
+          <span>{t("kanban.viewTabs.all", "All")}</span>
+        </button>
+
+        {statuses.map((status) => {
+          const isStatusActive = selectedStatusId === status.id;
+          return (
+            <button
+              key={status.id}
+              type="button"
+              aria-pressed={isStatusActive}
+              onClick={() => onStatusSelect(status.id)}
+              className={controlClass(isStatusActive)}
+            >
+              {status.color && (
+                <span
+                  className="h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: `hsl(${status.color})` }}
+                />
+              )}
+              <span>{status.name}</span>
+              {typeof status.count === "number" && (
+                <span
+                  className={cn(
+                    "rounded px-1.5 py-0.5 text-[10px] tabular-nums",
+                    isStatusActive
+                      ? "bg-brand/20 text-brand"
+                      : "bg-primary/70 text-low",
+                  )}
+                >
+                  {status.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
