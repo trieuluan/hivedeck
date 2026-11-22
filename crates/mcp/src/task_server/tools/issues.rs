@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use api_types::{
     CreateIssueRequest, Issue, IssuePriority, IssueRelationshipType, IssueSortField,
     ListIssueRelationshipsResponse, ListIssueTagsResponse, ListIssuesResponse,
-    ListPullRequestsResponse, ListTagsResponse, MutationResponse, PullRequestStatus,
+    ListPullRequestsResponse, ListTagsResponse, MutationResponse, ProjectStatus, PullRequestStatus,
     SearchIssuesRequest, SortDirection, UpdateIssueRequest, some_if_present,
 };
 use rmcp::{
@@ -282,6 +282,35 @@ struct McpUpdateIssueResponse {
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     description_chars: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct McpUpdateIssueStatusRequest {
+    #[schemars(description = "The ID of the issue to update")]
+    issue_id: Uuid,
+    #[schemars(description = "The status ID (UUID) to move the issue to. Preferred.")]
+    status_id: Option<Uuid>,
+    #[schemars(
+        description = "Deprecated: the status name to move the issue to. Prefer status_id; accepted for backward compatibility and will emit a warning."
+    )]
+    status_name: Option<String>,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+struct McpUpdateIssueStatusResponse {
+    #[schemars(description = "The unique identifier of the issue")]
+    id: String,
+    #[schemars(description = "The human-readable issue simple ID")]
+    simple_id: String,
+    #[schemars(description = "Current status name of the issue, as persisted")]
+    status: String,
+    #[schemars(description = "The status ID (UUID)")]
+    status_id: String,
+    #[schemars(description = "When the issue was last updated")]
+    updated_at: String,
+    #[schemars(description = "Warning emitted when status_name is used instead of status_id")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    warning: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -738,6 +767,79 @@ impl McpServer {
         McpServer::success(&build_update_ack(&issue, status, changed))
     }
 
+    #[tool(
+        description = "Update an issue's status by status_id (UUID). Accepts status_name for backward compatibility only; prefer status_id. Returns the persisted status, status_id, updated_at, and a warning when status_name was used."
+    )]
+    async fn update_issue_status(
+        &self,
+        Parameters(McpUpdateIssueStatusRequest {
+            issue_id,
+            status_id,
+            status_name,
+        }): Parameters<McpUpdateIssueStatusRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        if status_id.is_none() && status_name.is_none() {
+            return Ok(McpServer::tool_error(ToolError::message(
+                "One of status_id or status_name is required",
+            )));
+        }
+
+        // Fetch the issue to learn its project_id, then fetch that project's
+        // statuses so the incoming status can be validated and resolved.
+        let get_url = self.url(&format!("/api/issues/{}", issue_id));
+        let existing_issue: Issue = match self.send_json(self.client.get(&get_url)).await {
+            Ok(i) => i,
+            Err(e) => return Ok(McpServer::tool_error(e)),
+        };
+
+        let project_statuses = match self.fetch_project_statuses(existing_issue.project_id).await {
+            Ok(statuses) => statuses,
+            Err(e) => return Ok(McpServer::tool_error(e)),
+        };
+
+        let (resolved_status_id, warning) = match McpServer::resolve_issue_status_update(
+            &project_statuses,
+            existing_issue.project_id,
+            status_id,
+            status_name,
+        ) {
+            Ok(resolved) => resolved,
+            Err(e) => return Ok(McpServer::tool_error(e)),
+        };
+
+        let payload = UpdateIssueRequest {
+            status_id: Some(resolved_status_id),
+            title: None,
+            description: None,
+            priority: None,
+            start_date: None,
+            target_date: None,
+            completed_at: None,
+            sort_order: None,
+            parent_issue_id: None,
+            parent_issue_sort_order: None,
+            extension_metadata: None,
+        };
+
+        let url = self.url(&format!("/api/issues/{}", issue_id));
+        let response: MutationResponse<Issue> =
+            match self.send_json(self.client.patch(&url).json(&payload)).await {
+                Ok(r) => r,
+                Err(e) => return Ok(McpServer::tool_error(e)),
+            };
+
+        let issue = response.data;
+        let status = McpServer::status_name_from_id(&project_statuses, issue.status_id);
+        McpServer::success(&McpUpdateIssueStatusResponse {
+            id: issue.id.to_string(),
+            simple_id: issue.simple_id.clone(),
+            status,
+            status_id: issue.status_id.to_string(),
+            updated_at: issue.updated_at.to_rfc3339(),
+            warning,
+        })
+    }
+
     #[tool(description = "List allowed issue priority values.")]
     async fn list_issue_priorities(&self) -> Result<CallToolResult, ErrorData> {
         McpServer::success(&McpListIssuePrioritiesResponse {
@@ -1046,6 +1148,43 @@ impl McpServer {
         }
     }
 
+    /// Pure resolver for `update_issue_status`: prefer `status_id`, validate it belongs to the
+    /// project, and only fall back to `status_name` for backward compatibility. Returns the
+    /// resolved id plus a deprecation warning when a name was supplied.
+    fn resolve_issue_status_update(
+        statuses: &[ProjectStatus],
+        project_id: Uuid,
+        status_id: Option<Uuid>,
+        status_name: Option<String>,
+    ) -> Result<(Uuid, Option<String>), ToolError> {
+        match (status_id, status_name) {
+            (Some(status_id), status_name) => {
+                if !statuses.iter().any(|status| status.id == status_id) {
+                    return Err(ToolError::message(format!(
+                        "Status {} does not belong to project {}",
+                        status_id, project_id
+                    )));
+                }
+                Ok((
+                    status_id,
+                    status_name.map(|_| {
+                        "status_name is deprecated; it was ignored because status_id was provided. Use status_id going forward.".to_string()
+                    }),
+                ))
+            }
+            (None, Some(status_name)) => {
+                let status_id = Self::status_id_from_name(statuses, &status_name)?;
+                Ok((
+                    status_id,
+                    Some("status_name is deprecated; use status_id instead".to_string()),
+                ))
+            }
+            (None, None) => Err(ToolError::message(
+                "One of status_id or status_name is required",
+            )),
+        }
+    }
+
     async fn find_tag_ids_by_name(
         &self,
         project_id: Uuid,
@@ -1212,6 +1351,20 @@ mod tests {
             "updated_at": "2026-07-14T09:12:44.183Z"
         }))
         .expect("fixture JSON should deserialize into Issue")
+    }
+
+    fn project_status_fixture(id: Uuid, name: &str) -> ProjectStatus {
+        serde_json::from_value(serde_json::json!({
+            "id": id,
+            "project_id": "11111111-1111-1111-1111-111111111111",
+            "name": name,
+            "color": "#000000",
+            "sort_order": 0,
+            "hidden": false,
+            "is_terminal": false,
+            "created_at": "2026-01-01T00:00:00Z"
+        }))
+        .expect("fixture JSON should deserialize into ProjectStatus")
     }
 
     /// Serialize an ack and parse it back as a JSON object, so tests can assert on OBJECT KEYS
@@ -1622,6 +1775,77 @@ mod tests {
             serde_json::json!("https://github.com/sombrax/hivedeck/pull/7")
         );
         assert_eq!(obj["latest_pr_status"], serde_json::json!("open"));
+    }
+
+    #[test]
+    fn update_issue_status_resolver_prefers_status_id_and_warns_when_name_is_also_present() {
+        let done = Uuid::new_v4();
+        let in_review = Uuid::new_v4();
+        let project_id = Uuid::new_v4();
+        let statuses = [
+            project_status_fixture(in_review, "In Review"),
+            project_status_fixture(done, "Done"),
+        ];
+
+        let (resolved, warning) = McpServer::resolve_issue_status_update(
+            &statuses,
+            project_id,
+            Some(done),
+            Some("In Review".to_string()),
+        )
+        .expect("a valid status_id resolves");
+
+        assert_eq!(resolved, done);
+        assert!(warning.is_some_and(|w| w.contains("status_name is deprecated")));
+    }
+
+    #[test]
+    fn update_issue_status_resolver_rejects_status_id_from_another_project() {
+        let status = Uuid::new_v4();
+        let foreign = Uuid::new_v4();
+        let project_id = Uuid::new_v4();
+        let statuses = [project_status_fixture(status, "Done")];
+
+        let err =
+            McpServer::resolve_issue_status_update(&statuses, project_id, Some(foreign), None)
+                .expect_err("a foreign status_id must be rejected");
+
+        assert_eq!(
+            err.to_string(),
+            format!("Status {foreign} does not belong to project {project_id}")
+        );
+    }
+
+    #[test]
+    fn update_issue_status_resolver_falls_back_to_name_with_warning() {
+        let done = Uuid::new_v4();
+        let project_id = Uuid::new_v4();
+        let statuses = [project_status_fixture(done, "Done")];
+
+        let (resolved, warning) = McpServer::resolve_issue_status_update(
+            &statuses,
+            project_id,
+            None,
+            Some("done".to_string()),
+        )
+        .expect("a known status_name resolves");
+
+        assert_eq!(resolved, done);
+        assert_eq!(
+            warning.as_deref(),
+            Some("status_name is deprecated; use status_id instead")
+        );
+    }
+
+    #[test]
+    fn update_issue_status_resolver_requires_id_or_name() {
+        let err = McpServer::resolve_issue_status_update(&[], Uuid::new_v4(), None, None)
+            .expect_err("missing both fields must fail");
+
+        assert_eq!(
+            err.to_string(),
+            "One of status_id or status_name is required"
+        );
     }
 
     // ⚠️ The cache contract: `list_issues.updated_at` must be byte-identical to `get_issue`'s

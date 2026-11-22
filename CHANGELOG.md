@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **MCP status tools move to IDs** — new `list_project_statuses` and
+  `update_issue_status` tools. `update_issue_status` accepts `status_id` (UUID)
+  and validates that the ID belongs to the issue's project; `status_name` is
+  still accepted for backward compatibility but emits a deprecation warning and
+  is ignored when `status_id` is also supplied. Status-name special-casing
+  (`Done` / `Cancelled` / `In Review`) is not part of these tools.
 - **Four new terminal theme variants** — Violet Synth (magenta-on-violet
   synthwave with cyan status accents), Ghost White (P4 white-phosphor
   monochrome VDU), Redline (alert-red console, amber warnings) and Paper TTY

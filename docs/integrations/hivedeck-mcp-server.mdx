@@ -71,6 +71,7 @@ Many tools accept an optional `project_id` parameter. When running inside a work
 | Tool | Purpose | Required Parameters | Optional Parameters | Returns |
 |------|---------|-------------------|-------------------|---------|
 | `list_projects` | List projects | None | None | List of projects with IDs and names |
+| `list_project_statuses` | List a project's kanban statuses | None | `project_id` | List of statuses with IDs, names, colors, sort order, hidden/terminal flags |
 
 ### Issue Management
 
@@ -80,6 +81,7 @@ Many tools accept an optional `project_id` parameter. When running inside a work
 | `create_issue` | Create a new issue | `title` | `project_id`<br/>`description`<br/>`priority`<br/>`parent_issue_id` | Created issue ID |
 | `get_issue` | Get detailed issue information | `issue_id` | None | Full issue details with tags, relationships, sub-issues, and PRs |
 | `update_issue` | Update an existing issue | `issue_id` | `title`<br/>`description`<br/>`status`<br/>`priority`<br/>`parent_issue_id` | Minimal ack: `id`, `simple_id`, `status`, `status_id`, `updated_at`, `changed[]`, plus echoes of the changed fields. Never the description body (only `description_chars`) - use `get_issue` for the card body. |
+| `update_issue_status` | Update an issue's status by ID | `issue_id`<br/>`status_id` or `status_name` | None | Persisted `status`, `status_id`, `updated_at`, plus a deprecation warning when `status_name` is used |
 | `delete_issue` | Delete an issue | `issue_id` | None | Deletion confirmation |
 | `list_issue_priorities` | List allowed priority values | None | None | List of priorities: urgent, high, medium, low |
 
