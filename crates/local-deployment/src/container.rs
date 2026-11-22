@@ -2977,6 +2977,14 @@ impl ContainerService for LocalContainerService {
         env.insert("VK_WORKSPACE_ID", workspace.id.to_string());
         env.insert("VK_WORKSPACE_BRANCH", &workspace.branch);
 
+        // Reuse compiled Rust artifacts across worktrees when sccache is installed,
+        // avoiding multi-minute cold builds and excessive agent polling.
+        if std::env::var_os("RUSTC_WRAPPER").is_none()
+            && let Some(sccache_path) = utils::shell::resolve_executable_path("sccache").await
+        {
+            env.insert("RUSTC_WRAPPER", sccache_path.to_string_lossy());
+        }
+
         let artifact_issue = if matches!(
             executor_action.typ(),
             ExecutorActionType::CodingAgentInitialRequest(_)

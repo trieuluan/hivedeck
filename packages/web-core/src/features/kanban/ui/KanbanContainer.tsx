@@ -961,6 +961,14 @@ export function KanbanContainer() {
     [statuses]
   );
 
+  const doneStatusId = useMemo(
+    () =>
+      sortedStatuses.find(
+        (s) => isDoneStatus(s) && !isCancelledStatusName(s.name)
+      )?.id ?? null,
+    [sortedStatuses]
+  );
+
   const retainedWorkspacesByIssueId = useMemo(() => {
     const map = new Map<string, WorkspaceWithStats[]>();
 
@@ -1948,20 +1956,6 @@ export function KanbanContainer() {
                                 })}
                               </div>
                             )}
-                            {inReviewGitWorkspace?.localWorkspaceId &&
-                              inReviewGitLocalWorkspace && (
-                                <InReviewApprovalPopup
-                                  issue={issue}
-                                  projectId={projectId}
-                                  workspaceId={
-                                    inReviewGitWorkspace.localWorkspaceId
-                                  }
-                                  branch={inReviewGitLocalWorkspace.branch}
-                                  hasCodeChanges={
-                                    inReviewGitWorkspace.filesChanged > 0
-                                  }
-                                />
-                              )}
                             {(() => {
                               const isDoneOrCancelled =
                                 isDoneStatus(status) ||
@@ -1991,10 +1985,15 @@ export function KanbanContainer() {
                                   : undefined;
                               const hasOpenWorkspaceBtn =
                                 !!singleInReviewWs?.localWorkspaceId;
+                              const hasInReviewApproval = Boolean(
+                                inReviewGitWorkspace?.localWorkspaceId &&
+                                  inReviewGitLocalWorkspace
+                              );
 
                               if (
                                 !showQuickDispatch &&
                                 !hasOpenWorkspaceBtn &&
+                                !hasInReviewApproval &&
                                 !singleDiffWs &&
                                 !(isDoneOrCancelled && restoreTargetStatusId)
                               ) {
@@ -2002,6 +2001,31 @@ export function KanbanContainer() {
                               }
                               return (
                                 <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border/70 pt-2 min-w-0">
+                                  {inReviewGitWorkspace?.localWorkspaceId &&
+                                    inReviewGitLocalWorkspace && (
+                                      <InReviewApprovalPopup
+                                        issue={issue}
+                                        projectId={projectId}
+                                        workspaceId={
+                                          inReviewGitWorkspace.localWorkspaceId
+                                        }
+                                        branch={
+                                          inReviewGitLocalWorkspace.branch
+                                        }
+                                        hasCodeChanges={
+                                          inReviewGitWorkspace.filesChanged > 0
+                                        }
+                                        onApprovedWithoutChanges={
+                                          doneStatusId
+                                            ? () => {
+                                                updateIssue(issue.id, {
+                                                  status_id: doneStatusId,
+                                                });
+                                              }
+                                            : undefined
+                                        }
+                                      />
+                                    )}
                                   {isDoneOrCancelled &&
                                     restoreTargetStatusId && (
                                       <button

@@ -753,6 +753,13 @@ impl Codex {
                 captain,
             ));
         }
+        if !env.vars.contains_key(CAPTAIN_INSTRUCTIONS_ENV) {
+            const CODEX_LONG_COMMAND_GUIDANCE: &str = "When running builds, tests, or linters (e.g. `cargo test`, `cargo check`, `cargo clippy`, `pnpm build`), pass `yield_time_ms: 120000` on `exec_command` and `yield_time_ms: 60000` on `write_stdin` instead of polling every few seconds. Prefer crate-scoped commands (`cargo test -p <crate>`) over `--workspace` while iterating.";
+            params.developer_instructions = Some(match params.developer_instructions.take() {
+                Some(d) if !d.trim().is_empty() => format!("{d}\n\n{CODEX_LONG_COMMAND_GUIDANCE}"),
+                _ => CODEX_LONG_COMMAND_GUIDANCE.to_string(),
+            });
+        }
         if let Some(mcp_guidance) = crate::mcp_registry::format_mcp_instructions(&env.mcp_servers) {
             params.developer_instructions = Some(match params.developer_instructions.take() {
                 Some(d) if !d.trim().is_empty() => format!("{d}\n\n{mcp_guidance}"),

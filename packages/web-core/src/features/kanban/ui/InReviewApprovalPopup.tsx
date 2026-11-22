@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  CaretDownIcon,
+  CheckIcon,
   GitMergeIcon,
+  LockSimpleIcon,
   PaperPlaneTiltIcon,
   ShieldCheckIcon,
   SpinnerIcon,
@@ -52,6 +55,7 @@ export interface InReviewApprovalPopupProps {
   workspaceId: string;
   branch: string;
   hasCodeChanges?: boolean;
+  onApprovedWithoutChanges?: () => Promise<void> | void;
 }
 
 export function InReviewApprovalPopup({
@@ -60,6 +64,7 @@ export function InReviewApprovalPopup({
   workspaceId,
   branch,
   hasCodeChanges = true,
+  onApprovedWithoutChanges,
 }: InReviewApprovalPopupProps) {
   const { t } = useTranslation('kanban');
   const queryClient = useQueryClient();
@@ -120,7 +125,7 @@ export function InReviewApprovalPopup({
 
   const approve = async () => {
     if (busy) return;
-    if (scope === 'revision' && !revision.trim()) {
+    if (hasCodeChanges && scope === 'revision' && !revision.trim()) {
       setError(t('review.revisionRequired', 'Cần nhập revision SHA.'));
       return;
     }
@@ -129,9 +134,13 @@ export function InReviewApprovalPopup({
     try {
       await kanbanApi.approveIssue(issue.id, {
         owner: OWNER,
-        scope,
-        revision: scope === 'revision' ? revision.trim() : null,
+        scope: hasCodeChanges ? scope : 'issue',
+        revision:
+          hasCodeChanges && scope === 'revision' ? revision.trim() : null,
       });
+      if (!hasCodeChanges && onApprovedWithoutChanges) {
+        await onApprovedWithoutChanges();
+      }
       await invalidateProject();
       setOpen(false);
     } catch (err) {
@@ -193,27 +202,65 @@ export function InReviewApprovalPopup({
       })
     : t('review.unapprovedStatus', 'Chưa duyệt');
 
+  const isApproved = Boolean(issue.approval_scope && issue.approval_owner);
+
+  if (!hasCodeChanges) {
+    return (
+      <button
+        type="button"
+        disabled={runningAction !== null}
+        aria-busy={runningAction === 'approve'}
+        onMouseDown={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          void approve();
+        }}
+        className={cn(
+          'inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded bg-emerald-600 px-2.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-500',
+          'focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
+        )}
+      >
+        {runningAction === 'approve' ? (
+          <SpinnerIcon className="size-3.5 animate-spin" weight="bold" />
+        ) : (
+          <CheckIcon className="size-3.5" weight="bold" />
+        )}
+        {t('review.approveAndComplete', 'Duyệt & Hoàn thành')}
+      </button>
+    );
+  }
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
+          onMouseDown={(event) => event.stopPropagation()}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => event.stopPropagation()}
-          className="mt-2 inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded border border-border bg-secondary/70 px-2.5 text-xs font-medium text-normal transition-colors hover:bg-secondary hover:text-high focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand"
+          className={cn(
+            'inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded px-2.5 text-xs font-semibold transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand',
+            isApproved
+              ? 'border border-emerald-500/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25'
+              : 'bg-brand text-white hover:bg-brand-hover'
+          )}
           aria-haspopup="dialog"
           aria-expanded={open}
           aria-controls={popoverId}
-          aria-label={
-            hasCodeChanges
-              ? t('review.openPopup', 'Owner duyệt / merge / push')
-              : t('review.approve', 'Duyệt')
-          }
+          aria-label={t('review.openPopup', 'Owner duyệt / merge / push')}
         >
-          <ShieldCheckIcon className="size-4 shrink-0" weight="bold" />
-          {hasCodeChanges
-            ? t('review.button', 'Duyệt / Merge / Push')
-            : t('review.approve', 'Duyệt')}
+          {isApproved ? (
+            <CheckIcon className="size-3.5 shrink-0" weight="bold" />
+          ) : (
+            <ShieldCheckIcon className="size-3.5 shrink-0" weight="bold" />
+          )}
+          <span>
+            {isApproved
+              ? t('review.approvedShort', 'Đã duyệt')
+              : t('review.buttonCompact', 'Duyệt & Ship')}
+          </span>
+          <CaretDownIcon className="size-3 shrink-0 opacity-80" weight="bold" />
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -222,6 +269,9 @@ export function InReviewApprovalPopup({
         sideOffset={6}
         className="z-[10001] flex w-[min(21rem,calc(100vw-2rem))] flex-col gap-3"
         onOpenAutoFocus={(event) => event.preventDefault()}
+        onMouseDown={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
       >
         <div
           className="flex flex-col gap-1 rounded border border-border/80 bg-secondary/50 px-2.5 py-2"
@@ -294,7 +344,7 @@ export function InReviewApprovalPopup({
           </p>
         )}
 
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           <button
             type="button"
             onClick={approve}
@@ -304,58 +354,73 @@ export function InReviewApprovalPopup({
             }
             aria-busy={runningAction === 'approve'}
             className={cn(
-              'inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded bg-brand px-3 text-xs font-semibold text-white transition-colors hover:bg-brand-hover',
+              'inline-flex h-8 w-full items-center justify-center gap-1.5 rounded bg-brand px-3 text-xs font-semibold text-white transition-colors hover:bg-brand-hover',
               'focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
             )}
           >
             {runningAction === 'approve' ? (
-              <SpinnerIcon className="size-4 animate-spin" weight="bold" />
+              <SpinnerIcon className="size-3.5 animate-spin" weight="bold" />
             ) : (
-              <ShieldCheckIcon className="size-4" weight="bold" />
+              <ShieldCheckIcon className="size-3.5" weight="bold" />
             )}
-            {t('review.approve', 'Duyệt')}
+            {t('review.approveChanges', 'Duyệt thay đổi')}
           </button>
-          {hasCodeChanges && (
-            <>
-              <button
-                type="button"
-                onClick={() => void confirmGit('merge')}
-                disabled={
-                  !gitUnlocked || !repoId || !headOid || runningAction !== null
-                }
-                aria-busy={runningAction === 'merge'}
-                className={cn(
-                  'inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded border border-border bg-secondary/70 px-3 text-xs font-medium text-normal transition-colors hover:bg-secondary hover:text-high',
-                  'focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              onClick={() => void confirmGit('merge')}
+              disabled={
+                !gitUnlocked || !repoId || !headOid || runningAction !== null
+              }
+              aria-busy={runningAction === 'merge'}
+              className={cn(
+                'inline-flex h-8 w-full items-center justify-center gap-1.5 rounded border px-2.5 text-xs font-medium transition-colors',
+                'focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50',
+                gitUnlocked
+                  ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25'
+                  : 'border-border bg-secondary/70 text-normal hover:bg-secondary hover:text-high'
+              )}
+            >
+              {runningAction === 'merge' ? (
+                <SpinnerIcon className="size-3.5 animate-spin" weight="bold" />
+              ) : (
+                <GitMergeIcon className="size-3.5" weight="bold" />
+              )}
+              {t('review.merge', 'Merge')}
+            </button>
+            <button
+              type="button"
+              onClick={() => void confirmGit('push')}
+              disabled={
+                !gitUnlocked || !repoId || !headOid || runningAction !== null
+              }
+              aria-busy={runningAction === 'push'}
+              className={cn(
+                'inline-flex h-8 w-full items-center justify-center gap-1.5 rounded border px-2.5 text-xs font-medium transition-colors',
+                'focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50',
+                gitUnlocked
+                  ? 'border-sky-500/40 bg-sky-500/15 text-sky-200 hover:bg-sky-500/25'
+                  : 'border-border bg-secondary/70 text-normal hover:bg-secondary hover:text-high'
+              )}
+            >
+              {runningAction === 'push' ? (
+                <SpinnerIcon className="size-3.5 animate-spin" weight="bold" />
+              ) : (
+                <PaperPlaneTiltIcon className="size-3.5" weight="bold" />
+              )}
+              {t('review.push', 'Push')}
+            </button>
+          </div>
+          {!gitUnlocked && (
+            <p className="flex items-center gap-1 text-[11px] text-low">
+              <LockSimpleIcon className="size-3 shrink-0" weight="bold" />
+              <span>
+                {t(
+                  'review.unlockHint',
+                  'Duyệt (Revision) trước để mở khóa Merge & Push'
                 )}
-              >
-                {runningAction === 'merge' ? (
-                  <SpinnerIcon className="size-4 animate-spin" weight="bold" />
-                ) : (
-                  <GitMergeIcon className="size-4" weight="bold" />
-                )}
-                {t('review.merge', 'Merge')}
-              </button>
-              <button
-                type="button"
-                onClick={() => void confirmGit('push')}
-                disabled={
-                  !gitUnlocked || !repoId || !headOid || runningAction !== null
-                }
-                aria-busy={runningAction === 'push'}
-                className={cn(
-                  'inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded border border-border bg-secondary/70 px-3 text-xs font-medium text-normal transition-colors hover:bg-secondary hover:text-high',
-                  'focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
-                )}
-              >
-                {runningAction === 'push' ? (
-                  <SpinnerIcon className="size-4 animate-spin" weight="bold" />
-                ) : (
-                  <PaperPlaneTiltIcon className="size-4" weight="bold" />
-                )}
-                {t('review.push', 'Push')}
-              </button>
-            </>
+              </span>
+            </p>
           )}
         </div>
       </PopoverContent>

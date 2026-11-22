@@ -82,7 +82,7 @@ Say in your report what you verified in the browser and what you could not.
 - Keep functions small, add `Debug`/`Serialize`/`Deserialize` where useful.
 
 ## Testing Guidelines
-- Rust: prefer unit tests alongside code (`#[cfg(test)]`), run `cargo test --workspace`. Add tests for new logic and edge cases.
+- Rust: prefer unit tests alongside code (`#[cfg(test)]`), run crate-scoped `cargo test -p <crate>` while iterating (save `cargo test --workspace` for final verification when needed). When waiting on builds/tests via `exec_command`/`write_stdin`, use `yield_time_ms: 120000` / `60000` instead of short 5–10s polling loops. Add tests for new logic and edge cases.
 - Web app: ensure `pnpm run check` and `pnpm run lint` pass. If adding runtime logic, include lightweight tests (e.g., Vitest) in the same directory.
 
 ## Security & Config Tips
