@@ -212,29 +212,58 @@ async fn ensure_revision_approval(
     deployment: &DeploymentImpl,
     workspace_id: Uuid,
     head_oid: Option<&str>,
+    action: &str,
+    destination: &str,
 ) -> Result<(), ApiError> {
     let Some((issue_id, _)) =
         IssueWorkspace::find_issue_and_project_by_workspace(&deployment.db().pool, workspace_id)
             .await?
     else {
-        // Workspaces not linked to a board issue keep the legacy local-git
-        // behaviour; board-driven agents always link a card.
-        return Ok(());
+        return Err(ApiError::BadRequest(
+            "merge/push requires a linked issue".into(),
+        ));
     };
     let Some(issue) = DbIssue::find_by_id(&deployment.db().pool, issue_id).await? else {
-        return Ok(());
+        return Err(ApiError::BadRequest("linked issue not found".into()));
     };
-    if issue.approval_scope.as_deref() != Some("revision") {
+    validate_revision_approval(
+        issue.approval_scope.as_deref(),
+        issue.approval_revision.as_deref(),
+        head_oid,
+    )?;
+
+    let approved = issue.approval_revision.as_deref().unwrap_or("unborn");
+    tracing::info!(
+        action = action,
+        destination = destination,
+        workspace_id = %workspace_id,
+        issue_id = %issue.id,
+        issue_number = issue.issue_number,
+        owner = issue.approval_owner.as_deref().unwrap_or("unknown"),
+        approved_at = ?issue.approval_at,
+        approved_revision = approved,
+        head = head_oid.unwrap_or("unborn"),
+        "merge/push authorized by owner revision approval"
+    );
+    Ok(())
+}
+
+fn validate_revision_approval(
+    scope: Option<&str>,
+    revision: Option<&str>,
+    head_oid: Option<&str>,
+) -> Result<(), ApiError> {
+    if scope != Some("revision") {
         return Err(ApiError::BadRequest(
             "merge/push requires a revision-scoped approval".into(),
         ));
     }
-    let Some(approved) = issue.approval_revision.as_deref() else {
+    let Some(approved) = revision else {
         return Err(ApiError::BadRequest(
             "revision-scoped approval is missing a revision SHA".into(),
         ));
     };
-    if !revision_approval_matches(issue.approval_scope.as_deref(), Some(approved), head_oid) {
+    if !revision_approval_matches(scope, Some(approved), head_oid) {
         return Err(ApiError::BadRequest(format!(
             "revision approval does not match workspace head (approved {approved}, head {})",
             head_oid.unwrap_or("unborn")
@@ -300,7 +329,14 @@ pub async fn merge_workspace(
         .get_head_info(&worktree_path)
         .ok()
         .map(|h| h.oid);
-    ensure_revision_approval(&deployment, workspace.id, head_oid.as_deref()).await?;
+    ensure_revision_approval(
+        &deployment,
+        workspace.id,
+        head_oid.as_deref(),
+        "merge",
+        &workspace_repo.target_branch,
+    )
+    .await?;
 
     let workspace_label = workspace.name.as_deref().unwrap_or(&workspace.branch);
     let vk_id = resolve_hivedeck_identifier(&deployment, workspace.id).await;
@@ -370,9 +406,6 @@ pub async fn ship_workspace(
         }
         let worktree_path = workspace_path.join(&repo.name);
 
-        let head_oid = git.get_head_info(&worktree_path).ok().map(|h| h.oid);
-        ensure_revision_approval(&deployment, workspace.id, head_oid.as_deref()).await?;
-
         // Work an agent left uncommitted (headed sessions don't auto-commit).
         git.commit(&worktree_path, &commit_message)?;
 
@@ -410,6 +443,15 @@ pub async fn ship_workspace(
             response.unchanged_repos.push(repo.name.clone());
             continue;
         }
+        let head_oid = git.get_head_info(&worktree_path).ok().map(|h| h.oid);
+        ensure_revision_approval(
+            &deployment,
+            workspace.id,
+            head_oid.as_deref(),
+            "ship",
+            &target,
+        )
+        .await?;
         let merge_commit_id = git.merge_changes(
             &repo.path,
             &worktree_path,
@@ -557,7 +599,14 @@ pub async fn push_workspace_branch(
         .get_head_info(&worktree_path)
         .ok()
         .map(|h| h.oid);
-    ensure_revision_approval(&deployment, workspace.id, head_oid.as_deref()).await?;
+    ensure_revision_approval(
+        &deployment,
+        workspace.id,
+        head_oid.as_deref(),
+        "push",
+        &workspace.branch,
+    )
+    .await?;
 
     match deployment
         .git()
@@ -599,7 +648,14 @@ pub async fn force_push_workspace_branch(
         .get_head_info(&worktree_path)
         .ok()
         .map(|h| h.oid);
-    ensure_revision_approval(&deployment, workspace.id, head_oid.as_deref()).await?;
+    ensure_revision_approval(
+        &deployment,
+        workspace.id,
+        head_oid.as_deref(),
+        "push_force",
+        &workspace.branch,
+    )
+    .await?;
 
     deployment
         .git()
@@ -1089,5 +1145,32 @@ mod tests {
             Some("abc123"),
             Some("abc123")
         ));
+    }
+
+    #[test]
+    fn validate_revision_approval_fails_closed_and_accepts_matching_revision() {
+        assert!(matches!(
+            validate_revision_approval(None, None, Some("abc123")),
+            Err(ApiError::BadRequest(_))
+        ));
+        assert!(matches!(
+            validate_revision_approval(Some("issue"), Some("abc123"), Some("abc123")),
+            Err(ApiError::BadRequest(_))
+        ));
+        assert!(matches!(
+            validate_revision_approval(Some("revision"), None, Some("abc123")),
+            Err(ApiError::BadRequest(_))
+        ));
+        assert!(matches!(
+            validate_revision_approval(Some("revision"), Some("abc123"), Some("def456")),
+            Err(ApiError::BadRequest(_))
+        ));
+        assert!(matches!(
+            validate_revision_approval(Some("revision"), Some("abc123"), None),
+            Err(ApiError::BadRequest(_))
+        ));
+        assert!(
+            validate_revision_approval(Some("revision"), Some("abc123"), Some("abc123")).is_ok()
+        );
     }
 }

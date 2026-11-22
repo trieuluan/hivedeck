@@ -749,6 +749,22 @@ mod tests {
     }
 
     #[test]
+    fn bundled_merge_prompts_route_through_gated_api() {
+        for (id, raw) in BUNDLED {
+            let pipeline = parse_pipeline(id.trim_end_matches(".toml"), raw).unwrap();
+            let merge = pipeline
+                .stages
+                .iter()
+                .find(|stage| stage.id == "merge")
+                .unwrap_or_else(|| panic!("{id} has no merge stage"));
+            assert!(merge.prompt_fragment.contains("merge_issue"), "{id}");
+            assert!(merge.prompt_fragment.contains("push_issue"), "{id}");
+            assert!(!merge.prompt_fragment.contains("git push"), "{id}");
+            assert!(!merge.prompt_fragment.contains("git update-ref"), "{id}");
+        }
+    }
+
+    #[test]
     fn rejects_duplicate_stage_ids() {
         let raw = r#"
             name = "Dup"
