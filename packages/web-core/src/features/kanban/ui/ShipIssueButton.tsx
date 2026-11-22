@@ -29,7 +29,7 @@ export function AcceptFindingsButton({ onAccept }: AcceptFindingsButtonProps) {
         onAccept();
       }}
       onPointerDown={(e) => e.stopPropagation()}
-      className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded bg-brand px-2.5 text-xs font-semibold text-on-brand transition-colors hover:bg-brand-hover"
+      className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded bg-emerald-600 px-2.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-500"
     >
       <CheckIcon className="size-3.5" weight="bold" />
       {t('ship.acceptFindings')}

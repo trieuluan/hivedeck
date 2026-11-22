@@ -20,6 +20,7 @@ import {
   useUiPreferencesStore,
   resolveKanbanProjectState,
   KANBAN_PROJECT_VIEW_IDS,
+  RIGHT_MAIN_PANEL_MODES,
   type KanbanFilterState,
   type KanbanSortField,
 } from '@/shared/stores/useUiPreferencesStore';
@@ -73,6 +74,7 @@ import {
   resolveInReviewAction,
 } from './ShipIssueButton';
 import { KanbanWorkspaceDispatch } from '@vibe/ui/components/KanbanWorkspaceDispatch';
+import { handleApiResponse } from '@/shared/lib/api';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
 import { workspaceSummaryKeys } from '@/shared/hooks/workspaceSummaryKeys';
 import { useQueryClient } from '@tanstack/react-query';
@@ -538,19 +540,29 @@ export function KanbanContainer() {
     return map;
   }, [visibleStatuses]);
 
-  // Active Kanban board columns exclude terminal (Done) and Cancelled statuses,
-  // which live in the header view-switcher pill tabs so active columns fill 100% width.
-  const boardStatuses = useMemo(() => {
-    const active = visibleStatuses.filter(
-      (s) => !isDoneStatus(s) && !isCancelledStatusName(s.name)
-    );
-    return active.length > 0 ? active : visibleStatuses;
-  }, [visibleStatuses]);
+  // All visible statuses (including Done & Cancelled) render as fixed-width
+  // horizontally-scrollable Kanban columns; list tabs remain available too.
+  const boardStatuses = visibleStatuses;
 
-  const tabStatuses = useMemo(() => {
-    const boardIds = new Set(boardStatuses.map((s) => s.id));
-    return sortedStatuses.filter((s) => !boardIds.has(s.id));
-  }, [sortedStatuses, boardStatuses]);
+  const tabStatuses = useMemo(
+    () =>
+      sortedStatuses.filter(
+        (s) => isDoneStatus(s) || isCancelledStatusName(s.name)
+      ),
+    [sortedStatuses]
+  );
+
+  const [columnLimits, setColumnLimits] = useState<Record<string, number>>({});
+  const [liveTelemetry, setLiveTelemetry] = useState<
+    Record<
+      string,
+      {
+        executor: string | null;
+        started_at: string;
+        context_percent: number | null;
+      }
+    >
+  >({});
 
   const defaultCreateStatusId = useMemo(() => {
     if (kanbanViewMode === 'kanban') {
@@ -941,6 +953,7 @@ export function KanbanContainer() {
         number: pr.number,
         url: pr.url,
         status: pr.status as 'open' | 'merged' | 'closed',
+        targetBranchName: pr.target_branch_name,
       });
       map.set(pr.workspace_id, prs);
     }
@@ -1116,6 +1129,43 @@ export function KanbanContainer() {
     }
     return retainedWorkspacesByIssueId;
   }, [showWorkspaces, retainedWorkspacesByIssueId]);
+
+  const hasAnyRunningWorkspace = useMemo(
+    () =>
+      Array.from(workspacesByIssueId.values()).some((list) =>
+        list.some((ws) => ws.isRunning)
+      ),
+    [workspacesByIssueId]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchTelemetry = async () => {
+      try {
+        const resp = await fetch('/api/workspaces/live-telemetry');
+        const data = await handleApiResponse<
+          Record<
+            string,
+            {
+              executor: string | null;
+              started_at: string;
+              context_percent: number | null;
+            }
+          >
+        >(resp);
+        if (!cancelled) setLiveTelemetry(data ?? {});
+      } catch {
+        // Non-fatal
+      }
+    };
+    void fetchTelemetry();
+    if (!hasAnyRunningWorkspace) return;
+    const timer = window.setInterval(() => void fetchTelemetry(), 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [hasAnyRunningWorkspace]);
 
   // Calculate sort_order based on column index and issue position
   // Formula: 1000 * [COLUMN_INDEX] + [ISSUE_INDEX] (both 1-based)
@@ -1659,21 +1709,25 @@ export function KanbanContainer() {
             <p className="text-low">{t('kanban.noVisibleStatuses')}</p>
           </div>
         ) : (
-          <div ref={boardRef} className="flex-1 overflow-x-auto px-double">
+          <div
+            ref={boardRef}
+            className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden px-double"
+          >
             <KanbanProvider
-              className="min-w-full gap-3 divide-x-0 border-x-0 pb-4"
+              className="w-max min-w-full h-full min-h-0 gap-3 divide-x-0 border-x-0 pb-4"
               style={{
-                gridTemplateColumns: boardStatuses
-                  .map((status) =>
-                    (items[status.id]?.length ?? 0) > 0
-                      ? 'minmax(240px, 1.35fr)'
-                      : 'minmax(180px, 1fr)'
-                  )
-                  .join(' '),
+                gridTemplateColumns: `repeat(${boardStatuses.length}, 336px)`,
               }}
             >
               {boardStatuses.map((status) => {
-                const issueIds = items[status.id] ?? [];
+                const allIssueIds = items[status.id] ?? [];
+                const isTerminalColumn =
+                  isDoneStatus(status) || isCancelledStatusName(status.name);
+                const limit =
+                  columnLimits[status.id] ??
+                  (isTerminalColumn ? 20 : allIssueIds.length);
+                const issueIds = allIssueIds.slice(0, limit);
+                const remainingCount = allIssueIds.length - issueIds.length;
 
                 return (
                   <KanbanBoard
@@ -1694,7 +1748,7 @@ export function KanbanContainer() {
                             {status.name}
                           </p>
                           <span className="rounded-full bg-primary/70 px-2 py-0.5 text-[11px] font-medium text-low tabular-nums">
-                            {issueIds.length}
+                            {allIssueIds.length}
                           </span>
                         </div>
                         {!parentIssueId && (
@@ -1748,8 +1802,8 @@ export function KanbanContainer() {
                             return true;
                           }
 
-                          // If this PR is already visible under a workspace card,
-                          // do not render it again at the issue level.
+                          // Compact IssueWorkspaceCard renders workspace PRs inside
+                          // the unified PR + Workspace block, so avoid duplicating here.
                           return !workspaceIdsShownOnCard.has(pr.workspace_id);
                         });
 
@@ -1774,8 +1828,13 @@ export function KanbanContainer() {
                             name={issue.title}
                             className={cn(
                               'group',
+                              issueWorkspaces.some((w) => w.isRunning) &&
+                                'border-l-2 border-l-sky-500',
+                              !issueWorkspaces.some((w) => w.isRunning) &&
+                                status.id === reviewStatusId &&
+                                'border-l-2 border-l-amber-500',
                               isCancelledStatusName(status.name) &&
-                                'opacity-60 hover:opacity-100',
+                                'border-l-2 border-l-rose-500/70 opacity-75 hover:opacity-100',
                               keyboardIssueId === issue.id &&
                                 'ring-2 ring-brand/60 ring-offset-1 ring-offset-primary'
                             )}
@@ -1789,6 +1848,13 @@ export function KanbanContainer() {
                               displayId={issue.simple_id}
                               title={issue.title}
                               statusName={status.name}
+                              cancelReason={
+                                (
+                                  issue.extension_metadata as {
+                                    cancel_reason?: string;
+                                  } | null
+                                )?.cancel_reason ?? null
+                              }
                               compact
                               description={issue.description}
                               priority={issue.priority}
@@ -1934,43 +2000,116 @@ export function KanbanContainer() {
                               )}
                             {issueWorkspaces.length > 0 && (
                               <div className="mt-2 flex flex-col gap-1">
-                                {issueWorkspaces.map((workspace) => (
-                                  <IssueWorkspaceCard
-                                    key={workspace.id}
-                                    workspace={workspace}
-                                    compact
-                                    onClick={
-                                      workspace.localWorkspaceId
-                                        ? () =>
-                                            openIssueWorkspace(
-                                              issue.id,
-                                              workspace.localWorkspaceId!
-                                            )
-                                        : undefined
-                                    }
-                                    showOwner={false}
-                                    showStatusBadge={false}
-                                    showNoPrText={false}
-                                    pipelineStage={
-                                      workspace.currentPipelineStage
-                                    }
-                                    pipelineTotal={pipelineStages.length}
-                                  />
-                                ))}
+                                {issueWorkspaces.map((workspace) => {
+                                  const live = workspace.localWorkspaceId
+                                    ? liveTelemetry[workspace.localWorkspaceId]
+                                    : undefined;
+                                  return (
+                                    <IssueWorkspaceCard
+                                      key={workspace.id}
+                                      workspace={{
+                                        ...workspace,
+                                        executor: live?.executor ?? null,
+                                        contextPercent:
+                                          live?.context_percent ?? null,
+                                        latestProcessStartedAt:
+                                          workspace.latestProcessStartedAt ??
+                                          live?.started_at,
+                                      }}
+                                      compact
+                                      onClick={
+                                        workspace.localWorkspaceId
+                                          ? () =>
+                                              openIssueWorkspace(
+                                                issue.id,
+                                                workspace.localWorkspaceId!
+                                              )
+                                          : undefined
+                                      }
+                                      showOwner={false}
+                                      showStatusBadge={false}
+                                      showNoPrText={false}
+                                      pipelineStage={
+                                        workspace.currentPipelineStage
+                                      }
+                                      pipelineTotal={pipelineStages.length}
+                                    />
+                                  );
+                                })}
                               </div>
                             )}
                             {(() => {
                               const shipButton = renderShipButton(issue);
+                              const isDoneOrCancelled =
+                                isDoneStatus(status) ||
+                                isCancelledStatusName(status.name);
+                              const restoreTargetStatusId = sortedStatuses.find(
+                                (s) =>
+                                  !isDoneStatus(s) &&
+                                  !isCancelledStatusName(s.name)
+                              )?.id;
+                              const showQuickDispatch =
+                                !isDoneOrCancelled &&
+                                issue.status_id !== reviewStatusId &&
+                                issueWorkspaces.length === 0 &&
+                                dispatchWorkspaces.length > 0;
+                              const singleInReviewWs =
+                                issue.status_id === reviewStatusId &&
+                                issueWorkspaces.length === 1
+                                  ? issueWorkspaces[0]
+                                  : undefined;
+                              const singleDiffWs =
+                                (issue.status_id === reviewStatusId ||
+                                  isDoneStatus(status)) &&
+                                issueWorkspaces.length === 1 &&
+                                issueWorkspaces[0]?.localWorkspaceId &&
+                                issueWorkspaces[0].filesChanged > 0
+                                  ? issueWorkspaces[0]
+                                  : undefined;
+                              const hasOpenWorkspaceBtn =
+                                !!singleInReviewWs?.localWorkspaceId;
+
                               if (
                                 !shipButton &&
-                                dispatchWorkspaces.length === 0 &&
-                                issue.status_id !== reviewStatusId
+                                !showQuickDispatch &&
+                                !hasOpenWorkspaceBtn &&
+                                !singleDiffWs &&
+                                !(isDoneOrCancelled && restoreTargetStatusId)
                               ) {
                                 return null;
                               }
                               return (
                                 <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border/70 pt-2 min-w-0">
-                                  {issue.status_id === reviewStatusId && (
+                                  {isDoneOrCancelled &&
+                                    restoreTargetStatusId && (
+                                      <button
+                                        type="button"
+                                        onMouseDown={(event) =>
+                                          event.stopPropagation()
+                                        }
+                                        onPointerDown={(event) =>
+                                          event.stopPropagation()
+                                        }
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          updateIssue(issue.id, {
+                                            status_id: restoreTargetStatusId,
+                                          });
+                                        }}
+                                        className={cn(
+                                          'min-h-7 rounded border px-2.5 text-xs font-medium transition-colors',
+                                          isCancelledStatusName(status.name)
+                                            ? 'border-rose-500/40 bg-rose-500/15 text-rose-200 hover:bg-rose-500/25'
+                                            : 'border-border bg-secondary/70 text-normal hover:text-high hover:bg-secondary'
+                                        )}
+                                      >
+                                        {isCancelledStatusName(status.name)
+                                          ? 'Restore'
+                                          : 'Reopen'}
+                                      </button>
+                                    )}
+                                  {shipButton}
+                                  {singleDiffWs?.localWorkspaceId && (
                                     <button
                                       type="button"
                                       onMouseDown={(event) =>
@@ -1981,27 +2120,52 @@ export function KanbanContainer() {
                                       }
                                       onClick={(event) => {
                                         event.stopPropagation();
-                                        openIssue(issue.id);
+                                        const wsId =
+                                          singleDiffWs.localWorkspaceId!;
+                                        useUiPreferencesStore
+                                          .getState()
+                                          .setWorkspacePanelState(wsId, {
+                                            rightMainPanelMode:
+                                              RIGHT_MAIN_PANEL_MODES.CHANGES,
+                                          });
+                                        openIssueWorkspace(issue.id, wsId);
                                       }}
-                                      className="min-h-7 rounded bg-brand px-2.5 text-xs font-semibold text-white hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                                      className="min-h-7 rounded border border-border bg-secondary/70 px-2.5 text-xs font-medium text-normal transition-colors hover:bg-secondary hover:text-high"
                                     >
-                                      {t('tasks:ship.review', {
-                                        defaultValue: 'Review',
+                                      View diff
+                                    </button>
+                                  )}
+                                  {hasOpenWorkspaceBtn && (
+                                    <button
+                                      type="button"
+                                      onMouseDown={(event) =>
+                                        event.stopPropagation()
+                                      }
+                                      onPointerDown={(event) =>
+                                        event.stopPropagation()
+                                      }
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        openIssueWorkspace(
+                                          issue.id,
+                                          singleInReviewWs!.localWorkspaceId!
+                                        );
+                                      }}
+                                      className="min-h-7 rounded border border-border bg-secondary/70 px-2.5 text-xs font-medium text-normal transition-colors hover:bg-secondary hover:text-high"
+                                    >
+                                      {t('tasks:followUp.title', {
+                                        defaultValue: 'Chạy tiếp',
                                       })}
                                     </button>
                                   )}
-                                  {shipButton}
-                                  {dispatchWorkspaces.length > 0 && (
+                                  {showQuickDispatch && (
                                     <KanbanWorkspaceDispatch
                                       className="min-w-[160px] flex-1"
                                       workspaces={dispatchWorkspaces}
                                       currentWorkspaceIds={
                                         workspaceIdsShownOnCard
                                       }
-                                      issueStatusIsDone={
-                                        statusById.get(issue.status_id)
-                                          ?.is_terminal ?? false
-                                      }
+                                      issueStatusIsDone={false}
                                       currentProjectId={projectId}
                                       onDispatch={(workspaceId) =>
                                         handleDispatchIssueToWorkspace(
@@ -2023,6 +2187,20 @@ export function KanbanContainer() {
                           </KanbanCard>
                         );
                       })}
+                      {remainingCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setColumnLimits((prev) => ({
+                              ...prev,
+                              [status.id]: limit + 25,
+                            }))
+                          }
+                          className="mt-1 w-full rounded-md border border-border/70 bg-secondary/40 py-2 text-xs font-medium text-low hover:bg-secondary hover:text-normal transition-colors"
+                        >
+                          Hiển thị thêm (còn {remainingCount} thẻ)…
+                        </button>
+                      )}
                     </KanbanCards>
                   </KanbanBoard>
                 );

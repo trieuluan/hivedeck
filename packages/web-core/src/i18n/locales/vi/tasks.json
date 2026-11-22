@@ -615,7 +615,7 @@
   },
   "ship": {
     "button": "Merge",
-    "acceptFindings": "Chấp nhận kết quả",
+    "acceptFindings": "Hoàn thành",
     "acceptConfirmTitle": "Chấp nhận kết quả & hoàn tất card?",
     "acceptConfirmMessage": "Chuyển card sang Done mà không chạy git merge.",
     "merging": "Đang merge…",

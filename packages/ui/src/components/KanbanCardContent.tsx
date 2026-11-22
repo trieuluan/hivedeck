@@ -128,6 +128,7 @@ export type KanbanCardContentProps<TTag extends KanbanTag = KanbanTag> = {
   displayId: string;
   title: string;
   statusName?: string;
+  cancelReason?: string | null;
   description?: string | null;
   priority: PriorityLevel | null;
   tags: KanbanTag[];
@@ -192,7 +193,21 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
   footer,
   compact = false,
   retainedWorkspace,
+  cancelReason,
 }: KanbanCardContentProps<TTag>) {
+  const normalizedStatus = statusName?.trim().toLowerCase() ?? "";
+  const isCancelledStatus =
+    normalizedStatus === "cancelled" || normalizedStatus === "canceled";
+  const statusPillClass =
+    normalizedStatus === "done"
+      ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+      : normalizedStatus === "in review" || normalizedStatus === "review"
+        ? "bg-amber-500/15 text-amber-300 border border-amber-500/30"
+        : normalizedStatus === "in progress"
+          ? "bg-sky-500/15 text-sky-300 border border-sky-500/30"
+          : isCancelledStatus
+            ? "bg-rose-500/15 text-rose-300 border border-rose-500/30"
+            : "bg-secondary text-normal border border-border/60";
   const { t } = useTranslation("common");
   const previewDescription = useMemo(() => {
     if (!description) {
@@ -249,13 +264,17 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
             {displayId}
           </span>
           <span
-            className="mt-1 block text-lg font-semibold text-high leading-snug line-clamp-2 break-words"
+            className={cn(
+              "mt-1 block text-lg font-semibold leading-snug line-clamp-2 break-words",
+              isCancelledStatus ? "line-through text-low" : "text-high",
+            )}
             title={title}
           >
             {title}
           </span>
         </div>
-        <div className="flex shrink-0 items-start gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5">
+          {headerMeta}
           {moreActions ??
             (onMoreActionsClick && (
               <button
@@ -302,7 +321,10 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
         )}
         {statusName && (
           <span
-            className="rounded bg-secondary px-1.5 py-1 text-xs font-medium text-normal"
+            className={cn(
+              "rounded px-2 py-0.5 text-xs font-medium",
+              statusPillClass,
+            )}
             title={statusName}
           >
             {statusName}
@@ -347,6 +369,12 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
       </div>
 
       {/* Row 3: Description (optional, short; full text in the tooltip) */}
+      {isCancelledStatus && cancelReason?.trim() && (
+        <div className="rounded border border-rose-500/30 bg-rose-500/10 px-2.5 py-1.5 text-xs text-rose-200/90">
+          <span className="font-semibold text-rose-300">Cancelled:</span>{" "}
+          <span>{cancelReason.trim()}</span>
+        </div>
+      )}
       {previewDescription && !compact && (
         <p
           className="text-sm text-low m-0 leading-snug line-clamp-2"
@@ -357,12 +385,10 @@ export function KanbanCardContent<TTag extends KanbanTag = KanbanTag>({
       )}
 
       {/* Row 4: PRs, Relationships, Retained Workspace */}
-      {(headerMeta ||
-        pullRequests.length > 0 ||
+      {(pullRequests.length > 0 ||
         relationships.length > 0 ||
         (retainedWorkspace && retainedWorkspace.count > 0)) && (
         <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-          {headerMeta}
           {pullRequests.slice(0, 2).map((pr) => (
             <PrBadge
               key={pr.id}

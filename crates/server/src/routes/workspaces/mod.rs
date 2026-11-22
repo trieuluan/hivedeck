@@ -59,6 +59,7 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
         .route("/orchestrator/status", get(create::orchestrator_status))
         .route("/from-pr", post(pr::create_workspace_from_pr))
         .route("/streams/ws", get(streams::stream_workspaces_ws))
+        .route("/live-telemetry", get(core::get_live_workspace_telemetry))
         .route(
             "/summaries",
             post(workspace_summary::get_workspace_summaries),

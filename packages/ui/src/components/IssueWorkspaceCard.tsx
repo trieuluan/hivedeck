@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { cn } from "../lib/cn";
 import { useTranslation } from "react-i18next";
 import {
@@ -14,6 +15,7 @@ import {
   ArrowSquareOutIcon,
 } from "@phosphor-icons/react";
 import { UserAvatar, type UserAvatarUser } from "./UserAvatar";
+import { PrBadge } from "./PrBadge";
 import { RunningDots } from "./RunningDots";
 import { useWorkspaceTime } from "./WorkspaceTime";
 import {
@@ -27,6 +29,7 @@ export interface WorkspacePr {
   number: number;
   url: string;
   status: "open" | "merged" | "closed";
+  targetBranchName?: string | null;
 }
 
 export interface WorkspaceWithStats {
@@ -48,6 +51,8 @@ export interface WorkspaceWithStats {
   latestProcessStartedAt?: string;
   latestProcessStatus?: "running" | "completed" | "failed" | "killed";
   currentPipelineStage?: number | null;
+  executor?: string | null;
+  contextPercent?: number | null;
 }
 
 export interface IssueWorkspaceCardProps {
@@ -135,6 +140,36 @@ export function pipelineProgressPercent(
   return Math.max(0, Math.min(100, Math.round((stage / total) * 100)));
 }
 
+function formatElapsedShort(startedAtIso?: string | null): string | null {
+  if (!startedAtIso) return null;
+  const startedMs = Date.parse(startedAtIso);
+  if (Number.isNaN(startedMs)) return null;
+  const sec = Math.max(0, Math.floor((Date.now() - startedMs) / 1000));
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function formatExecutorShort(executor?: string | null): string | null {
+  if (!executor) return null;
+  switch (executor.toUpperCase()) {
+    case "CLAUDE_CODE":
+    case "CLAUDE_CODE_HEADED":
+      return "Claude Code";
+    case "CODEX":
+      return "Codex";
+    case "OPENCODE":
+    case "OPENCODE_HEADED":
+      return "OpenCode";
+    case "GEMINI":
+      return "Gemini";
+    case "CURSOR_AGENT":
+      return "Cursor";
+    default:
+      return executor;
+  }
+}
+
 export function IssueWorkspaceCard({
   workspace,
   onClick,
@@ -163,6 +198,12 @@ export function IssueWorkspaceCard({
     isFailed ||
     isRunning ||
     (hasUnseenActivity && !isRunning);
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!isRunning || !workspace.latestProcessStartedAt) return;
+    const id = window.setInterval(() => setTick((t) => t + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [isRunning, workspace.latestProcessStartedAt]);
 
   if (compact) {
     const hasStage =
@@ -170,6 +211,15 @@ export function IssueWorkspaceCard({
       pipelineStage != null &&
       pipelineTotal != null &&
       pipelineTotal > 0;
+    const elapsedLabel = isRunning
+      ? formatElapsedShort(workspace.latestProcessStartedAt)
+      : null;
+    const executorLabel = formatExecutorShort(workspace.executor);
+    const showLiveStrip =
+      isRunning &&
+      Boolean(
+        executorLabel || elapsedLabel || workspace.contextPercent != null,
+      );
 
     return (
       <div
@@ -190,11 +240,53 @@ export function IssueWorkspaceCard({
         }}
         title={workspace.name ?? undefined}
         className={cn(
-          "group/ws min-w-0 rounded border border-border/70 bg-secondary/45 px-2 py-1 text-xs transition-colors",
+          "group/ws min-w-0 rounded border px-2 py-1.5 text-xs transition-colors",
+          workspace.archived
+            ? "border-border/60 bg-secondary/35 text-low"
+            : workspace.linesAdded > 0 || workspace.linesRemoved > 0
+              ? "border-emerald-500/35 bg-emerald-500/5"
+              : "border-border/70 bg-secondary/45",
           onClick && "cursor-pointer hover:bg-secondary/80",
           className,
         )}
       >
+        {showLiveStrip && (
+          <div className="mb-1.5 flex items-center gap-1.5 rounded border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-[11px] font-medium text-sky-300">
+            <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse shrink-0" />
+            <span className="truncate">
+              {[
+                executorLabel,
+                elapsedLabel ? `running ${elapsedLabel}` : "running",
+                workspace.contextPercent != null
+                  ? `Context ${workspace.contextPercent}%`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          </div>
+        )}
+        {workspace.prs.length > 0 && (
+          <div className="mb-1.5 flex items-center justify-between gap-2 border-b border-border/60 pb-1.5 min-w-0">
+            <div className="flex items-center gap-1 min-w-0 flex-wrap">
+              {workspace.prs.slice(0, 1).map((pr) => (
+                <PrBadge
+                  key={pr.number}
+                  number={pr.number}
+                  url={pr.url}
+                  status={pr.status}
+                  targetBranchName={pr.targetBranchName}
+                />
+              ))}
+            </div>
+            {(workspace.linesAdded > 0 || workspace.linesRemoved > 0) && (
+              <span className="font-ibm-plex-mono text-[10px] tabular-nums shrink-0">
+                <span className="text-success">+{workspace.linesAdded}</span>{" "}
+                <span className="text-error">-{workspace.linesRemoved}</span>
+              </span>
+            )}
+          </div>
+        )}
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="flex items-center shrink-0 text-low">
             {isRunning ? (
@@ -206,20 +298,31 @@ export function IssueWorkspaceCard({
             ) : isFailed ? (
               <TriangleIcon className="size-3.5 text-error" weight="fill" />
             ) : (
-              <GitBranchIcon className="size-3.5" weight="bold" />
+              <GitBranchIcon
+                className={cn(
+                  "size-3.5",
+                  !workspace.archived &&
+                    (workspace.linesAdded > 0 || workspace.linesRemoved > 0) &&
+                    "text-emerald-400",
+                )}
+                weight="bold"
+              />
             )}
           </span>
           <span className="h-3 w-px bg-border/80 shrink-0" aria-hidden="true" />
           <span className="min-w-[4rem] flex-1 truncate font-medium text-normal">
-            {workspace.name ?? "Workspace"}
+            {workspace.archived
+              ? "Workspace archived"
+              : (workspace.name ?? "Workspace")}
           </span>
-          {(workspace.linesAdded > 0 || workspace.linesRemoved > 0) && (
-            <span className="font-ibm-plex-mono text-[10px] tabular-nums shrink-0">
-              <span className="text-success">+{workspace.linesAdded}</span>{" "}
-              <span className="text-error">-{workspace.linesRemoved}</span>
-            </span>
-          )}
-          {timeAgo && (
+          {workspace.prs.length === 0 &&
+            (workspace.linesAdded > 0 || workspace.linesRemoved > 0) && (
+              <span className="font-ibm-plex-mono text-[10px] tabular-nums shrink-0">
+                <span className="text-success">+{workspace.linesAdded}</span>{" "}
+                <span className="text-error">-{workspace.linesRemoved}</span>
+              </span>
+            )}
+          {!showLiveStrip && timeAgo && (
             <span
               title={timeAgo}
               className={cn(

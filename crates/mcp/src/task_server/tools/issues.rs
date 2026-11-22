@@ -238,6 +238,10 @@ struct McpUpdateIssueRequest {
         description = "Parent issue ID to set this as a subissue. Pass null to un-nest from parent."
     )]
     parent_issue_id: Option<Option<Uuid>>,
+    #[schemars(
+        description = "Optional reason when moving the issue to Cancelled (stored in extension_metadata.cancel_reason)."
+    )]
+    cancel_reason: Option<String>,
 }
 
 /// Minimal write-acknowledgement returned by `update_issue`.
@@ -619,6 +623,7 @@ impl McpServer {
             status,
             priority,
             parent_issue_id,
+            cancel_reason,
         }): Parameters<McpUpdateIssueRequest>,
     ) -> Result<CallToolResult, ErrorData> {
         // Capture which fields the caller supplied BEFORE `title` / `description` / `priority` /
@@ -683,6 +688,23 @@ impl McpServer {
             None
         };
 
+        let extension_metadata = cancel_reason.map(|reason| {
+            let mut meta = match existing_issue.extension_metadata.clone() {
+                serde_json::Value::Object(map) => map,
+                _ => serde_json::Map::new(),
+            };
+            let trimmed = reason.trim();
+            if trimmed.is_empty() {
+                meta.remove("cancel_reason");
+            } else {
+                meta.insert(
+                    "cancel_reason".to_string(),
+                    serde_json::Value::String(trimmed.to_string()),
+                );
+            }
+            serde_json::Value::Object(meta)
+        });
+
         let payload = UpdateIssueRequest {
             status_id,
             title,
@@ -696,7 +718,7 @@ impl McpServer {
             // `description`/`priority` above; that would silently re-break un-nest (VIBE-16).
             parent_issue_id,
             parent_issue_sort_order: None,
-            extension_metadata: None,
+            extension_metadata,
         };
 
         let url = self.url(&format!("/api/issues/{}", issue_id));

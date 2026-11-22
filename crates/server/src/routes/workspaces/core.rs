@@ -308,3 +308,57 @@ pub async fn update_workspace_mcp_servers(
     let updated = Workspace::get_selected_mcp_servers(pool, workspace.id).await?;
     Ok(ResponseJson(ApiResponse::success(updated)))
 }
+
+#[derive(Debug, Serialize)]
+pub struct WorkspaceLiveTelemetry {
+    pub executor: Option<String>,
+    pub started_at: chrono::DateTime<chrono::Utc>,
+    pub context_percent: Option<u32>,
+}
+
+#[axum::debug_handler]
+pub async fn get_live_workspace_telemetry(
+    State(deployment): State<DeploymentImpl>,
+) -> Result<
+    ResponseJson<ApiResponse<std::collections::HashMap<Uuid, WorkspaceLiveTelemetry>>>,
+    ApiError,
+> {
+    let pool = &deployment.db().pool;
+    let running = ExecutionProcess::find_running(pool).await?;
+    let mut out = std::collections::HashMap::new();
+    for proc in running {
+        if proc.run_reason != db::models::execution_process::ExecutionProcessRunReason::CodingAgent
+        {
+            continue;
+        }
+        let Ok(Some(session)) =
+            db::models::session::Session::find_by_id(pool, proc.session_id).await
+        else {
+            continue;
+        };
+        let executor = proc
+            .executor_action()
+            .ok()
+            .and_then(|a| a.base_executor())
+            .map(|e| e.to_string());
+        let context_percent = deployment
+            .llm_inspector()
+            .get_session_telemetry(proc.session_id)
+            .and_then(|b| {
+                let win = b.model_context_window?;
+                if win == 0 || b.payload_tokens == 0 {
+                    return None;
+                }
+                Some(((b.payload_tokens as u64 * 100) / (win as u64)).min(100) as u32)
+            });
+        out.insert(
+            session.workspace_id,
+            WorkspaceLiveTelemetry {
+                executor,
+                started_at: proc.started_at,
+                context_percent,
+            },
+        );
+    }
+    Ok(ResponseJson(ApiResponse::success(out)))
+}

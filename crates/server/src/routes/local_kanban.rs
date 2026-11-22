@@ -218,6 +218,103 @@ async fn fb_workspaces(
     Ok(ResponseJson(json!({ "workspaces": mapped })))
 }
 
+#[derive(sqlx::FromRow)]
+struct FallbackPrRow {
+    id: String,
+    workspace_id: Option<Uuid>,
+    pr_url: String,
+    pr_number: i64,
+    pr_status: String,
+    target_branch_name: String,
+    merged_at: Option<String>,
+    merge_commit_sha: Option<String>,
+    created_at: String,
+    updated_at: String,
+    issue_id: Uuid,
+    project_id: Uuid,
+}
+
+async fn list_linked_pull_request_rows(
+    pool: &sqlx::SqlitePool,
+    project_id: Option<Uuid>,
+) -> Result<Vec<FallbackPrRow>, sqlx::Error> {
+    sqlx::query_as::<_, FallbackPrRow>(
+        r#"
+        SELECT
+            pr.id,
+            pr.workspace_id,
+            pr.pr_url,
+            pr.pr_number,
+            pr.pr_status,
+            pr.target_branch_name,
+            pr.merged_at,
+            pr.merge_commit_sha,
+            pr.created_at,
+            pr.updated_at,
+            iw.issue_id,
+            i.project_id
+        FROM pull_requests pr
+        INNER JOIN issue_workspaces iw ON iw.workspace_id = pr.workspace_id
+        INNER JOIN issues i ON i.id = iw.issue_id
+        WHERE (?1 IS NULL OR i.project_id = ?1)
+        ORDER BY pr.created_at DESC
+        "#,
+    )
+    .bind(project_id)
+    .fetch_all(pool)
+    .await
+}
+
+#[derive(Deserialize)]
+struct FallbackProjectQuery {
+    project_id: Option<Uuid>,
+}
+
+async fn fb_pull_requests(
+    State(deployment): State<DeploymentImpl>,
+    Query(query): Query<FallbackProjectQuery>,
+) -> Result<ResponseJson<Value>, ApiError> {
+    let rows = list_linked_pull_request_rows(&deployment.db().pool, query.project_id).await?;
+    let mapped: Vec<Value> = rows
+        .into_iter()
+        .map(|r| {
+            json!({
+                "id": r.id,
+                "url": r.pr_url,
+                "number": r.pr_number,
+                "status": r.pr_status,
+                "merged_at": r.merged_at,
+                "merge_commit_sha": r.merge_commit_sha,
+                "target_branch_name": r.target_branch_name,
+                "project_id": r.project_id,
+                "issue_id": r.issue_id,
+                "workspace_id": r.workspace_id,
+                "created_at": r.created_at,
+                "updated_at": r.updated_at,
+            })
+        })
+        .collect();
+    Ok(ResponseJson(json!({ "pull_requests": mapped })))
+}
+
+async fn fb_pull_request_issues(
+    State(deployment): State<DeploymentImpl>,
+    Query(query): Query<FallbackProjectQuery>,
+) -> Result<ResponseJson<Value>, ApiError> {
+    let rows = list_linked_pull_request_rows(&deployment.db().pool, query.project_id).await?;
+    let mapped: Vec<Value> = rows
+        .into_iter()
+        .map(|r| {
+            json!({
+                "id": format!("{}:{}", r.id, r.issue_id),
+                "pull_request_id": r.id,
+                "issue_id": r.issue_id,
+            })
+        })
+        .collect();
+    Ok(ResponseJson(json!({ "pull_request_issues": mapped })))
+}
+
 // ---------------------------------------------------------------------------
 // Projects
 // ---------------------------------------------------------------------------
@@ -1270,6 +1367,11 @@ pub fn router() -> Router<DeploymentImpl> {
             get(fb_project_workspaces),
         )
         .route("/v1/fallback/workspaces", get(fb_workspaces))
+        .route("/v1/fallback/pull_requests", get(fb_pull_requests))
+        .route(
+            "/v1/fallback/pull_request_issues",
+            get(fb_pull_request_issues),
+        )
         .route("/v1/projects", post(create_project))
         .route("/v1/projects/bulk", post(bulk_projects))
         .route(
