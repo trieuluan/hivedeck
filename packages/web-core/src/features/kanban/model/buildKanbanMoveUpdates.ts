@@ -14,9 +14,9 @@ export interface BuildKanbanMoveUpdatesParams {
   isManualSort: boolean;
   /** Used to compute `sort_order` values when `isManualSort` is true. */
   calculateSortOrder: CalculateSortOrder;
-  /** Map of every visible status id → 1-based column index. The source
+  /** Map of every board status id → 1-based column index. The source
    *  reindex is skipped for any from-status that isn't in this map (a
-   *  deleted/hidden status). */
+   *  deleted status). */
   statusColumnIndexMap: Map<string, number>;
 }
 

@@ -20,11 +20,13 @@ const priorityLabels: Record<PriorityFilterValue, string> = {
 export interface PriorityFilterDropdownProps {
   values: PriorityFilterValue[];
   onChange: (values: PriorityFilterValue[]) => void;
+  iconOnly?: boolean;
 }
 
 export function PriorityFilterDropdown({
   values,
   onChange,
+  iconOnly,
 }: PriorityFilterDropdownProps) {
   const { t } = useTranslation('common');
 
@@ -48,6 +50,7 @@ export function PriorityFilterDropdown({
       icon={FunnelIcon}
       label={t('kanban.priority', 'Priority')}
       menuLabel={t('kanban.filterByPriority', 'Filter by priority')}
+      iconOnly={iconOnly}
     />
   );
 }

@@ -7,6 +7,7 @@ import {
 } from '@phosphor-icons/react';
 import type { IssuePriority, Tag } from 'shared/remote-types';
 import { cn } from '@/shared/lib/utils';
+import { useIsMobile } from '@/shared/hooks/useIsMobile';
 import type {
   KanbanFilterState,
   KanbanSortField,
@@ -73,6 +74,7 @@ export function KanbanFiltersDialog({
   onHideBlockedChange,
 }: KanbanFiltersDialogProps) {
   const { t } = useTranslation('common');
+  const isMobile = useIsMobile();
 
   const tagOptions: MultiSelectDropdownOption<string>[] = useCallback(
     () =>
@@ -119,6 +121,7 @@ export function KanbanFiltersDialog({
             <PriorityFilterDropdown
               values={filters.priorities}
               onChange={onPrioritiesChange}
+              iconOnly={isMobile}
             />
 
             {tags.length > 0 && (
@@ -129,6 +132,7 @@ export function KanbanFiltersDialog({
                 icon={TagIcon}
                 label={t('kanban.tags', 'Tags')}
                 menuLabel={t('kanban.filterByTag', 'Filter by tag')}
+                iconOnly={isMobile}
               />
             )}
 

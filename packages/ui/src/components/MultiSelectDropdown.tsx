@@ -47,9 +47,10 @@ export function MultiSelectDropdown<T extends string = string>({
         <button
           type="button"
           className={cn(
-            'flex items-center gap-half bg-panel rounded-sm',
+            'flex min-h-11 items-center gap-half bg-panel rounded-sm',
             'text-sm text-normal hover:bg-secondary transition-colors',
             'disabled:opacity-50 disabled:cursor-not-allowed',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1',
             'py-half',
             'px-base'
           )}
