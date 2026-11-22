@@ -105,6 +105,7 @@ mod tests {
             "create_issue",
             "update_issue",
             "update_issue_status",
+            "approve_issue",
             "get_orchestrator_prompt",
             "start_workspace",
             "run_session_prompt",
@@ -131,5 +132,15 @@ mod tests {
                 "captain prompt must not hardcode the status name {fixed_column}"
             );
         }
+    }
+
+    #[test]
+    fn bundled_prompt_makes_approval_the_only_close_signal() {
+        assert!(BUNDLED_PROMPT.contains("approve_issue"));
+        assert!(BUNDLED_PROMPT.contains("approval_scope"));
+        assert!(BUNDLED_PROMPT.contains("approval_at"));
+        assert!(BUNDLED_PROMPT.contains("Never merge, push, or open a pull request."));
+        assert!(!BUNDLED_PROMPT.contains("merge_issue"));
+        assert!(!BUNDLED_PROMPT.contains("push_issue"));
     }
 }

@@ -325,6 +325,74 @@ struct McpDeleteIssueResponse {
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct McpApproveIssueRequest {
+    #[schemars(description = "The ID of the issue to approve")]
+    issue_id: Uuid,
+    #[schemars(description = "Who is approving the issue (free-form owner id/name)")]
+    owner: String,
+    #[schemars(
+        description = "Revision/commit SHA being approved. Required when scope='revision'; ignored for scope='issue'."
+    )]
+    revision: Option<String>,
+    #[schemars(
+        description = "Approval scope: 'issue' (card accepted) or 'revision' (merge/push authorised for a specific SHA)"
+    )]
+    scope: String,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+struct McpApproveIssueResponse {
+    #[schemars(description = "The unique identifier of the issue")]
+    id: String,
+    #[schemars(description = "The human-readable issue simple ID")]
+    simple_id: String,
+    #[schemars(description = "The approval owner that was recorded")]
+    approval_owner: Option<String>,
+    #[schemars(description = "When the approval was recorded")]
+    approval_at: Option<String>,
+    #[schemars(description = "The approved revision/commit SHA, when scope='revision'")]
+    approval_revision: Option<String>,
+    #[schemars(description = "The approval scope that was recorded")]
+    approval_scope: Option<String>,
+    #[schemars(description = "When the issue was last updated")]
+    updated_at: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct McpIssueGitRequest {
+    #[schemars(description = "The ID of the issue whose linked workspace should be merged/pushed")]
+    issue_id: Uuid,
+    #[schemars(description = "The repository ID to merge/push in the linked workspace")]
+    repo_id: Uuid,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+struct McpIssueGitResponse {
+    #[schemars(description = "The workspace ID that was acted on")]
+    workspace_id: String,
+    #[schemars(description = "The repository ID that was acted on")]
+    repo_id: String,
+    #[schemars(description = "Whether the action succeeded")]
+    success: bool,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct McpPushIssueRequest {
+    #[schemars(description = "The ID of the issue whose linked workspace should be pushed")]
+    issue_id: Uuid,
+    #[schemars(description = "The repository ID to push in the linked workspace")]
+    repo_id: Uuid,
+    #[schemars(description = "Use force push when the remote branch has moved")]
+    force: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+struct IssueWorkspaceLinkRow {
+    workspace_id: Uuid,
+    issue_id: Uuid,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct McpGetIssueRequest {
     #[schemars(description = "The ID of the issue to retrieve")]
     issue_id: Uuid,
@@ -837,6 +905,116 @@ impl McpServer {
             status_id: issue.status_id.to_string(),
             updated_at: issue.updated_at.to_rfc3339(),
             warning,
+        })
+    }
+
+    #[tool(
+        description = "Record an explicit owner approval on an issue. scope='issue' marks the card accepted but does NOT authorise merge/push. scope='revision' records the approved commit SHA and is the only scope that authorises a merge/push for that revision."
+    )]
+    async fn approve_issue(
+        &self,
+        Parameters(McpApproveIssueRequest {
+            issue_id,
+            owner,
+            revision,
+            scope,
+        }): Parameters<McpApproveIssueRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let payload = serde_json::json!({
+            "owner": owner,
+            "revision": revision,
+            "scope": scope,
+        });
+        let url = self.url(&format!("/api/issues/{}/approve", issue_id));
+        let response: MutationResponse<Issue> =
+            match self.send_json(self.client.post(&url).json(&payload)).await {
+                Ok(r) => r,
+                Err(e) => return Ok(McpServer::tool_error(e)),
+            };
+
+        let issue = response.data;
+        McpServer::success(&McpApproveIssueResponse {
+            id: issue.id.to_string(),
+            simple_id: issue.simple_id.clone(),
+            approval_owner: issue.approval_owner,
+            approval_at: issue.approval_at.map(|dt| dt.to_rfc3339()),
+            approval_revision: issue.approval_revision,
+            approval_scope: issue.approval_scope,
+            updated_at: issue.updated_at.to_rfc3339(),
+        })
+    }
+
+    async fn linked_workspace_id(&self, issue_id: Uuid) -> Result<Uuid, ToolError> {
+        let url = self.url("/api/workspace-issue-links");
+        let links: Vec<IssueWorkspaceLinkRow> = self
+            .send_json(self.client.get(&url))
+            .await
+            .map_err(|e| ToolError::message(format!("failed to resolve linked workspace: {e}")))?;
+        links
+            .into_iter()
+            .find(|link| link.issue_id == issue_id)
+            .map(|link| link.workspace_id)
+            .ok_or_else(|| ToolError::message(format!("issue {issue_id} has no linked workspace")))
+    }
+
+    #[tool(
+        description = "Merge the linked workspace branch for an issue into its target branch. Requires a revision-scoped approval on the issue whose SHA matches the workspace head."
+    )]
+    async fn merge_issue(
+        &self,
+        Parameters(McpIssueGitRequest { issue_id, repo_id }): Parameters<McpIssueGitRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let workspace_id = match self.linked_workspace_id(issue_id).await {
+            Ok(id) => id,
+            Err(e) => return Ok(McpServer::tool_error(e)),
+        };
+        let url = self.url(&format!("/api/workspaces/{}/git/merge", workspace_id));
+        let payload = serde_json::json!({ "repo_id": repo_id });
+        if let Err(e) = self
+            .send_empty_json(self.client.post(&url).json(&payload))
+            .await
+        {
+            return Ok(McpServer::tool_error(e));
+        }
+        McpServer::success(&McpIssueGitResponse {
+            workspace_id: workspace_id.to_string(),
+            repo_id: repo_id.to_string(),
+            success: true,
+        })
+    }
+
+    #[tool(
+        description = "Push the linked workspace branch for an issue to its remote. Requires a revision-scoped approval on the issue whose SHA matches the workspace head. Use force=true only when the remote has moved."
+    )]
+    async fn push_issue(
+        &self,
+        Parameters(McpPushIssueRequest {
+            issue_id,
+            repo_id,
+            force,
+        }): Parameters<McpPushIssueRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let workspace_id = match self.linked_workspace_id(issue_id).await {
+            Ok(id) => id,
+            Err(e) => return Ok(McpServer::tool_error(e)),
+        };
+        let segment = if force.unwrap_or(false) {
+            "push/force"
+        } else {
+            "push"
+        };
+        let url = self.url(&format!("/api/workspaces/{}/git/{}", workspace_id, segment));
+        let payload = serde_json::json!({ "repo_id": repo_id });
+        if let Err(e) = self
+            .send_empty_json(self.client.post(&url).json(&payload))
+            .await
+        {
+            return Ok(McpServer::tool_error(e));
+        }
+        McpServer::success(&McpIssueGitResponse {
+            workspace_id: workspace_id.to_string(),
+            repo_id: repo_id.to_string(),
+            success: true,
         })
     }
 

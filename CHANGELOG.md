@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Explicit issue approval (HIVE-85)** — issue acceptance is recorded via
+  `approve_issue` (`scope='issue'`) and no longer implies merge/push permission;
+  merge/push now require a separate `scope='revision'` approval whose SHA matches
+  the linked workspace head. The captain only moves an approved review card to a
+  terminal status and never merges, pushes, or opens a PR.
 - **MCP status tools move to IDs** — new `list_project_statuses` and
   `update_issue_status` tools. `update_issue_status` accepts `status_id` (UUID)
   and validates that the ID belongs to the issue's project; `status_name` is

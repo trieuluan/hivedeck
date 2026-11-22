@@ -192,6 +192,10 @@ fn to_api_issue(i: DbIssue) -> ApiIssue {
         parent_issue_id: i.parent_issue_id,
         parent_issue_sort_order: i.parent_issue_sort_order,
         extension_metadata: i.extension_metadata,
+        approval_owner: i.approval_owner,
+        approval_at: i.approval_at,
+        approval_revision: i.approval_revision,
+        approval_scope: i.approval_scope,
         created_at: i.created_at,
         updated_at: i.updated_at,
     }
@@ -618,6 +622,47 @@ async fn update_issue(
     Ok(mutated(to_api_issue(issue)))
 }
 
+#[derive(Debug, Deserialize)]
+struct ApproveIssueRequest {
+    owner: String,
+    revision: Option<String>,
+    scope: String,
+}
+
+async fn approve_issue(
+    State(deployment): State<DeploymentImpl>,
+    Path(id): Path<Uuid>,
+    Json(req): Json<ApproveIssueRequest>,
+) -> Result<ResponseJson<ApiResponse<MutationResponse<ApiIssue>>>, ApiError> {
+    let scope = match req.scope.as_str() {
+        "issue" => "issue",
+        "revision" => "revision",
+        other => {
+            return Err(ApiError::BadRequest(format!(
+                "invalid approval scope '{other}' (expected issue|revision)"
+            )));
+        }
+    };
+    let owner = req.owner.trim();
+    if owner.is_empty() {
+        return Err(ApiError::BadRequest("approval owner is required".into()));
+    }
+    if scope == "revision" && req.revision.as_deref().is_none_or(str::is_empty) {
+        return Err(ApiError::BadRequest(
+            "revision approval requires a revision SHA".into(),
+        ));
+    }
+    let revision = if scope == "revision" {
+        req.revision.as_deref()
+    } else {
+        None
+    };
+    let issue = DbIssue::set_approval(&deployment.db().pool, id, owner, revision, scope)
+        .await?
+        .ok_or_else(|| ApiError::BadRequest("issue not found".into()))?;
+    Ok(mutated(to_api_issue(issue)))
+}
+
 async fn delete_issue(
     State(deployment): State<DeploymentImpl>,
     Path(id): Path<Uuid>,
@@ -1000,6 +1045,7 @@ pub fn router(_deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
             "/issues/{id}",
             get(get_issue).patch(update_issue).delete(delete_issue),
         )
+        .route("/issues/{id}/approve", post(approve_issue))
         .route("/issues/{id}/pull-requests", get(list_issue_pull_requests))
         .route(
             "/issues/{id}/dispatch-to-workspace",

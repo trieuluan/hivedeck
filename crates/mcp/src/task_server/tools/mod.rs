@@ -519,6 +519,7 @@ mod tests {
         let actual = tool_names(McpServer::global_mode_router());
         let expected = BTreeSet::from([
             "add_issue_tag".to_string(),
+            "approve_issue".to_string(),
             "create_issue".to_string(),
             "create_issue_relationship".to_string(),
             "create_session".to_string(),
@@ -546,12 +547,14 @@ mod tests {
             "list_sessions".to_string(),
             "list_tags".to_string(),
             "list_workspaces".to_string(),
+            "merge_issue".to_string(),
             "remove_issue_tag".to_string(),
             "respond_to_approval".to_string(),
             "run_issue_in_workspace".to_string(),
             "run_session_prompt".to_string(),
             "start_workspace".to_string(),
             "stop_execution".to_string(),
+            "push_issue".to_string(),
             "update_cleanup_script".to_string(),
             "update_dev_server_script".to_string(),
             "update_issue".to_string(),

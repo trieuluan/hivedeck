@@ -24,6 +24,15 @@ pub struct Issue {
     pub parent_issue_id: Option<Uuid>,
     pub parent_issue_sort_order: Option<f64>,
     pub extension_metadata: Value,
+    /// HIVE-85 approval: who approved this card.
+    pub approval_owner: Option<String>,
+    /// HIVE-85 approval: when the card was approved.
+    pub approval_at: Option<DateTime<Utc>>,
+    /// HIVE-85 approval: revision/commit SHA approved for merge/push.
+    pub approval_revision: Option<String>,
+    /// HIVE-85 approval scope: `issue` marks the card approved; only
+    /// `revision` authorizes merge/push for the matching workspace head.
+    pub approval_scope: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -46,6 +55,10 @@ struct IssueRow {
     parent_issue_id: Option<Uuid>,
     parent_issue_sort_order: Option<f64>,
     extension_metadata: String,
+    approval_owner: Option<String>,
+    approval_at: Option<DateTime<Utc>>,
+    approval_revision: Option<String>,
+    approval_scope: Option<String>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
 }
@@ -69,6 +82,10 @@ impl From<IssueRow> for Issue {
             parent_issue_sort_order: r.parent_issue_sort_order,
             extension_metadata: serde_json::from_str(&r.extension_metadata)
                 .unwrap_or(Value::Object(Default::default())),
+            approval_owner: r.approval_owner,
+            approval_at: r.approval_at,
+            approval_revision: r.approval_revision,
+            approval_scope: r.approval_scope,
             created_at: r.created_at,
             updated_at: r.updated_at,
         }
@@ -134,6 +151,10 @@ impl Issue {
                       parent_issue_id as "parent_issue_id: Uuid",
                       parent_issue_sort_order as "parent_issue_sort_order: f64",
                       extension_metadata,
+                      approval_owner,
+                      approval_at as "approval_at: DateTime<Utc>",
+                      approval_revision,
+                      approval_scope,
                       created_at as "created_at!: DateTime<Utc>",
                       updated_at as "updated_at!: DateTime<Utc>"
                FROM issues
@@ -164,6 +185,10 @@ impl Issue {
                       parent_issue_id as "parent_issue_id: Uuid",
                       parent_issue_sort_order as "parent_issue_sort_order: f64",
                       extension_metadata,
+                      approval_owner,
+                      approval_at as "approval_at: DateTime<Utc>",
+                      approval_revision,
+                      approval_scope,
                       created_at as "created_at!: DateTime<Utc>",
                       updated_at as "updated_at!: DateTime<Utc>"
                FROM issues
@@ -211,6 +236,10 @@ impl Issue {
                          parent_issue_id as "parent_issue_id: Uuid",
                          parent_issue_sort_order as "parent_issue_sort_order: f64",
                          extension_metadata,
+                         approval_owner,
+                         approval_at as "approval_at: DateTime<Utc>",
+                         approval_revision,
+                         approval_scope,
                          created_at as "created_at!: DateTime<Utc>",
                          updated_at as "updated_at!: DateTime<Utc>""#,
             new.id,
@@ -258,7 +287,8 @@ impl Issue {
                RETURNING id, project_id, issue_number, simple_id, status_id, title,
                          description, priority, start_date, target_date, completed_at,
                          sort_order, parent_issue_id, parent_issue_sort_order,
-                         extension_metadata, created_at, updated_at"#,
+                         extension_metadata, approval_owner, approval_at, approval_revision,
+                         approval_scope, created_at, updated_at"#,
         )
         .bind(id)
         .bind(u.status_id)
@@ -273,6 +303,39 @@ impl Issue {
         .bind(u.parent_issue_id)
         .bind(u.parent_issue_sort_order)
         .bind(u.extension_metadata)
+        .fetch_optional(pool)
+        .await?;
+        Ok(row.map(Issue::from))
+    }
+
+    /// Record an approval on the issue. `scope` is either `issue` (card is
+    /// accepted) or `revision` (a specific commit SHA is cleared for
+    /// merge/push). Only `revision` scope authorizes git operations.
+    pub async fn set_approval(
+        pool: &SqlitePool,
+        id: Uuid,
+        owner: &str,
+        revision: Option<&str>,
+        scope: &str,
+    ) -> Result<Option<Self>, sqlx::Error> {
+        let row = sqlx::query_as::<_, IssueRow>(
+            r#"UPDATE issues
+               SET approval_owner = $2,
+                   approval_at = datetime('now', 'subsec'),
+                   approval_revision = $3,
+                   approval_scope = $4,
+                   updated_at = datetime('now', 'subsec')
+               WHERE id = $1
+               RETURNING id, project_id, issue_number, simple_id, status_id, title,
+                         description, priority, start_date, target_date, completed_at,
+                         sort_order, parent_issue_id, parent_issue_sort_order,
+                         extension_metadata, approval_owner, approval_at, approval_revision,
+                         approval_scope, created_at, updated_at"#,
+        )
+        .bind(id)
+        .bind(owner)
+        .bind(revision)
+        .bind(scope)
         .fetch_optional(pool)
         .await?;
         Ok(row.map(Issue::from))
