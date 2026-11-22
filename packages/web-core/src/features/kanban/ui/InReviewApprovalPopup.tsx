@@ -17,7 +17,7 @@ import {
   PopoverTrigger,
 } from '@vibe/ui/components/Popover';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
-import { kanbanApi, type ApproveIssueScope } from '@/shared/lib/api';
+import { kanbanApi } from '@/shared/lib/api';
 import { useBranchStatus } from '@/shared/hooks/useBranchStatus';
 import { useWorkspaceRepo } from '@/shared/hooks/useWorkspaceRepo';
 import { useMerge } from '@/shared/hooks/useMerge';
@@ -81,20 +81,14 @@ export function InReviewApprovalPopup({
   }, [branchStatuses, repoId]);
 
   const [open, setOpen] = useState(false);
-  const [scope, setScope] = useState<ApproveIssueScope>(
-    issue.approval_scope === 'revision' ? 'revision' : 'issue'
-  );
-  const [revision, setRevision] = useState(issue.approval_revision ?? '');
   const [busy, setBusy] = useState<'approve' | 'merge' | 'push' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const popoverId = `in-review-approval-${issue.id}`;
 
   useEffect(() => {
     if (!open) return;
-    setScope(issue.approval_scope === 'revision' ? 'revision' : 'issue');
-    setRevision(issue.approval_revision ?? headOid ?? '');
     setError(null);
-  }, [open, issue.approval_scope, issue.approval_revision, headOid]);
+  }, [open]);
 
   const invalidateProject = useCallback(async () => {
     await refreshShapeSource(PROJECT_ISSUES_SHAPE, {
@@ -125,8 +119,10 @@ export function InReviewApprovalPopup({
 
   const approve = async () => {
     if (busy) return;
-    if (hasCodeChanges && scope === 'revision' && !revision.trim()) {
-      setError(t('review.revisionRequired', 'Cần nhập revision SHA.'));
+    if (hasCodeChanges && !headOid) {
+      setError(
+        t('review.revisionRequired', 'Chưa lấy được commit SHA hiện tại.')
+      );
       return;
     }
     setBusy('approve');
@@ -134,15 +130,14 @@ export function InReviewApprovalPopup({
     try {
       await kanbanApi.approveIssue(issue.id, {
         owner: OWNER,
-        scope: hasCodeChanges ? scope : 'issue',
-        revision:
-          hasCodeChanges && scope === 'revision' ? revision.trim() : null,
+        scope: hasCodeChanges ? 'revision' : 'issue',
+        revision: hasCodeChanges ? headOid : null,
       });
       if (!hasCodeChanges && onApprovedWithoutChanges) {
         await onApprovedWithoutChanges();
+        setOpen(false);
       }
       await invalidateProject();
-      setOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -190,19 +185,9 @@ export function InReviewApprovalPopup({
     }
   };
 
-  const approvedStatus = issue.approval_scope
-    ? t('review.approvedStatus', 'Đã duyệt bởi {{owner}}{{time}}{{revision}}', {
-        owner: issue.approval_owner ?? OWNER,
-        time: issue.approval_at
-          ? ` @ ${formatDateShortWithTime(issue.approval_at)}`
-          : '',
-        revision: issue.approval_revision
-          ? ` · ${issue.approval_revision}`
-          : '',
-      })
-    : t('review.unapprovedStatus', 'Chưa duyệt');
-
-  const isApproved = Boolean(issue.approval_scope && issue.approval_owner);
+  const isApproved = hasCodeChanges
+    ? gitUnlocked
+    : Boolean(issue.approval_scope && issue.approval_owner);
 
   if (!hasCodeChanges) {
     return (
@@ -267,69 +252,58 @@ export function InReviewApprovalPopup({
         id={popoverId}
         align="end"
         sideOffset={6}
-        className="z-[10001] flex w-[min(21rem,calc(100vw-2rem))] flex-col gap-3"
+        className="z-[10001] flex w-[min(21rem,calc(100vw-2rem))] flex-col gap-2.5"
         onOpenAutoFocus={(event) => event.preventDefault()}
         onMouseDown={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
       >
         <div
-          className="flex flex-col gap-1 rounded border border-border/80 bg-secondary/50 px-2.5 py-2"
+          className={cn(
+            'flex items-center justify-between gap-2 rounded border px-2.5 py-2 text-xs',
+            gitUnlocked
+              ? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-200'
+              : 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+          )}
           aria-live="polite"
         >
-          <span className="text-[11px] font-medium uppercase tracking-wide text-low">
-            {t('review.approvalStatus', 'Approval status')}
-          </span>
-          <span className="break-words text-xs leading-relaxed text-normal">
-            {approvedStatus}
-          </span>
-        </div>
-
-        {hasCodeChanges && (
-          <fieldset className="flex flex-col gap-1.5">
-            <legend className="sr-only">
-              {t('review.approvalScope', 'Approval scope')}
-            </legend>
-            <div className="flex gap-2">
-              <label className="inline-flex min-h-9 flex-1 cursor-pointer items-center gap-1.5 rounded border border-border bg-secondary/50 px-2.5 text-xs text-normal has-[:focus-visible]:outline has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-brand">
-                <input
-                  type="radio"
-                  name={`approval-scope-${issue.id}`}
-                  value="issue"
-                  checked={scope === 'issue'}
-                  onChange={() => setScope('issue')}
-                  className="size-3.5 accent-brand"
-                />
-                {t('review.scopeIssue', 'Issue')}
-              </label>
-              <label className="inline-flex min-h-9 flex-1 cursor-pointer items-center gap-1.5 rounded border border-border bg-secondary/50 px-2.5 text-xs text-normal has-[:focus-visible]:outline has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-brand">
-                <input
-                  type="radio"
-                  name={`approval-scope-${issue.id}`}
-                  value="revision"
-                  checked={scope === 'revision'}
-                  onChange={() => setScope('revision')}
-                  className="size-3.5 accent-brand"
-                />
-                {t('review.scopeRevision', 'Revision')}
-              </label>
-            </div>
-            {scope === 'revision' && (
-              <label className="flex flex-col gap-1">
-                <span className="text-[11px] text-low">
-                  {t('review.revisionLabel', 'Revision SHA')}
-                </span>
-                <input
-                  value={revision}
-                  onChange={(event) => setRevision(event.target.value)}
-                  placeholder={headOid ?? 'commit SHA'}
-                  className="min-h-9 rounded border border-border bg-panel px-2.5 font-ibm-plex-mono text-xs text-normal focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand"
-                  aria-label={t('review.revisionLabel', 'Revision SHA')}
-                />
-              </label>
+          <div className="flex items-center gap-1.5 min-w-0">
+            {gitUnlocked ? (
+              <CheckIcon
+                className="size-3.5 shrink-0 text-emerald-400"
+                weight="bold"
+              />
+            ) : (
+              <ShieldCheckIcon
+                className="size-3.5 shrink-0 text-amber-400"
+                weight="bold"
+              />
             )}
-          </fieldset>
-        )}
+            <span className="truncate font-medium">
+              {gitUnlocked
+                ? t('review.approvedInline', 'Đã duyệt · {{owner}}{{time}}', {
+                    owner: issue.approval_owner ?? OWNER,
+                    time: issue.approval_at
+                      ? ` · ${formatDateShortWithTime(issue.approval_at)}`
+                      : '',
+                  })
+                : t('review.unapprovedStatus', 'Chưa duyệt')}
+            </span>
+          </div>
+          {headOid && (
+            <span
+              title={headOid}
+              className={cn(
+                'rounded px-1.5 py-0.5 font-ibm-plex-mono text-[11px] shrink-0',
+                gitUnlocked
+                  ? 'bg-emerald-950/60 text-emerald-300'
+                  : 'bg-secondary/80 text-normal'
+              )}
+            >
+              {headOid.slice(0, 8)}
+            </span>
+          )}
+        </div>
 
         {error && (
           <p
@@ -345,26 +319,25 @@ export function InReviewApprovalPopup({
         )}
 
         <div className="flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={approve}
-            disabled={
-              runningAction !== null ||
-              (scope === 'revision' && !revision.trim())
-            }
-            aria-busy={runningAction === 'approve'}
-            className={cn(
-              'inline-flex h-8 w-full items-center justify-center gap-1.5 rounded bg-brand px-3 text-xs font-semibold text-white transition-colors hover:bg-brand-hover',
-              'focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
-            )}
-          >
-            {runningAction === 'approve' ? (
-              <SpinnerIcon className="size-3.5 animate-spin" weight="bold" />
-            ) : (
-              <ShieldCheckIcon className="size-3.5" weight="bold" />
-            )}
-            {t('review.approveChanges', 'Duyệt thay đổi')}
-          </button>
+          {!gitUnlocked && (
+            <button
+              type="button"
+              onClick={approve}
+              disabled={runningAction !== null || !headOid}
+              aria-busy={runningAction === 'approve'}
+              className={cn(
+                'inline-flex h-8 w-full items-center justify-center gap-1.5 rounded bg-brand px-3 text-xs font-semibold text-white transition-colors hover:bg-brand-hover',
+                'focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
+              )}
+            >
+              {runningAction === 'approve' ? (
+                <SpinnerIcon className="size-3.5 animate-spin" weight="bold" />
+              ) : (
+                <CheckIcon className="size-3.5" weight="bold" />
+              )}
+              {t('review.approveThisRevision', 'Duyệt revision này')}
+            </button>
+          )}
           <div className="grid grid-cols-2 gap-1.5">
             <button
               type="button"
@@ -374,15 +347,17 @@ export function InReviewApprovalPopup({
               }
               aria-busy={runningAction === 'merge'}
               className={cn(
-                'inline-flex h-8 w-full items-center justify-center gap-1.5 rounded border px-2.5 text-xs font-medium transition-colors',
+                'inline-flex h-8 w-full items-center justify-center gap-1.5 rounded border px-2.5 text-xs font-semibold transition-colors',
                 'focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50',
                 gitUnlocked
-                  ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25'
-                  : 'border-border bg-secondary/70 text-normal hover:bg-secondary hover:text-high'
+                  ? 'border-emerald-500/40 bg-emerald-600 text-white hover:bg-emerald-500'
+                  : 'border-border bg-secondary/70 text-low'
               )}
             >
               {runningAction === 'merge' ? (
                 <SpinnerIcon className="size-3.5 animate-spin" weight="bold" />
+              ) : !gitUnlocked ? (
+                <LockSimpleIcon className="size-3.5" weight="bold" />
               ) : (
                 <GitMergeIcon className="size-3.5" weight="bold" />
               )}
@@ -396,15 +371,17 @@ export function InReviewApprovalPopup({
               }
               aria-busy={runningAction === 'push'}
               className={cn(
-                'inline-flex h-8 w-full items-center justify-center gap-1.5 rounded border px-2.5 text-xs font-medium transition-colors',
+                'inline-flex h-8 w-full items-center justify-center gap-1.5 rounded border px-2.5 text-xs font-semibold transition-colors',
                 'focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50',
                 gitUnlocked
-                  ? 'border-sky-500/40 bg-sky-500/15 text-sky-200 hover:bg-sky-500/25'
-                  : 'border-border bg-secondary/70 text-normal hover:bg-secondary hover:text-high'
+                  ? 'border-sky-500/40 bg-sky-600 text-white hover:bg-sky-500'
+                  : 'border-border bg-secondary/70 text-low'
               )}
             >
               {runningAction === 'push' ? (
                 <SpinnerIcon className="size-3.5 animate-spin" weight="bold" />
+              ) : !gitUnlocked ? (
+                <LockSimpleIcon className="size-3.5" weight="bold" />
               ) : (
                 <PaperPlaneTiltIcon className="size-3.5" weight="bold" />
               )}
@@ -412,12 +389,11 @@ export function InReviewApprovalPopup({
             </button>
           </div>
           {!gitUnlocked && (
-            <p className="flex items-center gap-1 text-[11px] text-low">
-              <LockSimpleIcon className="size-3 shrink-0" weight="bold" />
+            <p className="flex items-center justify-center gap-1 text-[11px] text-low">
               <span>
                 {t(
                   'review.unlockHint',
-                  'Duyệt (Revision) trước để mở khóa Merge & Push'
+                  'Duyệt revision để mở khóa Merge & Push'
                 )}
               </span>
             </p>

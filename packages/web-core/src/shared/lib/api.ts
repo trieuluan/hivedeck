@@ -1918,6 +1918,10 @@ export interface ApproveIssueRequest {
  * REST route directly rather than calling MCP from the frontend.
  */
 export const kanbanApi = {
+  getIssue: async (issueId: string): Promise<RemoteIssue> => {
+    const response = await makeRequest(`/api/issues/${issueId}`);
+    return handleApiResponse<RemoteIssue>(response);
+  },
   approveIssue: async (
     issueId: string,
     data: ApproveIssueRequest

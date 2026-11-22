@@ -1,10 +1,17 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { CheckIcon, ShieldCheckIcon, SpinnerIcon } from '@phosphor-icons/react';
 import { useActions } from '@/shared/hooks/useActions';
 import { useWorkspaceContext } from '@/shared/hooks/useWorkspaceContext';
+import { useWorkspacesContext } from '@/shared/hooks/useWorkspacesContext';
 import { usePush } from '@/shared/hooks/usePush';
 import { useRenameBranch } from '@/shared/hooks/useRenameBranch';
 import { useBranchStatus } from '@/shared/hooks/useBranchStatus';
 import { useUiPreferencesStore } from '@/shared/stores/useUiPreferencesStore';
+import { kanbanApi } from '@/shared/lib/api';
+import { refreshShapeSource } from '@/shared/lib/electric/collections';
+import { revisionApprovalMatchesHead } from '@/features/kanban/ui/InReviewApprovalPopup';
+import { PROJECT_ISSUES_SHAPE } from 'shared/remote-types';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
 import { ForcePushDialog } from '@/shared/dialogs/command-bar/ForcePushDialog';
 import { CommandBarDialog } from '@/shared/dialogs/command-bar/CommandBarDialog';
@@ -25,13 +32,120 @@ export function GitPanelContainer({
   repos,
 }: GitPanelContainerProps) {
   const { executeAction } = useActions();
+  const queryClient = useQueryClient();
   const { activeWorkspaces, archivedWorkspaces } = useWorkspaceContext();
+  const { workspaces: remoteWorkspaces } = useWorkspacesContext();
   const repoActions = useUiPreferencesStore((s) => s.repoActions);
   const setRepoAction = useUiPreferencesStore((s) => s.setRepoAction);
+  const [approvingRevision, setApprovingRevision] = useState(false);
 
   // Hooks for branch management (moved from WorkspacesLayout)
   const renameBranch = useRenameBranch(selectedWorkspace?.id);
   const { data: branchStatus } = useBranchStatus(selectedWorkspace?.id);
+
+  const linkedRemoteWorkspace = useMemo(() => {
+    if (!selectedWorkspace?.id) return null;
+    return (
+      remoteWorkspaces.find(
+        (w) => w.local_workspace_id === selectedWorkspace.id
+      ) ?? null
+    );
+  }, [remoteWorkspaces, selectedWorkspace?.id]);
+
+  const linkedIssueId = linkedRemoteWorkspace?.issue_id ?? null;
+  const { data: linkedIssue } = useQuery({
+    queryKey: ['issue', linkedIssueId],
+    queryFn: () => kanbanApi.getIssue(linkedIssueId!),
+    enabled: !!linkedIssueId,
+  });
+
+  const headOid = useMemo(() => {
+    if (!branchStatus || branchStatus.length === 0) return null;
+    const primaryRepoId = repos[0]?.id;
+    const matching = primaryRepoId
+      ? branchStatus.find((s) => s.repo_id === primaryRepoId)
+      : undefined;
+    return matching?.head_oid ?? branchStatus[0]?.head_oid ?? null;
+  }, [branchStatus, repos]);
+
+  const isRevisionApproved = Boolean(
+    linkedIssue && revisionApprovalMatchesHead(linkedIssue, headOid)
+  );
+
+  const handleApproveRevision = useCallback(async () => {
+    if (!linkedIssue || !headOid || approvingRevision) return;
+    setApprovingRevision(true);
+    try {
+      await kanbanApi.approveIssue(linkedIssue.id, {
+        owner: 'owner',
+        scope: 'revision',
+        revision: headOid,
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ['issue', linkedIssue.id],
+      });
+      await refreshShapeSource(PROJECT_ISSUES_SHAPE, {
+        project_id: linkedIssue.project_id,
+      });
+    } finally {
+      setApprovingRevision(false);
+    }
+  }, [linkedIssue, headOid, approvingRevision, queryClient]);
+
+  const approvalGate = useMemo(() => {
+    if (!linkedIssue || !headOid) return undefined;
+    const shortSha = headOid.slice(0, 8);
+    if (isRevisionApproved) {
+      return (
+        <div className="flex items-center justify-between gap-2 rounded border border-emerald-500/35 bg-emerald-500/10 px-2.5 py-2 text-xs text-emerald-200">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <CheckIcon
+              className="size-3.5 shrink-0 text-emerald-400"
+              weight="bold"
+            />
+            <span className="truncate font-medium">
+              Đã duyệt · {linkedIssue.approval_owner ?? 'owner'}
+            </span>
+          </div>
+          <span className="rounded bg-emerald-950/60 px-1.5 py-0.5 font-ibm-plex-mono text-[11px] text-emerald-300 shrink-0">
+            {shortSha}
+          </span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center justify-between gap-2 rounded border border-amber-500/35 bg-amber-500/10 px-2.5 py-2 text-xs">
+        <div className="flex items-center gap-1.5 min-w-0 text-amber-200">
+          <ShieldCheckIcon
+            className="size-3.5 shrink-0 text-amber-400"
+            weight="bold"
+          />
+          <span className="truncate font-medium">Chưa duyệt</span>
+          <span className="font-ibm-plex-mono text-[11px] text-amber-300/80 shrink-0">
+            {shortSha}
+          </span>
+        </div>
+        <button
+          type="button"
+          disabled={approvingRevision}
+          onClick={() => void handleApproveRevision()}
+          className="inline-flex h-7 shrink-0 items-center gap-1 rounded bg-brand px-2.5 text-xs font-semibold text-white transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {approvingRevision && (
+            <SpinnerIcon className="size-3 animate-spin" weight="bold" />
+          )}
+          Duyệt revision
+        </button>
+      </div>
+    );
+  }, [
+    linkedIssue,
+    headOid,
+    isRevisionApproved,
+    approvingRevision,
+    handleApproveRevision,
+  ]);
 
   // Get PR info from workspace summary (available immediately, no git calls needed)
   const summaryPr = useMemo(() => {
@@ -194,9 +308,10 @@ export function GitPanelContainer({
           isPushPending: state === 'pending',
           isPushSuccess: state === 'success',
           isPushError: state === 'error',
+          actionsLocked: Boolean(linkedIssue && !isRevisionApproved),
         };
       }),
-    [repoInfos, pushStates]
+    [repoInfos, pushStates, linkedIssue, isRevisionApproved]
   );
 
   // Handle opening command bar for repo actions
@@ -267,6 +382,7 @@ export function GitPanelContainer({
       onPushClick={handlePushClick}
       onMoreClick={handleMoreClick}
       onAddRepo={() => console.log('Add repo clicked')}
+      approvalGate={approvalGate}
     />
   );
 }

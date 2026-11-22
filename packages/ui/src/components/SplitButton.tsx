@@ -1,11 +1,11 @@
-import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
-import { CaretDownIcon, CheckIcon, type Icon } from '@phosphor-icons/react';
-import { cn } from '../lib/cn';
+import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
+import { CaretDownIcon, CheckIcon, type Icon } from "@phosphor-icons/react";
+import { cn } from "../lib/cn";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-} from './Dropdown';
+} from "./Dropdown";
 
 export interface SplitButtonOption<T extends string> {
   value: T;
@@ -29,20 +29,19 @@ export function SplitButton<T extends string>({
   className,
 }: SplitButtonProps<T>) {
   const selectedOption = options.find((opt) => opt.value === selectedValue);
-  const label = selectedOption?.label ?? '';
+  const label = selectedOption?.label ?? "";
 
   return (
-    <div className={cn('flex', className)}>
-      <div className="flex items-stretch gap-[2px]">
+    <div className={cn("flex w-full", className)}>
+      <div className="flex w-full items-stretch">
         {/* Primary CTA button */}
         <button
           type="button"
           onClick={() => onAction(selectedValue)}
           className={cn(
-            'flex-1 bg-panel px-base py-half',
-            'text-sm text-normal',
-            'focus:outline-none focus-visible:ring-1 focus-visible:ring-brand focus-visible:ring-inset',
-            'rounded-l-sm'
+            "inline-flex h-8 flex-1 items-center justify-center truncate whitespace-nowrap rounded-l border border-border bg-panel px-2",
+            "text-xs font-medium text-normal transition-colors hover:bg-tertiary hover:text-high",
+            "focus:outline-none focus-visible:ring-1 focus-visible:ring-brand focus-visible:ring-inset",
           )}
         >
           {label}
@@ -52,12 +51,12 @@ export function SplitButton<T extends string>({
         <DropdownMenu>
           <DropdownMenuPrimitive.Trigger
             className={cn(
-              'flex items-center justify-center bg-panel px-base py-half',
-              'focus:outline-none focus-visible:ring-1 focus-visible:ring-brand focus-visible:ring-inset',
-              'rounded-r-sm'
+              "inline-flex h-8 items-center justify-center rounded-r border border-l-0 border-border bg-panel px-1.5",
+              "text-low transition-colors hover:bg-tertiary hover:text-high",
+              "focus:outline-none focus-visible:ring-1 focus-visible:ring-brand focus-visible:ring-inset",
             )}
           >
-            <CaretDownIcon className="size-icon-xs text-low" weight="bold" />
+            <CaretDownIcon className="size-3" weight="bold" />
           </DropdownMenuPrimitive.Trigger>
           <DropdownMenuContent align="end">
             {options.map((option) => (

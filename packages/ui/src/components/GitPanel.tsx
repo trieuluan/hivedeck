@@ -1,9 +1,10 @@
-import { GitBranchIcon } from '@phosphor-icons/react';
-import { useTranslation } from 'react-i18next';
-import { cn } from '../lib/cn';
-import { RepoCard, type RepoAction } from './RepoCard';
-import { InputField } from './InputField';
-import { ErrorAlert } from './ErrorAlert';
+import type { ReactNode } from "react";
+import { GitBranchIcon } from "@phosphor-icons/react";
+import { useTranslation } from "react-i18next";
+import { cn } from "../lib/cn";
+import { RepoCard, type RepoAction } from "./RepoCard";
+import { InputField } from "./InputField";
+import { ErrorAlert } from "./ErrorAlert";
 
 export interface RepoInfo {
   id: string;
@@ -14,13 +15,14 @@ export interface RepoInfo {
   remoteCommitsAhead?: number;
   prNumber?: number;
   prUrl?: string;
-  prStatus?: 'open' | 'merged' | 'closed' | 'unknown';
+  prStatus?: "open" | "merged" | "closed" | "unknown";
   showPushButton?: boolean;
   isPushPending?: boolean;
   isPushSuccess?: boolean;
   isPushError?: boolean;
   isTargetRemote?: boolean;
   hasUncommittedChanges?: boolean;
+  actionsLocked?: boolean;
 }
 
 interface GitPanelProps {
@@ -33,6 +35,7 @@ interface GitPanelProps {
   onPushClick?: (repoId: string) => void;
   onMoreClick?: (repoId: string) => void;
   onAddRepo?: () => void;
+  approvalGate?: ReactNode;
   className?: string;
   error?: string | null;
 }
@@ -46,19 +49,21 @@ export function GitPanel({
   onRepoActionChange,
   onPushClick,
   onMoreClick,
+  approvalGate,
   className,
   error,
 }: GitPanelProps) {
-  const { t } = useTranslation(['tasks', 'common']);
+  const { t } = useTranslation(["tasks", "common"]);
 
   return (
     <div
       className={cn(
-        'flex flex-col flex-1 w-full bg-secondary text-low overflow-y-auto',
-        className
+        "flex flex-col flex-1 w-full bg-secondary text-low overflow-y-auto",
+        className,
       )}
     >
       {error && <ErrorAlert message={error} />}
+      {approvalGate && <div className="px-base pt-base">{approvalGate}</div>}
       <div className="gap-base px-base">
         {repos.map((repo) => (
           <RepoCard
@@ -77,12 +82,13 @@ export function GitPanel({
             isPushError={repo.isPushError}
             isTargetRemote={repo.isTargetRemote}
             hasUncommittedChanges={repo.hasUncommittedChanges}
-            selectedAction={repoSelectedActions?.[repo.id] ?? 'pull-request'}
+            actionsLocked={repo.actionsLocked}
+            selectedAction={repoSelectedActions?.[repo.id] ?? "pull-request"}
             onSelectedActionChange={(action) =>
               onRepoActionChange?.(repo.id, action)
             }
-            onChangeTarget={() => onActionsClick?.(repo.id, 'change-target')}
-            onRebase={() => onActionsClick?.(repo.id, 'rebase')}
+            onChangeTarget={() => onActionsClick?.(repo.id, "change-target")}
+            onRebase={() => onActionsClick?.(repo.id, "rebase")}
             onActionsClick={(action) => onActionsClick?.(repo.id, action)}
             onPushClick={() => onPushClick?.(repo.id)}
             onMoreClick={() => onMoreClick?.(repo.id)}
@@ -92,14 +98,14 @@ export function GitPanel({
           <div className="flex gap-base items-center">
             <GitBranchIcon className="size-icon-md text-base" weight="fill" />
             <p className="font-medium truncate">
-              {t('common:sections.workingBranch')}
+              {t("common:sections.workingBranch")}
             </p>
           </div>
           <InputField
             variant="editable"
             value={workingBranchName}
             onChange={onWorkingBranchNameChange}
-            placeholder={t('gitPanel.advanced.placeholder')}
+            placeholder={t("gitPanel.advanced.placeholder")}
           />
         </div>
       </div>

@@ -995,9 +995,12 @@ export function KanbanContainer() {
             localWorkspaceId: workspace.local_workspace_id,
             name: workspace.name,
             archived: workspace.archived,
-            filesChanged: workspace.files_changed ?? 0,
-            linesAdded: workspace.lines_added ?? 0,
-            linesRemoved: workspace.lines_removed ?? 0,
+            filesChanged:
+              workspace.files_changed ?? localWorkspace?.filesChanged ?? 0,
+            linesAdded:
+              workspace.lines_added ?? localWorkspace?.linesAdded ?? 0,
+            linesRemoved:
+              workspace.lines_removed ?? localWorkspace?.linesRemoved ?? 0,
             prs: prsByWorkspaceId.get(workspace.id) ?? [],
             owner: null,
             updatedAt: workspace.updated_at,
@@ -1612,7 +1615,7 @@ export function KanbanContainer() {
             <KanbanProvider
               className="w-max min-w-full h-full min-h-0 gap-3 divide-x-0 border-x-0 pb-4"
               style={{
-                gridTemplateColumns: `repeat(${boardStatusesFiltered.length}, 336px)`,
+                gridTemplateColumns: `repeat(${boardStatusesFiltered.length}, 380px)`,
               }}
             >
               {boardStatusesFiltered.map((status) => {
@@ -1715,7 +1718,9 @@ export function KanbanContainer() {
                           if (issue.status_id !== reviewStatusId) {
                             return undefined;
                           }
-                          return issueWorkspaces.find((workspace) => {
+                          const isGitWorkspace = (
+                            workspace: WorkspaceWithStats
+                          ) => {
                             const localWorkspace = workspace.localWorkspaceId
                               ? localWorkspacesById.get(
                                   workspace.localWorkspaceId
@@ -1725,7 +1730,12 @@ export function KanbanContainer() {
                               !!localWorkspace?.branch &&
                               localWorkspace.kind !== 'orchestrator'
                             );
-                          });
+                          };
+                          return (
+                            issueWorkspaces.find(
+                              (w) => isGitWorkspace(w) && w.filesChanged > 0
+                            ) ?? issueWorkspaces.find(isGitWorkspace)
+                          );
                         })();
                         const inReviewGitLocalWorkspace =
                           inReviewGitWorkspace?.localWorkspaceId
@@ -1970,19 +1980,24 @@ export function KanbanContainer() {
                                 issue.status_id !== reviewStatusId &&
                                 issueWorkspaces.length === 0 &&
                                 dispatchWorkspaces.length > 0;
-                              const singleInReviewWs =
-                                issue.status_id === reviewStatusId &&
-                                issueWorkspaces.length === 1
-                                  ? issueWorkspaces[0]
+                              const primaryInReviewWs =
+                                issue.status_id === reviewStatusId
+                                  ? (inReviewGitWorkspace ?? issueWorkspaces[0])
                                   : undefined;
+                              const singleInReviewWs = primaryInReviewWs;
                               const singleDiffWs =
-                                (issue.status_id === reviewStatusId ||
-                                  isDoneStatus(status)) &&
-                                issueWorkspaces.length === 1 &&
-                                issueWorkspaces[0]?.localWorkspaceId &&
-                                issueWorkspaces[0].filesChanged > 0
-                                  ? issueWorkspaces[0]
-                                  : undefined;
+                                issue.status_id === reviewStatusId
+                                  ? primaryInReviewWs?.localWorkspaceId &&
+                                    primaryInReviewWs.filesChanged > 0
+                                    ? primaryInReviewWs
+                                    : undefined
+                                  : isDoneStatus(status)
+                                    ? issueWorkspaces.find(
+                                        (w) =>
+                                          w.localWorkspaceId &&
+                                          w.filesChanged > 0
+                                      )
+                                    : undefined;
                               const hasOpenWorkspaceBtn =
                                 !!singleInReviewWs?.localWorkspaceId;
                               const hasInReviewApproval = Boolean(
