@@ -1957,6 +1957,9 @@ export function KanbanContainer() {
                                     inReviewGitWorkspace.localWorkspaceId
                                   }
                                   branch={inReviewGitLocalWorkspace.branch}
+                                  hasCodeChanges={
+                                    inReviewGitWorkspace.filesChanged > 0
+                                  }
                                 />
                               )}
                             {(() => {

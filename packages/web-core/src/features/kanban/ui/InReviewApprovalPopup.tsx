@@ -51,6 +51,7 @@ export interface InReviewApprovalPopupProps {
   projectId: string;
   workspaceId: string;
   branch: string;
+  hasCodeChanges?: boolean;
 }
 
 export function InReviewApprovalPopup({
@@ -58,6 +59,7 @@ export function InReviewApprovalPopup({
   projectId,
   workspaceId,
   branch,
+  hasCodeChanges = true,
 }: InReviewApprovalPopupProps) {
   const { t } = useTranslation('kanban');
   const queryClient = useQueryClient();
@@ -202,10 +204,16 @@ export function InReviewApprovalPopup({
           aria-haspopup="dialog"
           aria-expanded={open}
           aria-controls={popoverId}
-          aria-label={t('review.openPopup', 'Owner duyệt / merge / push')}
+          aria-label={
+            hasCodeChanges
+              ? t('review.openPopup', 'Owner duyệt / merge / push')
+              : t('review.approve', 'Duyệt')
+          }
         >
           <ShieldCheckIcon className="size-4 shrink-0" weight="bold" />
-          {t('review.button', 'Duyệt / Merge / Push')}
+          {hasCodeChanges
+            ? t('review.button', 'Duyệt / Merge / Push')
+            : t('review.approve', 'Duyệt')}
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -227,49 +235,51 @@ export function InReviewApprovalPopup({
           </span>
         </div>
 
-        <fieldset className="flex flex-col gap-1.5">
-          <legend className="sr-only">
-            {t('review.approvalScope', 'Approval scope')}
-          </legend>
-          <div className="flex gap-2">
-            <label className="inline-flex min-h-9 flex-1 cursor-pointer items-center gap-1.5 rounded border border-border bg-secondary/50 px-2.5 text-xs text-normal has-[:focus-visible]:outline has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-brand">
-              <input
-                type="radio"
-                name={`approval-scope-${issue.id}`}
-                value="issue"
-                checked={scope === 'issue'}
-                onChange={() => setScope('issue')}
-                className="size-3.5 accent-brand"
-              />
-              {t('review.scopeIssue', 'Issue')}
-            </label>
-            <label className="inline-flex min-h-9 flex-1 cursor-pointer items-center gap-1.5 rounded border border-border bg-secondary/50 px-2.5 text-xs text-normal has-[:focus-visible]:outline has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-brand">
-              <input
-                type="radio"
-                name={`approval-scope-${issue.id}`}
-                value="revision"
-                checked={scope === 'revision'}
-                onChange={() => setScope('revision')}
-                className="size-3.5 accent-brand"
-              />
-              {t('review.scopeRevision', 'Revision')}
-            </label>
-          </div>
-          {scope === 'revision' && (
-            <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-low">
-                {t('review.revisionLabel', 'Revision SHA')}
-              </span>
-              <input
-                value={revision}
-                onChange={(event) => setRevision(event.target.value)}
-                placeholder={headOid ?? 'commit SHA'}
-                className="min-h-9 rounded border border-border bg-panel px-2.5 font-ibm-plex-mono text-xs text-normal focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand"
-                aria-label={t('review.revisionLabel', 'Revision SHA')}
-              />
-            </label>
-          )}
-        </fieldset>
+        {hasCodeChanges && (
+          <fieldset className="flex flex-col gap-1.5">
+            <legend className="sr-only">
+              {t('review.approvalScope', 'Approval scope')}
+            </legend>
+            <div className="flex gap-2">
+              <label className="inline-flex min-h-9 flex-1 cursor-pointer items-center gap-1.5 rounded border border-border bg-secondary/50 px-2.5 text-xs text-normal has-[:focus-visible]:outline has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-brand">
+                <input
+                  type="radio"
+                  name={`approval-scope-${issue.id}`}
+                  value="issue"
+                  checked={scope === 'issue'}
+                  onChange={() => setScope('issue')}
+                  className="size-3.5 accent-brand"
+                />
+                {t('review.scopeIssue', 'Issue')}
+              </label>
+              <label className="inline-flex min-h-9 flex-1 cursor-pointer items-center gap-1.5 rounded border border-border bg-secondary/50 px-2.5 text-xs text-normal has-[:focus-visible]:outline has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-brand">
+                <input
+                  type="radio"
+                  name={`approval-scope-${issue.id}`}
+                  value="revision"
+                  checked={scope === 'revision'}
+                  onChange={() => setScope('revision')}
+                  className="size-3.5 accent-brand"
+                />
+                {t('review.scopeRevision', 'Revision')}
+              </label>
+            </div>
+            {scope === 'revision' && (
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] text-low">
+                  {t('review.revisionLabel', 'Revision SHA')}
+                </span>
+                <input
+                  value={revision}
+                  onChange={(event) => setRevision(event.target.value)}
+                  placeholder={headOid ?? 'commit SHA'}
+                  className="min-h-9 rounded border border-border bg-panel px-2.5 font-ibm-plex-mono text-xs text-normal focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand"
+                  aria-label={t('review.revisionLabel', 'Revision SHA')}
+                />
+              </label>
+            )}
+          </fieldset>
+        )}
 
         {error && (
           <p
@@ -305,44 +315,48 @@ export function InReviewApprovalPopup({
             )}
             {t('review.approve', 'Duyệt')}
           </button>
-          <button
-            type="button"
-            onClick={() => void confirmGit('merge')}
-            disabled={
-              !gitUnlocked || !repoId || !headOid || runningAction !== null
-            }
-            aria-busy={runningAction === 'merge'}
-            className={cn(
-              'inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded border border-border bg-secondary/70 px-3 text-xs font-medium text-normal transition-colors hover:bg-secondary hover:text-high',
-              'focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
-            )}
-          >
-            {runningAction === 'merge' ? (
-              <SpinnerIcon className="size-4 animate-spin" weight="bold" />
-            ) : (
-              <GitMergeIcon className="size-4" weight="bold" />
-            )}
-            {t('review.merge', 'Merge')}
-          </button>
-          <button
-            type="button"
-            onClick={() => void confirmGit('push')}
-            disabled={
-              !gitUnlocked || !repoId || !headOid || runningAction !== null
-            }
-            aria-busy={runningAction === 'push'}
-            className={cn(
-              'inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded border border-border bg-secondary/70 px-3 text-xs font-medium text-normal transition-colors hover:bg-secondary hover:text-high',
-              'focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
-            )}
-          >
-            {runningAction === 'push' ? (
-              <SpinnerIcon className="size-4 animate-spin" weight="bold" />
-            ) : (
-              <PaperPlaneTiltIcon className="size-4" weight="bold" />
-            )}
-            {t('review.push', 'Push')}
-          </button>
+          {hasCodeChanges && (
+            <>
+              <button
+                type="button"
+                onClick={() => void confirmGit('merge')}
+                disabled={
+                  !gitUnlocked || !repoId || !headOid || runningAction !== null
+                }
+                aria-busy={runningAction === 'merge'}
+                className={cn(
+                  'inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded border border-border bg-secondary/70 px-3 text-xs font-medium text-normal transition-colors hover:bg-secondary hover:text-high',
+                  'focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
+                )}
+              >
+                {runningAction === 'merge' ? (
+                  <SpinnerIcon className="size-4 animate-spin" weight="bold" />
+                ) : (
+                  <GitMergeIcon className="size-4" weight="bold" />
+                )}
+                {t('review.merge', 'Merge')}
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmGit('push')}
+                disabled={
+                  !gitUnlocked || !repoId || !headOid || runningAction !== null
+                }
+                aria-busy={runningAction === 'push'}
+                className={cn(
+                  'inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded border border-border bg-secondary/70 px-3 text-xs font-medium text-normal transition-colors hover:bg-secondary hover:text-high',
+                  'focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50'
+                )}
+              >
+                {runningAction === 'push' ? (
+                  <SpinnerIcon className="size-4 animate-spin" weight="bold" />
+                ) : (
+                  <PaperPlaneTiltIcon className="size-4" weight="bold" />
+                )}
+                {t('review.push', 'Push')}
+              </button>
+            </>
+          )}
         </div>
       </PopoverContent>
     </Popover>
