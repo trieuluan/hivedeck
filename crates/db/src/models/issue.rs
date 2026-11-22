@@ -324,6 +324,7 @@ impl Issue {
                    approval_at = datetime('now', 'subsec'),
                    approval_revision = $3,
                    approval_scope = $4,
+                   extension_metadata = CASE WHEN json_type(extension_metadata) = 'object' THEN json_remove(extension_metadata, '$.hivedeck_approval_proposal') ELSE extension_metadata END,
                    updated_at = datetime('now', 'subsec')
                WHERE id = $1
                RETURNING id, project_id, issue_number, simple_id, status_id, title,
@@ -339,6 +340,50 @@ impl Issue {
         .fetch_optional(pool)
         .await?;
         Ok(row.map(Issue::from))
+    }
+
+    pub async fn propose_revision_approval(
+        pool: &SqlitePool,
+        id: Uuid,
+        proposal_id: Uuid,
+        revision: &str,
+        reason: &str,
+    ) -> Result<Option<Self>, sqlx::Error> {
+        let result = sqlx::query(
+            "UPDATE issues SET extension_metadata = json_set(CASE WHEN json_type(extension_metadata) = 'object' THEN extension_metadata ELSE '{}' END, '$.hivedeck_approval_proposal', json_object('id', ?2, 'revision', ?3, 'reason', ?4)), approval_owner = NULL, approval_at = NULL, approval_revision = NULL, approval_scope = NULL, updated_at = datetime('now', 'subsec') WHERE id = ?1 AND json_type(extension_metadata) IN ('object', 'null')",
+        )
+        .bind(id)
+        .bind(proposal_id.to_string())
+        .bind(revision)
+        .bind(reason)
+        .execute(pool)
+        .await?;
+        if result.rows_affected() == 0 {
+            return Ok(None);
+        }
+        Self::find_by_id(pool, id).await
+    }
+
+    pub async fn confirm_revision_approval(
+        pool: &SqlitePool,
+        id: Uuid,
+        proposal_id: Uuid,
+        revision: &str,
+        owner: &str,
+    ) -> Result<Option<Self>, sqlx::Error> {
+        let result = sqlx::query(
+            "UPDATE issues SET approval_owner = ?4, approval_at = datetime('now', 'subsec'), approval_revision = ?3, approval_scope = 'revision', extension_metadata = json_remove(extension_metadata, '$.hivedeck_approval_proposal'), updated_at = datetime('now', 'subsec') WHERE id = ?1 AND json_extract(extension_metadata, '$.hivedeck_approval_proposal.id') = ?2 AND json_extract(extension_metadata, '$.hivedeck_approval_proposal.revision') = ?3",
+        )
+        .bind(id)
+        .bind(proposal_id.to_string())
+        .bind(revision)
+        .bind(owner)
+        .execute(pool)
+        .await?;
+        if result.rows_affected() == 0 {
+            return Ok(None);
+        }
+        Self::find_by_id(pool, id).await
     }
 
     pub async fn delete(pool: &SqlitePool, id: Uuid) -> Result<u64, sqlx::Error> {

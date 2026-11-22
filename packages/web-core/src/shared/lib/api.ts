@@ -1935,4 +1935,17 @@ export const kanbanApi = {
     );
     return result.data;
   },
+  confirmRevisionProposal: async (
+    issueId: string,
+    data: { proposal_id: string; revision: string; owner: string }
+  ): Promise<RemoteIssue> => {
+    const response = await makeRequest(
+      `/api/issues/${issueId}/approval-proposal/confirm`,
+      { method: 'POST', body: JSON.stringify(data) }
+    );
+    const result = await handleApiResponse<{ data: RemoteIssue; txid: number }>(
+      response
+    );
+    return result.data;
+  },
 };

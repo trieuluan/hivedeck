@@ -195,6 +195,14 @@ struct IssueDetails {
     target_date: Option<String>,
     #[schemars(description = "Optional completion date")]
     completed_at: Option<String>,
+    #[schemars(description = "Pending revision proposal with id, revision and reason, if any")]
+    approval_proposal: Option<serde_json::Value>,
+    #[schemars(description = "Approved revision, if any")]
+    approval_revision: Option<String>,
+    #[schemars(description = "Approval scope, if any")]
+    approval_scope: Option<String>,
+    #[schemars(description = "When the approval was recorded, if any")]
+    approval_at: Option<String>,
     #[schemars(description = "When the issue was created")]
     created_at: String,
     #[schemars(description = "When the issue was last updated")]
@@ -338,6 +346,21 @@ struct McpApproveIssueRequest {
         description = "Approval scope: 'issue' (card accepted) or 'revision' (merge/push authorised for a specific SHA)"
     )]
     scope: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct McpProposeRevisionRequest {
+    issue_id: Uuid,
+    revision: String,
+    reason: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct McpConfirmRevisionRequest {
+    issue_id: Uuid,
+    proposal_id: Uuid,
+    revision: String,
+    owner: String,
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]
@@ -909,6 +932,43 @@ impl McpServer {
     }
 
     #[tool(
+        description = "Propose a revision for owner confirmation, with a reason. This does not approve or authorize merge/push. Returns the proposal id and revision in extension_metadata. A new proposal replaces the old one."
+    )]
+    async fn propose_revision_approval(
+        &self,
+        Parameters(req): Parameters<McpProposeRevisionRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let url = self.url(&format!("/api/issues/{}/approval-proposal", req.issue_id));
+        let payload = serde_json::json!({"revision": req.revision, "reason": req.reason});
+        let response: MutationResponse<Issue> =
+            match self.send_json(self.client.post(&url).json(&payload)).await {
+                Ok(response) => response,
+                Err(error) => return Ok(McpServer::tool_error(error)),
+            };
+        McpServer::success(&response.data)
+    }
+
+    #[tool(
+        description = "Confirm the specific pending proposal and revision after the owner confirms, including when the owner directly delegates confirmation through chat. Does not merge or push. A replaced proposal or mismatched revision is rejected."
+    )]
+    async fn confirm_revision_approval(
+        &self,
+        Parameters(req): Parameters<McpConfirmRevisionRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let url = self.url(&format!(
+            "/api/issues/{}/approval-proposal/confirm",
+            req.issue_id
+        ));
+        let payload = serde_json::json!({"proposal_id": req.proposal_id, "revision": req.revision, "owner": req.owner});
+        let response: MutationResponse<Issue> =
+            match self.send_json(self.client.post(&url).json(&payload)).await {
+                Ok(response) => response,
+                Err(error) => return Ok(McpServer::tool_error(error)),
+            };
+        McpServer::success(&response.data)
+    }
+
+    #[tool(
         description = "Record an explicit owner approval on an issue. scope='issue' marks the card accepted but does NOT authorise merge/push. scope='revision' records the approved commit SHA and is the only scope that authorises a merge/push for that revision."
     )]
     async fn approve_issue(
@@ -1140,6 +1200,13 @@ impl McpServer {
             start_date: issue.start_date.map(|date| date.to_rfc3339()),
             target_date: issue.target_date.map(|date| date.to_rfc3339()),
             completed_at: issue.completed_at.map(|date| date.to_rfc3339()),
+            approval_proposal: issue
+                .extension_metadata
+                .get("hivedeck_approval_proposal")
+                .cloned(),
+            approval_revision: issue.approval_revision.clone(),
+            approval_scope: issue.approval_scope.clone(),
+            approval_at: issue.approval_at.map(|date| date.to_rfc3339()),
             created_at: issue.created_at.to_rfc3339(),
             updated_at: issue.updated_at.to_rfc3339(),
             pull_requests: pull_requests
@@ -1496,6 +1563,95 @@ fn build_update_ack(
 mod tests {
     use super::*;
 
+    #[tokio::test]
+    async fn chat_approval_tools_send_explicit_revision_and_owner() {
+        use crate::task_server::McpMode;
+        use axum::{
+            Json, Router,
+            extract::{OriginalUri, State},
+            routing::post,
+        };
+        use rmcp::handler::server::tool::ToolRouter;
+        use std::sync::{Arc, Mutex};
+        type Captured = Arc<Mutex<Vec<(String, serde_json::Value)>>>;
+        async fn record(
+            State((calls, issue)): State<(Captured, serde_json::Value)>,
+            OriginalUri(uri): OriginalUri,
+            Json(body): Json<serde_json::Value>,
+        ) -> Json<serde_json::Value> {
+            calls.lock().unwrap().push((uri.path().to_string(), body));
+            Json(
+                serde_json::json!({"success": true, "data": {"data": issue, "txid": 1}, "message": null}),
+            )
+        }
+        let issue = issue_fixture(None, None);
+        let calls: Captured = Arc::default();
+        let app = Router::new()
+            .route("/api/issues/{id}/approve", post(record))
+            .route("/api/issues/{id}/approval-proposal", post(record))
+            .route("/api/issues/{id}/approval-proposal/confirm", post(record))
+            .with_state((calls.clone(), serde_json::to_value(&issue).unwrap()));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let task = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let server = McpServer {
+            client: reqwest::Client::new(),
+            base_url: format!("http://{addr}"),
+            tool_router: ToolRouter::default(),
+            context: None,
+            mode: McpMode::Global,
+            headed_local_control: false,
+        };
+        let proposal_id = Uuid::new_v4();
+        assert_ne!(
+            server
+                .propose_revision_approval(Parameters(McpProposeRevisionRequest {
+                    issue_id: issue.id,
+                    revision: "abc".into(),
+                    reason: "ready".into()
+                }))
+                .await
+                .unwrap()
+                .is_error,
+            Some(true)
+        );
+        assert_ne!(
+            server
+                .confirm_revision_approval(Parameters(McpConfirmRevisionRequest {
+                    issue_id: issue.id,
+                    proposal_id,
+                    revision: "abc".into(),
+                    owner: "owner".into()
+                }))
+                .await
+                .unwrap()
+                .is_error,
+            Some(true)
+        );
+        assert_ne!(
+            server
+                .approve_issue(Parameters(McpApproveIssueRequest {
+                    issue_id: issue.id,
+                    owner: "owner".into(),
+                    revision: Some("abc".into()),
+                    scope: "revision".into()
+                }))
+                .await
+                .unwrap()
+                .is_error,
+            Some(true)
+        );
+        let calls = calls.lock().unwrap();
+        assert!(calls[0].0.ends_with("/approval-proposal"));
+        assert_eq!(calls[0].1["reason"], "ready");
+        assert!(calls[1].0.ends_with("/approval-proposal/confirm"));
+        assert_eq!(calls[1].1["proposal_id"], proposal_id.to_string());
+        assert_eq!(calls[1].1["revision"], "abc");
+        assert!(calls[2].0.ends_with("/approve"));
+        assert_eq!(calls[2].1["owner"], "owner");
+        task.abort();
+    }
+
     /// A body big enough to matter (~4 KB) carrying a unique needle, so a test can assert the
     /// body survives NOWHERE in the serialized ack.
     const BODY_NEEDLE: &str = "NEEDLE-SPEC-BODY-MUST-NOT-BE-ECHOED";
@@ -1846,6 +2002,10 @@ mod tests {
             start_date: None,
             target_date: None,
             completed_at: None,
+            approval_proposal: None,
+            approval_revision: None,
+            approval_scope: None,
+            approval_at: None,
             created_at: issue.created_at.to_rfc3339(),
             updated_at: issue.updated_at.to_rfc3339(),
             pull_requests: Vec::new(),

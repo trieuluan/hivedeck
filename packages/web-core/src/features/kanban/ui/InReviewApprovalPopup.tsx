@@ -32,8 +32,82 @@ import type { Issue } from 'shared/remote-types';
 
 const OWNER = 'owner';
 
-export function isRevisionApproved(issue: Issue): boolean {
+export function revisionProposal(issue: Issue) {
+  const metadata = issue.extension_metadata;
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata))
+    return null;
+  const proposal = metadata.hivedeck_approval_proposal;
+  if (!proposal || typeof proposal !== 'object' || Array.isArray(proposal))
+    return null;
+  if (
+    typeof proposal.id !== 'string' ||
+    typeof proposal.revision !== 'string' ||
+    typeof proposal.reason !== 'string'
+  )
+    return null;
+  return {
+    id: proposal.id,
+    revision: proposal.revision,
+    reason: proposal.reason,
+  };
+}
+
+export function RevisionProposalPanel({
+  proposal,
+  headOid,
+  busy,
+  onConfirm,
+}: {
+  proposal: NonNullable<ReturnType<typeof revisionProposal>>;
+  headOid: string | null;
+  busy: boolean;
+  onConfirm: () => void;
+}) {
+  const { t } = useTranslation('kanban');
   return (
+    <div className="break-words text-xs text-normal" aria-live="polite">
+      <p>
+        {t('review.proposalReason', 'Lý do')}: {proposal.reason}
+      </p>
+      <p>
+        {t('review.proposalRevision', 'Revision đề xuất')}:{' '}
+        <span className="font-ibm-plex-mono">{proposal.revision}</span>
+      </p>
+      <p>
+        {t(
+          'review.proposalAction',
+          'Xác nhận duyệt revision này; không tự merge hoặc push.'
+        )}
+      </p>
+      {proposal.revision !== headOid && (
+        <p role="status">
+          {t(
+            'review.proposalStale',
+            'Revision không khớp HEAD hiện tại; cần đề xuất lại.'
+          )}
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={onConfirm}
+        disabled={busy || !headOid || proposal.revision !== headOid}
+        className="mt-2 w-full rounded bg-brand px-3 py-2 font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-1 focus-visible:outline-brand"
+      >
+        {t('review.confirmProposal', 'Xác nhận đề xuất')}
+      </button>
+    </div>
+  );
+}
+
+export function isRevisionApproved(issue: Issue): boolean {
+  const metadata = issue.extension_metadata;
+  return (
+    !(
+      metadata &&
+      typeof metadata === 'object' &&
+      !Array.isArray(metadata) &&
+      'hivedeck_approval_proposal' in metadata
+    ) &&
     issue.approval_scope === 'revision' &&
     !!issue.approval_revision &&
     !!issue.approval_owner
@@ -84,6 +158,7 @@ export function InReviewApprovalPopup({
     return matching ?? branchStatuses[0] ?? null;
   }, [branchStatuses, repoId]);
   const headOid = matchingBranchStatus?.head_oid ?? null;
+  const proposal = revisionProposal(issue);
   const commitsBehind = matchingBranchStatus?.commits_behind ?? 0;
   const targetBranchName = matchingBranchStatus?.target_branch_name ?? 'target';
 
@@ -171,6 +246,24 @@ export function InReviewApprovalPopup({
         await onApprovedWithoutChanges();
         setOpen(false);
       }
+      await invalidateProject();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const confirmProposal = async () => {
+    if (busy || !proposal || proposal.revision !== headOid) return;
+    setBusy('approve');
+    setError(null);
+    try {
+      await kanbanApi.confirmRevisionProposal(issue.id, {
+        proposal_id: proposal.id,
+        revision: proposal.revision,
+        owner: OWNER,
+      });
       await invalidateProject();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -321,7 +414,9 @@ export function InReviewApprovalPopup({
                       ? ` · ${formatDateShortWithTime(issue.approval_at)}`
                       : '',
                   })
-                : t('review.unapprovedStatus', 'Chưa duyệt')}
+                : proposal
+                  ? t('review.pendingApproval', 'Đang chờ xác nhận')
+                  : t('review.unapprovedStatus', 'Chưa duyệt')}
             </span>
           </div>
           {headOid && (
@@ -338,6 +433,15 @@ export function InReviewApprovalPopup({
             </span>
           )}
         </div>
+
+        {proposal && (
+          <RevisionProposalPanel
+            proposal={proposal}
+            headOid={headOid}
+            busy={runningAction !== null}
+            onConfirm={() => void confirmProposal()}
+          />
+        )}
 
         {error && (
           <p

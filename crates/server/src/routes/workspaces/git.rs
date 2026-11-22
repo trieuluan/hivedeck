@@ -226,11 +226,7 @@ async fn ensure_revision_approval(
     let Some(issue) = DbIssue::find_by_id(&deployment.db().pool, issue_id).await? else {
         return Err(ApiError::BadRequest("linked issue not found".into()));
     };
-    validate_revision_approval(
-        issue.approval_scope.as_deref(),
-        issue.approval_revision.as_deref(),
-        head_oid,
-    )?;
+    validate_issue_revision_approval(&issue, head_oid)?;
 
     let approved = issue.approval_revision.as_deref().unwrap_or("unborn");
     tracing::info!(
@@ -246,6 +242,26 @@ async fn ensure_revision_approval(
         "merge/push authorized by owner revision approval"
     );
     Ok(())
+}
+
+fn validate_issue_revision_approval(
+    issue: &DbIssue,
+    head_oid: Option<&str>,
+) -> Result<(), ApiError> {
+    if issue
+        .extension_metadata
+        .get("hivedeck_approval_proposal")
+        .is_some()
+    {
+        return Err(ApiError::BadRequest(
+            "revision proposal requires confirmation".into(),
+        ));
+    }
+    validate_revision_approval(
+        issue.approval_scope.as_deref(),
+        issue.approval_revision.as_deref(),
+        head_oid,
+    )
 }
 
 fn validate_revision_approval(
@@ -1117,6 +1133,101 @@ pub async fn continue_workspace_rebase(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn pending_confirmation_gates_mocked_git_actions() {
+        use db::models::project::{NewProject, Project};
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("../db/migrations").run(&pool).await.unwrap();
+        let project_id = Uuid::new_v4();
+        let status_id = Uuid::new_v4();
+        let issue_id = Uuid::new_v4();
+        Project::create(
+            &pool,
+            NewProject {
+                id: project_id,
+                name: "Test",
+                key: Some("TEST"),
+                color: "#888",
+                sort_order: 0,
+                default_agent_working_dir: None,
+                parent_id: None,
+            },
+        )
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO project_statuses (id, project_id, name, color) VALUES (?, ?, 'Review', '#888')").bind(status_id).bind(project_id).execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO issues (id, project_id, issue_number, simple_id, status_id, title) VALUES (?, ?, 1, 'TEST-1', ?, 'Test')").bind(issue_id).bind(project_id).bind(status_id).execute(&pool).await.unwrap();
+        let proposal_id = Uuid::new_v4();
+        let pending =
+            DbIssue::propose_revision_approval(&pool, issue_id, proposal_id, "abc", "ready")
+                .await
+                .unwrap()
+                .unwrap();
+        assert_eq!(
+            pending.extension_metadata["hivedeck_approval_proposal"]["reason"],
+            "ready"
+        );
+        let mut git_calls = 0;
+        let mut mocked_git = |issue: &DbIssue, head: &str| {
+            if validate_issue_revision_approval(issue, Some(head)).is_ok() {
+                git_calls += 1;
+                true
+            } else {
+                false
+            }
+        };
+        assert!(!mocked_git(&pending, "abc"));
+        let mut inconsistent = pending.clone();
+        inconsistent.approval_scope = Some("revision".into());
+        inconsistent.approval_revision = Some("abc".into());
+        assert!(!mocked_git(&inconsistent, "abc"));
+        assert!(
+            DbIssue::confirm_revision_approval(&pool, issue_id, proposal_id, "wrong", "owner")
+                .await
+                .unwrap()
+                .is_none()
+        );
+        let approved =
+            DbIssue::confirm_revision_approval(&pool, issue_id, proposal_id, "abc", "owner")
+                .await
+                .unwrap()
+                .unwrap();
+        assert!(mocked_git(&approved, "abc"));
+        assert!(!mocked_git(&approved, "def"));
+        assert_eq!(git_calls, 1);
+        assert!(
+            DbIssue::confirm_revision_approval(&pool, issue_id, proposal_id, "abc", "owner")
+                .await
+                .unwrap()
+                .is_none()
+        );
+        let replacement = Uuid::new_v4();
+        DbIssue::propose_revision_approval(&pool, issue_id, replacement, "def", "updated")
+            .await
+            .unwrap();
+        assert!(
+            DbIssue::confirm_revision_approval(&pool, issue_id, proposal_id, "abc", "owner")
+                .await
+                .unwrap()
+                .is_none()
+        );
+        let direct = DbIssue::set_approval(&pool, issue_id, "owner", Some("def"), "revision")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(direct.approval_revision.as_deref(), Some("def"));
+        assert!(
+            direct
+                .extension_metadata
+                .get("hivedeck_approval_proposal")
+                .is_none()
+        );
+    }
 
     #[test]
     fn revision_approval_requires_matching_revision_scope() {

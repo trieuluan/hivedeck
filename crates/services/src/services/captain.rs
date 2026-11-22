@@ -139,8 +139,8 @@ mod tests {
         assert!(BUNDLED_PROMPT.contains("approve_issue"));
         assert!(BUNDLED_PROMPT.contains("approval_scope"));
         assert!(BUNDLED_PROMPT.contains("approval_at"));
-        assert!(BUNDLED_PROMPT.contains("Never merge, push, or open a pull request."));
-        assert!(!BUNDLED_PROMPT.contains("merge_issue"));
-        assert!(!BUNDLED_PROMPT.contains("push_issue"));
+        assert!(BUNDLED_PROMPT.contains("owner directly delegates an action in chat"));
+        assert!(BUNDLED_PROMPT.contains("Approval alone never triggers merge, push"));
+        assert!(BUNDLED_PROMPT.contains("A proposal is not approval"));
     }
 }
