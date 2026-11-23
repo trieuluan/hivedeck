@@ -67,7 +67,7 @@ fn cli_token() -> Result<String, ApiError> {
 
 /// A provider connection as listed by `GET /api/providers` (secrets are
 /// already stripped by 9router).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Connection {
     pub id: String,
     pub provider: String,
@@ -76,6 +76,8 @@ pub struct Connection {
     pub is_active: bool,
     /// Last error 9router recorded for this connection, if any.
     pub error: Option<String>,
+    /// ISO-8601 timestamp of `lastErrorAt` (or `updatedAt`) from 9router.
+    pub error_at: Option<String>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -190,6 +192,7 @@ fn parse_connection(v: &Value) -> Option<Connection> {
     } else {
         None
     };
+    let error_at = str_field(v, &["lastErrorAt", "updatedAt"]);
     Some(Connection {
         id: str_field(v, &["id"])?,
         provider,
@@ -197,6 +200,7 @@ fn parse_connection(v: &Value) -> Option<Connection> {
         auth_type: str_field(v, &["authType"]),
         is_active,
         error,
+        error_at,
     })
 }
 

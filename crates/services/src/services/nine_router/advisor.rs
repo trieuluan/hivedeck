@@ -317,6 +317,75 @@ pub fn parse_limit_note(raw: &str) -> (Option<String>, Option<String>) {
     (window, resets.filter(|r| !r.is_empty()))
 }
 
+fn parse_reset_duration(raw: &str) -> Option<chrono::Duration> {
+    let mut total_secs: i64 = 0;
+    let mut matched = false;
+    for token in raw.split_whitespace() {
+        let (digits, unit) = token.split_at(
+            token
+                .find(|c: char| !c.is_ascii_digit())
+                .unwrap_or(token.len()),
+        );
+        let Ok(n) = digits.parse::<i64>() else {
+            continue;
+        };
+        let mult = match unit.to_ascii_lowercase().as_str() {
+            "d" | "day" | "days" => 86_400,
+            "h" | "hr" | "hrs" | "hour" | "hours" => 3_600,
+            "m" | "min" | "mins" | "minute" | "minutes" => 60,
+            "s" | "sec" | "secs" | "second" | "seconds" => 1,
+            _ => continue,
+        };
+        total_secs = total_secs.saturating_add(n.saturating_mul(mult));
+        matched = true;
+    }
+    matched.then(|| chrono::Duration::seconds(total_secs))
+}
+
+fn format_remaining_duration(d: chrono::Duration) -> String {
+    let mins = (d.num_seconds().max(60) + 59) / 60;
+    let days = mins / (60 * 24);
+    let hours = (mins % (60 * 24)) / 60;
+    let rem_mins = mins % 60;
+    if days > 0 {
+        format!("{days}d {hours}h")
+    } else if hours > 0 {
+        format!("{hours}h {rem_mins}m")
+    } else {
+        format!("{rem_mins}m")
+    }
+}
+
+/// Evaluate whether a temporary limit error recorded at `conn.error_at` is
+/// still active. Returns `None` if live `usage` already shows healthy quota or
+/// the reset window has elapsed; otherwise returns `(limit_window, resets_in)`.
+fn active_temporary_limit(
+    err: &str,
+    error_at: Option<&str>,
+    usage: Option<&Usage>,
+) -> Option<(Option<String>, Option<String>)> {
+    if let Some(u) = usage
+        && let Some(tightest) = u.tightest()
+        && tightest.remaining >= EXHAUSTED_BELOW
+    {
+        return None;
+    }
+    let (window, resets) = parse_limit_note(err);
+    if let (Some(resets_str), Some(ts_str)) = (resets.as_deref(), error_at)
+        && let (Some(dur), Ok(ts)) = (
+            parse_reset_duration(resets_str),
+            chrono::DateTime::parse_from_rfc3339(ts_str),
+        )
+    {
+        let remaining = (ts.with_timezone(&chrono::Utc) + dur) - chrono::Utc::now();
+        if remaining <= chrono::Duration::zero() {
+            return None;
+        }
+        return Some((window, Some(format_remaining_duration(remaining))));
+    }
+    Some((window, resets))
+}
+
 #[derive(Clone, Debug, Serialize, TS)]
 pub struct SuggestedModel {
     pub id: String,
@@ -434,14 +503,22 @@ fn connection_health(conn: &Connection, usage: Option<&Usage>) -> ProviderHealth
     }
     if let Some(err) = &conn.error {
         if is_temporary_limit(err) {
-            h.status = ProviderHealthStatus::Limited;
-            (h.limit_window, h.resets_in) = parse_limit_note(err);
+            if let Some((limit_window, resets_in)) =
+                active_temporary_limit(err, conn.error_at.as_deref(), usage)
+            {
+                h.status = ProviderHealthStatus::Limited;
+                h.limit_window = limit_window;
+                h.resets_in = resets_in;
+                h.summary = Some(summarize_message(err));
+                h.message = Some(err.clone());
+                return h;
+            }
         } else {
             h.status = ProviderHealthStatus::Error;
+            h.summary = Some(summarize_message(err));
+            h.message = Some(err.clone());
+            return h;
         }
-        h.summary = Some(summarize_message(err));
-        h.message = Some(err.clone());
-        return h;
     }
     let Some(usage) = usage else {
         return h;
@@ -1367,6 +1444,7 @@ mod tests {
             auth_type: Some("oauth".into()),
             is_active: active,
             error: error.map(str::to_string),
+            error_at: None,
         }
     }
 
