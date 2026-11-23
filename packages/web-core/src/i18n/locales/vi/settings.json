@@ -707,7 +707,7 @@
     },
     "router": {
       "title": "Router",
-      "subtitle": "9router tích hợp sẵn: provider, API key và combo model cho các agent.",
+      "subtitle": "HiveRouter tích hợp sẵn: provider, API key và combo model cho các agent.",
       "open": "Router",
       "state": {
         "not_installed": "Chưa cài",
@@ -719,7 +719,7 @@
         "external": "Đang chạy (bên ngoài)"
       },
       "actions": {
-        "install": "Cài 9router",
+        "install": "Cài HiveRouter",
         "start": "Khởi động",
         "stop": "Dừng",
         "restart": "Khởi động lại",
@@ -730,15 +730,15 @@
       "autoStart": "Khởi động cùng HiveDeck",
       "baseUrl": "Base URL",
       "combos": {
-        "intro": "Chuỗi model dự phòng gợi ý cho từng vai trò agent, dựa trên model, tình trạng provider và quota mà 9router báo hiện tại. Khi lưu, mỗi model sẽ được thử bằng một request nhỏ; không có gì thay đổi cho tới khi bạn áp dụng combo.",
+        "intro": "Chuỗi model dự phòng gợi ý cho từng vai trò agent, dựa trên model, tình trạng provider và quota mà HiveRouter báo hiện tại. Khi lưu, mỗi model sẽ được thử bằng một request nhỏ; không có gì thay đổi cho tới khi bạn áp dụng combo.",
         "refresh": "Làm mới",
         "providers": "Provider",
         "create": "Tạo combo",
         "upToDate": "Đã khớp",
         "noCandidates": "Không có model dùng được cho vai trò này. Kết nối thêm provider hoặc chờ quota được làm mới.",
-        "notRunning": "Khởi động 9router để nhận gợi ý combo.",
+        "notRunning": "Khởi động HiveRouter để nhận gợi ý combo.",
         "resetsIn": "làm mới sau {{time}}",
-        "revoke": "Thôi cho HiveDeck quản lý 9router",
+        "revoke": "Thôi cho HiveDeck quản lý HiveRouter",
         "roles": {
           "planner": "Lập kế hoạch và điều phối: suy luận mạnh nhất, context lớn.",
           "coder": "Viết code: dùng tool tốt, model chuyên code, nhiều quota nhất.",
@@ -756,8 +756,8 @@
           "payAsYouGo": "Không hạn mức"
         },
         "consent": {
-          "title": "Cho HiveDeck quản lý 9router",
-          "body": "Để gợi ý combo theo quota thực tế và tạo combo giúp bạn, HiveDeck dùng CLI token nội bộ của 9router — giống cách CLI của chính 9router làm.",
+          "title": "Cho HiveDeck quản lý HiveRouter",
+          "body": "Để gợi ý combo theo quota thực tế và tạo combo giúp bạn, HiveDeck dùng CLI token nội bộ của HiveRouter — giống cách CLI của chính HiveRouter làm.",
           "reads": "Đọc ~/.9router/machine-id và ~/.9router/auth/cli-secret để tạo token, rồi đọc trạng thái provider và quota.",
           "writes": "Chỉ tạo hoặc cập nhật combo khi bạn bấm Tạo/Cập nhật.",
           "local": "Chỉ kết nối tới 127.0.0.1; token không bao giờ được lưu hay gửi đi đâu khác. Bạn có thể tắt bất cứ lúc nào.",
@@ -845,8 +845,8 @@
         "spend": {
           "paid": "Đã tiêu hôm nay {{today}} · 30 ngày {{month}}",
           "plan": "≈ {{month}} theo giá API · 30 ngày",
-          "unpriced": "{{tokens}} token · 30 ngày (9router chưa có giá)",
-          "hint": "Ước tính của 9router theo bảng giá của nó; hoá đơn thật xem ở trang thanh toán của provider.",
+          "unpriced": "{{tokens}} token · 30 ngày (HiveRouter chưa có giá)",
+          "hint": "Ước tính của HiveRouter theo bảng giá của nó; hoá đơn thật xem ở trang thanh toán của provider.",
           "planHint": "Số tiền nếu trả theo giá API cho cùng mức dùng. Gói thuê bao của bạn đã bao gồm."
         }
       },
@@ -856,8 +856,8 @@
         "managed": "do HiveDeck cài",
         "global": "cài global"
       },
-      "externalNote": "9router này không do HiveDeck khởi động nên không thể dừng từ đây.",
-      "globalLeftover": "Vẫn còn bản 9router v{{version}} cài global. Nó có thể chiếm port hoặc chạy với dữ liệu ~/.9router mới hơn — hãy gỡ nó:",
+      "externalNote": "HiveRouter này không do HiveDeck khởi động nên không thể dừng từ đây.",
+      "globalLeftover": "Vẫn còn bản HiveRouter v{{version}} cài global. Nó có thể chiếm port hoặc chạy với dữ liệu ~/.9router mới hơn — hãy gỡ nó:",
       "tabs": {
         "dashboard": "Dashboard",
         "combos": "Combo",
@@ -866,13 +866,13 @@
       },
       "noLogs": "Chưa có log.",
       "empty": {
-        "notInstalledTitle": "Chưa cài 9router",
-        "notInstalledBody": "HiveDeck có thể cài 9router v{{version}} giúp bạn bằng npm. Nó chạy trên máy tại 127.0.0.1 và lưu dữ liệu trong ~/.9router.",
-        "stoppedTitle": "9router đang dừng",
+        "notInstalledTitle": "Chưa cài HiveRouter",
+        "notInstalledBody": "HiveDeck có thể cài HiveRouter v{{version}} giúp bạn bằng npm. Nó chạy trên máy tại 127.0.0.1 và lưu dữ liệu trong ~/.9router.",
+        "stoppedTitle": "HiveRouter đang dừng",
         "stoppedBody": "Khởi động để quản lý provider, API key và combo tại đây.",
         "busyTitle": "Đang xử lý…",
         "busyBody": "Có thể mất một phút. Xem tiến độ ở tab Log.",
-        "noNode": "Cần có Node.js và npm trong PATH để cài và chạy 9router.",
+        "noNode": "Cần có Node.js và npm trong PATH để cài và chạy HiveRouter.",
         "remoteHost": "Dashboard chỉ truy cập được từ máy này. Mở HiveDeck qua localhost để dùng ở đây."
       },
       "update": {
@@ -887,13 +887,13 @@
       },
       "routing": {
         "on": "Đang định tuyến",
-        "enable": "Cho agent đi qua 9router",
-        "enableHint": "Các lượt chạy Claude Code, Codex, OpenCode, Gemini, Qwen Code và Droid sẽ đi qua 9router và dùng combo theo vai trò.",
-        "notRunning": "9router chưa chạy nên agent hiện chạy không qua nó. Khởi động ở trang này.",
+        "enable": "Cho agent đi qua HiveRouter",
+        "enableHint": "Các lượt chạy Claude Code, Codex, OpenCode, Gemini, Qwen Code và Droid sẽ đi qua HiveRouter và dùng combo theo vai trò.",
+        "notRunning": "HiveRouter chưa chạy nên agent hiện chạy không qua nó. Khởi động ở trang này.",
         "roles": "Combo cho từng vai trò",
         "agentDefault": "Mặc định của agent",
-        "missingCombo": "Combo \"{{name}}\" không còn trong 9router; vai trò này dùng mặc định của agent.",
-        "noCombos": "9router chưa có combo nào. Tạo ở tab Combo.",
+        "missingCombo": "Combo \"{{name}}\" không còn trong HiveRouter; vai trò này dùng mặc định của agent.",
+        "noCombos": "HiveRouter chưa có combo nào. Tạo ở tab Combo.",
         "scope": "Áp dụng cho Claude Code (headless và headed), Codex, OpenCode, Gemini, Qwen Code và Droid. Cursor Agent, Copilot và Amp vẫn chạy trực tiếp.",
         "precedence": "Model bạn chọn trong ô chọn model hoặc đặt trong profile luôn được ưu tiên hơn combo của vai trò.",
         "usedFor": {

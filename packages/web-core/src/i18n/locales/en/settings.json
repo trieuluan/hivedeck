@@ -707,7 +707,7 @@
     },
     "router": {
       "title": "Router",
-      "subtitle": "Embedded 9router: providers, API keys and model combos for your agents.",
+      "subtitle": "Embedded HiveRouter: providers, API keys and model combos for your agents.",
       "open": "Router",
       "state": {
         "not_installed": "Not installed",
@@ -719,7 +719,7 @@
         "external": "Running (external)"
       },
       "actions": {
-        "install": "Install 9router",
+        "install": "Install HiveRouter",
         "start": "Start",
         "stop": "Stop",
         "restart": "Restart",
@@ -730,15 +730,15 @@
       "autoStart": "Start with HiveDeck",
       "baseUrl": "Base URL",
       "combos": {
-        "intro": "Suggested fallback chains per agent role, from the models, provider health and quota 9router reports right now. Saving tests each model with a tiny request first; nothing changes until you apply a combo.",
+        "intro": "Suggested fallback chains per agent role, from the models, provider health and quota HiveRouter reports right now. Saving tests each model with a tiny request first; nothing changes until you apply a combo.",
         "refresh": "Refresh",
         "providers": "Providers",
         "create": "Create combo",
         "upToDate": "Up to date",
         "noCandidates": "No usable model for this role. Connect a provider or wait for quota to reset.",
-        "notRunning": "Start 9router to get combo suggestions.",
+        "notRunning": "Start HiveRouter to get combo suggestions.",
         "resetsIn": "resets in {{time}}",
-        "revoke": "Stop letting HiveDeck manage 9router",
+        "revoke": "Stop letting HiveDeck manage HiveRouter",
         "roles": {
           "planner": "Planning and orchestration: strongest reasoning, large context.",
           "coder": "Writing code: tool use, coding models, most quota.",
@@ -756,8 +756,8 @@
           "payAsYouGo": "No quota"
         },
         "consent": {
-          "title": "Let HiveDeck manage 9router",
-          "body": "To suggest combos from live quota and create them for you, HiveDeck uses 9router's local CLI token — the same mechanism 9router's own CLI uses.",
+          "title": "Let HiveDeck manage HiveRouter",
+          "body": "To suggest combos from live quota and create them for you, HiveDeck uses HiveRouter's local CLI token — the same mechanism HiveRouter's own CLI uses.",
           "reads": "Reads ~/.9router/machine-id and ~/.9router/auth/cli-secret to derive the token, then reads provider status and quota.",
           "writes": "Creates or updates combos only when you click Create/Update.",
           "local": "Talks to 127.0.0.1 only; the token is never stored or sent anywhere else. You can turn this off at any time.",
@@ -845,8 +845,8 @@
         "spend": {
           "paid": "Spent today {{today}} · 30 days {{month}}",
           "plan": "≈ {{month}} at API prices · 30 days",
-          "unpriced": "{{tokens}} tokens · 30 days (no price in 9router)",
-          "hint": "9router's estimate from its pricing table; check your provider's billing page for the real bill.",
+          "unpriced": "{{tokens}} tokens · 30 days (no price in HiveRouter)",
+          "hint": "HiveRouter's estimate from its pricing table; check your provider's billing page for the real bill.",
           "planHint": "What the same use would have cost at API prices. Your plan covers it."
         }
       },
@@ -856,8 +856,8 @@
         "managed": "installed by HiveDeck",
         "global": "global install"
       },
-      "externalNote": "This 9router was not started by HiveDeck, so it can't be stopped from here.",
-      "globalLeftover": "A global 9router v{{version}} is still installed. It can take over the port or run against newer ~/.9router data — remove it:",
+      "externalNote": "This HiveRouter was not started by HiveDeck, so it can't be stopped from here.",
+      "globalLeftover": "A global HiveRouter v{{version}} is still installed. It can take over the port or run against newer ~/.9router data — remove it:",
       "tabs": {
         "dashboard": "Dashboard",
         "combos": "Combos",
@@ -866,13 +866,13 @@
       },
       "noLogs": "No log output yet.",
       "empty": {
-        "notInstalledTitle": "9router is not installed",
-        "notInstalledBody": "HiveDeck can install 9router v{{version}} for you with npm. It runs locally on 127.0.0.1 and keeps its data in ~/.9router.",
-        "stoppedTitle": "9router is stopped",
+        "notInstalledTitle": "HiveRouter is not installed",
+        "notInstalledBody": "HiveDeck can install HiveRouter v{{version}} for you with npm. It runs locally on 127.0.0.1 and keeps its data in ~/.9router.",
+        "stoppedTitle": "HiveRouter is stopped",
         "stoppedBody": "Start it to manage providers, API keys and combos here.",
         "busyTitle": "Working…",
         "busyBody": "This can take a minute. Progress is in the Logs tab.",
-        "noNode": "Node.js and npm must be on your PATH to install and run 9router.",
+        "noNode": "Node.js and npm must be on your PATH to install and run HiveRouter.",
         "remoteHost": "The dashboard is only reachable from this machine. Open HiveDeck via localhost to use it here."
       },
       "update": {
@@ -887,13 +887,13 @@
       },
       "routing": {
         "on": "Routing on",
-        "enable": "Route agents through 9router",
-        "enableHint": "Claude Code, Codex, OpenCode, Gemini, Qwen Code, and Droid runs go through 9router and use the combo for their role.",
-        "notRunning": "9router isn't running, so agents currently run without it. Start it on this page.",
+        "enable": "Route agents through HiveRouter",
+        "enableHint": "Claude Code, Codex, OpenCode, Gemini, Qwen Code, and Droid runs go through HiveRouter and use the combo for their role.",
+        "notRunning": "HiveRouter isn't running, so agents currently run without it. Start it on this page.",
         "roles": "Combo per role",
         "agentDefault": "Agent default",
-        "missingCombo": "Combo \"{{name}}\" no longer exists in 9router; this role falls back to the agent default.",
-        "noCombos": "No combos in 9router yet. Create them on the Combos tab.",
+        "missingCombo": "Combo \"{{name}}\" no longer exists in HiveRouter; this role falls back to the agent default.",
+        "noCombos": "No combos in HiveRouter yet. Create them on the Combos tab.",
         "scope": "Applies to Claude Code (headless and headed), Codex, OpenCode, Gemini, Qwen Code, and Droid. Cursor Agent, Copilot, and Amp still run directly.",
         "precedence": "A model you pick in the model selector or set on a profile always wins over the role's combo.",
         "usedFor": {

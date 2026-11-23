@@ -738,7 +738,7 @@
     "requestChanges": "Yêu cầu sửa",
     "revealTheWorkspaceFolderInFinder": "Mở thư mục workspace trong Finder",
     "runs": "Chạy",
-    "s9routerDashboard": "Dashboard 9router",
+    "s9routerDashboard": "Dashboard HiveRouter",
     "scaleTextSizeOnMobileFor": "Phóng to chữ trên mobile cho dễ đọc",
     "scrollToBottom": "Cuộn xuống cuối",
     "newMessages": "Tin mới",
@@ -781,11 +781,11 @@
     "openRouter": "Mở Router",
     "modelUnavailable": {
       "title": "Model \"{{model}}\" không dùng được ở đây",
-      "hint": "Lượt chạy đã tới một provider không biết model này — thường là tên combo của 9router bị gửi thẳng tới ChatGPT/Anthropic. Kiểm tra 9router đang chạy và đã bật định tuyến."
+      "hint": "Lượt chạy đã tới một provider không biết model này — thường là tên combo của HiveRouter bị gửi thẳng tới ChatGPT/Anthropic. Kiểm tra HiveRouter đang chạy và đã bật định tuyến."
     },
     "routerUnreachable": {
-      "title": "Không kết nối được 9router",
-      "hint": "Khởi động 9router ở trang Router rồi gửi lại tin nhắn."
+      "title": "Không kết nối được HiveRouter",
+      "hint": "Khởi động HiveRouter ở trang Router rồi gửi lại tin nhắn."
     },
     "rateLimited": {
       "title": "Bị giới hạn tốc độ hoặc hết quota",

@@ -738,7 +738,7 @@
     "requestChanges": "Request changes",
     "revealTheWorkspaceFolderInFinder": "Reveal the workspace folder in Finder",
     "runs": "Runs",
-    "s9routerDashboard": "9router dashboard",
+    "s9routerDashboard": "HiveRouter dashboard",
     "scaleTextSizeOnMobileFor": "Scale text size on mobile for better readability",
     "scrollToBottom": "Scroll to bottom",
     "newMessages": "New messages",
@@ -781,11 +781,11 @@
     "openRouter": "Open Router",
     "modelUnavailable": {
       "title": "Model \"{{model}}\" isn't available here",
-      "hint": "The run reached a provider that doesn't know this model — usually a 9router combo name sent straight to ChatGPT/Anthropic. Check that 9router is running and routing is on."
+      "hint": "The run reached a provider that doesn't know this model — usually a HiveRouter combo name sent straight to ChatGPT/Anthropic. Check that HiveRouter is running and routing is on."
     },
     "routerUnreachable": {
-      "title": "Can't reach 9router",
-      "hint": "Start 9router on the Router page, then send the message again."
+      "title": "Can't reach HiveRouter",
+      "hint": "Start HiveRouter on the Router page, then send the message again."
     },
     "rateLimited": {
       "title": "Rate limited or out of quota",

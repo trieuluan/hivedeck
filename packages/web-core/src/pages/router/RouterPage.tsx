@@ -180,7 +180,7 @@ function VersionMenu({
               <DropdownMenuItem
                 icon={CopyIcon}
                 onSelect={() =>
-                  void navigator.clipboard?.writeText('npm i -g 9router@latest')
+                  void navigator.clipboard?.writeText('npm i -g @trieuluan/hiverouter@latest')
                 }
               >
                 {t('settings.router.update.copyNpm')}
@@ -556,7 +556,7 @@ export function RouterPage() {
                 version: status.global_version,
               })}
             </span>
-            <CopyField value="npm uninstall -g 9router" />
+            <CopyField value="npm uninstall -g @trieuluan/hiverouter" />
           </div>
         )}
         {(error || status?.last_error) && (

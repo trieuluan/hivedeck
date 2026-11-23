@@ -42,10 +42,11 @@ use tokio::io::AsyncWriteExt;
 use ts_rs::TS;
 use utils::{command_ext::GroupSpawnNoWindowExt, shell::resolve_executable_path};
 
-/// 9router version HiveDeck installs by default (tested against).
-pub const PINNED_VERSION: &str = "0.5.116";
+/// HiveRouter version HiveDeck installs by default (tested against).
+pub const PINNED_VERSION: &str = "0.5.121";
 pub const DEFAULT_PORT: u16 = 20128;
-const PACKAGE_NAME: &str = "9router";
+const PACKAGE_NAME: &str = "@trieuluan/hiverouter";
+const BIN_NAME: &str = "hiverouter";
 const LAUNCHER_SOURCE: &str = include_str!("launch-9router.cjs");
 const LOG_FILE: &str = "9router.log";
 const PID_FILE: &str = "9router.pid";
@@ -268,10 +269,10 @@ async fn find_install() -> Option<Install> {
     find_global().await
 }
 
-/// A global `9router` on PATH, if any.
+/// A global `hiverouter` on PATH, if any.
 async fn find_global() -> Option<Install> {
-    // The `9router` bin is a symlink to `<pkg>/cli.js`.
-    let bin = resolve_executable_path(PACKAGE_NAME).await?;
+    // The `hiverouter` bin is a symlink to `<pkg>/cli.js`.
+    let bin = resolve_executable_path(BIN_NAME).await?;
     let real = std::fs::canonicalize(&bin).unwrap_or(bin);
     let mut candidates = Vec::new();
     if let Some(parent) = real.parent() {
@@ -1412,7 +1413,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(
             dir.path().join("package.json"),
-            r#"{"name":"9router","version":"1.2.3"}"#,
+            format!(r#"{{"name":"{PACKAGE_NAME}","version":"1.2.3"}}"#),
         )
         .unwrap();
         assert_eq!(read_package_version(dir.path()).as_deref(), Some("1.2.3"));

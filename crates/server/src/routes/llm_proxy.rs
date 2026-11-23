@@ -11,7 +11,7 @@ use axum::{
 use bytes::Bytes;
 use deployment::Deployment;
 use futures_util::{StreamExt, stream};
-use services::services::llm_inspector::{NamespaceSseRewriter, SseUsageExtractor};
+use services::services::llm_inspector::SseUsageExtractor;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
@@ -131,19 +131,6 @@ async fn forward_request(
         return (StatusCode::NOT_FOUND, "unknown LLM proxy execution route").into_response();
     };
 
-    let (body, namespace_map) = if method == Method::POST
-        && !body.is_empty()
-        && route.upstream_label == "9router"
-        && (rest == "responses" || rest.ends_with("/responses"))
-    {
-        match services::services::llm_inspector::flatten_responses_tool_namespaces(&body) {
-            Some((rewritten, map)) => (Bytes::from(rewritten), Some(map)),
-            None => (body, None),
-        }
-    } else {
-        (body, None)
-    };
-
     if method == Method::POST && !body.is_empty() {
         deployment.llm_inspector().inspect_request_payload(
             route.session_id,
@@ -236,9 +223,6 @@ async fn forward_request(
     tokio::spawn(async move {
         let mut stream = upstream_resp.bytes_stream();
         let mut extractor = SseUsageExtractor::default();
-        let mut rewriter = namespace_map
-            .filter(|m| !m.is_empty())
-            .map(NamespaceSseRewriter::new);
         while let Some(item) = stream.next().await {
             match item {
                 Ok(chunk) => {
@@ -246,16 +230,11 @@ async fn forward_request(
                         let take = (4096 - err_peek.len()).min(chunk.len());
                         err_peek.extend_from_slice(&chunk[..take]);
                     }
-                    let out_chunk = if let Some(rw) = rewriter.as_mut() {
-                        Bytes::from(rw.push_bytes(&chunk))
-                    } else {
-                        chunk
-                    };
-                    if out_chunk.is_empty() {
+                    if chunk.is_empty() {
                         continue;
                     }
-                    extractor.push_bytes(&out_chunk);
-                    if tx.send(Ok(out_chunk)).await.is_err() {
+                    extractor.push_bytes(&chunk);
+                    if tx.send(Ok(chunk)).await.is_err() {
                         break;
                     }
                 }
@@ -263,14 +242,6 @@ async fn forward_request(
                     let _ = tx.send(Err(std::io::Error::other(err.to_string()))).await;
                     break;
                 }
-            }
-        }
-        if let Some(rw) = rewriter {
-            let tail = rw.finish();
-            if !tail.is_empty() {
-                let tail_bytes = Bytes::from(tail);
-                extractor.push_bytes(&tail_bytes);
-                let _ = tx.send(Ok(tail_bytes)).await;
             }
         }
         if is_9router_bad_request && !err_peek.is_empty() {

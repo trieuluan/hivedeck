@@ -21,7 +21,7 @@ use super::{PACKAGE_NAME, read_package_version, runtime_dir};
 
 const ACTIVE_FILE: &str = "active";
 const PREVIOUS_FILE: &str = "previous";
-const REGISTRY_URL: &str = "https://registry.npmjs.org/9router/latest";
+const REGISTRY_URL: &str = "https://registry.npmjs.org/@trieuluan/hiverouter/latest";
 const REGISTRY_TIMEOUT: Duration = Duration::from_secs(6);
 const LATEST_TTL: Duration = Duration::from_secs(6 * 60 * 60);
 
