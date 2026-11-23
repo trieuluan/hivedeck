@@ -802,9 +802,10 @@ const STRONG_TOKENS: &[&str] = &[
     "sonnet", "codex", "coder", "code", "kimi", "glm", "qwen", "deepseek", "minimax", "mimo",
     "grok", "gemini", "gpt", "llama", "mistral", "devstral", "nemotron", "claude",
 ];
-const CODING_TOKENS: &[&str] = &["codex", "coder", "code", "devstral"];
+const CODING_TOKENS: &[&str] = &["codex", "coder", "devstral"];
 const GOOD_AT_CODE_TOKENS: &[&str] = &[
     "sonnet", "opus", "fable", "kimi", "glm", "gpt", "qwen", "deepseek", "minimax", "claude",
+    "code",
 ];
 const UNSTABLE_TOKENS: &[&str] = &["preview", "alpha", "exp", "experimental", "auto", "reserve"];
 
