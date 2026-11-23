@@ -11,7 +11,7 @@ function sanitizeHref(href?: string): string | undefined {
   const trimmed = href.trim();
   // Block dangerous protocols
   if (/^(javascript|vbscript|data):/i.test(trimmed)) return undefined;
-  // Allow anchors and common relative forms (but they'll be disabled)
+  // Allow anchors and common relative forms (disabled unless they are app routes)
   if (
     trimmed.startsWith('#') ||
     trimmed.startsWith('./') ||
@@ -19,25 +19,61 @@ function sanitizeHref(href?: string): string | undefined {
     trimmed.startsWith('/')
   )
     return trimmed;
-  // Allow only https
-  if (/^https:\/\//i.test(trimmed)) return trimmed;
+  // Allow https and local loopback http (HiveDeck / local dev previews)
+  if (
+    /^https:\/\//i.test(trimmed) ||
+    /^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(trimmed)
+  )
+    return trimmed;
   // Block everything else by default
   return undefined;
 }
 
 /**
- * Check if href is an external HTTPS link.
+ * Check if href is safe and meaningful to open in a new tab.
  */
-function isExternalHref(href?: string): boolean {
+function isClickableHref(href?: string): boolean {
   if (!href) return false;
-  return /^https:\/\//i.test(href);
+  return (
+    /^https:\/\//i.test(href) ||
+    /^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(href) ||
+    /^\/(api|projects|workspaces|artifacts)(\/|$|\?)/.test(href)
+  );
+}
+
+function applyReadOnlyLinkPolicy(dom: HTMLAnchorElement) {
+  const href = dom.getAttribute('href');
+  const safeHref = sanitizeHref(href ?? undefined);
+
+  if (!safeHref) {
+    dom.removeAttribute('href');
+    dom.style.cursor = 'not-allowed';
+    dom.style.pointerEvents = 'none';
+    return;
+  }
+
+  if (isClickableHref(safeHref)) {
+    dom.setAttribute('target', '_blank');
+    dom.setAttribute('rel', 'noopener noreferrer');
+    dom.style.cursor = 'pointer';
+    dom.style.pointerEvents = 'auto';
+    dom.removeAttribute('aria-disabled');
+    dom.onclick = (e) => e.stopPropagation();
+  } else {
+    dom.removeAttribute('href');
+    dom.style.cursor = 'not-allowed';
+    dom.style.pointerEvents = 'none';
+    dom.setAttribute('role', 'link');
+    dom.setAttribute('aria-disabled', 'true');
+    dom.title = href ?? '';
+  }
 }
 
 /**
  * Plugin that handles link sanitization and security attributes in read-only mode.
  * - Blocks dangerous protocols (javascript:, vbscript:, data:)
- * - External HTTPS links: clickable with target="_blank" and rel="noopener noreferrer"
- * - Internal/relative links: rendered but not clickable
+ * - HTTPS, local loopback HTTP, and app/artifact routes: clickable with target="_blank"
+ * - Other internal/relative links (./, ../, #): rendered but not clickable
  */
 export function ReadOnlyLinkPlugin() {
   const [editor] = useLexicalComposerContext();
@@ -52,34 +88,7 @@ export function ReadOnlyLinkPlugin() {
 
           const dom = editor.getElementByKey(nodeKey);
           if (!dom || !(dom instanceof HTMLAnchorElement)) continue;
-
-          const href = dom.getAttribute('href');
-          const safeHref = sanitizeHref(href ?? undefined);
-
-          if (!safeHref) {
-            // Dangerous protocol - remove href entirely
-            dom.removeAttribute('href');
-            dom.style.cursor = 'not-allowed';
-            dom.style.pointerEvents = 'none';
-            continue;
-          }
-
-          const isExternal = isExternalHref(safeHref);
-
-          if (isExternal) {
-            // External HTTPS link - add security attributes
-            dom.setAttribute('target', '_blank');
-            dom.setAttribute('rel', 'noopener noreferrer');
-            dom.onclick = (e) => e.stopPropagation();
-          } else {
-            // Internal/relative link - disable clicking
-            dom.removeAttribute('href');
-            dom.style.cursor = 'not-allowed';
-            dom.style.pointerEvents = 'none';
-            dom.setAttribute('role', 'link');
-            dom.setAttribute('aria-disabled', 'true');
-            dom.title = href ?? '';
-          }
+          applyReadOnlyLinkPolicy(dom);
         }
       }
     );
@@ -91,29 +100,8 @@ export function ReadOnlyLinkPlugin() {
 
       const links = root.querySelectorAll('a');
       links.forEach((link) => {
-        const href = link.getAttribute('href');
-        const safeHref = sanitizeHref(href ?? undefined);
-
-        if (!safeHref) {
-          link.removeAttribute('href');
-          link.style.cursor = 'not-allowed';
-          link.style.pointerEvents = 'none';
-          return;
-        }
-
-        const isExternal = isExternalHref(safeHref);
-
-        if (isExternal) {
-          link.setAttribute('target', '_blank');
-          link.setAttribute('rel', 'noopener noreferrer');
-          link.onclick = (e) => e.stopPropagation();
-        } else {
-          link.removeAttribute('href');
-          link.style.cursor = 'not-allowed';
-          link.style.pointerEvents = 'none';
-          link.setAttribute('role', 'link');
-          link.setAttribute('aria-disabled', 'true');
-          link.title = href ?? '';
+        if (link instanceof HTMLAnchorElement) {
+          applyReadOnlyLinkPolicy(link);
         }
       });
     });
