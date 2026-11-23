@@ -314,6 +314,8 @@ impl LlmInspector {
             return;
         };
         let mut breakdown = analyze_payload(path, &json);
+        // Never use rough character-based estimates for context %; wait for real upstream usage.
+        breakdown.payload_tokens = 0;
         breakdown.upstream = Some(upstream_label.to_string());
         breakdown.model_context_window = self.resolve_context_window(
             session_id,
@@ -326,7 +328,6 @@ impl LlmInspector {
             .and_modify(|existing| {
                 existing.source = breakdown.source.clone();
                 existing.categories = breakdown.categories.clone();
-                existing.payload_tokens = breakdown.payload_tokens;
                 if let Some(ref req_model) = breakdown.model {
                     let keep_existing_real_model = existing
                         .model
@@ -345,6 +346,17 @@ impl LlmInspector {
                 existing.upstream = breakdown.upstream.clone();
             })
             .or_insert(breakdown);
+    }
+
+    fn actual_prompt_tokens(usage: &ResponseUsageSnapshot) -> u32 {
+        if usage.cache_creation_tokens > 0 || usage.cache_read_tokens > usage.input_tokens {
+            usage
+                .input_tokens
+                .saturating_add(usage.cache_read_tokens)
+                .saturating_add(usage.cache_creation_tokens)
+        } else {
+            usage.input_tokens
+        }
     }
 
     /// Accumulate response usage metrics (tokens & model) for the session.
@@ -371,18 +383,9 @@ impl LlmInspector {
                     );
                 }
                 if usage.has_usage {
-                    let actual_prompt_tokens = if usage.cache_creation_tokens > 0
-                        || usage.cache_read_tokens > usage.input_tokens
-                    {
-                        usage
-                            .input_tokens
-                            .saturating_add(usage.cache_read_tokens)
-                            .saturating_add(usage.cache_creation_tokens)
-                    } else {
-                        usage.input_tokens
-                    };
-                    if actual_prompt_tokens > 0 {
-                        existing.payload_tokens = actual_prompt_tokens;
+                    let prompt_tokens = Self::actual_prompt_tokens(&usage);
+                    if prompt_tokens > 0 {
+                        existing.payload_tokens = prompt_tokens;
                     }
                     existing.input_tokens = Some(
                         existing
@@ -415,7 +418,11 @@ impl LlmInspector {
             .or_insert_with(|| ContextBreakdown {
                 source: "proxy".to_string(),
                 categories: Vec::new(),
-                payload_tokens: 0,
+                payload_tokens: if usage.has_usage {
+                    Self::actual_prompt_tokens(&usage)
+                } else {
+                    0
+                },
                 model_context_window: usage.model.as_deref().map(infer_context_window),
                 model: usage.model,
                 upstream: None,
