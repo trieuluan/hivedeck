@@ -879,7 +879,7 @@ export function PluginDetail({
         className="flex flex-col justify-between gap-2.5 rounded-md border border-border bg-secondary/20 p-3"
       >
         <div className="space-y-1.5">
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
               <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border bg-panel text-low">
                 <CodeIcon className="h-3.5 w-3.5" weight="bold" aria-hidden />
@@ -888,77 +888,61 @@ export function PluginDetail({
                 {skill.name}
               </strong>
             </div>
-            <Switch
-              checked={skill.enabled}
-              disabled={busy}
-              aria-label={t('settings.plugins.detail.itemEnabled', {
-                name: skill.name,
-              })}
-              onCheckedChange={(enabled) =>
-                void run(
-                  () =>
-                    pluginsApi.updateSkill(plugin.name, skill.name, {
-                      enabled,
-                    }),
-                  t('settings.plugins.notice.saved')
-                )
-              }
-            />
+            <div className="inline-flex shrink-0 rounded-md border border-border bg-panel/80 p-0.5 text-2xs">
+              {(
+                [
+                  {
+                    id: 'always',
+                    label: 'Always',
+                    active: skill.enabled && skill.injection_mode !== 'on_demand',
+                    activeClass: 'bg-brand text-black font-medium',
+                    patch: { enabled: true, injection_mode: 'always' as const },
+                  },
+                  {
+                    id: 'on_demand',
+                    label: 'On-demand',
+                    active: skill.enabled && skill.injection_mode === 'on_demand',
+                    activeClass: 'bg-sky-500/20 text-sky-300 font-medium',
+                    patch: {
+                      enabled: true,
+                      injection_mode: 'on_demand' as const,
+                    },
+                  },
+                  {
+                    id: 'off',
+                    label: 'Off',
+                    active: !skill.enabled,
+                    activeClass: 'bg-secondary text-normal font-medium',
+                    patch: { enabled: false },
+                  },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void run(
+                      () =>
+                        pluginsApi.updateSkill(plugin.name, skill.name, opt.patch),
+                      t('settings.plugins.notice.saved')
+                    )
+                  }
+                  className={cn(
+                    'rounded px-2 py-0.5 transition-colors disabled:opacity-50',
+                    opt.active ? opt.activeClass : 'text-low hover:text-normal'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
           {description && (
             <p className="line-clamp-2 text-2xs leading-relaxed text-low">
               {description}
             </p>
           )}
-          <div className="inline-flex rounded-md border border-border bg-panel/80 p-0.5 text-2xs">
-            {(
-              [
-                {
-                  id: 'always',
-                  label: 'Always',
-                  active: skill.enabled && skill.injection_mode !== 'on_demand',
-                  activeClass: 'bg-brand text-black font-medium',
-                  patch: { enabled: true, injection_mode: 'always' as const },
-                },
-                {
-                  id: 'on_demand',
-                  label: 'On-demand',
-                  active: skill.enabled && skill.injection_mode === 'on_demand',
-                  activeClass: 'bg-sky-500/20 text-sky-300 font-medium',
-                  patch: {
-                    enabled: true,
-                    injection_mode: 'on_demand' as const,
-                  },
-                },
-                {
-                  id: 'off',
-                  label: 'Off',
-                  active: !skill.enabled,
-                  activeClass: 'bg-secondary text-normal font-medium',
-                  patch: { enabled: false },
-                },
-              ] as const
-            ).map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  void run(
-                    () =>
-                      pluginsApi.updateSkill(plugin.name, skill.name, opt.patch),
-                    t('settings.plugins.notice.saved')
-                  )
-                }
-                className={cn(
-                  'rounded px-2 py-0.5 transition-colors disabled:opacity-50',
-                  opt.active ? opt.activeClass : 'text-low hover:text-normal'
-                )}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
         </div>
 
         <div className="space-y-2">
