@@ -2754,9 +2754,11 @@ pub fn select_mcp_for_run_with_on_demand(
 pub struct OnDemandSkillInfo {
     pub name: String,
     pub plugin_name: String,
+    pub summary: String,
 }
 
 pub fn list_on_demand_skills(
+    asset_dir: &Path,
     plugins: &[InstalledPlugin],
     role: &str,
     board: Option<&str>,
@@ -2767,6 +2769,7 @@ pub fn list_on_demand_skills(
         if !plugin.enabled {
             continue;
         }
+        let descriptions = read_plugin_skill_descriptions(asset_dir, plugin);
         for skill in &plugin.skills {
             if !skill.enabled
                 || skill.injection_mode != McpInjectionMode::OnDemand
@@ -2777,9 +2780,14 @@ pub fn list_on_demand_skills(
             {
                 continue;
             }
+            let summary: String = descriptions
+                .get(&skill.name)
+                .map(|s| s.trim().chars().take(120).collect())
+                .unwrap_or_default();
             out.push(OnDemandSkillInfo {
                 name: skill.name.clone(),
                 plugin_name: plugin.name.clone(),
+                summary,
             });
         }
     }

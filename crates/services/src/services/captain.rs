@@ -41,10 +41,15 @@ pub fn prompt() -> String {
 
 /// JSON for Claude Code's `--agents` flag defining the captain.
 pub fn agents_json() -> String {
+    agents_json_with_prompt(&prompt())
+}
+
+/// JSON for Claude Code's `--agents` flag defining the captain with a custom prompt.
+pub fn agents_json_with_prompt(prompt_text: &str) -> String {
     json!({
         AGENT_ID: {
             "description": DESCRIPTION,
-            "prompt": prompt(),
+            "prompt": prompt_text,
         }
     })
     .to_string()
