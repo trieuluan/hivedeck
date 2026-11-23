@@ -1267,7 +1267,7 @@ export function PluginDetail({
         onOpenChange={(nextOpen) => {
           if (!nextOpen) setViewingSkill(null);
         }}
-        className="flex max-h-[82vh] w-[92vw] max-w-3xl flex-col gap-0 overflow-hidden p-0"
+        className="flex max-h-[82vh] w-[92vw] !max-w-3xl flex-col !gap-0 overflow-hidden !p-0"
       >
         <DialogHeader className="border-b border-border bg-secondary/30 px-5 py-3.5">
           <div className="flex flex-wrap items-center justify-between gap-3 pr-8">
