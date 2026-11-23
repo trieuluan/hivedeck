@@ -43,7 +43,7 @@ use ts_rs::TS;
 use utils::{command_ext::GroupSpawnNoWindowExt, shell::resolve_executable_path};
 
 /// HiveRouter version HiveDeck installs by default (tested against).
-pub const PINNED_VERSION: &str = "0.5.121";
+pub const PINNED_VERSION: &str = "0.5.125";
 pub const DEFAULT_PORT: u16 = 20128;
 const PACKAGE_NAME: &str = "@trieuluan/hiverouter";
 const BIN_NAME: &str = "hiverouter";
