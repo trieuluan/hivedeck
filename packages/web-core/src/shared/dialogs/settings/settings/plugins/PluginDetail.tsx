@@ -28,14 +28,14 @@ import type {
 } from 'shared/types';
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@vibe/ui/components/KeyboardDialog';
 import { Switch } from '@vibe/ui/components/Switch';
-import WYSIWYGEditor from '@/shared/components/WYSIWYGEditor';
+import { MarkdownPreview } from '@/shared/components/MarkdownPreview';
+import { getResolvedTheme, useTheme } from '@/shared/hooks/useTheme';
 import { cn } from '@/shared/lib/utils';
 import { useProjects } from '@/shared/hooks/useProjects';
 import { SettingsCheckbox } from '../SettingsComponents';
@@ -289,6 +289,8 @@ export function PluginDetail({
   notify: (notice: Notice) => void;
 }) {
   const { t } = useTranslation('settings');
+  const { theme } = useTheme();
+  const resolvedTheme = getResolvedTheme(theme);
   const { data: boards } = useProjects();
   const [busy, setBusy] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -1265,10 +1267,10 @@ export function PluginDetail({
         onOpenChange={(nextOpen) => {
           if (!nextOpen) setViewingSkill(null);
         }}
+        className="flex max-h-[82vh] w-[92vw] max-w-3xl flex-col gap-0 overflow-hidden p-0"
       >
-        <DialogContent className="flex max-h-[82vh] max-w-3xl flex-col gap-0 overflow-hidden p-0">
-          <DialogHeader className="border-b border-border bg-secondary/30 px-5 py-3.5">
-            <div className="flex flex-wrap items-center justify-between gap-3 pr-6">
+        <DialogHeader className="border-b border-border bg-secondary/30 px-5 py-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-3 pr-8">
               <div className="flex min-w-0 items-center gap-2.5">
                 <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-border bg-panel text-brand">
                   <CodeIcon className="h-4 w-4" weight="bold" aria-hidden />
@@ -1379,9 +1381,10 @@ export function PluginDetail({
                   {skillContent.content}
                 </pre>
               ) : (
-                <div className="text-sm leading-relaxed text-normal">
-                  <WYSIWYGEditor value={skillContent.content} disabled />
-                </div>
+                <MarkdownPreview
+                  content={stripFrontmatter(skillContent.content)}
+                  theme={resolvedTheme}
+                />
               ))}
           </div>
 
@@ -1394,10 +1397,14 @@ export function PluginDetail({
               Đóng
             </button>
           </DialogFooter>
-        </DialogContent>
       </Dialog>
     </div>
   );
+}
+
+function stripFrontmatter(raw: string): string {
+  const match = raw.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/);
+  return match ? raw.slice(match[0].length).trimStart() : raw;
 }
 
 function McpInstructionsEditor({
