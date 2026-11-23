@@ -310,6 +310,74 @@ pub async fn update_workspace_mcp_servers(
 }
 
 #[derive(Debug, Serialize)]
+pub struct WorkspaceSkillItem {
+    pub name: String,
+    pub plugin_name: String,
+    pub injection_mode: executors::plugins::McpInjectionMode,
+    pub selected: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WorkspaceSkillResponse {
+    pub items: Vec<WorkspaceSkillItem>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateWorkspaceSkillsRequest {
+    pub selected: Vec<String>,
+}
+
+#[axum::debug_handler]
+pub async fn get_workspace_skills(
+    Extension(workspace): Extension<Workspace>,
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<WorkspaceSkillResponse>>, ApiError> {
+    let pool = &deployment.db().pool;
+    let selected = Workspace::get_selected_skills(pool, workspace.id).await?;
+    let dir = utils::assets::asset_dir();
+    let plugins = executors::plugins::read_plugins(&dir).unwrap_or_default();
+
+    let mut items = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
+    for plugin in plugins {
+        if !plugin.enabled {
+            continue;
+        }
+        for skill in plugin.skills {
+            if !skill.enabled
+                || !skill.roles.iter().any(|r| r == "crew")
+                || !seen.insert(skill.name.clone())
+            {
+                continue;
+            }
+            let is_selected = skill.injection_mode == executors::plugins::McpInjectionMode::Always
+                || selected.iter().any(|s| s == &skill.name);
+            items.push(WorkspaceSkillItem {
+                name: skill.name,
+                plugin_name: plugin.name.clone(),
+                injection_mode: skill.injection_mode,
+                selected: is_selected,
+            });
+        }
+    }
+    Ok(ResponseJson(ApiResponse::success(WorkspaceSkillResponse {
+        items,
+    })))
+}
+
+#[axum::debug_handler]
+pub async fn update_workspace_skills(
+    Extension(workspace): Extension<Workspace>,
+    State(deployment): State<DeploymentImpl>,
+    Json(req): Json<UpdateWorkspaceSkillsRequest>,
+) -> Result<ResponseJson<ApiResponse<Vec<String>>>, ApiError> {
+    let pool = &deployment.db().pool;
+    Workspace::set_selected_skills(pool, workspace.id, &req.selected).await?;
+    let updated = Workspace::get_selected_skills(pool, workspace.id).await?;
+    Ok(ResponseJson(ApiResponse::success(updated)))
+}
+
+#[derive(Debug, Serialize)]
 pub struct WorkspaceLiveTelemetry {
     pub executor: Option<String>,
     pub started_at: chrono::DateTime<chrono::Utc>,

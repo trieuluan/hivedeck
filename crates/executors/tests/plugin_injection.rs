@@ -168,6 +168,7 @@ async fn plugin_injection_across_clis_hash_stability_and_uninstall() {
         Some(vec!["board-1".into()]),
         Some(vec![]),
         Some(true),
+        None,
     )
     .unwrap();
     let after_scope = read_plugins(asset_dir.path()).unwrap();

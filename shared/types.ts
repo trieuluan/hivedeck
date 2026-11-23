@@ -587,7 +587,7 @@ export type PluginMcpEntry = { name: string, transport: string, command?: string
 
 export type SingleSkillEntry = { name: string, content?: string | null, };
 
-export type PluginSkillEntry = { name: string, path: string, roles: Array<string>, boards: Array<string>, clis: Array<string>, enabled: boolean, };
+export type PluginSkillEntry = { name: string, path: string, roles: Array<string>, boards: Array<string>, clis: Array<string>, enabled: boolean, injection_mode: McpInjectionMode, };
 
 export type InstalledPlugin = { name: string, version: string, source: string, commit?: string | null, tag?: string | null, enabled: boolean, asset_hash: string, mcp: Array<PluginMcpEntry>, skills: Array<PluginSkillEntry>, unsupported: Array<string>, notes: Array<PluginConflict>, };
 
@@ -740,7 +740,11 @@ kind?: WorkspaceKind,
 /**
  * Optional list of on-demand MCP server names to enable for this workspace.
  */
-mcp_servers?: Array<string>, };
+mcp_servers?: Array<string>, 
+/**
+ * Optional list of on-demand skill names to enable for this workspace.
+ */
+skills?: Array<string>, };
 
 export type CreateAndStartWorkspaceResponse = { workspace: Workspace, execution_process: ExecutionProcess, };
 

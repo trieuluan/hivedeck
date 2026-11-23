@@ -3059,12 +3059,18 @@ impl ContainerService for LocalContainerService {
                     settings.to_string_lossy(),
                 );
             }
-            let selected_skills = executors::plugins::select_skills_for_run(
+            let selected_on_demand_skills =
+                Workspace::get_selected_skills(&self.db().pool, workspace.id)
+                    .await
+                    .unwrap_or_default();
+            let selected_skills = executors::plugins::select_skills_for_run_with_on_demand(
                 &dir,
                 &plugins,
                 cli,
                 role,
                 board.as_deref(),
+                &selected_on_demand,
+                &selected_on_demand_skills,
             );
             if cli == "cursor_agent" {
                 env.runtime_config_path = executors::plugins::write_cursor_plugin_dir(
@@ -3192,19 +3198,26 @@ impl ContainerService for LocalContainerService {
                 ),
             );
             let mut captain_prompt = services::services::captain::prompt().to_string();
-            let on_demand = executors::plugins::list_on_demand_mcps(
-                &executors::plugins::read_plugins(&utils::assets::asset_dir()).unwrap_or_default(),
-                "crew",
-                None,
-            );
+            let plugins_for_captain =
+                executors::plugins::read_plugins(&utils::assets::asset_dir()).unwrap_or_default();
+            let on_demand =
+                executors::plugins::list_on_demand_mcps(&plugins_for_captain, "crew", None);
             if !on_demand.is_empty() {
-                captain_prompt.push_str("\n\n## Available On-Demand MCPs for Crew\nPass `mcp_servers: [\"name\"]` to `start_workspace` when a card needs any of these optional MCPs:\n");
+                captain_prompt.push_str("\n\n## Available On-Demand MCPs for Crew\nPass `mcp_servers: [\"name\"]` to `start_workspace` when a card needs any of these optional MCPs (bundled plugin skills are attached automatically):\n");
                 for item in on_demand {
                     if item.summary.is_empty() {
                         captain_prompt.push_str(&format!("- `{}`\n", item.name));
                     } else {
                         captain_prompt.push_str(&format!("- `{}`: {}\n", item.name, item.summary));
                     }
+                }
+            }
+            let on_demand_skills =
+                executors::plugins::list_on_demand_skills(&plugins_for_captain, "crew", None);
+            if !on_demand_skills.is_empty() {
+                captain_prompt.push_str("\n\n## Available On-Demand Skills for Crew\nPass `skills: [\"name\"]` to `start_workspace` when a card needs any of these optional standalone skills:\n");
+                for item in on_demand_skills {
+                    captain_prompt.push_str(&format!("- `{}` (from `{}`)\n", item.name, item.plugin_name));
                 }
             }
             env.insert(codex::CAPTAIN_INSTRUCTIONS_ENV, captain_prompt);

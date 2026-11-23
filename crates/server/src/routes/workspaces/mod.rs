@@ -36,6 +36,10 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
             "/mcp",
             get(core::get_workspace_mcp_servers).put(core::update_workspace_mcp_servers),
         )
+        .route(
+            "/skills",
+            get(core::get_workspace_skills).put(core::update_workspace_skills),
+        )
         .route("/open-terminal", post(core::open_terminal))
         .nest("/git", git::router())
         .nest("/execution", execution::router())

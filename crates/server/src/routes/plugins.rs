@@ -85,6 +85,13 @@ pub struct UpdatePluginSkillRequest {
     pub clis: Option<Vec<String>>,
     #[serde(default)]
     pub enabled: Option<bool>,
+    #[serde(default)]
+    pub injection_mode: Option<plugins::McpInjectionMode>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetPluginInjectionModeRequest {
+    pub injection_mode: plugins::McpInjectionMode,
 }
 
 #[derive(Debug, Deserialize)]
@@ -299,6 +306,25 @@ async fn disable(
     ))))
 }
 
+async fn set_injection_mode(
+    Extension(dir): Extension<PathBuf>,
+    RoutePath(name): RoutePath<String>,
+    req: Result<Json<SetPluginInjectionModeRequest>, axum::extract::rejection::JsonRejection>,
+) -> Result<Json<ApiResponse<PluginView>>, ApiError> {
+    let Json(req) =
+        req.map_err(|_| ApiError::BadRequest("Invalid injection mode request".into()))?;
+    let updated =
+        plugins::set_plugin_injection_mode(&dir, &name, req.injection_mode).map_err(map_err)?;
+    let secrets = plugins::read_plugin_secrets(&dir).map_err(map_err)?;
+    let oauth_tokens = mcp_oauth::read_oauth_tokens(&dir).map_err(map_err)?;
+    Ok(Json(ApiResponse::success(build_view(
+        &dir,
+        updated,
+        &secrets,
+        &oauth_tokens,
+    ))))
+}
+
 async fn update_skill(
     Extension(dir): Extension<PathBuf>,
     RoutePath((name, skill)): RoutePath<(String, String)>,
@@ -313,6 +339,7 @@ async fn update_skill(
         req.boards,
         req.clis,
         req.enabled,
+        req.injection_mode,
     )
     .map_err(map_err)?;
     Ok(Json(ApiResponse::success(updated)))
@@ -618,6 +645,7 @@ pub(crate) fn router_for_dir<S: Clone + Send + Sync + 'static>(dir: &Path) -> Ro
         .route("/plugins/{name}", get(get_one).delete(uninstall))
         .route("/plugins/{name}/enable", post(enable))
         .route("/plugins/{name}/disable", post(disable))
+        .route("/plugins/{name}/injection-mode", put(set_injection_mode))
         .route("/plugins/{name}/upgrade", post(upgrade))
         .route("/plugins/{name}/latest-tag", get(latest_tag))
         .route("/plugins/{name}/skills/{skill}", put(update_skill))

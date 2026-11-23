@@ -49,6 +49,10 @@ pub struct CreateAndStartWorkspaceRequest {
     #[serde(default)]
     #[ts(optional)]
     pub mcp_servers: Option<Vec<String>>,
+    /// Optional list of on-demand skill names to enable for this workspace.
+    #[serde(default)]
+    #[ts(optional)]
+    pub skills: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS)]

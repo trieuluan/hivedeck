@@ -11,8 +11,19 @@ interface WorkspaceMcpItem {
   selected: boolean;
 }
 
+interface WorkspaceSkillItem {
+  name: string;
+  plugin_name: string;
+  injection_mode: McpInjectionMode;
+  selected: boolean;
+}
+
 interface WorkspaceMcpResponse {
   items: WorkspaceMcpItem[];
+}
+
+interface WorkspaceSkillResponse {
+  items: WorkspaceSkillItem[];
 }
 
 export function WorkspaceMcpSelector({
@@ -24,6 +35,7 @@ export function WorkspaceMcpSelector({
 }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<WorkspaceMcpItem[]>([]);
+  const [skillItems, setSkillItems] = useState<WorkspaceSkillItem[]>([]);
   const [saving, setSaving] = useState(false);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
@@ -34,9 +46,17 @@ export function WorkspaceMcpSelector({
 
   const load = useCallback(async () => {
     try {
-      const resp = await fetch(`/api/workspaces/${workspaceId}/mcp`);
-      const data = await handleApiResponse<WorkspaceMcpResponse>(resp);
-      setItems(data.items ?? []);
+      const [mcpResp, skillResp] = await Promise.all([
+        fetch(`/api/workspaces/${workspaceId}/mcp`),
+        fetch(`/api/workspaces/${workspaceId}/skills`),
+      ]);
+      const mcpData = await handleApiResponse<WorkspaceMcpResponse>(mcpResp);
+      setItems(mcpData.items ?? []);
+      if (skillResp.ok) {
+        const skillData =
+          await handleApiResponse<WorkspaceSkillResponse>(skillResp);
+        setSkillItems(skillData.items ?? []);
+      }
     } catch {
       // Non-fatal: keep existing state if workspace MCP endpoint fails
     }
@@ -78,9 +98,38 @@ export function WorkspaceMcpSelector({
 
   const alwaysItems = items.filter((i) => i.injection_mode === 'always');
   const onDemandItems = items.filter((i) => i.injection_mode === 'on_demand');
-  const activeOnDemandCount = onDemandItems.filter((i) => i.selected).length;
+  const onDemandSkills = skillItems.filter(
+    (s) => s.injection_mode === 'on_demand'
+  );
+  const activeOnDemandCount =
+    onDemandItems.filter((i) => i.selected).length +
+    onDemandSkills.filter((s) => s.selected).length;
 
-  if (items.length === 0) return null;
+  if (items.length === 0 && onDemandSkills.length === 0) return null;
+
+  const toggleOnDemandSkill = async (name: string) => {
+    if (saving) return;
+    const nextSelected = onDemandSkills
+      .filter((s) => (s.name === name ? !s.selected : s.selected))
+      .map((s) => s.name);
+
+    setSkillItems((prev) =>
+      prev.map((s) => (s.name === name ? { ...s, selected: !s.selected } : s))
+    );
+    setSaving(true);
+    try {
+      const resp = await fetch(`/api/workspaces/${workspaceId}/skills`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selected: nextSelected }),
+      });
+      await handleApiResponse<string[]>(resp);
+    } catch {
+      await load();
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const toggleOnDemand = async (name: string) => {
     if (saving) return;
@@ -204,9 +253,52 @@ export function WorkspaceMcpSelector({
               )}
             </div>
 
-            {isRunning && onDemandItems.length > 0 && (
+            {onDemandSkills.length > 0 && (
+              <div className="space-y-1.5 border-t border-border/60 pt-2">
+                <div className="text-[11px] font-medium uppercase tracking-wide text-low">
+                  On-demand Skills cho card này
+                </div>
+                <div className="space-y-1.5">
+                  {onDemandSkills.map((skill) => (
+                    <button
+                      key={skill.name}
+                      type="button"
+                      disabled={saving}
+                      onClick={() => void toggleOnDemandSkill(skill.name)}
+                      className={`w-full flex items-start gap-2 rounded border px-2.5 py-2 text-left transition-colors ${
+                        skill.selected
+                          ? 'border-brand/60 bg-brand/10 text-normal'
+                          : 'border-border bg-secondary/20 text-low hover:border-border/80 hover:text-normal'
+                      }`}
+                    >
+                      <span
+                        className={`mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border ${
+                          skill.selected
+                            ? 'border-brand bg-brand text-black'
+                            : 'border-border bg-panel'
+                        }`}
+                      >
+                        {skill.selected && (
+                          <CheckIcon weight="bold" className="h-2.5 w-2.5" />
+                        )}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-normal">
+                          {skill.name}
+                        </div>
+                        <div className="truncate text-[11px] text-low">
+                          {skill.plugin_name}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {isRunning && (onDemandItems.length > 0 || onDemandSkills.length > 0) && (
               <p className="border-t border-border/60 pt-2 text-[11px] text-low">
-                Thay đổi MCP sẽ áp dụng ở lượt chạy tiếp theo.
+                Thay đổi MCP/Skill sẽ áp dụng ở lượt chạy tiếp theo.
               </p>
             )}
           </div>,

@@ -114,6 +114,7 @@ pub async fn create_and_start_workspace(
         attachment_ids,
         kind,
         mcp_servers,
+        skills,
     } = payload;
 
     let workspace_prompt = normalize_prompt(&prompt).ok_or_else(|| {
@@ -224,6 +225,16 @@ pub async fn create_and_start_workspace(
     {
         tracing::warn!(
             "failed to save selected MCP servers for workspace {}: {}",
+            workspace.id,
+            e
+        );
+    }
+
+    if let Some(ref skill_names) = skills
+        && let Err(e) = Workspace::set_selected_skills(pool, workspace.id, skill_names).await
+    {
+        tracing::warn!(
+            "failed to save selected skills for workspace {}: {}",
             workspace.id,
             e
         );

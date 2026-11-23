@@ -910,6 +910,55 @@ export function PluginDetail({
               {description}
             </p>
           )}
+          <div className="inline-flex rounded-md border border-border bg-panel/80 p-0.5 text-2xs">
+            {(
+              [
+                {
+                  id: 'always',
+                  label: 'Always',
+                  active: skill.enabled && skill.injection_mode !== 'on_demand',
+                  activeClass: 'bg-brand text-black font-medium',
+                  patch: { enabled: true, injection_mode: 'always' as const },
+                },
+                {
+                  id: 'on_demand',
+                  label: 'On-demand',
+                  active: skill.enabled && skill.injection_mode === 'on_demand',
+                  activeClass: 'bg-sky-500/20 text-sky-300 font-medium',
+                  patch: {
+                    enabled: true,
+                    injection_mode: 'on_demand' as const,
+                  },
+                },
+                {
+                  id: 'off',
+                  label: 'Off',
+                  active: !skill.enabled,
+                  activeClass: 'bg-secondary text-normal font-medium',
+                  patch: { enabled: false },
+                },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  void run(
+                    () =>
+                      pluginsApi.updateSkill(plugin.name, skill.name, opt.patch),
+                    t('settings.plugins.notice.saved')
+                  )
+                }
+                className={cn(
+                  'rounded px-2 py-0.5 transition-colors disabled:opacity-50',
+                  opt.active ? opt.activeClass : 'text-low hover:text-normal'
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -993,18 +1042,69 @@ export function PluginDetail({
 
   return (
     <div className="space-y-3.5 border-t border-border pt-3">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm border border-border bg-panel/60 px-3 py-2 text-xs text-low">
-        <span className="min-w-0 truncate">
-          <strong className="font-medium text-normal">
-            {t('settings.plugins.detail.source')}:
-          </strong>{' '}
-          <span className="font-mono">{plugin.source}</span>
-        </span>
-        {pin && (
-          <span className="shrink-0">
-            <strong className="font-medium text-normal">{pin.label}:</strong>{' '}
-            <span className="font-mono">{pin.value}</span>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-sm border border-border bg-panel/60 px-3 py-2 text-xs text-low">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
+          <span className="min-w-0 truncate">
+            <strong className="font-medium text-normal">
+              {t('settings.plugins.detail.source')}:
+            </strong>{' '}
+            <span className="font-mono">{plugin.source}</span>
           </span>
+          {pin && (
+            <span className="shrink-0">
+              <strong className="font-medium text-normal">{pin.label}:</strong>{' '}
+              <span className="font-mono">{pin.value}</span>
+            </span>
+          )}
+        </div>
+        {(plugin.mcp.length > 0 || plugin.skills.length > 0) && (
+          <div className="flex items-center gap-2">
+            <span className="text-2xs text-low">Toàn bộ plugin:</span>
+            <div className="inline-flex rounded-md border border-border bg-panel/80 p-0.5 text-2xs">
+              {(
+                [
+                  {
+                    id: 'always' as const,
+                    label: 'Always',
+                    active:
+                      plugin.mcp.every((m) => m.injection_mode !== 'on_demand') &&
+                      plugin.skills.every(
+                        (s) => s.injection_mode !== 'on_demand'
+                      ),
+                    activeClass: 'bg-brand text-black font-medium',
+                  },
+                  {
+                    id: 'on_demand' as const,
+                    label: 'On-demand',
+                    active:
+                      plugin.mcp.every((m) => m.injection_mode === 'on_demand') &&
+                      plugin.skills.every(
+                        (s) => s.injection_mode === 'on_demand'
+                      ),
+                    activeClass: 'bg-sky-500/20 text-sky-300 font-medium',
+                  },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void run(
+                      () => pluginsApi.setInjectionMode(plugin.name, opt.id),
+                      t('settings.plugins.notice.saved')
+                    )
+                  }
+                  className={cn(
+                    'rounded px-2 py-0.5 transition-colors disabled:opacity-50',
+                    opt.active ? opt.activeClass : 'text-low hover:text-normal'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
 

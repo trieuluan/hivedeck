@@ -4,6 +4,7 @@ import type {
   PluginConflict,
   InstalledPlugin,
   InstallPluginRequest,
+  McpInjectionMode,
   McpToolPolicy,
   PluginMcpEntry,
   PluginMcpOAuthStatus,
@@ -105,6 +106,11 @@ export const pluginsApi = {
     call<PluginView>(
       `/${seg(name)}/${enabled ? 'enable' : 'disable'}`,
       json('POST')
+    ),
+  setInjectionMode: (name: string, injection_mode: McpInjectionMode) =>
+    call<PluginView>(
+      `/${seg(name)}/injection-mode`,
+      json('PUT', { injection_mode })
     ),
   updateMcp: (name: string, mcp: string, patch: ScopePatch) =>
     call<PluginMcpEntry>(`/${seg(name)}/mcp/${seg(mcp)}`, json('PUT', patch)),

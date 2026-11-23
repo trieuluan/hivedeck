@@ -980,6 +980,45 @@ impl Workspace {
         tx.commit().await?;
         Ok(())
     }
+
+    pub async fn get_selected_skills(
+        pool: &SqlitePool,
+        workspace_id: Uuid,
+    ) -> Result<Vec<String>, sqlx::Error> {
+        sqlx::query_scalar::<_, String>(
+            "SELECT skill_name FROM workspace_skills WHERE workspace_id = ?1 ORDER BY skill_name",
+        )
+        .bind(workspace_id)
+        .fetch_all(pool)
+        .await
+    }
+
+    pub async fn set_selected_skills(
+        pool: &SqlitePool,
+        workspace_id: Uuid,
+        skill_names: &[String],
+    ) -> Result<(), sqlx::Error> {
+        let mut tx = pool.begin().await?;
+        sqlx::query("DELETE FROM workspace_skills WHERE workspace_id = ?1")
+            .bind(workspace_id)
+            .execute(&mut *tx)
+            .await?;
+        for name in skill_names {
+            let trimmed = name.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            sqlx::query(
+                "INSERT OR IGNORE INTO workspace_skills (workspace_id, skill_name) VALUES (?1, ?2)",
+            )
+            .bind(workspace_id)
+            .bind(trimmed)
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

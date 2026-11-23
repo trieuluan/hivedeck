@@ -46,6 +46,10 @@ struct StartWorkspaceRequest {
         description = "Optional list of on-demand MCP server names (e.g. ['higgsfield']) to inject into this workspace's crew sessions. Always-on MCPs (e.g. codemap) are included automatically."
     )]
     mcp_servers: Option<Vec<String>>,
+    #[schemars(
+        description = "Optional list of on-demand skill names to inject into this workspace's crew sessions. Skills bundled with an enabled on-demand MCP are included automatically."
+    )]
+    skills: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]
@@ -116,6 +120,7 @@ impl McpServer {
             repositories,
             issue_id,
             mcp_servers,
+            skills,
         }): Parameters<StartWorkspaceRequest>,
     ) -> Result<CallToolResult, ErrorData> {
         if repositories.is_empty() {
@@ -207,6 +212,7 @@ impl McpServer {
             attachment_ids: None,
             kind: None,
             mcp_servers,
+            skills,
         };
 
         let create_and_start_url = self.url("/api/workspaces/start");

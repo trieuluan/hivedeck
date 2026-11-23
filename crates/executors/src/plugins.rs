@@ -135,6 +135,8 @@ pub struct PluginSkillEntry {
     pub clis: Vec<String>,
     #[serde(default = "default_true")]
     pub enabled: bool,
+    #[serde(default)]
+    pub injection_mode: McpInjectionMode,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -1209,6 +1211,7 @@ fn load_skill_from_path(
         boards,
         clis,
         enabled: true,
+        injection_mode: McpInjectionMode::Always,
     })
 }
 
@@ -2241,6 +2244,34 @@ pub fn set_plugin_enabled(
     Ok(updated)
 }
 
+pub fn set_plugin_injection_mode(
+    dir: &Path,
+    name: &str,
+    mode: McpInjectionMode,
+) -> Result<InstalledPlugin, PluginError> {
+    if !valid_name(name) {
+        return Err(PluginError::BadRequest("Invalid plugin name".into()));
+    }
+    let _lock = WRITE_LOCK
+        .lock()
+        .map_err(|_| std::io::Error::other("Plugin registry lock poisoned"))?;
+    let mut plugins = read_plugins(dir)?;
+    let plugin = plugins
+        .iter_mut()
+        .find(|p| p.name == name)
+        .ok_or_else(|| PluginError::NotFound(format!("Plugin '{name}' not found")))?;
+    for mcp in &mut plugin.mcp {
+        mcp.injection_mode = mode;
+    }
+    for skill in &mut plugin.skills {
+        skill.injection_mode = mode;
+    }
+    let updated = plugin.clone();
+    write_atomic(&plugins_path(dir), &plugins, false)?;
+    Ok(updated)
+}
+
+#[allow(clippy::too_many_arguments)]
 pub fn update_skill_scope(
     dir: &Path,
     plugin_name: &str,
@@ -2249,6 +2280,7 @@ pub fn update_skill_scope(
     boards: Option<Vec<String>>,
     clis: Option<Vec<String>>,
     enabled: Option<bool>,
+    injection_mode: Option<McpInjectionMode>,
 ) -> Result<PluginSkillEntry, PluginError> {
     if !valid_name(plugin_name) || !valid_name(skill_name) {
         return Err(PluginError::BadRequest(
@@ -2281,6 +2313,9 @@ pub fn update_skill_scope(
     }
     if let Some(enabled) = enabled {
         skill.enabled = enabled;
+    }
+    if let Some(mode) = injection_mode {
+        skill.injection_mode = mode;
     }
     let updated = skill.clone();
     write_atomic(&plugins_path(dir), &plugins, false)?;
@@ -2671,6 +2706,42 @@ pub fn select_mcp_for_run_with_on_demand(
     Ok((servers, variables))
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OnDemandSkillInfo {
+    pub name: String,
+    pub plugin_name: String,
+}
+
+pub fn list_on_demand_skills(
+    plugins: &[InstalledPlugin],
+    role: &str,
+    board: Option<&str>,
+) -> Vec<OnDemandSkillInfo> {
+    let mut out = Vec::new();
+    let mut seen = BTreeSet::new();
+    for plugin in plugins {
+        if !plugin.enabled {
+            continue;
+        }
+        for skill in &plugin.skills {
+            if !skill.enabled
+                || skill.injection_mode != McpInjectionMode::OnDemand
+                || !skill.roles.iter().any(|item| item == role)
+                || (!skill.boards.is_empty()
+                    && !board.is_some_and(|b| skill.boards.iter().any(|item| item == b)))
+                || !seen.insert(skill.name.clone())
+            {
+                continue;
+            }
+            out.push(OnDemandSkillInfo {
+                name: skill.name.clone(),
+                plugin_name: plugin.name.clone(),
+            });
+        }
+    }
+    out
+}
+
 pub fn select_skills_for_run(
     asset_dir: &Path,
     plugins: &[InstalledPlugin],
@@ -2678,11 +2749,26 @@ pub fn select_skills_for_run(
     role: &str,
     board: Option<&str>,
 ) -> Vec<SelectedSkill> {
+    select_skills_for_run_with_on_demand(asset_dir, plugins, cli, role, board, &[], &[])
+}
+
+pub fn select_skills_for_run_with_on_demand(
+    asset_dir: &Path,
+    plugins: &[InstalledPlugin],
+    cli: &str,
+    role: &str,
+    board: Option<&str>,
+    selected_on_demand_mcps: &[String],
+    selected_on_demand_skills: &[String],
+) -> Vec<SelectedSkill> {
     let mut out = Vec::new();
     for plugin in plugins {
         if !plugin.enabled {
             continue;
         }
+        let plugin_mcp_selected = plugin.mcp.iter().any(|m| {
+            m.enabled && selected_on_demand_mcps.iter().any(|sel| sel == &m.name)
+        });
         let root = plugin_asset_dir(asset_dir, &plugin.name);
         for skill in &plugin.skills {
             if !skill.enabled
@@ -2690,6 +2776,13 @@ pub fn select_skills_for_run(
                 || (!skill.boards.is_empty()
                     && !board.is_some_and(|board| skill.boards.iter().any(|item| item == board)))
                 || (!skill.clis.is_empty() && !skill.clis.iter().any(|item| item == cli))
+            {
+                continue;
+            }
+            if skill.injection_mode == McpInjectionMode::OnDemand
+                && role == "crew"
+                && !plugin_mcp_selected
+                && !selected_on_demand_skills.iter().any(|s| s == &skill.name)
             {
                 continue;
             }
