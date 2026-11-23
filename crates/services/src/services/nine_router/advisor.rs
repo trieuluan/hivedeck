@@ -122,6 +122,10 @@ pub struct QuotaWindow {
     pub name: String,
     pub remaining_percent: u8,
     pub reset_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remaining_amount: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub currency: Option<String>,
 }
 
 /// Where a model sits in a combo's fallback chain.
@@ -422,6 +426,8 @@ fn connection_health(conn: &Connection, usage: Option<&Usage>) -> ProviderHealth
                 name: q.name.clone(),
                 remaining_percent: (q.remaining * 100.0).round() as u8,
                 reset_at: q.reset_at.clone(),
+                remaining_amount: q.remaining_amount,
+                currency: q.currency.clone(),
             })
             .collect();
         h.quotas.sort_by_key(|q| window_order(&q.name));
@@ -1370,6 +1376,7 @@ mod tests {
                 name: "session (5h)".into(),
                 remaining,
                 reset_at: None,
+                ..Default::default()
             }],
             message: None,
         }
@@ -1653,6 +1660,7 @@ mod tests {
                         name: "Balance (USD)".into(),
                         remaining: 1.0,
                         reset_at: None,
+                        ..Default::default()
                     }],
                     message: None,
                 }),

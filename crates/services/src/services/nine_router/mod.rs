@@ -677,16 +677,77 @@ fn free_port() -> std::io::Result<u16> {
     Ok(listener.local_addr()?.port())
 }
 
+/// Find orphan HiveDeck-spawned `launch-9router.cjs` processes listening on `port`
+/// (e.g. left behind after a dev server restart) and terminate them so we don't
+/// hit `EADDRINUSE` or misclassify them as an external router.
+#[cfg(unix)]
+async fn cleanup_orphan_launchers(port: u16) -> bool {
+    let Ok(output) = tokio::process::Command::new("lsof")
+        .args(["-t", "-nP", &format!("-iTCP:{port}"), "-sTCP:LISTEN"])
+        .output()
+        .await
+    else {
+        return false;
+    };
+    if !output.status.success() {
+        return false;
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut killed = false;
+    for line in stdout.lines() {
+        let Ok(pid) = line.trim().parse::<u32>() else {
+            continue;
+        };
+        let Ok(ps_out) = tokio::process::Command::new("ps")
+            .args(["-p", &pid.to_string(), "-o", "command="])
+            .output()
+            .await
+        else {
+            continue;
+        };
+        let cmdline = String::from_utf8_lossy(&ps_out.stdout);
+        if cmdline.contains("launch-9router.cjs") {
+            let _ = log_line(&format!(
+                "cleaning up stuck HiveRouter launcher (pid {pid}) on port {port}"
+            ))
+            .await;
+            let _ = utils::process::terminate_process_group_by_pid(pid).await;
+            killed = true;
+        }
+    }
+    if killed {
+        let _ = tokio::fs::remove_file(pid_path()).await;
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    killed
+}
+
+#[cfg(not(unix))]
+async fn cleanup_orphan_launchers(_port: u16) -> bool {
+    false
+}
+
 /// Start 9router on the configured port and wait until it answers.
 pub async fn start(settings: &NineRouterSettings) -> Result<(), NineRouterError> {
     let _lock = LIFECYCLE.lock().await;
     let port = settings.port;
     if probe(port).await.is_some() {
-        return Err(if managed_pid().is_some() {
-            NineRouterError::AlreadyRunning(port)
-        } else {
-            NineRouterError::External(port)
-        });
+        if managed_pid().is_some() {
+            return Err(NineRouterError::AlreadyRunning(port));
+        }
+        if !cleanup_orphan_launchers(port).await {
+            return Err(NineRouterError::External(port));
+        }
+    } else if let Some(pid) = managed_pid() {
+        log_line(&format!(
+            "stopping unresponsive HiveRouter (pid {pid}) on port {port}"
+        ))
+        .await;
+        let _ = utils::process::terminate_process_group_by_pid(pid).await;
+        let _ = tokio::fs::remove_file(pid_path()).await;
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    } else {
+        cleanup_orphan_launchers(port).await;
     }
     let install = find_install().await.ok_or(NineRouterError::NotInstalled)?;
     let node = resolve_executable_path("node")
@@ -739,11 +800,11 @@ async fn spawn_router(
 async fn wait_ready(child: &mut AsyncGroupChild, port: u16) -> Result<(), NineRouterError> {
     let deadline = tokio::time::Instant::now() + START_TIMEOUT;
     loop {
-        if probe(port).await.is_some() {
-            return Ok(());
-        }
         if let Ok(Some(_)) = child.try_wait() {
             return Err(NineRouterError::ExitedEarly);
+        }
+        if probe(port).await.is_some() {
+            return Ok(());
         }
         if tokio::time::Instant::now() >= deadline {
             return Err(NineRouterError::StartTimeout(START_TIMEOUT.as_secs()));

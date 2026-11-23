@@ -155,12 +155,50 @@ function windowKey(name: string): string | null {
   return null;
 }
 
+function formatMoney(
+  value: number,
+  currency: string | null | undefined,
+  locale: string
+): string {
+  const code = (currency || 'USD').toUpperCase();
+  if (value > 0 && value < 0.01) {
+    return code === 'USD' ? '<$0.01' : `<0.01 ${code}`;
+  }
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: code,
+      maximumFractionDigits: value >= 100 ? 0 : 2,
+    }).format(value);
+  } catch {
+    return `${value.toFixed(2)} ${code}`;
+  }
+}
+
 function QuotaMeter({ q }: { q: QuotaWindow }) {
-  const { t } = useTranslation('settings');
+  const { t, i18n } = useTranslation('settings');
   const key = windowKey(q.name);
   const label = key ? t(`settings.router.combos.windows.${key}`) : q.name;
   const reset = relativeTime(q.reset_at, true);
   const pct = q.remaining_percent;
+
+  if (q.remaining_amount != null) {
+    const amount = q.remaining_amount;
+    const tone =
+      amount <= 0 ? 'text-error' : amount < 1 ? 'text-warning' : 'text-normal';
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 whitespace-nowrap"
+        title={q.name}
+      >
+        <span className="text-low">{label}</span>
+        <span className={cn('tabular-nums font-medium', tone)}>
+          {formatMoney(amount, q.currency, i18n.language)}
+        </span>
+      </span>
+    );
+  }
+
   return (
     <span
       className="inline-flex items-center gap-1.5 whitespace-nowrap"

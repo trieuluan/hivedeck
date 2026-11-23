@@ -418,7 +418,7 @@ spend: ProviderSpend | null, };
 
 export type ProviderBilling = "subscription" | "pay_as_you_go" | "free" | "unknown";
 
-export type QuotaWindow = { name: string, remaining_percent: number, reset_at: string | null, };
+export type QuotaWindow = { name: string, remaining_percent: number, reset_at: string | null, remaining_amount: number | null, currency: string | null, };
 
 export type ProviderSpend = { today_requests: bigint, today_usd: number, month_requests: bigint, 
 /**

@@ -84,6 +84,10 @@ pub struct Quota {
     /// 0.0..=1.0 remaining.
     pub remaining: f64,
     pub reset_at: Option<String>,
+    /// Remaining monetary balance when the provider reports a credit balance
+    /// (e.g. DeepSeek `isCreditBalance: true`).
+    pub remaining_amount: Option<f64>,
+    pub currency: Option<String>,
 }
 
 /// `GET /api/usage/<id>`; providers without a usage API return only a message.
@@ -243,10 +247,44 @@ fn parse_usage(v: &Value) -> Usage {
                     None => continue,
                 },
             };
+            let is_credit_balance = q
+                .get("isCreditBalance")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+                || name.to_lowercase().contains("balance")
+                || name.to_lowercase().contains("credit");
+            let remaining_amount = if is_credit_balance {
+                match (num("remaining"), num("total"), num("used")) {
+                    (Some(r), _, _) if r.is_finite() => Some(r.max(0.0)),
+                    (None, Some(t), Some(u)) if t.is_finite() && u.is_finite() => {
+                        Some((t - u).max(0.0))
+                    }
+                    (None, Some(t), None) if t.is_finite() => Some(t.max(0.0)),
+                    _ => None,
+                }
+            } else {
+                None
+            };
+            let currency = q
+                .get("currency")
+                .and_then(Value::as_str)
+                .map(|s| s.trim().to_uppercase())
+                .filter(|s| !s.is_empty())
+                .or_else(|| {
+                    if is_credit_balance && name.to_uppercase().contains("USD") {
+                        Some("USD".to_string())
+                    } else if is_credit_balance && name.to_uppercase().contains("CNY") {
+                        Some("CNY".to_string())
+                    } else {
+                        None
+                    }
+                });
             quotas.push(Quota {
                 name: name.clone(),
                 remaining: remaining.clamp(0.0, 1.0),
                 reset_at: q.get("resetAt").and_then(Value::as_str).map(str::to_string),
+                remaining_amount,
+                currency,
             });
         }
     }
