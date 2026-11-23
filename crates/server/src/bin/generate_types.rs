@@ -120,6 +120,7 @@ fn generate_types_content() -> String {
         executors::plugins::McpToolPolicy::decl(),
         executors::plugins::PluginMcpEntry::decl(),
         executors::plugins::SingleSkillEntry::decl(),
+        executors::plugins::PluginSkillContent::decl(),
         executors::plugins::PluginSkillEntry::decl(),
         executors::plugins::InstalledPlugin::decl(),
         executors::plugins::InstallPluginRequest::decl(),

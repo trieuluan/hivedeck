@@ -10,6 +10,7 @@ import type {
   PluginMcpOAuthStatus,
   PluginMcpToolInfo,
   PluginSecretStatus,
+  PluginSkillContent,
   PluginSkillEntry,
   PluginView,
   SingleSkillEntry,
@@ -119,6 +120,8 @@ export const pluginsApi = {
       `/${seg(name)}/skills/${seg(skill)}`,
       json('PUT', patch)
     ),
+  getSkillContent: (name: string, skill: string) =>
+    call<PluginSkillContent>(`/${seg(name)}/skills/${seg(skill)}/content`),
   setSecret: (name: string, mcp: string, secret: string, value: string) =>
     call<PluginSecretStatus>(
       `/${seg(name)}/mcp/${seg(mcp)}/secrets/${seg(secret)}`,

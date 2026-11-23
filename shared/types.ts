@@ -587,6 +587,8 @@ export type PluginMcpEntry = { name: string, transport: string, command?: string
 
 export type SingleSkillEntry = { name: string, content?: string | null, };
 
+export type PluginSkillContent = { name: string, plugin_name: string, path: string, content: string, };
+
 export type PluginSkillEntry = { name: string, path: string, roles: Array<string>, boards: Array<string>, clis: Array<string>, enabled: boolean, injection_mode: McpInjectionMode, };
 
 export type InstalledPlugin = { name: string, version: string, source: string, commit?: string | null, tag?: string | null, enabled: boolean, asset_hash: string, mcp: Array<PluginMcpEntry>, skills: Array<PluginSkillEntry>, unsupported: Array<string>, notes: Array<PluginConflict>, };

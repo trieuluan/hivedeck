@@ -170,6 +170,14 @@ pub struct SingleSkillEntry {
     pub content: Option<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct PluginSkillContent {
+    pub name: String,
+    pub plugin_name: String,
+    pub path: String,
+    pub content: String,
+}
+
 #[derive(Clone, Debug, Default, Deserialize, TS)]
 pub struct InstallPluginRequest {
     pub source: String,
@@ -2242,6 +2250,42 @@ pub fn set_plugin_enabled(
     let updated = plugin.clone();
     write_atomic(&plugins_path(dir), &plugins, false)?;
     Ok(updated)
+}
+
+pub fn read_plugin_skill_content(
+    dir: &Path,
+    plugin_name: &str,
+    skill_name: &str,
+) -> Result<PluginSkillContent, PluginError> {
+    if !valid_name(plugin_name) || !valid_name(skill_name) {
+        return Err(PluginError::BadRequest(
+            "Invalid plugin or skill name".into(),
+        ));
+    }
+    let plugins = read_plugins(dir)?;
+    let plugin = plugins
+        .into_iter()
+        .find(|p| p.name == plugin_name)
+        .ok_or_else(|| PluginError::NotFound(format!("Plugin '{plugin_name}' not found")))?;
+    let skill = plugin
+        .skills
+        .into_iter()
+        .find(|s| s.name == skill_name)
+        .ok_or_else(|| PluginError::NotFound(format!("Skill '{skill_name}' not found")))?;
+    let root = plugin_asset_dir(dir, &plugin.name);
+    let skill_md = resolve_rel_path(&root, &skill.path)?;
+    if !skill_md.is_file() {
+        return Err(PluginError::NotFound(format!(
+            "SKILL.md not found for '{skill_name}'"
+        )));
+    }
+    let content = fs::read_to_string(&skill_md)?;
+    Ok(PluginSkillContent {
+        name: skill.name,
+        plugin_name: plugin.name,
+        path: skill.path,
+        content,
+    })
 }
 
 pub fn set_plugin_injection_mode(

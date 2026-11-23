@@ -325,6 +325,14 @@ async fn set_injection_mode(
     ))))
 }
 
+async fn get_skill_content(
+    Extension(dir): Extension<PathBuf>,
+    RoutePath((name, skill)): RoutePath<(String, String)>,
+) -> Result<Json<ApiResponse<plugins::PluginSkillContent>>, ApiError> {
+    let content = plugins::read_plugin_skill_content(&dir, &name, &skill).map_err(map_err)?;
+    Ok(Json(ApiResponse::success(content)))
+}
+
 async fn update_skill(
     Extension(dir): Extension<PathBuf>,
     RoutePath((name, skill)): RoutePath<(String, String)>,
@@ -649,6 +657,10 @@ pub(crate) fn router_for_dir<S: Clone + Send + Sync + 'static>(dir: &Path) -> Ro
         .route("/plugins/{name}/upgrade", post(upgrade))
         .route("/plugins/{name}/latest-tag", get(latest_tag))
         .route("/plugins/{name}/skills/{skill}", put(update_skill))
+        .route(
+            "/plugins/{name}/skills/{skill}/content",
+            get(get_skill_content),
+        )
         .route("/plugins/{name}/mcp/{mcp}", put(update_mcp))
         .route("/plugins/{name}/mcp/{mcp}/tools", get(list_mcp_tools))
         .route("/plugins/{name}/mcp/{mcp}/oauth/start", post(start_oauth))

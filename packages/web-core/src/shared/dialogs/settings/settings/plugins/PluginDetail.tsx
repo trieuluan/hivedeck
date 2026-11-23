@@ -8,6 +8,7 @@ import {
   CodeIcon,
   CopyIcon,
   DatabaseIcon,
+  EyeIcon,
   LinkBreakIcon,
   LinkIcon,
   MagnifyingGlassIcon,
@@ -21,10 +22,20 @@ import type {
   McpToolPolicy,
   PluginMcpEntry,
   PluginMcpToolInfo,
+  PluginSkillContent,
   PluginSkillEntry,
   PluginView,
 } from 'shared/types';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@vibe/ui/components/KeyboardDialog';
 import { Switch } from '@vibe/ui/components/Switch';
+import WYSIWYGEditor from '@/shared/components/WYSIWYGEditor';
 import { cn } from '@/shared/lib/utils';
 import { useProjects } from '@/shared/hooks/useProjects';
 import { SettingsCheckbox } from '../SettingsComponents';
@@ -297,6 +308,35 @@ export function PluginDetail({
   const [mcpToolsError, setMcpToolsError] = useState<Record<string, string>>(
     {}
   );
+  const [viewingSkill, setViewingSkill] = useState<PluginSkillEntry | null>(
+    null
+  );
+  const [skillContent, setSkillContent] = useState<PluginSkillContent | null>(
+    null
+  );
+  const [skillContentLoading, setSkillContentLoading] = useState(false);
+  const [skillContentError, setSkillContentError] = useState('');
+  const [skillViewMode, setSkillViewMode] = useState<'preview' | 'raw'>(
+    'preview'
+  );
+  const [skillCopied, setSkillCopied] = useState(false);
+
+  const openSkillViewer = async (skill: PluginSkillEntry) => {
+    setViewingSkill(skill);
+    setSkillContent(null);
+    setSkillContentError('');
+    setSkillViewMode('preview');
+    setSkillCopied(false);
+    setSkillContentLoading(true);
+    try {
+      const data = await pluginsApi.getSkillContent(plugin.name, skill.name);
+      setSkillContent(data);
+    } catch (reason) {
+      setSkillContentError(errorText(reason));
+    } finally {
+      setSkillContentLoading(false);
+    }
+  };
 
   const toggleMcpTools = async (mcpName: string) => {
     const nextOpen = !openToolsMcps[mcpName];
@@ -884,9 +924,14 @@ export function PluginDetail({
               <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border bg-panel text-low">
                 <CodeIcon className="h-3.5 w-3.5" weight="bold" aria-hidden />
               </span>
-              <strong className="truncate text-xs font-semibold text-high">
+              <button
+                type="button"
+                onClick={() => void openSkillViewer(skill)}
+                className="min-w-0 truncate text-left text-xs font-semibold text-high hover:text-brand hover:underline"
+                title="Xem toàn bộ SKILL.md"
+              >
                 {skill.name}
-              </strong>
+              </button>
             </div>
             <div className="inline-flex shrink-0 rounded-md border border-border bg-panel/80 p-0.5 text-2xs">
               {(
@@ -969,22 +1014,33 @@ export function PluginDetail({
                 );
               })}
             </div>
-            <button
-              type="button"
-              aria-expanded={scopeOpen}
-              onClick={() => setOpenScopeSkill(scopeOpen ? null : skill.name)}
-              className="inline-flex items-center gap-1 rounded border border-border bg-panel/60 px-2 py-0.5 text-2xs text-low transition-colors hover:bg-secondary hover:text-high"
-            >
-              <span>Phạm vi</span>
-              <CaretDownIcon
-                className={cn(
-                  'h-2.5 w-2.5 transition-transform',
-                  scopeOpen && 'rotate-180'
-                )}
-                weight="bold"
-                aria-hidden
-              />
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => void openSkillViewer(skill)}
+                className="inline-flex items-center gap-1 rounded border border-border bg-panel/60 px-2 py-0.5 text-2xs text-low transition-colors hover:bg-secondary hover:text-high"
+                title="Xem nội dung SKILL.md"
+              >
+                <EyeIcon className="h-3 w-3" weight="duotone" aria-hidden />
+                <span>Xem MD</span>
+              </button>
+              <button
+                type="button"
+                aria-expanded={scopeOpen}
+                onClick={() => setOpenScopeSkill(scopeOpen ? null : skill.name)}
+                className="inline-flex items-center gap-1 rounded border border-border bg-panel/60 px-2 py-0.5 text-2xs text-low transition-colors hover:bg-secondary hover:text-high"
+              >
+                <span>Phạm vi</span>
+                <CaretDownIcon
+                  className={cn(
+                    'h-2.5 w-2.5 transition-transform',
+                    scopeOpen && 'rotate-180'
+                  )}
+                  weight="bold"
+                  aria-hidden
+                />
+              </button>
+            </div>
           </div>
 
           {scopeOpen && boards.length > 0 && (
@@ -1198,6 +1254,143 @@ export function PluginDetail({
           </ul>
         </section>
       )}
+
+      <Dialog
+        open={viewingSkill !== null}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setViewingSkill(null);
+        }}
+      >
+        <DialogContent className="flex max-h-[82vh] max-w-3xl flex-col gap-0 overflow-hidden p-0">
+          <DialogHeader className="border-b border-border bg-secondary/30 px-5 py-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-3 pr-6">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-border bg-panel text-brand">
+                  <CodeIcon className="h-4 w-4" weight="bold" aria-hidden />
+                </span>
+                <div className="min-w-0">
+                  <DialogTitle className="truncate text-sm font-semibold text-high">
+                    {viewingSkill?.name}
+                  </DialogTitle>
+                  <DialogDescription className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-low">
+                    <span>Plugin: {plugin.name}</span>
+                    {viewingSkill && (
+                      <span
+                        className={cn(
+                          'rounded-full border px-2 py-0.5 text-[10px] font-medium',
+                          !viewingSkill.enabled
+                            ? 'border-border bg-secondary text-low'
+                            : viewingSkill.injection_mode === 'on_demand'
+                              ? 'border-sky-500/40 bg-sky-500/15 text-sky-300'
+                              : 'border-brand/40 bg-brand/15 text-brand'
+                        )}
+                      >
+                        {!viewingSkill.enabled
+                          ? 'Off'
+                          : viewingSkill.injection_mode === 'on_demand'
+                            ? 'On-demand'
+                            : 'Always'}
+                      </span>
+                    )}
+                  </DialogDescription>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="inline-flex rounded-md border border-border bg-panel/80 p-0.5 text-xs">
+                  {(
+                    [
+                      { id: 'preview', label: 'Preview' },
+                      { id: 'raw', label: 'Raw MD' },
+                    ] as const
+                  ).map((mode) => (
+                    <button
+                      key={mode.id}
+                      type="button"
+                      onClick={() => setSkillViewMode(mode.id)}
+                      className={cn(
+                        'rounded px-2.5 py-1 transition-colors',
+                        skillViewMode === mode.id
+                          ? 'bg-secondary font-medium text-high'
+                          : 'text-low hover:text-normal'
+                      )}
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
+                </div>
+                {skillContent && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void navigator.clipboard?.writeText(skillContent.content);
+                      setSkillCopied(true);
+                      setTimeout(() => setSkillCopied(false), 1800);
+                    }}
+                    className="inline-flex items-center gap-1 rounded-sm border border-border bg-panel px-2.5 py-1 text-xs font-medium text-normal transition-colors hover:bg-secondary hover:text-high"
+                  >
+                    {skillCopied ? (
+                      <CheckIcon
+                        className="h-3.5 w-3.5 text-success"
+                        weight="bold"
+                        aria-hidden
+                      />
+                    ) : (
+                      <CopyIcon className="h-3.5 w-3.5" aria-hidden />
+                    )}
+                    {skillCopied ? 'Đã copy' : 'Copy'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </DialogHeader>
+
+          {skillContent && (
+            <div className="flex items-center justify-between gap-3 border-b border-border/70 bg-panel/60 px-5 py-1.5 font-mono text-[11px] text-low">
+              <span className="truncate">{skillContent.path}</span>
+              <span className="shrink-0">
+                ~{Math.max(1, Math.round(skillContent.content.length / 4)).toLocaleString()}{' '}
+                tokens · {skillContent.content.split('\n').length} lines
+              </span>
+            </div>
+          )}
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+            {skillContentLoading && (
+              <p className="flex items-center gap-2 py-6 text-xs text-low">
+                <SpinnerIcon className="h-4 w-4 animate-spin" aria-hidden />
+                Đang tải nội dung SKILL.md...
+              </p>
+            )}
+            {skillContentError && (
+              <p className="rounded-sm border border-error/40 bg-error/10 px-3 py-2 text-xs text-error">
+                {skillContentError}
+              </p>
+            )}
+            {skillContent &&
+              !skillContentLoading &&
+              (skillViewMode === 'raw' ? (
+                <pre className="overflow-x-auto rounded-md border border-border bg-panel/80 p-3.5 font-mono text-xs leading-relaxed text-normal whitespace-pre-wrap">
+                  {skillContent.content}
+                </pre>
+              ) : (
+                <div className="text-sm leading-relaxed text-normal">
+                  <WYSIWYGEditor value={skillContent.content} disabled />
+                </div>
+              ))}
+          </div>
+
+          <DialogFooter className="border-t border-border bg-secondary/20 px-5 py-2.5">
+            <button
+              type="button"
+              onClick={() => setViewingSkill(null)}
+              className={button}
+            >
+              Đóng
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
