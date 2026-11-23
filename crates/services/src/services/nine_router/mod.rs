@@ -677,9 +677,41 @@ fn free_port() -> std::io::Result<u16> {
     Ok(listener.local_addr()?.port())
 }
 
-/// Find orphan HiveDeck-spawned `launch-9router.cjs` processes listening on `port`
-/// (e.g. left behind after a dev server restart) and terminate them so we don't
-/// hit `EADDRINUSE` or misclassify them as an external router.
+/// Find orphan HiveDeck-spawned `launch-9router.cjs` / `next-server` processes
+/// listening on `port` (e.g. left behind after a dev server restart) and
+/// terminate them so we don't hit `EADDRINUSE` or misclassify them as external.
+#[cfg(unix)]
+async fn is_hivedeck_managed_pid(pid: u32, runtime_prefix: &str) -> bool {
+    if let Ok(ps_out) = tokio::process::Command::new("ps")
+        .args(["-p", &pid.to_string(), "-o", "command="])
+        .output()
+        .await
+    {
+        let cmdline = String::from_utf8_lossy(&ps_out.stdout);
+        if cmdline.contains("launch-9router.cjs") {
+            return true;
+        }
+    }
+    // Next.js standalone sets `process.title = "next-server (...)"` and chdirs
+    // into `<runtime_dir>/versions/<ver>/node_modules/@trieuluan/hiverouter/app`.
+    if let Ok(cwd_out) = tokio::process::Command::new("lsof")
+        .args(["-a", "-p", &pid.to_string(), "-d", "cwd", "-Fn"])
+        .output()
+        .await
+        && cwd_out.status.success()
+    {
+        let stdout = String::from_utf8_lossy(&cwd_out.stdout);
+        for line in stdout.lines() {
+            if let Some(cwd) = line.strip_prefix('n')
+                && cwd.starts_with(runtime_prefix)
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 #[cfg(unix)]
 async fn cleanup_orphan_launchers(port: u16) -> bool {
     let Ok(output) = tokio::process::Command::new("lsof")
@@ -692,21 +724,14 @@ async fn cleanup_orphan_launchers(port: u16) -> bool {
     if !output.status.success() {
         return false;
     }
+    let runtime_prefix = runtime_dir().to_string_lossy().to_string();
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut killed = false;
     for line in stdout.lines() {
         let Ok(pid) = line.trim().parse::<u32>() else {
             continue;
         };
-        let Ok(ps_out) = tokio::process::Command::new("ps")
-            .args(["-p", &pid.to_string(), "-o", "command="])
-            .output()
-            .await
-        else {
-            continue;
-        };
-        let cmdline = String::from_utf8_lossy(&ps_out.stdout);
-        if cmdline.contains("launch-9router.cjs") {
+        if is_hivedeck_managed_pid(pid, &runtime_prefix).await {
             let _ = log_line(&format!(
                 "cleaning up stuck HiveRouter launcher (pid {pid}) on port {port}"
             ))
