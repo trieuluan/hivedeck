@@ -279,7 +279,64 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
     return false;
   }, [runningAgentProcess]);
 
+  const [proxyContextPercent, setProxyContextPercent] = useState<
+    number | undefined
+  >(undefined);
+
+  useEffect(() => {
+    if (!sessionId || isNewSessionMode) {
+      setProxyContextPercent(undefined);
+      return;
+    }
+    let cancelled = false;
+    const loadBreakdown = async () => {
+      try {
+        const res = await fetch(`/api/sessions/${sessionId}/context-breakdown`);
+        if (!res.ok || cancelled) return;
+        const json = (await res.json()) as {
+          data?: {
+            payload_tokens?: number;
+            model_context_window?: number | null;
+          } | null;
+        };
+        const data = json?.data;
+        if (
+          !cancelled &&
+          data?.model_context_window &&
+          data.model_context_window > 0 &&
+          data.payload_tokens &&
+          data.payload_tokens > 0
+        ) {
+          setProxyContextPercent(
+            Math.min(
+              100,
+              Math.round(
+                (data.payload_tokens / data.model_context_window) * 100
+              )
+            )
+          );
+        } else if (!cancelled) {
+          setProxyContextPercent(undefined);
+        }
+      } catch {
+        // Ignore transient network errors while polling telemetry
+      }
+    };
+    void loadBreakdown();
+    if (!isAttemptRunning) return () => { cancelled = true; };
+    const timer = window.setInterval(() => {
+      void loadBreakdown();
+    }, 4000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [sessionId, isNewSessionMode, isAttemptRunning]);
+
   const contextPercent = useMemo(() => {
+    if (proxyContextPercent !== undefined) {
+      return proxyContextPercent;
+    }
     if (
       !tokenUsageInfo ||
       !tokenUsageInfo.model_context_window ||
@@ -294,7 +351,7 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
           100
       )
     );
-  }, [tokenUsageInfo]);
+  }, [proxyContextPercent, tokenUsageInfo]);
   const [observedEntryAt, setObservedEntryAt] = useState<number | null>(null);
   useEffect(() => {
     if (entries.length > 0) setObservedEntryAt(Date.now());

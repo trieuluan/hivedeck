@@ -371,6 +371,19 @@ impl LlmInspector {
                     );
                 }
                 if usage.has_usage {
+                    let actual_prompt_tokens = if usage.cache_creation_tokens > 0
+                        || usage.cache_read_tokens > usage.input_tokens
+                    {
+                        usage
+                            .input_tokens
+                            .saturating_add(usage.cache_read_tokens)
+                            .saturating_add(usage.cache_creation_tokens)
+                    } else {
+                        usage.input_tokens
+                    };
+                    if actual_prompt_tokens > 0 {
+                        existing.payload_tokens = actual_prompt_tokens;
+                    }
                     existing.input_tokens = Some(
                         existing
                             .input_tokens

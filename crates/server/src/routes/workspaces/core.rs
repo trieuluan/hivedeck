@@ -417,7 +417,10 @@ pub async fn get_live_workspace_telemetry(
                 if win == 0 || b.payload_tokens == 0 {
                     return None;
                 }
-                Some(((b.payload_tokens as u64 * 100) / (win as u64)).min(100) as u32)
+                Some(
+                    ((b.payload_tokens as u64 * 100 + (win as u64 / 2)) / (win as u64)).min(100)
+                        as u32,
+                )
             });
         out.insert(
             session.workspace_id,
