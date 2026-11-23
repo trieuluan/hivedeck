@@ -1057,7 +1057,7 @@ export function PluginDetail({
             </span>
           )}
         </div>
-        {(plugin.mcp.length > 0 || plugin.skills.length > 0) && (
+        {plugin.mcp.length + plugin.skills.length > 1 && (
           <div className="flex items-center gap-2">
             <span className="text-2xs text-low">Toàn bộ plugin:</span>
             <div className="inline-flex rounded-md border border-border bg-panel/80 p-0.5 text-2xs">
