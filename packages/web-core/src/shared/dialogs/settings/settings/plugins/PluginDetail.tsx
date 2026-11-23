@@ -1014,15 +1014,15 @@ export function PluginDetail({
                 );
               })}
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex shrink-0 items-center gap-1">
               <button
                 type="button"
                 onClick={() => void openSkillViewer(skill)}
-                className="inline-flex items-center gap-1 rounded border border-border bg-panel/60 px-2 py-0.5 text-2xs text-low transition-colors hover:bg-secondary hover:text-high"
+                className="inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-panel/60 text-low transition-colors hover:bg-secondary hover:text-high"
                 title="Xem nội dung SKILL.md"
+                aria-label={`Xem nội dung SKILL.md của ${skill.name}`}
               >
-                <EyeIcon className="h-3 w-3" weight="duotone" aria-hidden />
-                <span>Xem MD</span>
+                <EyeIcon className="h-3.5 w-3.5" weight="duotone" aria-hidden />
               </button>
               <button
                 type="button"
@@ -1213,7 +1213,12 @@ export function PluginDetail({
             </span>
           </button>
           {skillsSectionOpen && (
-            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <ul
+              className={cn(
+                'grid grid-cols-1 gap-2',
+                plugin.skills.length > 1 && 'sm:grid-cols-2'
+              )}
+            >
               {plugin.skills.map(skillRow)}
             </ul>
           )}
