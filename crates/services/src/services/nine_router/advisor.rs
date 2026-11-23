@@ -790,8 +790,10 @@ const FAST_TOKENS: &[&str] = &[
     "haiku", "flash", "mini", "nano", "lite", "small", "tiny", "fast", "instant", "air", "spark",
 ];
 const FRONTIER_TOKENS: &[&str] = &[
-    "opus", "fable", "pro", "ultra", "max", "o3", "o4", "sol", "argon", "carbon",
+    "opus", "fable", "astra", "pro", "ultra", "max", "o3", "o4", "sol", "argon", "carbon",
 ];
+/// Ultra-expensive flagship lines ($8-$10/1M in, $25-$50/1M out) that burn quota/cost fast on multi-turn loops.
+const EXPENSIVE_FLAGSHIP_TOKENS: &[&str] = &["fable", "astra", "opus"];
 /// Balanced "everyday" tiers of lines that otherwise read as frontier.
 const MID_TOKENS: &[&str] = &["terra", "hydrogen"];
 /// "Fast and affordable" tiers.
@@ -1046,7 +1048,16 @@ impl Candidate<'_> {
         };
         let free = if self.is_free() { FREE_PENALTY } else { 0.0 };
         let slow = if self.name.has(SLOW_TOKENS) { 0.1 } else { 0.0 };
-        0.8 * tier + 0.2 * self.recency - unstable - legacy - free - slow
+        let flagship_cost = if self.name.has(EXPENSIVE_FLAGSHIP_TOKENS) {
+            match role {
+                ComboRole::Planner | ComboRole::Coder => 0.22,
+                ComboRole::Reviewer => 0.12,
+                ComboRole::Fast => 0.25,
+            }
+        } else {
+            0.0
+        };
+        0.8 * tier + 0.2 * self.recency - unstable - legacy - free - slow - flagship_cost
     }
 
     fn is_free(&self) -> bool {
