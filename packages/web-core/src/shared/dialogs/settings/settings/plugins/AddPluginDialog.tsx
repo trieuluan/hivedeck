@@ -373,7 +373,7 @@ export function AddPluginDialog({
                   },
                   {
                     id: 'http',
-                    label: 'URL MCP (HTTP)',
+                    label: 'HTTP MCP',
                     icon: GlobeIcon,
                   },
                   {
@@ -423,40 +423,42 @@ export function AddPluginDialog({
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <span className="block text-xs font-medium text-normal">
-              Mẫu nhanh (Preset)
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {PRESETS.map((preset) => {
-                const PresetIcon = preset.icon;
-                const selected = activePreset === preset.id;
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => applyPreset(preset)}
-                    className={cn(
-                      'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
-                      selected
-                        ? 'border-brand/70 bg-brand/15 text-brand'
-                        : 'border-border bg-secondary/35 text-normal hover:bg-secondary hover:text-high'
-                    )}
-                  >
-                    <PresetIcon
+          {kind !== 'skill' && (
+            <div className="space-y-1.5">
+              <span className="block text-xs font-medium text-normal">
+                Mẫu nhanh (Preset)
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {PRESETS.map((preset) => {
+                  const PresetIcon = preset.icon;
+                  const selected = activePreset === preset.id;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => applyPreset(preset)}
                       className={cn(
-                        'h-3.5 w-3.5 shrink-0',
-                        selected ? 'text-brand' : 'text-low'
+                        'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                        selected
+                          ? 'border-brand/70 bg-brand/15 text-brand'
+                          : 'border-border bg-secondary/35 text-normal hover:bg-secondary hover:text-high'
                       )}
-                      weight="duotone"
-                      aria-hidden
-                    />
-                    {preset.label}
-                  </button>
-                );
-              })}
+                    >
+                      <PresetIcon
+                        className={cn(
+                          'h-3.5 w-3.5 shrink-0',
+                          selected ? 'text-brand' : 'text-low'
+                        )}
+                        weight="duotone"
+                        aria-hidden
+                      />
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           {kind !== 'repo' && (
             <SettingsField
