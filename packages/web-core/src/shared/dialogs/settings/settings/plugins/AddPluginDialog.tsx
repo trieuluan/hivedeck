@@ -348,7 +348,11 @@ export function AddPluginDialog({
           className="space-y-4 pt-1"
           onSubmit={(event) => {
             event.preventDefault();
-            if (source.trim() && !needsPin && !busy) void runPreview();
+            const hasSource =
+              kind === 'skill'
+                ? Boolean(name.trim() && (source.trim() || skillContent.trim()))
+                : Boolean(source.trim());
+            if (hasSource && !needsPin && !busy) void runPreview();
           }}
         >
           <div className="space-y-1.5">
@@ -358,7 +362,7 @@ export function AddPluginDialog({
             <div
               role="tablist"
               aria-label={t('settings.plugins.addDialog.sourceKind')}
-              className="grid grid-cols-3 gap-1.5 rounded-md border border-border bg-secondary/40 p-1"
+              className="grid grid-cols-2 gap-1 rounded-md border border-border bg-secondary/40 p-1 sm:grid-cols-4"
             >
               {(
                 [
@@ -398,7 +402,7 @@ export function AddPluginDialog({
                       dirty();
                     }}
                     className={cn(
-                      'inline-flex items-center justify-center gap-1.5 rounded-sm border px-2.5 py-1.5 text-xs font-medium transition-colors',
+                      'inline-flex items-center justify-center gap-1 rounded-sm border px-2 py-1.5 text-xs font-medium transition-colors',
                       active
                         ? 'border-brand/60 bg-brand/10 text-high shadow-sm'
                         : 'border-transparent text-low hover:bg-secondary/60 hover:text-normal'
