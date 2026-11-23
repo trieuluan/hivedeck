@@ -585,11 +585,13 @@ export type McpToolPolicy = "default" | "allow" | "ask" | "block";
 
 export type PluginMcpEntry = { name: string, transport: string, command?: string | null, args: Array<string>, url?: string | null, headers: { [key in string]?: string }, env: { [key in string]?: string }, roles: Array<string>, boards: Array<string>, oauth: boolean, enabled: boolean, injection_mode: McpInjectionMode, tool_policies?: { [key in string]?: McpToolPolicy }, instructions?: string | null, server_instructions?: string | null, };
 
+export type SingleSkillEntry = { name: string, content?: string | null, };
+
 export type PluginSkillEntry = { name: string, path: string, roles: Array<string>, boards: Array<string>, clis: Array<string>, enabled: boolean, };
 
 export type InstalledPlugin = { name: string, version: string, source: string, commit?: string | null, tag?: string | null, enabled: boolean, asset_hash: string, mcp: Array<PluginMcpEntry>, skills: Array<PluginSkillEntry>, unsupported: Array<string>, notes: Array<PluginConflict>, };
 
-export type InstallPluginRequest = { source: string, single_mcp?: PluginMcpEntry, version: string | null, commit: string | null, tag: string | null, roles: Array<string> | null, boards: Array<string> | null, skill_clis: Array<string> | null, conflict_policy: ConflictPolicy, secrets: { [key in string]?: { [key in string]?: string } }, };
+export type InstallPluginRequest = { source: string, single_mcp?: PluginMcpEntry, single_skill?: SingleSkillEntry, version: string | null, commit: string | null, tag: string | null, roles: Array<string> | null, boards: Array<string> | null, skill_clis: Array<string> | null, conflict_policy: ConflictPolicy, secrets: { [key in string]?: { [key in string]?: string } }, };
 
 export type UpgradePluginRequest = { source: string | null, version: string | null, commit: string | null, tag: string | null, conflict_policy: ConflictPolicy, };
 

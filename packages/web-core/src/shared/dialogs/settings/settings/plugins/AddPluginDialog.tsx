@@ -143,9 +143,10 @@ export function AddPluginDialog({
 }) {
   const { t } = useTranslation('settings');
   const [source, setSource] = useState('');
-  const [kind, setKind] = useState<'repo' | 'http' | 'stdio'>('repo');
+  const [kind, setKind] = useState<'repo' | 'http' | 'stdio' | 'skill'>('repo');
   const [activePreset, setActivePreset] = useState<PresetId | null>(null);
   const [name, setName] = useState('');
+  const [skillContent, setSkillContent] = useState('');
   const [args, setArgs] = useState('');
   const [secretNames, setSecretNames] = useState('');
   const [oauth, setOauth] = useState(false);
@@ -169,6 +170,7 @@ export function AddPluginDialog({
     setKind('repo');
     setActivePreset(null);
     setName('');
+    setSkillContent('');
     setArgs('');
     setSecretNames('');
     setOauth(false);
@@ -205,13 +207,20 @@ export function AddPluginDialog({
   }
 
   const input = () => ({
-    source,
+    source: kind === 'skill' && skillContent.trim() ? '' : source,
     tag: kind === 'repo' ? tag : '',
     commit: kind === 'repo' ? commit : '',
-    ...(kind === 'repo'
-      ? {}
-      : {
-          singleMcp: {
+    ...(kind === 'skill'
+      ? {
+          singleSkill: {
+            name: name.trim(),
+            content: skillContent.trim() ? skillContent : null,
+          },
+        }
+      : kind === 'repo'
+        ? {}
+        : {
+            singleMcp: {
             name: name.trim(),
             transport: kind,
             command: kind === 'stdio' ? source.trim() : null,
@@ -368,6 +377,11 @@ export function AddPluginDialog({
                     label: 'Command MCP',
                     icon: TerminalWindowIcon,
                   },
+                  {
+                    id: 'skill',
+                    label: 'Skill',
+                    icon: SparkleIcon,
+                  },
                 ] as const
               ).map((tab) => {
                 const TabIcon = tab.icon;
@@ -441,11 +455,21 @@ export function AddPluginDialog({
           </div>
 
           {kind !== 'repo' && (
-            <SettingsField label={t('settings.plugins.addDialog.serverName')}>
+            <SettingsField
+              label={
+                kind === 'skill'
+                  ? 'Tên skill'
+                  : t('settings.plugins.addDialog.serverName')
+              }
+            >
               <SettingsInput
-                ariaLabel={t('settings.plugins.addDialog.serverName')}
+                ariaLabel={
+                  kind === 'skill'
+                    ? 'Tên skill'
+                    : t('settings.plugins.addDialog.serverName')
+                }
                 value={name}
-                placeholder="higgsfield"
+                placeholder={kind === 'skill' ? 'my-skill' : 'higgsfield'}
                 onChange={(value) => {
                   setName(value);
                   setActivePreset(null);
@@ -455,44 +479,83 @@ export function AddPluginDialog({
             </SettingsField>
           )}
 
-          <SettingsField
-            label={
-              kind === 'http'
-                ? 'Endpoint URL'
-                : kind === 'stdio'
-                  ? 'Command'
-                  : t('settings.plugins.addDialog.source')
-            }
-          >
-            <SettingsInput
-              ariaLabel={t('settings.plugins.addDialog.source')}
-              value={source}
-              placeholder={
+          {kind !== 'skill' ? (
+            <SettingsField
+              label={
                 kind === 'http'
-                  ? 'https://mcp.higgsfield.ai/mcp'
+                  ? 'Endpoint URL'
                   : kind === 'stdio'
-                    ? 'npx'
-                    : t('settings.plugins.addDialog.sourcePlaceholder')
+                    ? 'Command'
+                    : t('settings.plugins.addDialog.source')
               }
-              onChange={(value) => {
-                setSource(value);
-                setActivePreset(null);
-                if (kind === 'http') {
-                  try {
-                    const host = new URL(value).hostname.split('.');
-                    setName(
-                      host[0] === 'mcp' ? (host[1] ?? '') : (host[0] ?? '')
-                    );
-                  } catch {
-                    setName('');
-                  }
+            >
+              <SettingsInput
+                ariaLabel={t('settings.plugins.addDialog.source')}
+                value={source}
+                placeholder={
+                  kind === 'http'
+                    ? 'https://mcp.higgsfield.ai/mcp'
+                    : kind === 'stdio'
+                      ? 'npx'
+                      : t('settings.plugins.addDialog.sourcePlaceholder')
                 }
-                dirty();
-              }}
-            />
-          </SettingsField>
+                onChange={(value) => {
+                  setSource(value);
+                  setActivePreset(null);
+                  if (kind === 'http') {
+                    try {
+                      const host = new URL(value).hostname.split('.');
+                      setName(
+                        host[0] === 'mcp' ? (host[1] ?? '') : (host[0] ?? '')
+                      );
+                    } catch {
+                      setName('');
+                    }
+                  }
+                  dirty();
+                }}
+              />
+            </SettingsField>
+          ) : (
+            <>
+              <SettingsField label="Đường dẫn thư mục / SKILL.md hoặc Git URL (tuỳ chọn nếu dán nội dung bên dưới)">
+                <SettingsInput
+                  ariaLabel="Skill source"
+                  value={source}
+                  placeholder="/path/to/my-skill hoặc https://github.com/user/skill-repo.git"
+                  onChange={(value) => {
+                    setSource(value);
+                    if (!name.trim()) {
+                      const cleaned = value.trim().replace(/\/+$/, '');
+                      const parts = cleaned.split('/');
+                      const last = parts[parts.length - 1] ?? '';
+                      const candidate =
+                        last === 'SKILL.md'
+                          ? (parts[parts.length - 2] ?? '')
+                          : last.replace(/\.git$/, '');
+                      if (candidate) setName(candidate);
+                    }
+                    dirty();
+                  }}
+                />
+              </SettingsField>
+              <SettingsField label="Hoặc dán nội dung SKILL.md">
+                <SettingsTextarea
+                  ariaLabel="SKILL.md content"
+                  value={skillContent}
+                  rows={6}
+                  monospace
+                  placeholder={'---\nname: my-skill\ndescription: ...\n---\n\nHướng dẫn skill...'}
+                  onChange={(value) => {
+                    setSkillContent(value);
+                    dirty();
+                  }}
+                />
+              </SettingsField>
+            </>
+          )}
 
-          {kind !== 'repo' && (
+          {(kind === 'http' || kind === 'stdio') && (
             <>
               {kind === 'stdio' && (
                 <SettingsField
@@ -742,7 +805,13 @@ export function AddPluginDialog({
             type="submit"
             form="add-plugin-form"
             className={button}
-            disabled={!source.trim() || needsPin || busy !== null}
+            disabled={
+              (kind === 'skill'
+                ? !name.trim() || (!source.trim() && !skillContent.trim())
+                : !source.trim()) ||
+              needsPin ||
+              busy !== null
+            }
           >
             <EyeIcon className="h-3.5 w-3.5" weight="bold" aria-hidden />
             {busy === 'preview'

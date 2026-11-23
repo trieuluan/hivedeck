@@ -11,6 +11,7 @@ import type {
   PluginSecretStatus,
   PluginSkillEntry,
   PluginView,
+  SingleSkillEntry,
   StartPluginOAuthResponse,
   UpgradePluginRequest,
 } from 'shared/types';
@@ -49,6 +50,7 @@ const seg = encodeURIComponent;
 export type InstallInput = {
   source: string;
   singleMcp?: PluginMcpEntry;
+  singleSkill?: SingleSkillEntry;
   tag?: string;
   commit?: string;
   conflictPolicy?: ConflictPolicy;
@@ -58,6 +60,7 @@ export type InstallInput = {
 const toRequest = (input: InstallInput): InstallPluginRequest => ({
   source: input.source.trim(),
   ...(input.singleMcp ? { single_mcp: input.singleMcp } : {}),
+  ...(input.singleSkill ? { single_skill: input.singleSkill } : {}),
   version: null,
   commit: input.commit?.trim() || null,
   tag: input.tag?.trim() || null,

@@ -161,12 +161,22 @@ pub struct InstalledPlugin {
 
 pub type PluginsSecrets = BTreeMap<String, BTreeMap<String, BTreeMap<String, String>>>;
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct SingleSkillEntry {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+}
+
 #[derive(Clone, Debug, Default, Deserialize, TS)]
 pub struct InstallPluginRequest {
     pub source: String,
     #[serde(default)]
     #[ts(optional)]
     pub single_mcp: Option<PluginMcpEntry>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub single_skill: Option<SingleSkillEntry>,
     #[serde(default)]
     pub version: Option<String>,
     #[serde(default)]
@@ -1669,6 +1679,36 @@ pub fn install_plugin(
     dir: &Path,
     req: InstallPluginRequest,
 ) -> Result<InstalledPlugin, PluginError> {
+    if let Some(entry) = req.single_skill.clone() {
+        let (_staging, staged_root, mut plugin) = stage_single_skill(&entry, &req)?;
+        let _lock = WRITE_LOCK
+            .lock()
+            .map_err(|_| std::io::Error::other("Plugin registry lock poisoned"))?;
+        let mut plugins = read_plugins(dir)?;
+        if plugins.iter().any(|item| item.name == plugin.name) {
+            return Err(PluginError::ConflictMessage(format!(
+                "Plugin '{}' is already installed",
+                plugin.name
+            )));
+        }
+        let registry: Vec<RegistryEntry> = read_json_or_default(&dir.join("mcp_registry.json"))?;
+        plugin.notes = resolve_conflicts(
+            &plugin.name,
+            &mut [],
+            &mut plugin.skills,
+            &mut plugins,
+            &registry,
+            req.conflict_policy,
+        )?;
+        let target_dir = plugin_asset_dir(dir, &plugin.name);
+        if target_dir.exists() {
+            fs::remove_dir_all(&target_dir)?;
+        }
+        copy_dir_filtered(&staged_root, &target_dir)?;
+        plugins.push(plugin.clone());
+        write_atomic(&plugins_path(dir), &plugins, false)?;
+        return Ok(plugin);
+    }
     if let Some(entry) = req.single_mcp.clone() {
         let mut plugin = single_mcp_plugin(entry, &req)?;
         let _lock = WRITE_LOCK
@@ -1851,6 +1891,10 @@ pub fn latest_tag(dir: &Path, name: &str) -> Result<Option<String>, PluginError>
 }
 
 pub fn preview_plugin(req: InstallPluginRequest) -> Result<InstalledPlugin, PluginError> {
+    if let Some(entry) = req.single_skill.clone() {
+        let (_staging, _staged_root, plugin) = stage_single_skill(&entry, &req)?;
+        return Ok(plugin);
+    }
     if let Some(entry) = req.single_mcp.clone() {
         return single_mcp_plugin(entry, &req);
     }
@@ -1882,6 +1926,107 @@ pub fn preview_plugin(req: InstallPluginRequest) -> Result<InstalledPlugin, Plug
         unsupported: parsed.unsupported,
         notes: Vec::new(),
     })
+}
+
+fn stage_single_skill(
+    entry: &SingleSkillEntry,
+    req: &InstallPluginRequest,
+) -> Result<(TempDir, PathBuf, InstalledPlugin), PluginError> {
+    let name = entry.name.trim().to_string();
+    if !valid_name(&name) {
+        return Err(PluginError::BadRequest(format!(
+            "Invalid skill name: {name}"
+        )));
+    }
+    let roles = req.roles.clone().unwrap_or_else(default_roles);
+    let boards = req.boards.clone().unwrap_or_default();
+    let clis = req.skill_clis.clone().unwrap_or_default();
+    validate_roles(&roles)?;
+    validate_clis(&clis)?;
+
+    let staging = TempDir::new()?;
+    let staged_root = staging.path().to_path_buf();
+    let skill_dir = staged_root.join("skills").join(&name);
+    fs::create_dir_all(&skill_dir)?;
+
+    let mut commit = None;
+    let mut tag = None;
+    let source_label: String;
+
+    if let Some(raw) = entry.content.as_deref().filter(|s| !s.trim().is_empty()) {
+        fs::write(skill_dir.join("SKILL.md"), raw)?;
+        source_label = "skill-single".to_string();
+    } else {
+        let raw_source = req.source.trim();
+        if raw_source.is_empty() {
+            return Err(PluginError::BadRequest(
+                "Skill source path/URL or SKILL.md content is required".into(),
+            ));
+        }
+        let local_path = Path::new(raw_source);
+        if local_path.is_file() {
+            if local_path.file_name().and_then(|n| n.to_str()) != Some("SKILL.md") {
+                return Err(PluginError::BadRequest(format!(
+                    "Skill file must be named SKILL.md: {}",
+                    local_path.display()
+                )));
+            }
+            fs::copy(local_path, skill_dir.join("SKILL.md"))?;
+            source_label = raw_source.to_string();
+        } else {
+            let (_src_tmp, src_root, resolved_commit, resolved_tag) =
+                stage_source(raw_source, req.commit.as_deref(), req.tag.as_deref(), false)?;
+            commit = resolved_commit;
+            tag = resolved_tag;
+            source_label = raw_source.to_string();
+
+            if src_root.join("SKILL.md").is_file() {
+                copy_dir_filtered(&src_root, &skill_dir)?;
+            } else if src_root.join("skills").join(&name).join("SKILL.md").is_file() {
+                copy_dir_filtered(&src_root.join("skills").join(&name), &skill_dir)?;
+            } else {
+                let mut found: Option<PathBuf> = None;
+                let search_root = if src_root.join("skills").is_dir() {
+                    src_root.join("skills")
+                } else {
+                    src_root.clone()
+                };
+                if let Ok(entries) = fs::read_dir(&search_root) {
+                    for item in entries.flatten() {
+                        let p = item.path();
+                        if p.is_dir() && p.join("SKILL.md").is_file() {
+                            found = Some(p);
+                            break;
+                        }
+                    }
+                }
+                let Some(skill_src) = found else {
+                    return Err(PluginError::BadRequest(format!(
+                        "No SKILL.md found in skill source: {raw_source}"
+                    )));
+                };
+                copy_dir_filtered(&skill_src, &skill_dir)?;
+            }
+        }
+    }
+
+    let mut skill_entry = load_skill_from_path(&staged_root, &skill_dir, roles, boards, clis)?;
+    skill_entry.name = name.clone();
+    let asset_hash = compute_dir_hash(&staged_root)?;
+    let plugin = InstalledPlugin {
+        name,
+        version: "1".into(),
+        source: source_label,
+        commit,
+        tag,
+        enabled: true,
+        asset_hash,
+        mcp: vec![],
+        skills: vec![skill_entry],
+        unsupported: vec![],
+        notes: vec![],
+    };
+    Ok((staging, staged_root, plugin))
 }
 
 fn single_mcp_plugin(
@@ -1928,9 +2073,9 @@ pub fn upgrade_plugin(
             .ok_or_else(|| PluginError::NotFound(format!("Plugin '{name}' not found")))?
     };
 
-    if snapshot_source.source == "mcp-single" {
+    if snapshot_source.source == "mcp-single" || snapshot_source.source == "skill-single" {
         return Err(PluginError::BadRequest(
-            "Single MCP servers cannot be upgraded".into(),
+            "Single MCP servers or skills cannot be upgraded".into(),
         ));
     }
 
