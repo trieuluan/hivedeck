@@ -402,9 +402,9 @@ export function ProjectCaptainColumn({
         'ship-chat flex flex-col bg-secondary',
         isPinned
           ? 'relative h-full max-w-[60%] shrink-0 border-r border-border'
-          : 'absolute bottom-0 z-20 h-[min(560px,calc(100%-24px))] w-[min(420px,calc(100%-24px))] overflow-hidden rounded-t-xl border border-b-0 border-border shadow-[0_-12px_40px_rgba(0,0,0,0.72)] animate-in slide-in-from-bottom-4 fade-in-0 duration-150 motion-reduce:animate-none'
+          : 'absolute inset-y-0 z-20 max-w-[min(60%,calc(100%-16px))] overflow-hidden border-x border-border shadow-[0_0_40px_rgba(0,0,0,0.72)] animate-in slide-in-from-bottom-4 fade-in-0 duration-150 motion-reduce:animate-none'
       )}
-      style={isPinned ? { width } : { left: dockX }}
+      style={isPinned ? { width } : { left: dockX, width }}
       aria-label={t('captain.title')}
     >
       <header className="flex items-center gap-2 border-b border-border px-3 py-2">
@@ -532,24 +532,22 @@ export function ProjectCaptainColumn({
           </div>
         )}
       </div>
-      {isPinned && (
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label={t('captain.resize')}
-          aria-valuemin={MIN_WIDTH}
-          aria-valuemax={MAX_WIDTH}
-          aria-valuenow={width}
-          tabIndex={0}
-          onPointerDown={onResizeStart}
-          onPointerMove={onResizeMove}
-          onPointerUp={onResizeEnd}
-          onPointerCancel={onResizeEnd}
-          onKeyDown={onResizeKey}
-          onDoubleClick={() => commitWidth(DEFAULT_WIDTH)}
-          className="absolute inset-y-0 right-0 w-1 cursor-col-resize touch-none hover:bg-brand/50 focus-visible:bg-brand/50 active:bg-brand/50"
-        />
-      )}
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={t('captain.resize')}
+        aria-valuemin={MIN_WIDTH}
+        aria-valuemax={MAX_WIDTH}
+        aria-valuenow={width}
+        tabIndex={0}
+        onPointerDown={onResizeStart}
+        onPointerMove={onResizeMove}
+        onPointerUp={onResizeEnd}
+        onPointerCancel={onResizeEnd}
+        onKeyDown={onResizeKey}
+        onDoubleClick={() => commitWidth(DEFAULT_WIDTH)}
+        className="absolute inset-y-0 right-0 w-1 cursor-col-resize touch-none hover:bg-brand/50 focus-visible:bg-brand/50 active:bg-brand/50"
+      />
     </aside>
   );
 }
