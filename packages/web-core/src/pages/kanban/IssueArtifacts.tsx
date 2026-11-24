@@ -355,75 +355,52 @@ export function IssueArtifacts({
         <p className="text-low">No artifacts yet</p>
       )}
       {files.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-base">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded-md border border-border bg-secondary px-2 py-1 text-[11px] font-semibold text-high tabular-nums">
-              {files.length} files
-            </span>
-            <div
-              role="group"
-              aria-label="Lọc loại artifacts"
-              className="inline-flex items-center gap-0.5 rounded-md border border-border bg-panel p-0.5"
-            >
-              {(
-                [
-                  { id: 'all', label: 'Tất cả', count: files.length },
-                  { id: 'image', label: 'Ảnh', count: typeCounts.image },
-                  { id: 'html', label: 'HTML', count: typeCounts.html },
-                  { id: 'markdown', label: 'MD', count: typeCounts.markdown },
-                ] as const
-              )
-                .filter((opt) => opt.id === 'all' || opt.count > 0)
-                .map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    aria-pressed={typeFilter === opt.id}
-                    onClick={() => setTypeFilter(opt.id)}
-                    className={cn(
-                      'rounded px-2.5 py-1 text-xs font-medium transition-colors',
-                      typeFilter === opt.id
-                        ? 'bg-secondary text-high'
-                        : 'text-low hover:text-normal'
-                    )}
-                  >
-                    {opt.id === 'all'
-                      ? opt.label
-                      : `${opt.label} (${opt.count})`}
-                  </button>
-                ))}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1.5">
-            <div
-              role="group"
-              aria-label="Sắp xếp artifacts"
-              className="inline-flex items-center gap-0.5 rounded-md border border-border bg-panel p-0.5"
-            >
-              {(
-                [
-                  { id: 'newest', label: 'Mới nhất' },
-                  { id: 'oldest', label: 'Cũ nhất' },
-                  { id: 'name', label: 'Tên' },
-                ] as const
-              ).map((opt) => (
+        <div className="flex items-center justify-between gap-2 border-b border-border pb-2.5">
+          <div
+            role="group"
+            aria-label="Lọc loại artifacts"
+            className="inline-flex min-w-0 items-center gap-0.5 rounded-md border border-border bg-panel p-0.5"
+          >
+            {(
+              [
+                { id: 'all', label: 'Tất cả', count: files.length },
+                { id: 'image', label: 'Ảnh', count: typeCounts.image },
+                { id: 'html', label: 'HTML', count: typeCounts.html },
+                { id: 'markdown', label: 'MD', count: typeCounts.markdown },
+              ] as const
+            )
+              .filter((opt) => opt.id === 'all' || opt.count > 0)
+              .map((opt) => (
                 <button
                   key={opt.id}
                   type="button"
-                  aria-pressed={sortOrder === opt.id}
-                  onClick={() => setSortOrder(opt.id)}
+                  aria-pressed={typeFilter === opt.id}
+                  onClick={() => setTypeFilter(opt.id)}
                   className={cn(
-                    'rounded px-2.5 py-1 text-xs font-medium transition-colors',
-                    sortOrder === opt.id
-                      ? 'bg-brand text-white'
+                    'whitespace-nowrap rounded px-2 py-1 text-[11px] font-medium transition-colors',
+                    typeFilter === opt.id
+                      ? 'bg-secondary text-high'
                       : 'text-low hover:text-normal'
                   )}
                 >
-                  {opt.label}
+                  {opt.id === 'all' ? opt.label : `${opt.label} ${opt.count}`}
                 </button>
               ))}
-            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-1.5">
+            <select
+              aria-label="Sắp xếp artifacts"
+              value={sortOrder}
+              onChange={(e) =>
+                setSortOrder(e.target.value as 'newest' | 'oldest' | 'name')
+              }
+              className="h-7 rounded-md border border-border bg-panel px-2 text-[11px] font-medium text-normal focus:border-brand focus:outline-none"
+            >
+              <option value="newest">Mới nhất</option>
+              <option value="oldest">Cũ nhất</option>
+              <option value="name">Tên A–Z</option>
+            </select>
             <div
               role="group"
               aria-label="Kiểu xem artifacts"
@@ -440,17 +417,18 @@ export function IssueArtifacts({
                   <button
                     key={mode.id}
                     type="button"
+                    aria-label={mode.label}
+                    title={mode.label}
                     aria-pressed={view === mode.id}
                     onClick={() => setView(mode.id)}
                     className={cn(
-                      'inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors',
+                      'inline-flex h-6 w-6 items-center justify-center rounded transition-colors',
                       view === mode.id
                         ? 'bg-brand text-white'
                         : 'text-low hover:text-normal'
                     )}
                   >
                     <Icon className="size-3.5" aria-hidden />
-                    {mode.label}
                   </button>
                 );
               })}
