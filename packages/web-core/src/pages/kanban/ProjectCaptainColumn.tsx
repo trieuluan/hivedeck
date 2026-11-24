@@ -52,9 +52,9 @@ export function saveCaptainMode(projectId: string, mode: CaptainMode) {
 function loadDockX(projectId: string): number {
   try {
     const raw = Number(localStorage.getItem(`${STORAGE_PREFIX}${projectId}.x`));
-    return Number.isFinite(raw) && raw >= 0 ? Math.round(raw) : 16;
+    return Number.isFinite(raw) && raw >= 0 ? Math.round(raw) : 0;
   } catch {
-    return 16;
+    return 0;
   }
 }
 
@@ -258,36 +258,54 @@ export function ProjectCaptainColumn({
   );
   const needsAttentionCount = inReviewCount + (captainBlocked ? 1 : 0);
 
-  const onDockDragStart = (event: PointerEvent<HTMLDivElement>) => {
+  const onDockDragStart = (event: PointerEvent<HTMLElement>) => {
+    if ((event.target as HTMLElement).closest('button, a, input, select, textarea')) {
+      return;
+    }
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
+    document.body.style.userSelect = 'none';
     const parentWidth = dockRef.current?.parentElement?.clientWidth ?? 900;
     const selfWidth = dockRef.current?.offsetWidth ?? 360;
-    const maxDockX = Math.max(12, parentWidth - selfWidth - 12);
+    const maxDockX = Math.max(0, parentWidth - selfWidth);
+    const currentX = Math.min(dockX, maxDockX);
     dockDrag.current = {
       startClientX: event.clientX,
-      startDockX: Math.min(dockX, maxDockX),
+      startDockX: currentX,
       maxDockX,
-      latest: Math.min(dockX, maxDockX),
+      latest: currentX,
       moved: false,
     };
   };
 
-  const onDockDragMove = (event: PointerEvent<HTMLDivElement>) => {
+  const onDockDragMove = (event: PointerEvent<HTMLElement>) => {
     if (!dockDrag.current) return;
     const delta = event.clientX - dockDrag.current.startClientX;
     if (Math.abs(delta) > 3) dockDrag.current.moved = true;
     const next = Math.min(
       dockDrag.current.maxDockX,
-      Math.max(12, Math.round(dockDrag.current.startDockX + delta))
+      Math.max(0, Math.round(dockDrag.current.startDockX + delta))
     );
     dockDrag.current.latest = next;
-    setDockX(next);
+    if (dockRef.current) {
+      const offset = next - dockDrag.current.startDockX;
+      dockRef.current.style.transform = `translate3d(${offset}px, 0, 0)`;
+    }
   };
 
   const onDockDragEnd = () => {
     if (!dockDrag.current) return;
-    saveDockX(projectId, dockDrag.current.latest);
+    document.body.style.userSelect = '';
+    if (dockRef.current) {
+      dockRef.current.style.transform = '';
+    }
+    let finalX = dockDrag.current.latest;
+    if (finalX <= 8) finalX = 0;
+    else if (dockDrag.current.maxDockX - finalX <= 8) {
+      finalX = dockDrag.current.maxDockX;
+    }
+    setDockX(finalX);
+    saveDockX(projectId, finalX);
     dockDrag.current = null;
   };
 
@@ -300,7 +318,7 @@ export function ProjectCaptainColumn({
         ref={dockRef}
         style={{ left: dockX }}
         className={cn(
-          'absolute bottom-0 z-20 flex w-[min(360px,calc(100%-24px))] items-center gap-2 rounded-t-xl border border-b-0 bg-secondary/95 px-2.5 py-2 shadow-[0_-6px_24px_rgba(0,0,0,0.55)] backdrop-blur-md transition-colors',
+          'absolute bottom-0 z-20 flex w-[min(360px,100%)] items-center gap-2 rounded-t-xl border border-b-0 bg-secondary/95 px-2.5 py-2 shadow-[0_-6px_24px_rgba(0,0,0,0.55)] backdrop-blur-md transition-colors will-change-transform',
           needsAttentionCount > 0
             ? 'border-brand/60'
             : status?.active
@@ -402,24 +420,29 @@ export function ProjectCaptainColumn({
         'ship-chat flex flex-col bg-secondary',
         isPinned
           ? 'relative h-full max-w-[60%] shrink-0 border-r border-border'
-          : 'absolute inset-y-0 z-20 max-w-[min(60%,calc(100%-16px))] overflow-hidden border-x border-border shadow-[0_0_40px_rgba(0,0,0,0.72)] animate-in slide-in-from-bottom-4 fade-in-0 duration-150 motion-reduce:animate-none'
+          : 'absolute inset-y-0 z-20 max-w-[min(60%,100%)] overflow-hidden border-x border-border shadow-[0_0_40px_rgba(0,0,0,0.72)] will-change-transform animate-in slide-in-from-bottom-4 fade-in-0 duration-150 motion-reduce:animate-none'
       )}
       style={isPinned ? { width } : { left: dockX, width }}
       aria-label={t('captain.title')}
     >
-      <header className="flex items-center gap-2 border-b border-border px-3 py-2">
+      <header
+        onPointerDown={!isPinned ? onDockDragStart : undefined}
+        onPointerMove={!isPinned ? onDockDragMove : undefined}
+        onPointerUp={!isPinned ? onDockDragEnd : undefined}
+        onPointerCancel={!isPinned ? onDockDragEnd : undefined}
+        className={cn(
+          'flex items-center gap-2 border-b border-border px-3 py-2',
+          !isPinned && 'cursor-grab active:cursor-grabbing touch-none'
+        )}
+      >
         {!isPinned && (
           <div
             role="slider"
             aria-label="Kéo vị trí khung Thuyền trưởng"
             aria-valuenow={dockX}
             tabIndex={0}
-            onPointerDown={onDockDragStart}
-            onPointerMove={onDockDragMove}
-            onPointerUp={onDockDragEnd}
-            onPointerCancel={onDockDragEnd}
             title="Kéo ngang để đổi vị trí"
-            className="flex cursor-grab items-center self-stretch px-0.5 text-low/70 hover:text-high active:cursor-grabbing touch-none"
+            className="flex items-center self-stretch px-0.5 text-low/70"
           >
             <DotsSixVerticalIcon className="size-3.5" weight="bold" />
           </div>
