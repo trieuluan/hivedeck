@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fileUrl, outputs, size } from './IssueArtifacts';
+import { fileUrl, outputs, previewKind, size } from './IssueArtifacts';
 
 describe('artifacts', () => {
   it('compares declared outputs with file extensions', () => {
@@ -29,5 +29,21 @@ describe('artifacts', () => {
     expect(size(0)).toBe('0 B');
     expect(size(1024)).toBe('1.0 KB');
     expect(size(1048576)).toBe('1.0 MB');
+  });
+
+  it('only previews supported extension and MIME combinations', () => {
+    expect(previewKind({ name: 'report.md', mime: 'text/markdown' })).toBe(
+      'markdown'
+    );
+    expect(previewKind({ name: 'report.md', mime: 'text/html' })).toBe(
+      'unsupported'
+    );
+    expect(previewKind({ name: 'report.html', mime: 'text/html' })).toBe(
+      'html'
+    );
+    expect(previewKind({ name: 'image.svg', mime: 'image/svg+xml' })).toBe(
+      'unsupported'
+    );
+    expect(previewKind({ name: 'movie.mp4', mime: 'video/mp4' })).toBe('video');
   });
 });

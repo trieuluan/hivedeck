@@ -213,7 +213,21 @@ async fn file(
         .oneshot(request.map(Body::new))
         .await
         .unwrap_or_else(|error| match error {});
-    Ok(response.into_response())
+    Ok(secure_artifact_response(response.into_response()))
+}
+
+fn secure_artifact_response(mut response: Response) -> Response {
+    response.headers_mut().insert(
+        axum::http::header::CONTENT_SECURITY_POLICY,
+        "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:; media-src data:"
+            .parse()
+            .unwrap(),
+    );
+    response.headers_mut().insert(
+        axum::http::header::X_CONTENT_TYPE_OPTIONS,
+        "nosniff".parse().unwrap(),
+    );
+    response
 }
 
 async fn delete(
@@ -255,6 +269,21 @@ mod tests {
         body::to_bytes,
         http::{Request, header},
     };
+
+    #[test]
+    fn artifact_responses_are_sandboxed_and_not_sniffed() {
+        let response = secure_artifact_response(Response::new(Body::empty()));
+        assert!(
+            response.headers()[header::CONTENT_SECURITY_POLICY]
+                .to_str()
+                .unwrap()
+                .contains("sandbox")
+        );
+        assert_eq!(
+            response.headers()[header::X_CONTENT_TYPE_OPTIONS],
+            "nosniff"
+        );
+    }
 
     #[tokio::test]
     async fn lists_validates_serves_and_removes_artifacts() {
