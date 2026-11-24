@@ -45,6 +45,7 @@ export interface ModelSelectorPopoverProps {
   showDefaultOption?: boolean;
   hiveRouterRoleCombo?: string | null;
   hiveRouterCombos?: string[];
+  hiveRouterModelAliases?: Record<string, string>;
   onSelectHiveRouterCombo?: (combo: string) => void;
   onSelectDefault?: () => void;
   scrollRef?: Ref<HTMLDivElement>;
@@ -309,6 +310,7 @@ export function ModelSelectorPopover({
   showDefaultOption = false,
   hiveRouterRoleCombo,
   hiveRouterCombos,
+  hiveRouterModelAliases,
   onSelectHiveRouterCombo,
   onSelectDefault,
   scrollRef,
@@ -379,6 +381,7 @@ export function ModelSelectorPopover({
         className="max-h-[233px]"
         showDefaultOption={showDefaultOption}
         defaultSuffix={defaultSuffix}
+        modelSuffixes={hiveRouterModelAliases}
         onSelectDefault={onSelectDefault}
         scrollRef={scrollRef}
       />

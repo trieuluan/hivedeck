@@ -10,8 +10,8 @@ import {
   SlidersHorizontalIcon,
   type Icon,
 } from '@phosphor-icons/react';
-import type { BaseCodingAgent, ExecutorConfig, ModelInfo } from 'shared/types';
-import { PermissionPolicy } from 'shared/types';
+import { BaseCodingAgent, PermissionPolicy } from 'shared/types';
+import type { ExecutorConfig, ModelInfo } from 'shared/types';
 import { toPrettyCase } from '@/shared/lib/string';
 import {
   getModelKey,
@@ -87,6 +87,27 @@ export function ModelSelectorContainer({
       ? hiveRouter.defaultPlannerCombo
       : hiveRouter.defaultCoderCombo
     : null;
+  const hiveRouterModelAliases = useMemo(() => {
+    if (
+      !hiveRouter.isRouted ||
+      (agent !== BaseCodingAgent.CLAUDE_CODE &&
+        agent !== BaseCodingAgent.CLAUDE_CODE_HEADED)
+    ) {
+      return undefined;
+    }
+    return {
+      haiku: `→ ${hiveRouter.defaultFastCombo}`,
+      opus: `→ ${hiveRouter.defaultPlannerCombo}`,
+      'opus[1m]': `→ ${hiveRouter.defaultPlannerCombo}`,
+      sonnet: `→ ${hiveRouter.defaultCoderCombo}`,
+    };
+  }, [
+    agent,
+    hiveRouter.isRouted,
+    hiveRouter.defaultFastCombo,
+    hiveRouter.defaultPlannerCombo,
+    hiveRouter.defaultCoderCombo,
+  ]);
   const defaultLabel = t('modelSelector.default');
   const loadingLabel = t('states.loading');
 
@@ -500,6 +521,7 @@ export function ModelSelectorContainer({
           showDefaultOption={showDefaultOption}
           hiveRouterRoleCombo={hiveRouterRoleCombo}
           hiveRouterCombos={hiveRouter.isRouted ? hiveRouter.combos : undefined}
+          hiveRouterModelAliases={hiveRouterModelAliases}
           onSelectHiveRouterCombo={(combo) => {
             onOverrideChange({ model_id: combo, reasoning_id: null });
             setIsOpen(false);

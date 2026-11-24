@@ -29,6 +29,8 @@ export interface HiveRouterRoutingState {
   defaultCoderCombo: string;
   /** Default combo name used for Captain runs. */
   defaultPlannerCombo: string;
+  /** Default combo name used for fast/haiku background runs. */
+  defaultFastCombo: string;
   /** Available HiveRouter combo names (status combos + configured role combos). */
   combos: string[];
   routerRunning: boolean;
@@ -52,6 +54,7 @@ export function useHiveRouterRouting(
 
   const defaultCoderCombo = nineRouter?.roles?.coder?.trim() || 'coder';
   const defaultPlannerCombo = nineRouter?.roles?.planner?.trim() || 'planner';
+  const defaultFastCombo = nineRouter?.roles?.fast?.trim() || 'fast';
 
   const combos = useMemo(() => {
     if (!isRouted) return [];
@@ -75,6 +78,7 @@ export function useHiveRouterRouting(
     supportsHiveRouter,
     defaultCoderCombo,
     defaultPlannerCombo,
+    defaultFastCombo,
     combos,
     routerRunning: status?.state === 'running',
   };

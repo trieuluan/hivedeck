@@ -116,6 +116,7 @@ export interface ModelListProps {
   className?: string;
   showDefaultOption?: boolean;
   defaultSuffix?: string | null;
+  modelSuffixes?: Record<string, string>;
   onSelectDefault?: () => void;
   scrollRef?: Ref<HTMLDivElement>;
 }
@@ -132,6 +133,7 @@ export function ModelList({
   className,
   showDefaultOption = false,
   defaultSuffix,
+  modelSuffixes,
   onSelectDefault,
   scrollRef,
 }: ModelListProps) {
@@ -250,11 +252,18 @@ export function ModelList({
                     title={model.name}
                   >
                     {model.name}
-                    {defaultSuffix && model.id.toLowerCase() === 'default' && (
-                      <span className="ml-1.5 text-xs font-normal text-brand">
-                        {defaultSuffix}
-                      </span>
-                    )}
+                    {(() => {
+                      const idLower = model.id.toLowerCase();
+                      const suffix =
+                        idLower === 'default'
+                          ? defaultSuffix
+                          : modelSuffixes?.[idLower];
+                      return suffix ? (
+                        <span className="ml-1.5 text-xs font-normal text-brand">
+                          {suffix}
+                        </span>
+                      ) : null;
+                    })()}
                   </span>
                 </button>
                 <div className="flex items-center justify-end gap-half pr-base">
