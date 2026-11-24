@@ -42,12 +42,13 @@ export function IssueSubIssuesSection({
   actions,
 }: IssueSubIssuesSectionProps) {
   const { t } = useTranslation('common');
+  const isEmpty = !isLoading && subIssues.length === 0;
 
   return (
     <CollapsibleSectionHeader
-      title={t('kanban.subIssues', 'Sub-issues')}
+      title={`${t('kanban.subIssues', 'Sub-issues')} (${subIssues.length})`}
       persistKey="kanban-issue-sub-issues"
-      defaultExpanded={true}
+      defaultExpanded={!isEmpty}
       actions={actions}
     >
       <Droppable droppableId={parentIssueId}>
@@ -55,7 +56,7 @@ export function IssueSubIssuesSection({
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className="p-base flex flex-col relative"
+            className={isEmpty ? 'px-base py-1 flex flex-col relative' : 'p-base flex flex-col relative'}
           >
             {isReordering && (
               <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-10">

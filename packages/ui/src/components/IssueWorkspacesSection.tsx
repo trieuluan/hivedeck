@@ -36,10 +36,17 @@ export function IssueWorkspacesSection({
   shouldAnimateCreateButton = false,
 }: IssueWorkspacesSectionProps) {
   const { t } = useTranslation('common');
+  const sortedWorkspaces = [...workspaces].sort(
+    (a, b) => Number(a.archived) - Number(b.archived)
+  );
 
   return (
     <CollapsibleSectionHeader
-      title={t('workspaces.title')}
+      title={
+        workspaces.length > 0
+          ? `${t('workspaces.title')} (${workspaces.length})`
+          : t('workspaces.title')
+      }
       persistKey="kanban-issue-workspaces"
       defaultExpanded={true}
       actions={actions}
@@ -60,12 +67,13 @@ export function IssueWorkspacesSection({
             </button>
           </div>
         ) : (
-          workspaces.map((workspace) => {
+          sortedWorkspaces.map((workspace) => {
             const { localWorkspaceId } = workspace;
             return (
               <IssueWorkspaceCard
                 key={workspace.id}
                 workspace={workspace}
+                showNoPrText={false}
                 onClick={
                   onWorkspaceClick && localWorkspaceId
                     ? () => onWorkspaceClick(localWorkspaceId)

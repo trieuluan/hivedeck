@@ -1,4 +1,4 @@
-import type { Ref, ReactNode } from 'react';
+import { useState, type Ref, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LocalAttachmentMetadata } from './WorkspaceContext';
 import { cn } from '../lib/cn';
@@ -122,6 +122,8 @@ export function IssueCommentsSection({
   renderEditor,
 }: IssueCommentsSectionProps) {
   const { t } = useTranslation('common');
+  const [isComposerFocused, setIsComposerFocused] = useState(false);
+  const showToolbar = isComposerFocused || commentInput.trim().length > 0;
 
   return (
     <CollapsibleSectionHeader
@@ -144,9 +146,7 @@ export function IssueCommentsSection({
             <div className="h-4 bg-secondary rounded w-3/4" />
             <div className="h-4 bg-secondary rounded w-1/2" />
           </div>
-        ) : comments.length === 0 ? (
-          <p className="text-low">{t('kanban.noCommentsYet')}</p>
-        ) : (
+        ) : comments.length === 0 ? null : (
           comments.map((comment) => (
             <CommentItem
               key={comment.id}
@@ -168,6 +168,12 @@ export function IssueCommentsSection({
         {/* Comment Input with WYSIWYG + dropzone */}
         <div
           {...dropzoneProps?.getRootProps()}
+          onFocus={() => setIsComposerFocused(true)}
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+              setIsComposerFocused(false);
+            }
+          }}
           className="relative min-w-0 bg-secondary border border-border rounded-sm p-base focus-within:border-brand [&_.static-editor-toolbar]:flex-nowrap [&_.static-editor-toolbar]:overflow-x-auto [&_.static-editor-toolbar]:mr-[112px] [&_.static-editor-toolbar]:px-0 [&_.static-editor-toolbar]:border-0 [&_.static-editor-toolbar>*]:shrink-0"
         >
           <input {...dropzoneProps?.getInputProps()} />
@@ -175,11 +181,11 @@ export function IssueCommentsSection({
             value: commentInput,
             onChange: onCommentInputChange,
             placeholder: t('kanban.enterCommentPlaceholder'),
-            className: 'min-h-[32px] break-words',
+            className: showToolbar ? 'min-h-[32px] break-words' : 'min-h-[24px] pr-[96px] break-words',
             localAttachments,
             onCmdEnter: onSubmitComment,
             disabled: isSending,
-            showStaticToolbar: true,
+            showStaticToolbar: showToolbar,
             onPasteFiles,
             autoFocus: false,
             editorRef: commentEditorRef,
@@ -228,7 +234,9 @@ export function IssueCommentsSection({
             dismissLabel={t('buttons.close')}
           />
         )}
-        <p className="text-xs text-low">Enter · ⌘/Ctrl + Enter</p>
+        {showToolbar && (
+          <p className="text-xs text-low">Enter · ⌘/Ctrl + Enter</p>
+        )}
         {draftSaveError && (
           <div role="alert" className="text-sm text-error">
             {t('kanban.failedToSaveCommentDraft')}{' '}
