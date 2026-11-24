@@ -175,7 +175,7 @@ export function IssueCommentsSection({
               setIsComposerFocused(false);
             }
           }}
-          className="relative min-w-0 bg-secondary border border-border rounded-sm p-base focus-within:border-brand [&_.static-editor-toolbar]:flex-nowrap [&_.static-editor-toolbar]:items-center [&_.static-editor-toolbar]:w-full [&_.static-editor-toolbar]:pt-2 [&_.static-editor-toolbar]:pb-0 [&_.static-editor-toolbar]:px-0 [&_.static-editor-toolbar]:border-0 [&_.static-editor-toolbar>*]:shrink-0"
+          className="relative min-w-0 bg-secondary border border-border rounded-sm px-base pt-base pb-1.5 focus-within:border-brand [&_.static-editor-toolbar]:flex-nowrap [&_.static-editor-toolbar]:items-center [&_.static-editor-toolbar]:w-full [&_.static-editor-toolbar]:pt-1.5 [&_.static-editor-toolbar]:!pb-0 [&_.static-editor-toolbar]:px-0 [&_.static-editor-toolbar]:border-0 [&_.static-editor-toolbar>*]:shrink-0"
         >
           <input {...dropzoneProps?.getInputProps()} />
           {(() => {
