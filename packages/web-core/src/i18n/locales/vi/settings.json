@@ -888,7 +888,7 @@
       "routing": {
         "on": "Đang định tuyến",
         "enable": "Cho agent đi qua HiveRouter",
-        "enableHint": "Các lượt chạy Claude Code, Codex, OpenCode, Gemini, Qwen Code và Droid sẽ đi qua HiveRouter và dùng combo theo vai trò.",
+        "enableHint": "Các lượt chạy Claude Code, Codex, OpenCode, Gemini, Qwen Code và Droid sẽ đi qua HiveRouter, dùng combo theo vai trò và hiển thị các combo HiveRouter trong ô chọn Model.",
         "notRunning": "HiveRouter chưa chạy nên agent hiện chạy không qua nó. Khởi động ở trang này.",
         "roles": "Combo cho từng vai trò",
         "agentDefault": "Mặc định của agent",

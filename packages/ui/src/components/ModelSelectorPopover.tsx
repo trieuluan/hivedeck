@@ -1,6 +1,6 @@
 import type { ReactElement, Ref } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CaretDownIcon } from '@phosphor-icons/react';
+import { CaretDownIcon, CheckIcon } from '@phosphor-icons/react';
 import { cn } from '../lib/cn';
 import {
   DropdownMenu,
@@ -43,6 +43,9 @@ export interface ModelSelectorPopoverProps {
   onReasoningSelect: (reasoningId: string | null) => void;
   recentModelEntries?: string[];
   showDefaultOption?: boolean;
+  hiveRouterRoleCombo?: string | null;
+  hiveRouterCombos?: string[];
+  onSelectHiveRouterCombo?: (combo: string) => void;
   onSelectDefault?: () => void;
   scrollRef?: Ref<HTMLDivElement>;
   expandedProviderId?: string;
@@ -120,6 +123,7 @@ interface ProviderAccordionProps {
   onModelSelect: (id: string, providerId?: string) => void;
   onReasoningSelect: (reasoningId: string | null) => void;
   showDefaultOption?: boolean;
+  defaultSuffix?: string | null;
   onSelectDefault?: () => void;
   scrollRef?: Ref<HTMLDivElement>;
   expandedProviderId: string;
@@ -136,6 +140,7 @@ function ProviderAccordion({
   onModelSelect,
   onReasoningSelect,
   showDefaultOption = false,
+  defaultSuffix,
   onSelectDefault,
   scrollRef,
   expandedProviderId,
@@ -269,6 +274,11 @@ function ProviderAccordion({
                 )}
               >
                 {t('modelSelector.default')}
+                {defaultSuffix && (
+                  <span className="ml-1.5 text-xs font-normal text-brand">
+                    {defaultSuffix}
+                  </span>
+                )}
               </span>
             </button>
           </div>
@@ -292,6 +302,9 @@ export function ModelSelectorPopover({
   onModelSelect,
   onReasoningSelect,
   showDefaultOption = false,
+  hiveRouterRoleCombo,
+  hiveRouterCombos,
+  onSelectHiveRouterCombo,
   onSelectDefault,
   scrollRef,
   expandedProviderId = '',
@@ -301,6 +314,12 @@ export function ModelSelectorPopover({
   const { t } = useTranslation('common');
   const models = config.models;
   const hasProviders = config.providers.length > 1;
+  const defaultSuffix = hiveRouterRoleCombo ? `→ ${hiveRouterRoleCombo}` : null;
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const matchingCombos = (hiveRouterCombos ?? []).filter(
+    (combo) =>
+      !normalizedSearch || combo.toLowerCase().includes(normalizedSearch)
+  );
   const hasReasoning = models.some(
     (model) => model.reasoning_options.length > 0
   );
@@ -321,6 +340,7 @@ export function ModelSelectorPopover({
         onModelSelect={onModelSelect}
         onReasoningSelect={onReasoningSelect}
         showDefaultOption={showDefaultOption}
+        defaultSuffix={defaultSuffix}
         onSelectDefault={onSelectDefault}
         scrollRef={scrollRef}
         expandedProviderId={expandedProviderId}
@@ -349,6 +369,7 @@ export function ModelSelectorPopover({
         justifyEnd
         className="max-h-[233px]"
         showDefaultOption={showDefaultOption}
+        defaultSuffix={defaultSuffix}
         onSelectDefault={onSelectDefault}
         scrollRef={scrollRef}
       />
@@ -380,7 +401,51 @@ export function ModelSelectorPopover({
               <span className="text-sm text-red-600">{error}</span>
             </div>
           )}
-          <DropdownMenuLabel>{t('modelSelector.model')}</DropdownMenuLabel>
+          <div className="flex items-center justify-between gap-2 pr-base">
+            <DropdownMenuLabel>{t('modelSelector.model')}</DropdownMenuLabel>
+            {hiveRouterRoleCombo && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/35 bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400">
+                <span className="size-1.5 rounded-full bg-emerald-400" aria-hidden />
+                HiveRouter
+              </span>
+            )}
+          </div>
+          {matchingCombos.length > 0 && onSelectHiveRouterCombo && (
+            <div className="border-b border-border/70 px-half py-half">
+              <div className="px-base pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-low">
+                Combo HiveRouter
+              </div>
+              <div className="flex flex-col">
+                {matchingCombos.map((combo) => {
+                  const isSelected =
+                    selectedModelId === combo && !selectedProviderId;
+                  return (
+                    <button
+                      key={combo}
+                      type="button"
+                      onClick={() => onSelectHiveRouterCombo(combo)}
+                      className={cn(
+                        'flex items-center justify-between gap-2 rounded-sm px-base py-1 text-left text-sm transition-colors',
+                        isSelected
+                          ? 'bg-secondary font-semibold text-high'
+                          : 'text-normal hover:bg-secondary/60'
+                      )}
+                    >
+                      <span className="truncate">{combo}</span>
+                      <span className="flex items-center gap-1.5 shrink-0">
+                        <span className="rounded bg-secondary px-1 py-0.5 text-[10px] text-low">
+                          combo
+                        </span>
+                        {isSelected && (
+                          <CheckIcon className="size-3.5 text-brand" weight="bold" />
+                        )}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div className="flex flex-col flex-1 min-h-0 min-w-0">
             {content}
             {showSearch && (

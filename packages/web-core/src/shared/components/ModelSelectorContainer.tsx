@@ -33,6 +33,7 @@ import {
 } from '@/shared/lib/modelSelector';
 import { profilesApi } from '@/shared/lib/api';
 import { useUserSystem } from '@/shared/hooks/useUserSystem';
+import { useHiveRouterRouting } from '@/shared/lib/hiveRouterRouting';
 import { getResolvedTheme, useTheme } from '@/shared/hooks/useTheme';
 import { useModelSelectorConfig } from '@/shared/hooks/useExecutorDiscovery';
 import { ModelSelectorPopover } from '@vibe/ui/components/ModelSelectorPopover';
@@ -80,6 +81,12 @@ export function ModelSelectorContainer({
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedProviderId, setExpandedProviderId] = useState('');
   const { profiles, setProfiles, reloadSystem } = useUserSystem();
+  const hiveRouter = useHiveRouterRouting(agent);
+  const hiveRouterRoleCombo = hiveRouter.isRouted
+    ? lockAgent
+      ? hiveRouter.defaultPlannerCombo
+      : hiveRouter.defaultCoderCombo
+    : null;
   const defaultLabel = t('modelSelector.default');
   const loadingLabel = t('states.loading');
 
@@ -491,6 +498,12 @@ export function ModelSelectorContainer({
           onReasoningSelect={handleReasoningSelect}
           recentModelEntries={recentModelEntries}
           showDefaultOption={showDefaultOption}
+          hiveRouterRoleCombo={hiveRouterRoleCombo}
+          hiveRouterCombos={hiveRouter.isRouted ? hiveRouter.combos : undefined}
+          onSelectHiveRouterCombo={(combo) => {
+            onOverrideChange({ model_id: combo, reasoning_id: null });
+            setIsOpen(false);
+          }}
           onSelectDefault={() => handleModelSelect(null)}
           scrollRef={scrollRef}
           expandedProviderId={expandedProviderId}

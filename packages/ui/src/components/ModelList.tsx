@@ -115,6 +115,7 @@ export interface ModelListProps {
   justifyEnd?: boolean;
   className?: string;
   showDefaultOption?: boolean;
+  defaultSuffix?: string | null;
   onSelectDefault?: () => void;
   scrollRef?: Ref<HTMLDivElement>;
 }
@@ -130,6 +131,7 @@ export function ModelList({
   justifyEnd = false,
   className,
   showDefaultOption = false,
+  defaultSuffix,
   onSelectDefault,
   scrollRef,
 }: ModelListProps) {
@@ -175,6 +177,11 @@ export function ModelList({
           )}
         >
           {t('modelSelector.default')}
+          {defaultSuffix && (
+            <span className="ml-1.5 text-xs font-normal text-brand">
+              {defaultSuffix}
+            </span>
+          )}
         </span>
       </button>
     </div>
