@@ -1,4 +1,4 @@
-import { type ChangeEvent, type ReactNode, useRef } from "react";
+import { type ChangeEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import {
   type Icon,
   PaperclipIcon,
@@ -315,6 +315,44 @@ export function SessionChatBox<TExecutor extends string = string>({
   })}`;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const askQuestionBannerRef = useRef<AskUserQuestionBannerHandle>(null);
+
+  const wasCompactingRef = useRef(false);
+  const preCompactPercentRef = useRef<number | undefined>(undefined);
+  const latestContextPercentRef = useRef<number | undefined>(contextPercent);
+  latestContextPercentRef.current = contextPercent;
+  const [compactElapsedSec, setCompactElapsedSec] = useState(0);
+  const [compactDoneFrom, setCompactDoneFrom] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (isCompacting) {
+      if (!wasCompactingRef.current) {
+        preCompactPercentRef.current = latestContextPercentRef.current;
+        setCompactElapsedSec(0);
+        setCompactDoneFrom(null);
+      }
+      wasCompactingRef.current = true;
+      const startedAt = Date.now();
+      const timer = window.setInterval(() => {
+        setCompactElapsedSec(Math.floor((Date.now() - startedAt) / 1000));
+      }, 1000);
+      return () => window.clearInterval(timer);
+    }
+
+    if (wasCompactingRef.current) {
+      wasCompactingRef.current = false;
+      setCompactDoneFrom(preCompactPercentRef.current ?? -1);
+      const hideTimer = window.setTimeout(() => {
+        setCompactDoneFrom(null);
+      }, 5000);
+      return () => window.clearTimeout(hideTimer);
+    }
+  }, [isCompacting]);
+
+  const formatCompactElapsed = (totalSec: number) => {
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  };
 
   // Determine if in feedback mode, edit mode, or approval mode
   const isInFeedbackMode = feedbackMode?.isActive ?? false;
@@ -705,23 +743,48 @@ export function SessionChatBox<TExecutor extends string = string>({
 
     // Compacting banner
     if (isCompacting) {
+      const prePct = preCompactPercentRef.current ?? contextPercent;
       banners.push(
         <div
           key="compacting"
-          className="bg-brand/10 border-b border-brand/25 px-double py-2 flex items-center gap-3"
+          className="bg-brand/10 border-b border-brand/25 px-double py-2 flex items-center gap-2.5"
         >
           <SpinnerIcon className="size-icon-sm text-brand animate-spin shrink-0" />
           <span className="text-xs font-medium text-brand whitespace-nowrap">
             Đang thu gọn context…
           </span>
-          <div className="flex-1 h-1.5 rounded-full bg-brand/20 overflow-hidden">
-            <div className="h-full w-2/3 rounded-full bg-brand animate-pulse" />
-          </div>
-          {typeof contextPercent === "number" && (
-            <span className="text-xs font-mono text-brand/90 tabular-nums shrink-0">
-              Context: {contextPercent}%
+          {typeof prePct === "number" && (
+            <span className="text-xs text-brand/75 whitespace-nowrap">
+              ({prePct}% → đang tóm tắt)
             </span>
           )}
+          <div className="relative flex-1 h-1.5 rounded-full bg-brand/20 overflow-hidden">
+            <div className="h-full w-1/3 rounded-full bg-brand animate-compact-indeterminate" />
+          </div>
+          <span className="text-xs font-mono text-brand/90 tabular-nums shrink-0">
+            {formatCompactElapsed(compactElapsedSec)}
+          </span>
+        </div>,
+      );
+    } else if (compactDoneFrom !== null) {
+      const hasDrop =
+        compactDoneFrom >= 0 &&
+        typeof contextPercent === "number" &&
+        contextPercent < compactDoneFrom;
+      banners.push(
+        <div
+          key="compact-done"
+          className="bg-success/10 border-b border-success/25 px-double py-2 flex items-center justify-between gap-2.5"
+        >
+          <span className="inline-flex items-center gap-2 text-xs font-medium text-success">
+            <CheckIcon className="size-icon-sm shrink-0" weight="bold" />
+            Đã thu gọn context
+          </span>
+          <span className="text-xs font-mono text-success/90 tabular-nums shrink-0">
+            {hasDrop
+              ? `${compactDoneFrom}% → ${contextPercent}% (−${compactDoneFrom - contextPercent!}%)`
+              : "Hoàn tất"}
+          </span>
         </div>,
       );
     }
