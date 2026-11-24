@@ -766,6 +766,15 @@ impl Codex {
                 _ => mcp_guidance,
             });
         }
+        if let Some(skills) = crate::plugins::skills_catalog(&env.skill_dirs) {
+            let trimmed = skills.trim();
+            if !trimmed.is_empty() {
+                params.developer_instructions = Some(match params.developer_instructions.take() {
+                    Some(d) if !d.trim().is_empty() => format!("{d}\n\n{trimmed}"),
+                    _ => trimmed.to_string(),
+                });
+            }
+        }
         // The owner's per-CLI choices for headless runs (ADR-038).
         for (key, value) in Self::codex_extension_overrides(&env) {
             params
@@ -1092,5 +1101,22 @@ mod tests {
         assert!(ids.contains("gpt-5.5"));
         assert!(ids.contains("gpt-5.4-mini"));
         assert!(ids.contains("gpt-5.2"));
+    }
+
+    #[test]
+    fn skills_catalog_reads_materialized_run_skill_dirs() {
+        let dir = tempfile::tempdir().unwrap();
+        let skill_dir = dir.path().join("emil-design-eng");
+        std::fs::create_dir_all(&skill_dir).unwrap();
+        std::fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: emil-design-eng\ndescription: Polish UI.\n---\nBody\n",
+        )
+        .unwrap();
+
+        let catalog = crate::plugins::skills_catalog(&[dir.path().to_path_buf()])
+            .expect("skills_catalog should list SKILL.md from env.skill_dirs");
+        assert!(catalog.contains("emil-design-eng"));
+        assert!(catalog.contains("Polish UI."));
     }
 }
