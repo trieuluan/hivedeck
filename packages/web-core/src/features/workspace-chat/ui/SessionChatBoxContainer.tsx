@@ -35,6 +35,10 @@ import { useWorkspaceBranch } from '../model/hooks/useWorkspaceBranch';
 import { useApprovalMutation } from '../model/hooks/useApprovalMutation';
 import { useApprovals } from '@/shared/hooks/useApprovals';
 import { ResolveConflictsDialog } from '@/shared/dialogs/tasks/ResolveConflictsDialog';
+import {
+  KanbanDiffDialog,
+  type KanbanDiffTarget,
+} from '@/shared/dialogs/kanban/KanbanDiffDialog';
 import { workspaceSummaryKeys } from '@/shared/hooks/workspaceSummaryKeys';
 import { buildAgentPrompt } from '@/shared/lib/promptMessage';
 import {
@@ -201,6 +205,9 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
     [queryClient, hostId, workspaceId]
   );
   const appNavigation = useAppNavigation();
+  const [gitDiffTarget, setGitDiffTarget] = useState<KanbanDiffTarget | null>(
+    null
+  );
 
   const { executeAction } = useActions();
   const actionCtx = useActionVisibilityContext();
@@ -1307,7 +1314,8 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
   }
 
   return (
-    <SessionChatBox<BaseCodingAgent>
+    <>
+      <SessionChatBox<BaseCodingAgent>
       isCaptain={isCaptain}
       status={effectiveStatus}
       activity={agentActivity}
@@ -1421,14 +1429,16 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
               onDenyGitAction: pendingApproval.gitAction
                 ? handleDenyGitAction
                 : undefined,
-              onViewGitDiff: pendingApproval.gitAction?.projectId
+              onViewGitDiff: pendingApproval.gitAction?.workspaceId
                 ? () => {
                     const ga = pendingApproval.gitAction!;
-                    window.open(
-                      `/projects/${ga.projectId}/issues/${ga.issueId}`,
-                      '_blank',
-                      'noopener,noreferrer'
-                    );
+                    setGitDiffTarget({
+                      issueId: ga.issueId,
+                      issueKey: ga.issueKey,
+                      issueTitle: `${ga.branch} → ${ga.destination}`,
+                      workspaceId: ga.workspaceId,
+                      workspaceName: ga.branch,
+                    });
                   }
                 : undefined,
               gitAction: pendingApproval.gitAction,
@@ -1473,5 +1483,21 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
       dropzone={{ getRootProps, getInputProps, isDragActive }}
       modelSelector={modelSelectorNode}
     />
+      <KanbanDiffDialog
+        target={gitDiffTarget}
+        onOpenChange={(open) => {
+          if (!open) setGitDiffTarget(null);
+        }}
+        onOpenWorkspace={(issueId, wsId) => {
+          setGitDiffTarget(null);
+          const projectId = pendingApproval?.gitAction?.projectId;
+          if (projectId) {
+            appNavigation.goToProjectIssue(projectId, issueId);
+          } else {
+            appNavigation.goToWorkspace(wsId);
+          }
+        }}
+      />
+    </>
   );
 }

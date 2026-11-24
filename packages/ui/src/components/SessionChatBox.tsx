@@ -771,7 +771,7 @@ export function SessionChatBox<TExecutor extends string = string>({
                 onClick={approvalMode.onViewGitDiff}
                 className="rounded border border-border bg-secondary px-2 py-0.5 text-[11px] font-medium text-normal hover:bg-panel hover:text-high shrink-0 transition-colors"
               >
-                Xem diff ↗
+                Xem diff
               </button>
             )}
           </div>
