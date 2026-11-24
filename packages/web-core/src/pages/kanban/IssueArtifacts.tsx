@@ -103,6 +103,16 @@ export function previewKind(file: Pick<Artifact, 'name' | 'mime'>) {
   )
     return 'markdown';
   if (/\.html?$/i.test(file.name) && file.mime === 'text/html') return 'html';
+  if (
+    /\.(txt|log|json|toml|ya?ml|tsx?|jsx?|rs|py|css|sh|sql)$/i.test(
+      file.name
+    ) &&
+    (file.mime.startsWith('text/') ||
+      file.mime === 'application/json' ||
+      file.mime === 'application/javascript' ||
+      file.mime === 'application/octet-stream')
+  )
+    return 'text';
   return 'unsupported';
 }
 
@@ -203,10 +213,13 @@ export function IssueArtifacts({
   } | null>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
-  const images = files.filter((file) => previewKind(file) === 'image');
+  const navigableFiles = sortedFiles.length > 0 ? sortedFiles : files;
   const current = selected;
   const kind = current ? previewKind(current) : null;
-  const index = images.findIndex((file) => file.path === selected?.path);
+  const rawIndex = navigableFiles.findIndex(
+    (file) => file.path === selected?.path
+  );
+  const index = rawIndex >= 0 ? rawIndex : 0;
 
   useEffect(() => {
     setZoomMode('fit');
@@ -216,7 +229,7 @@ export function IssueArtifacts({
     setPreviewError('');
     if (
       !selected ||
-      (kind !== 'markdown' && kind !== 'html') ||
+      (kind !== 'markdown' && kind !== 'html' && kind !== 'text') ||
       selected.size > previewLimit
     )
       return;
@@ -273,20 +286,22 @@ export function IssueArtifacts({
           event.preventDefault();
           first.focus();
         }
-      } else if (kind !== 'image') {
-        return;
       } else if (
         (event.key === 'ArrowLeft' || event.key === 'ArrowRight') &&
-        images.length > 1
+        navigableFiles.length > 1
       ) {
         event.preventDefault();
         event.stopPropagation();
         setSelected(
-          images[
-            (index + (event.key === 'ArrowRight' ? 1 : -1) + images.length) %
-              images.length
+          navigableFiles[
+            (index +
+              (event.key === 'ArrowRight' ? 1 : -1) +
+              navigableFiles.length) %
+              navigableFiles.length
           ]
         );
+      } else if (kind !== 'image') {
+        return;
       } else if (event.key === '+' || event.key === '=') {
         event.preventDefault();
         setZoomMode('actual');
@@ -305,7 +320,7 @@ export function IssueArtifacts({
     return () => {
       window.removeEventListener('keydown', onKeyDown, true);
     };
-  }, [current, images, index, kind]);
+  }, [current, navigableFiles, index, kind]);
 
   async function remove(file: Artifact) {
     const result = await ConfirmDialog.show({
@@ -678,9 +693,9 @@ export function IssueArtifacts({
                     : ''}
                   {size(current.size)}
                 </span>
-                {kind === 'image' && images.length > 1 && (
+                {navigableFiles.length > 1 && (
                   <span className="shrink-0 rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-zinc-300 tabular-nums">
-                    {index + 1} / {images.length}
+                    {index + 1} / {navigableFiles.length}
                   </span>
                 )}
               </div>
@@ -793,18 +808,21 @@ export function IssueArtifacts({
 
             {/* Main image viewport */}
             <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-auto p-4 sm:p-6">
-              {kind === 'image' && images.length > 1 && (
+              {navigableFiles.length > 1 && (
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelected(
-                      images[(index - 1 + images.length) % images.length]
+                      navigableFiles[
+                        (index - 1 + navigableFiles.length) %
+                          navigableFiles.length
+                      ]
                     );
                   }}
                   className="fixed left-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/60 text-white/80 shadow-lg backdrop-blur-sm transition-colors hover:bg-black/85 hover:text-white"
-                  aria-label="Ảnh trước"
-                  title="Ảnh trước (←)"
+                  aria-label="Tệp trước"
+                  title="Tệp trước (←)"
                 >
                   <CaretLeftIcon className="size-5" weight="bold" />
                 </button>
@@ -856,7 +874,7 @@ export function IssueArtifacts({
                   className="max-h-full max-w-full rounded-lg bg-black shadow-2xl"
                 />
               )}
-              {(kind === 'markdown' || kind === 'html') && (
+              {(kind === 'markdown' || kind === 'html' || kind === 'text') && (
                 <div
                   className="flex h-full w-full max-w-4xl flex-col"
                   onClick={(e) => e.stopPropagation()}
@@ -892,9 +910,14 @@ export function IssueArtifacts({
                       className="min-h-0 w-full flex-1 rounded-lg bg-white"
                     />
                   )}
+                  {kind === 'text' && content !== null && (
+                    <pre className="min-h-0 flex-1 overflow-auto rounded-lg border border-white/10 bg-zinc-900 p-5 font-mono text-xs leading-relaxed text-zinc-100 whitespace-pre-wrap">
+                      {content}
+                    </pre>
+                  )}
                 </div>
               )}
-              {(kind === 'markdown' || kind === 'html') &&
+              {(kind === 'markdown' || kind === 'html' || kind === 'text') &&
                 current.size > previewLimit && (
                   <p className="text-sm text-zinc-300">
                     Tệp quá lớn để xem trước. Dùng nút Tải xuống.
@@ -911,16 +934,18 @@ export function IssueArtifacts({
                 </p>
               )}
 
-              {kind === 'image' && images.length > 1 && (
+              {navigableFiles.length > 1 && (
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setSelected(images[(index + 1) % images.length]);
+                    setSelected(
+                      navigableFiles[(index + 1) % navigableFiles.length]
+                    );
                   }}
                   className="fixed right-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/60 text-white/80 shadow-lg backdrop-blur-sm transition-colors hover:bg-black/85 hover:text-white"
-                  aria-label="Ảnh tiếp theo"
-                  title="Ảnh tiếp theo (→)"
+                  aria-label="Tệp tiếp theo"
+                  title="Tệp tiếp theo (→)"
                 >
                   <CaretRightIcon className="size-5" weight="bold" />
                 </button>
@@ -928,31 +953,48 @@ export function IssueArtifacts({
             </div>
 
             {/* Bottom thumbnail filmstrip dock */}
-            {kind === 'image' && images.length > 1 && (
+            {navigableFiles.length > 1 && (
               <div
                 className="mx-auto mb-4 flex max-w-[90vw] shrink-0 items-center gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-zinc-900/90 p-2 shadow-2xl backdrop-blur-md"
                 onClick={(e) => e.stopPropagation()}
               >
-                {images.map((img) => {
-                  const active = img.path === current.path;
+                {navigableFiles.map((item) => {
+                  const active = item.path === current.path;
+                  const itemKind = previewKind(item);
                   return (
                     <button
-                      key={img.path}
+                      key={item.path}
                       type="button"
-                      onClick={() => setSelected(img)}
-                      title={img.name}
+                      onClick={() => setSelected(item)}
+                      title={item.name}
                       className={cn(
-                        'h-12 w-12 shrink-0 overflow-hidden rounded-lg border-2 transition-all',
+                        'flex h-12 w-12 shrink-0 flex-col items-center justify-center overflow-hidden rounded-lg border-2 transition-all',
                         active
                           ? 'scale-105 border-brand ring-2 ring-brand/30'
-                          : 'border-transparent opacity-60 hover:opacity-100'
+                          : 'border-white/10 bg-zinc-800/80 opacity-65 hover:opacity-100'
                       )}
                     >
-                      <img
-                        src={fileUrl(issueId, img.path)}
-                        alt={img.name}
-                        className="h-full w-full object-cover"
-                      />
+                      {itemKind === 'image' ? (
+                        <img
+                          src={fileUrl(issueId, item.path)}
+                          alt={item.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : itemKind === 'html' ? (
+                        <span className="font-mono text-[10px] font-bold text-brand">
+                          &lt;/&gt;
+                        </span>
+                      ) : itemKind === 'markdown' ? (
+                        <span className="font-mono text-[10px] font-bold text-sky-400">
+                          MD
+                        </span>
+                      ) : itemKind === 'video' ? (
+                        <VideoCameraIcon className="size-4 text-zinc-200" />
+                      ) : (
+                        <span className="font-mono text-[10px] font-bold text-zinc-300">
+                          {itemKind === 'text' ? 'CODE' : 'FILE'}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
