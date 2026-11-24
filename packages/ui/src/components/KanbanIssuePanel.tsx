@@ -1,6 +1,7 @@
 import {
   useState,
   useEffect,
+  useMemo,
   useRef,
   type ReactNode,
   type RefObject,
@@ -9,9 +10,13 @@ import { useTranslation } from 'react-i18next';
 import type { LocalAttachmentMetadata } from './WorkspaceContext';
 import { cn } from '../lib/cn';
 import {
+  ArrowSquareOutIcon,
+  CaretDownIcon,
+  CaretUpIcon,
   XIcon,
   LinkIcon,
   DotsThreeIcon,
+  PencilSimpleIcon,
   TrashIcon,
   PaperclipIcon,
   ImageIcon,
@@ -213,16 +218,39 @@ export function KanbanIssuePanel({
   const breadcrumbTextClass =
     'min-w-0 text-sm text-normal truncate rounded-sm px-1 py-0.5 hover:bg-panel hover:text-high transition-colors';
 
-  // Description edit state: in edit mode, show preview by default; in create mode, always editable
-  const [isDescriptionEditing, setIsDescriptionEditing] = useState(true);
+  // Description edit state: in view mode, show compact preview by default; in create mode, always editable
+  const [isDescriptionEditing, setIsDescriptionEditing] = useState(
+    mode === 'create'
+  );
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const descriptionContainerRef = useRef<HTMLDivElement>(null);
   const [tab, setTab] = useState<'details' | 'artifacts'>(initialTab);
 
-  // Reset description editing state when switching between create/edit mode or when issue changes
+  // Reset description editing & expansion state when switching between create/edit mode or when issue changes
   useEffect(() => {
-    setIsDescriptionEditing(true);
+    setIsDescriptionEditing(isCreateMode);
+    setIsDescriptionExpanded(false);
     setTab(isCreateMode ? 'details' : initialTab);
   }, [isCreateMode, issueId, initialTab]);
+
+  const specInfo = useMemo(() => {
+    const desc = formData.description ?? '';
+    const agentMatch = desc.match(/^\s*Execution agent:\s*([A-Za-z0-9_-]+)/im);
+    const tierMatch = desc.match(/^\s*Tier:\s*([A-Za-z0-9_-]+)/im);
+    const previewMatch = desc.match(
+      /(?:Preview URL:\s*)?(https?:\/\/(?:localhost|127\.0\.0\.1)[^\s)<>"']+)/i
+    );
+    return {
+      agent: agentMatch?.[1] ?? null,
+      tier: tierMatch?.[1] ?? null,
+      previewUrl: previewMatch?.[1] ?? null,
+    };
+  }, [formData.description]);
+
+  const isLongDescription = useMemo(() => {
+    const desc = formData.description ?? '';
+    return desc.length > 360 || desc.split('\n').length > 6;
+  }, [formData.description]);
 
   // Click outside the description area to exit editing
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -311,8 +339,8 @@ export function KanbanIssuePanel({
             )}
           />
         </div>
-        {/* Property Row */}
-        <div className="px-7 py-base">
+        {/* Unified Properties & Tags Row */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-7 pb-base pt-half">
           <IssuePropertyRow
             statusId={formData.statusId}
             priority={formData.priority}
@@ -324,10 +352,6 @@ export function KanbanIssuePanel({
             onPriorityClick={() => onFormChange('priority', formData.priority)}
             disabled={isSubmitting}
           />
-        </div>
-
-        {/* Tags Row */}
-        <div className="px-7 pb-base">
           <IssueTagsRow
             selectedTagIds={formData.tagIds}
             availableTags={tags}
@@ -368,15 +392,82 @@ export function KanbanIssuePanel({
           renderArtifactsSection &&
           renderArtifactsSection(issueId)}
         <div hidden={tab === 'artifacts'}>
-          {/* Title and Description */}
-          <div className="rounded-sm">
+          {!isCreateMode &&
+            (specInfo.agent || specInfo.tier || specInfo.previewUrl) && (
+              <div className="flex flex-wrap items-center gap-1.5 px-7 pt-3">
+                {specInfo.agent && (
+                  <span className="inline-flex items-center gap-1 rounded-md border border-border bg-panel px-2 py-0.5 text-[11px] text-normal">
+                    <span className="font-semibold text-high">Agent:</span>
+                    {specInfo.agent}
+                  </span>
+                )}
+                {specInfo.tier && (
+                  <span className="inline-flex items-center gap-1 rounded-md border border-border bg-panel px-2 py-0.5 text-[11px] text-normal">
+                    <span className="font-semibold text-high">Tier:</span>
+                    {specInfo.tier}
+                  </span>
+                )}
+                {specInfo.previewUrl && (
+                  <a
+                    href={specInfo.previewUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded-md border border-sky-500/35 bg-sky-500/10 px-2 py-0.5 text-[11px] font-medium text-sky-300 transition-colors hover:bg-sky-500/20"
+                  >
+                    Preview URL
+                    <ArrowSquareOutIcon className="size-3" aria-hidden />
+                  </a>
+                )}
+              </div>
+            )}
+
+          {/* Description Card */}
+          <div
+            className={cn(
+              !isCreateMode &&
+                'mx-7 mt-3 overflow-hidden rounded-lg border border-border bg-panel/40'
+            )}
+          >
+            {!isCreateMode && (
+              <div className="flex items-center justify-between border-b border-border/70 bg-panel/70 px-3 py-1.5">
+                <span className="text-xs font-semibold text-high">Mô tả</span>
+                <div className="flex items-center gap-1.5">
+                  {!isDescriptionEditing ? (
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => setIsDescriptionEditing(true)}
+                      className="inline-flex items-center gap-1 rounded border border-border bg-secondary px-2 py-0.5 text-[11px] font-medium text-normal transition-colors hover:bg-panel hover:text-high disabled:opacity-50"
+                    >
+                      <PencilSimpleIcon className="size-3" aria-hidden />
+                      Sửa
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsDescriptionEditing(false)}
+                      className="inline-flex items-center gap-1 rounded border border-brand/40 bg-brand/15 px-2 py-0.5 text-[11px] font-medium text-brand transition-colors hover:bg-brand/25"
+                    >
+                      Xong
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Description WYSIWYG Editor with image dropzone */}
             <div
               ref={descriptionContainerRef}
               {...(isDescriptionEditing ? dropzoneProps?.getRootProps() : {})}
               className={cn(
-                'relative mt-base',
-                !isDescriptionEditing && !isCreateMode && 'cursor-text'
+                'relative',
+                isCreateMode && 'mt-base',
+                !isDescriptionEditing && !isCreateMode && 'cursor-text',
+                !isDescriptionEditing &&
+                  !isCreateMode &&
+                  !isDescriptionExpanded &&
+                  isLongDescription &&
+                  'max-h-[220px] overflow-hidden'
               )}
               onClick={() => {
                 if (!isDescriptionEditing && !isCreateMode && !isSubmitting) {
@@ -406,8 +497,8 @@ export function KanbanIssuePanel({
                 disabled: !isDescriptionEditing || isSubmitting,
                 autoFocus: false,
                 className: cn(
-                  'px-7',
-                  isDescriptionEditing ? 'min-h-[100px]' : 'min-h-[2rem]',
+                  isCreateMode ? 'px-7' : 'px-3 py-2',
+                  isDescriptionEditing ? 'min-h-[120px]' : 'min-h-[2rem]',
                   !isDescriptionEditing && !formData.description && 'text-low'
                 ),
                 localAttachments,
@@ -492,7 +583,32 @@ export function KanbanIssuePanel({
                   </div>
                 </div>
               )}
+              {!isDescriptionEditing &&
+                !isCreateMode &&
+                !isDescriptionExpanded &&
+                isLongDescription && (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-panel to-transparent" />
+                )}
             </div>
+            {!isDescriptionEditing && !isCreateMode && isLongDescription && (
+              <button
+                type="button"
+                onClick={() => setIsDescriptionExpanded((prev) => !prev)}
+                className="flex w-full items-center justify-center gap-1 border-t border-border/70 bg-brand/5 py-1.5 text-[11px] font-medium text-brand transition-colors hover:bg-brand/10"
+              >
+                {isDescriptionExpanded ? (
+                  <>
+                    Thu gọn mô tả
+                    <CaretUpIcon className="size-3" aria-hidden />
+                  </>
+                ) : (
+                  <>
+                    Xem toàn bộ mô tả
+                    <CaretDownIcon className="size-3" aria-hidden />
+                  </>
+                )}
+              </button>
+            )}
           </div>
 
           {/* "Generate spec" intake controls (Create mode only) */}
