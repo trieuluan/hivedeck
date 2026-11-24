@@ -96,7 +96,7 @@ export function IssueRelationshipsSection({
         className={
           isEmpty
             ? 'px-base py-1 flex flex-col'
-            : 'divide-y divide-border/70 flex flex-col'
+            : 'border-t border-border/70 divide-y divide-border/70 flex flex-col'
         }
       >
         {isLoading ? (
