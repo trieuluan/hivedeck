@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -23,7 +30,12 @@ import { KanbanContainer } from '@/features/kanban/ui/KanbanContainer';
 import { useIsMobile } from '@/shared/hooks/useIsMobile';
 import { useHostId } from '@/shared/providers/HostIdProvider';
 import { ProjectRightSidebarContainer } from './ProjectRightSidebarContainer';
-import { ProjectCaptainColumn } from './ProjectCaptainColumn';
+import {
+  ProjectCaptainColumn,
+  loadCaptainMode,
+  saveCaptainMode,
+  type CaptainMode,
+} from './ProjectCaptainColumn';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
 import { useCurrentKanbanRouteState } from '@/shared/hooks/useCurrentKanbanRouteState';
 import {
@@ -320,6 +332,21 @@ function ProjectKanbanLayout({ projectName }: { projectName: string }) {
   const issue = issueId ? getIssue(issueId) : undefined;
   usePageTitle(issue?.title, projectName);
   const isRightPanelOpen = isPanelOpen;
+  const [captainMode, setCaptainMode] = useState<CaptainMode>(() =>
+    projectId ? loadCaptainMode(projectId) : 'dock'
+  );
+
+  useEffect(() => {
+    setCaptainMode(projectId ? loadCaptainMode(projectId) : 'dock');
+  }, [projectId]);
+
+  const handleCaptainModeChange = useCallback(
+    (next: CaptainMode) => {
+      setCaptainMode(next);
+      if (projectId) saveCaptainMode(projectId, next);
+    },
+    [projectId]
+  );
 
   if (isMobile) {
     return isRightPanelOpen ? (
@@ -335,17 +362,28 @@ function ProjectKanbanLayout({ projectName }: { projectName: string }) {
 
   return (
     <div className="flex h-full w-full min-w-0">
-      {/* ADR-032: the project's captain beside its board. */}
-      {projectId && (
+      {/* ADR-032: pinned captain beside its board when pinned. */}
+      {projectId && captainMode === 'pinned' && (
         <ProjectCaptainColumn
           key={projectId}
           projectId={projectId}
           projectName={projectName}
+          mode={captainMode}
+          onModeChange={handleCaptainModeChange}
         />
       )}
-      {/* Board takes the full width; card detail slides over it. */}
+      {/* Board takes the full width; card detail slides over it, captain docks at bottom-left when unpinned. */}
       <div className="relative min-w-0 flex-1 h-full overflow-hidden bg-primary">
         <ProjectKanbanBoard />
+        {projectId && captainMode !== 'pinned' && (
+          <ProjectCaptainColumn
+            key={projectId}
+            projectId={projectId}
+            projectName={projectName}
+            mode={captainMode}
+            onModeChange={handleCaptainModeChange}
+          />
+        )}
         {isRightPanelOpen && (
           <aside className="absolute inset-y-0 right-0 z-30 flex w-[min(560px,100%)] flex-col overflow-hidden border-l border-border bg-secondary shadow-[-12px_0_32px_rgba(0,0,0,0.35)] animate-in slide-in-from-right-4 fade-in-0 duration-150 motion-reduce:animate-none">
             <ProjectRightSidebarContainer />
