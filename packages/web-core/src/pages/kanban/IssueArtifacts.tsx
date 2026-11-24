@@ -11,8 +11,11 @@ import {
   FileHtmlIcon,
   FileTextIcon,
   ImageIcon,
+  ListIcon,
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
+  SquaresFourIcon,
+  TrashIcon,
   VideoCameraIcon,
   XIcon,
 } from '@phosphor-icons/react';
@@ -56,6 +59,21 @@ export function size(bytes: number) {
     : bytes < 1048576
       ? `${(bytes / 1024).toFixed(1)} KB`
       : `${(bytes / 1048576).toFixed(1)} MB`;
+}
+
+function formatRelativeTime(iso: string): { label: string; isRecent: boolean } {
+  const ts = Date.parse(iso);
+  if (Number.isNaN(ts)) return { label: '', isRecent: false };
+  const diffSec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (diffSec < 60) return { label: 'Vừa xong', isRecent: true };
+  const mins = Math.floor(diffSec / 60);
+  if (mins < 60) return { label: `${mins} phút trước`, isRecent: mins <= 5 };
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return { label: `${hours} giờ trước`, isRecent: false };
+  return {
+    label: new Date(ts).toLocaleDateString('vi-VN'),
+    isRecent: false,
+  };
 }
 
 export function outputs(description: string | null, files: { name: string }[]) {
@@ -132,11 +150,30 @@ export function IssueArtifacts({
   });
   const client = useQueryClient();
   const [view, setView] = useState<'grid' | 'list'>('grid');
+  const [typeFilter, setTypeFilter] = useState<
+    'all' | 'image' | 'html' | 'markdown'
+  >('all');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'name'>(
     'newest'
   );
+  const typeCounts = useMemo(() => {
+    let image = 0;
+    let html = 0;
+    let markdown = 0;
+    for (const f of files) {
+      const k = previewKind(f);
+      if (k === 'image') image += 1;
+      else if (k === 'html') html += 1;
+      else if (k === 'markdown') markdown += 1;
+    }
+    return { image, html, markdown };
+  }, [files]);
   const sortedFiles = useMemo(() => {
-    const next = [...files];
+    const filtered =
+      typeFilter === 'all'
+        ? files
+        : files.filter((f) => previewKind(f) === typeFilter);
+    const next = [...filtered];
     next.sort((a, b) => {
       if (sortOrder === 'name') {
         return a.name.localeCompare(b.name) || a.path.localeCompare(b.path);
@@ -149,7 +186,7 @@ export function IssueArtifacts({
       return a.path.localeCompare(b.path);
     });
     return next;
-  }, [files, sortOrder]);
+  }, [files, sortOrder, typeFilter]);
   const [selected, setSelected] = useState<Artifact | null>(null);
   const [content, setContent] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState('');
@@ -318,73 +355,144 @@ export function IssueArtifacts({
         <p className="text-low">No artifacts yet</p>
       )}
       {files.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-base border-b border-border pb-base">
-          <div
-            role="group"
-            aria-label="Sắp xếp artifacts"
-            className="inline-flex rounded-sm border border-border p-1"
-          >
-            {(
-              [
-                { id: 'newest', label: 'Mới nhất' },
-                { id: 'oldest', label: 'Cũ nhất' },
-                { id: 'name', label: 'Tên' },
-              ] as const
-            ).map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                aria-pressed={sortOrder === opt.id}
-                onClick={() => setSortOrder(opt.id)}
-                className={cn(
-                  'px-3 py-1.5 rounded-sm text-xs',
-                  sortOrder === opt.id ? 'bg-brand text-white' : 'text-normal'
-                )}
-              >
-                {opt.label}
-              </button>
-            ))}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-base">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded-md border border-border bg-secondary px-2 py-1 text-[11px] font-semibold text-high tabular-nums">
+              {files.length} files
+            </span>
+            <div
+              role="group"
+              aria-label="Lọc loại artifacts"
+              className="inline-flex items-center gap-0.5 rounded-md border border-border bg-panel p-0.5"
+            >
+              {(
+                [
+                  { id: 'all', label: 'Tất cả', count: files.length },
+                  { id: 'image', label: 'Ảnh', count: typeCounts.image },
+                  { id: 'html', label: 'HTML', count: typeCounts.html },
+                  { id: 'markdown', label: 'MD', count: typeCounts.markdown },
+                ] as const
+              )
+                .filter((opt) => opt.id === 'all' || opt.count > 0)
+                .map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    aria-pressed={typeFilter === opt.id}
+                    onClick={() => setTypeFilter(opt.id)}
+                    className={cn(
+                      'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+                      typeFilter === opt.id
+                        ? 'bg-secondary text-high'
+                        : 'text-low hover:text-normal'
+                    )}
+                  >
+                    {opt.id === 'all'
+                      ? opt.label
+                      : `${opt.label} (${opt.count})`}
+                  </button>
+                ))}
+            </div>
           </div>
-          <div
-            role="group"
-            aria-label="Kiểu xem artifacts"
-            className="inline-flex rounded-sm border border-border p-1"
-          >
-            {(['grid', 'list'] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                aria-pressed={view === mode}
-                onClick={() => setView(mode)}
-                className={cn(
-                  'px-4 py-2 rounded-sm',
-                  view === mode ? 'bg-brand text-white' : 'text-normal'
-                )}
-              >
-                {mode === 'grid' ? 'Grid' : 'List'}
-              </button>
-            ))}
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <div
+              role="group"
+              aria-label="Sắp xếp artifacts"
+              className="inline-flex items-center gap-0.5 rounded-md border border-border bg-panel p-0.5"
+            >
+              {(
+                [
+                  { id: 'newest', label: 'Mới nhất' },
+                  { id: 'oldest', label: 'Cũ nhất' },
+                  { id: 'name', label: 'Tên' },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  aria-pressed={sortOrder === opt.id}
+                  onClick={() => setSortOrder(opt.id)}
+                  className={cn(
+                    'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+                    sortOrder === opt.id
+                      ? 'bg-brand text-white'
+                      : 'text-low hover:text-normal'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <div
+              role="group"
+              aria-label="Kiểu xem artifacts"
+              className="inline-flex items-center gap-0.5 rounded-md border border-border bg-panel p-0.5"
+            >
+              {(
+                [
+                  { id: 'grid', label: 'Grid', icon: SquaresFourIcon },
+                  { id: 'list', label: 'List', icon: ListIcon },
+                ] as const
+              ).map((mode) => {
+                const Icon = mode.icon;
+                return (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    aria-pressed={view === mode.id}
+                    onClick={() => setView(mode.id)}
+                    className={cn(
+                      'inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors',
+                      view === mode.id
+                        ? 'bg-brand text-white'
+                        : 'text-low hover:text-normal'
+                    )}
+                  >
+                    <Icon className="size-3.5" aria-hidden />
+                    {mode.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
       <div
         className={cn(
           view === 'grid'
-            ? 'grid grid-cols-1 sm:grid-cols-2 gap-base'
-            : 'divide-y divide-border border-t border-border'
+            ? 'grid grid-cols-1 sm:grid-cols-2 gap-3'
+            : 'divide-y divide-border overflow-hidden rounded-lg border border-border bg-panel/70'
         )}
       >
         {sortedFiles.map((file) => {
           const url = fileUrl(issueId, file.path);
           const fileKind = previewKind(file);
+          const relTime = formatRelativeTime(file.created_at);
+          const typeLabel =
+            fileKind === 'image'
+              ? 'PNG'
+              : fileKind === 'html'
+                ? 'HTML'
+                : fileKind === 'markdown'
+                  ? 'MD'
+                  : fileKind === 'video'
+                    ? 'VIDEO'
+                    : 'FILE';
+          const badgeClass =
+            fileKind === 'html'
+              ? 'border-brand/35 bg-brand/15 text-brand'
+              : fileKind === 'markdown'
+                ? 'border-sky-500/35 bg-sky-500/15 text-sky-400'
+                : 'border-white/15 bg-zinc-900/80 text-zinc-200';
           return (
             <article
               key={file.path}
               className={cn(
-                'min-w-0',
+                'group relative min-w-0',
                 view === 'list'
-                  ? 'flex items-center gap-base py-base'
-                  : 'space-y-half'
+                  ? 'flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-secondary/40'
+                  : 'flex flex-col overflow-hidden rounded-lg border border-border bg-panel/70 transition-colors hover:border-brand/40'
               )}
             >
               <button
@@ -397,16 +505,28 @@ export function IssueArtifacts({
                 className={cn(
                   'min-w-0 text-left',
                   view === 'list'
-                    ? 'flex flex-1 items-center gap-base'
-                    : 'block w-full'
+                    ? 'flex flex-1 items-center gap-3'
+                    : 'flex flex-1 flex-col'
                 )}
               >
                 <span
                   className={cn(
-                    'flex shrink-0 items-center justify-center overflow-hidden rounded-sm border border-border bg-secondary text-low',
-                    view === 'list' ? 'h-14 w-20' : 'h-40 w-full'
+                    'relative flex shrink-0 items-center justify-center overflow-hidden bg-secondary/40 text-low',
+                    view === 'list'
+                      ? 'h-10 w-14 rounded-md border border-border'
+                      : 'h-36 w-full border-b border-border'
                   )}
                 >
+                  {view === 'grid' && (
+                    <span
+                      className={cn(
+                        'absolute left-2 top-2 z-10 rounded border px-1.5 py-0.5 font-mono text-[10px] font-semibold backdrop-blur-sm',
+                        badgeClass
+                      )}
+                    >
+                      {typeLabel}
+                    </span>
+                  )}
                   {fileKind === 'image' ? (
                     <img
                       src={url}
@@ -414,46 +534,100 @@ export function IssueArtifacts({
                       loading="lazy"
                       className="h-full w-full object-contain"
                     />
+                  ) : view === 'list' ? (
+                    <span className="font-mono text-[10px] font-semibold text-high">
+                      {typeLabel}
+                    </span>
                   ) : (
-                    <span className="text-sm uppercase">
-                      {fileKind === 'markdown'
-                        ? 'Markdown'
-                        : fileKind === 'html'
-                          ? 'HTML'
-                          : fileKind === 'video'
-                            ? 'Video'
-                            : 'File'}
+                    <span className="flex flex-col items-center gap-1.5 px-3 text-center">
+                      <span
+                        className={cn(
+                          'flex h-9 w-9 items-center justify-center rounded-lg border',
+                          badgeClass
+                        )}
+                      >
+                        {fileKind === 'html' ? (
+                          <FileHtmlIcon className="size-5" weight="duotone" />
+                        ) : fileKind === 'video' ? (
+                          <VideoCameraIcon
+                            className="size-5"
+                            weight="duotone"
+                          />
+                        ) : (
+                          <FileTextIcon className="size-5" weight="duotone" />
+                        )}
+                      </span>
+                      <span className="text-[11px] text-low">
+                        {fileKind === 'html'
+                          ? 'Nhấn để mở prototype'
+                          : fileKind === 'markdown'
+                            ? 'Tài liệu Markdown'
+                            : 'Nhấn để xem'}
+                      </span>
                     </span>
                   )}
                 </span>
                 <span
-                  className={cn('block min-w-0', view === 'grid' && 'pt-half')}
+                  className={cn(
+                    'block min-w-0',
+                    view === 'grid' ? 'px-3 py-2.5 space-y-1' : 'flex-1'
+                  )}
                 >
-                  <span className="block break-all font-medium text-high">
+                  <span
+                    title={file.name}
+                    className="block truncate text-xs font-semibold text-high"
+                  >
                     {file.name}
                   </span>
-                  <span className="block text-low text-sm">
-                    {fileKind} · {size(file.size)} ·{' '}
-                    {file.execution_id?.slice(0, 8)}
+                  <span className="flex items-center justify-between gap-2 text-[11px] text-low tabular-nums">
+                    <span className="truncate">
+                      {relTime.label && (
+                        <span
+                          className={cn(
+                            relTime.isRecent && 'font-medium text-emerald-400'
+                          )}
+                        >
+                          {relTime.isRecent ? `● ${relTime.label}` : relTime.label}
+                        </span>
+                      )}
+                      {relTime.label ? ' · ' : ''}
+                      {size(file.size)}
+                    </span>
+                    {file.execution_id && (
+                      <span className="shrink-0 font-mono text-[10px] text-low/80">
+                        #{file.execution_id.slice(0, 6)}
+                      </span>
+                    )}
                   </span>
                 </span>
               </button>
-              <div className="flex shrink-0 gap-half text-sm">
+              <div
+                className={cn(
+                  'flex shrink-0 items-center gap-1',
+                  view === 'grid' && 'absolute right-2 top-2 z-10'
+                )}
+              >
                 <a
                   href={url}
                   download={file.name}
                   aria-label={`Download ${file.name}`}
-                  className="text-normal"
+                  title={`Tải ${file.name}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-panel/90 text-normal backdrop-blur-sm transition-colors hover:bg-secondary hover:text-high"
                 >
-                  Download
+                  <DownloadSimpleIcon className="size-3.5" aria-hidden />
                 </a>
                 <button
                   type="button"
                   aria-label={`Delete ${file.name}`}
-                  className="text-error"
-                  onClick={() => void remove(file)}
+                  title={`Xoá ${file.name}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void remove(file);
+                  }}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-panel/90 text-error backdrop-blur-sm transition-colors hover:border-error/40 hover:bg-error/15"
                 >
-                  Delete
+                  <TrashIcon className="size-3.5" aria-hidden />
                 </button>
               </div>
             </article>
