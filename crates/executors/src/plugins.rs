@@ -2876,7 +2876,7 @@ pub fn materialize_run_skills(
             let plugin_dir = run_root.join("cursor_plugin");
             (plugin_dir.join("skills"), Some(plugin_dir))
         }
-        "gemini" | "qwen_code" | "amp" | "copilot" | "droid" => {
+        "gemini" | "qwen_code" | "amp" | "copilot" | "droid" | "codex" => {
             let skills_dir = run_root.join("skills");
             (skills_dir.clone(), Some(skills_dir))
         }
