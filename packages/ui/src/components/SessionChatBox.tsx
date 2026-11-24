@@ -127,10 +127,24 @@ interface EditModeProps {
   isSubmitting: boolean;
 }
 
+export interface GitActionApprovalInfo {
+  action: string;
+  issueId: string;
+  issueKey: string;
+  projectId: string;
+  workspaceId: string;
+  branch: string;
+  destination: string;
+  headSha?: string | null;
+}
+
 interface ApprovalModeProps {
   isActive: boolean;
   onApprove: () => void;
   onRequestChanges: () => void;
+  onDenyGitAction?: () => void;
+  onViewGitDiff?: () => void;
+  gitAction?: GitActionApprovalInfo;
   isSubmitting: boolean;
   isTimedOut: boolean;
   error?: string | null;
@@ -576,7 +590,7 @@ export function SessionChatBox<TExecutor extends string = string>({
 
     // Approval mode
     if (isInApprovalMode) {
-      if (approvalMode?.isTimedOut) {
+      if (approvalMode?.isTimedOut || approvalMode?.gitAction) {
         return stopButton;
       }
 
@@ -722,6 +736,95 @@ export function SessionChatBox<TExecutor extends string = string>({
           >
             <TrashIcon className="h-4 w-4" />
           </button>
+        </div>,
+      );
+    }
+
+    // Git merge / push inline confirmation banner
+    if (isInApprovalMode && approvalMode?.gitAction) {
+      const ga = approvalMode.gitAction;
+      const isMerge = ga.action === "merge";
+      const shortSha = ga.headSha ? ga.headSha.slice(0, 8) : null;
+      banners.push(
+        <div
+          key="git-action-approval"
+          className="bg-brand/10 border-b border-brand/30 px-double py-2.5 flex flex-col gap-2"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <WarningIcon
+                className="size-icon-sm text-brand shrink-0"
+                weight="bold"
+              />
+              <span className="text-xs font-semibold text-high truncate">
+                {isMerge
+                  ? "Xác nhận merge code vào base branch?"
+                  : "Xác nhận push nhánh lên remote?"}
+              </span>
+              <span className="rounded border border-brand/35 bg-brand/15 px-1.5 py-0.5 font-mono text-[10px] text-brand shrink-0">
+                {isMerge ? "merge_issue" : "push_issue"}
+              </span>
+            </div>
+            {approvalMode.onViewGitDiff && (
+              <button
+                type="button"
+                onClick={approvalMode.onViewGitDiff}
+                className="rounded border border-border bg-secondary px-2 py-0.5 text-[11px] font-medium text-normal hover:bg-panel hover:text-high shrink-0 transition-colors"
+              >
+                Xem diff ↗
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 pl-6 text-[11px]">
+            <span className="rounded border border-border bg-secondary px-1.5 py-0.5 font-mono text-high">
+              {ga.issueKey}
+            </span>
+            <span className="rounded border border-border bg-secondary px-1.5 py-0.5 font-mono text-normal">
+              {isMerge ? `${ga.branch} → ${ga.destination}` : ga.branch}
+            </span>
+            {shortSha && (
+              <span className="rounded border border-border bg-secondary px-1.5 py-0.5 font-mono text-high">
+                SHA {shortSha}
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 pl-6">
+            <span className="text-[11px] text-low">
+              {shortSha
+                ? `Bấm xác nhận sẽ duyệt revision ${shortSha} và ${isMerge ? "merge" : "push"} ngay.`
+                : `Bấm xác nhận sẽ duyệt và ${isMerge ? "merge" : "push"} ngay.`}
+            </span>
+            {!approvalMode.isTimedOut && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={approvalMode.isSubmitting}
+                  onClick={
+                    approvalMode.onDenyGitAction ??
+                    approvalMode.onRequestChanges
+                  }
+                  className="rounded-md border border-error/35 bg-error/10 px-2.5 py-1 text-xs font-medium text-error hover:bg-error/20 disabled:opacity-50 transition-colors"
+                >
+                  Từ chối
+                </button>
+                <button
+                  type="button"
+                  disabled={approvalMode.isSubmitting}
+                  onClick={approvalMode.onApprove}
+                  className="inline-flex items-center gap-1 rounded-md bg-success px-3 py-1 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+                >
+                  {approvalMode.isSubmitting ? (
+                    <SpinnerIcon className="size-3.5 animate-spin" />
+                  ) : (
+                    <CheckIcon className="size-3.5" weight="bold" />
+                  )}
+                  {isMerge ? "Xác nhận & Merge" : "Xác nhận & Push"}
+                </button>
+              </div>
+            )}
+          </div>
         </div>,
       );
     }

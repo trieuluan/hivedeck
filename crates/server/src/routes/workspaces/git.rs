@@ -20,9 +20,12 @@ use db::models::{
 use deployment::Deployment;
 use git::{ConflictOp, GitCliError, GitServiceError};
 use serde::{Deserialize, Serialize};
-use services::services::container::ContainerService;
+use services::services::{approvals::ApprovalDetails, container::ContainerService};
 use ts_rs::TS;
-use utils::response::ApiResponse;
+use utils::{
+    approvals::{APPROVAL_TIMEOUT_SECONDS, ApprovalOutcome, ApprovalRequest},
+    response::ApiResponse,
+};
 use uuid::Uuid;
 
 use super::streams::{DiffStreamQuery, stream_workspace_diff_ws};
@@ -61,6 +64,8 @@ pub enum GitOperationError {
 #[derive(Debug, Deserialize, Serialize, TS)]
 pub struct MergeWorkspaceRequest {
     pub repo_id: Uuid,
+    #[serde(default)]
+    pub await_approval: bool,
 }
 
 /// One-click "Merge" from an In Review card: commit leftovers, rebase if
@@ -103,6 +108,8 @@ pub struct CommitWorkspaceResponse {
 #[derive(Debug, Deserialize, Serialize, TS)]
 pub struct PushWorkspaceRequest {
     pub repo_id: Uuid,
+    #[serde(default)]
+    pub await_approval: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, TS)]
@@ -208,12 +215,17 @@ pub async fn stream_diff_ws(
 
 /// HIVE-85: a linked board issue must carry a `revision`-scoped approval
 /// whose SHA matches the current workspace head before merge/push is allowed.
+/// When called from MCP (`await_approval = true`) without a prior approval,
+/// parks an inline approval on the active Captain execution so the owner can
+/// confirm and execute in one click from chat.
 async fn ensure_revision_approval(
     deployment: &DeploymentImpl,
     workspace_id: Uuid,
+    branch_name: &str,
     head_oid: Option<&str>,
     action: &str,
     destination: &str,
+    await_approval: bool,
 ) -> Result<(), ApiError> {
     let Some((issue_id, _)) =
         IssueWorkspace::find_issue_and_project_by_workspace(&deployment.db().pool, workspace_id)
@@ -223,10 +235,77 @@ async fn ensure_revision_approval(
             "merge/push requires a linked issue".into(),
         ));
     };
-    let Some(issue) = DbIssue::find_by_id(&deployment.db().pool, issue_id).await? else {
+    let Some(mut issue) = DbIssue::find_by_id(&deployment.db().pool, issue_id).await? else {
         return Err(ApiError::BadRequest("linked issue not found".into()));
     };
-    validate_issue_revision_approval(&issue, head_oid)?;
+
+    if let Err(err) = validate_issue_revision_approval(&issue, head_oid) {
+        if !await_approval {
+            return Err(err);
+        }
+        let Some(exec_id) = find_running_orchestrator_execution(&deployment.db().pool).await?
+        else {
+            return Err(err);
+        };
+        let tool_name = if action == "merge" {
+            "merge_issue"
+        } else {
+            "push_issue"
+        };
+        let summary = serde_json::json!({
+            "action": action,
+            "issue_id": issue.id.to_string(),
+            "issue_key": issue.simple_id,
+            "project_id": issue.project_id.to_string(),
+            "workspace_id": workspace_id.to_string(),
+            "branch": branch_name,
+            "destination": destination,
+            "head_sha": head_oid,
+        })
+        .to_string();
+        let request = ApprovalRequest::new_with_timeout(
+            tool_name.to_string(),
+            exec_id,
+            APPROVAL_TIMEOUT_SECONDS - 60,
+        );
+        let outcome = deployment
+            .approvals()
+            .create_and_wait_with_details(
+                request,
+                ApprovalDetails::plan(None, Some(summary)),
+            )
+            .await
+            .map_err(|e| ApiError::BadRequest(format!("approval request failed: {e}")))?;
+
+        match outcome {
+            ApprovalOutcome::Approved => {
+                if let Some(updated) = DbIssue::set_approval(
+                    &deployment.db().pool,
+                    issue.id,
+                    "owner",
+                    head_oid,
+                    "revision",
+                )
+                .await?
+                {
+                    issue = updated;
+                }
+            }
+            ApprovalOutcome::Denied { reason } => {
+                return Err(ApiError::BadRequest(
+                    reason.unwrap_or_else(|| format!("{action} denied by owner")),
+                ));
+            }
+            ApprovalOutcome::TimedOut => {
+                return Err(ApiError::BadRequest(format!(
+                    "{action} approval timed out"
+                )));
+            }
+            ApprovalOutcome::Answered { .. } => {
+                return Err(ApiError::BadRequest("unexpected approval outcome".into()));
+            }
+        }
+    }
 
     let approved = issue.approval_revision.as_deref().unwrap_or("unborn");
     tracing::info!(
@@ -242,6 +321,25 @@ async fn ensure_revision_approval(
         "merge/push authorized by owner revision approval"
     );
     Ok(())
+}
+
+async fn find_running_orchestrator_execution(
+    pool: &sqlx::SqlitePool,
+) -> Result<Option<Uuid>, sqlx::Error> {
+    sqlx::query_scalar::<_, Uuid>(
+        r#"SELECT ep.id
+           FROM execution_processes ep
+           JOIN sessions s ON s.id = ep.session_id
+           JOIN workspaces w ON w.id = s.workspace_id
+           WHERE w.kind = 'orchestrator'
+             AND w.archived = FALSE
+             AND ep.status = 'running'
+             AND ep.run_reason = 'codingagent'
+           ORDER BY ep.started_at DESC
+           LIMIT 1"#,
+    )
+    .fetch_optional(pool)
+    .await
 }
 
 fn validate_issue_revision_approval(
@@ -348,9 +446,11 @@ pub async fn merge_workspace(
     ensure_revision_approval(
         &deployment,
         workspace.id,
+        &workspace.branch,
         head_oid.as_deref(),
         "merge",
         &workspace_repo.target_branch,
+        request.await_approval,
     )
     .await?;
 
@@ -463,9 +563,11 @@ pub async fn ship_workspace(
         ensure_revision_approval(
             &deployment,
             workspace.id,
+            &workspace.branch,
             head_oid.as_deref(),
             "ship",
             &target,
+            false,
         )
         .await?;
         let merge_commit_id = git.merge_changes(
@@ -618,9 +720,11 @@ pub async fn push_workspace_branch(
     ensure_revision_approval(
         &deployment,
         workspace.id,
+        &workspace.branch,
         head_oid.as_deref(),
         "push",
         &workspace.branch,
+        request.await_approval,
     )
     .await?;
 
@@ -667,9 +771,11 @@ pub async fn force_push_workspace_branch(
     ensure_revision_approval(
         &deployment,
         workspace.id,
+        &workspace.branch,
         head_oid.as_deref(),
         "push_force",
         &workspace.branch,
+        request.await_approval,
     )
     .await?;
 

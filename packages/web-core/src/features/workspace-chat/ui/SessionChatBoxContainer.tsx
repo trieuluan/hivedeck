@@ -47,6 +47,7 @@ import { toPrettyCase } from '@/shared/lib/string';
 import {
   SessionChatBox,
   type ExecutionStatus,
+  type GitActionApprovalInfo,
   type SessionChatBoxEditorRenderProps,
 } from '@vibe/ui/components/SessionChatBox';
 import { ModelSelectorContainer } from '@/shared/components/ModelSelectorContainer';
@@ -395,11 +396,45 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
             break;
           }
         }
+        let gitAction: GitActionApprovalInfo | undefined;
+        if (
+          (info.tool_name === 'merge_issue' ||
+            info.tool_name === 'push_issue') &&
+          info.plan_content
+        ) {
+          try {
+            const parsed = JSON.parse(info.plan_content) as {
+              action?: string;
+              issue_id?: string;
+              issue_key?: string;
+              project_id?: string;
+              workspace_id?: string;
+              branch?: string;
+              destination?: string;
+              head_sha?: string | null;
+            };
+            if (parsed.issue_id && parsed.branch && parsed.destination) {
+              gitAction = {
+                action: parsed.action ?? 'merge',
+                issueId: parsed.issue_id,
+                issueKey: parsed.issue_key ?? 'ISSUE',
+                projectId: parsed.project_id ?? '',
+                workspaceId: parsed.workspace_id ?? '',
+                branch: parsed.branch,
+                destination: parsed.destination,
+                headSha: parsed.head_sha ?? null,
+              };
+            }
+          } catch {
+            // Ignore malformed metadata
+          }
+        }
         return {
           approvalId: info.approval_id,
           timeoutAt: info.timeout_at,
           executionProcessId: info.execution_process_id,
           questions,
+          gitAction,
         };
       }
     }
@@ -1060,6 +1095,35 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
     onScrollToBottom,
   ]);
 
+  const handleDenyGitAction = useCallback(async () => {
+    if (!pendingApproval) return;
+    try {
+      await denyAsync({
+        approvalId: pendingApproval.approvalId,
+        executionProcessId: pendingApproval.executionProcessId,
+        reason: localMessage.trim() || 'Từ chối xác nhận trong chat',
+      });
+      if (localMessage.trim()) {
+        cancelDebouncedSave();
+        setLocalMessage('');
+        await clearDraft();
+      }
+      queryClient.invalidateQueries({ queryKey: workspaceSummaryKeys.all });
+      onScrollToBottom();
+    } catch {
+      // Error is handled by mutation
+    }
+  }, [
+    pendingApproval,
+    localMessage,
+    denyAsync,
+    cancelDebouncedSave,
+    setLocalMessage,
+    clearDraft,
+    queryClient,
+    onScrollToBottom,
+  ]);
+
   // Handle AskUserQuestion answer submission
   const handleAnswerQuestion = useCallback(
     async (answers: Array<{ question: string; answer: string[] }>) => {
@@ -1354,6 +1418,20 @@ export function SessionChatBoxContainer(props: SessionChatBoxContainerProps) {
               isActive: true,
               onApprove: handleApprove,
               onRequestChanges: handleRequestChanges,
+              onDenyGitAction: pendingApproval.gitAction
+                ? handleDenyGitAction
+                : undefined,
+              onViewGitDiff: pendingApproval.gitAction?.projectId
+                ? () => {
+                    const ga = pendingApproval.gitAction!;
+                    window.open(
+                      `/projects/${ga.projectId}/issues/${ga.issueId}`,
+                      '_blank',
+                      'noopener,noreferrer'
+                    );
+                  }
+                : undefined,
+              gitAction: pendingApproval.gitAction,
               isSubmitting: isApproving || isDenying,
               isTimedOut: isApprovalTimedOut,
               error: denyError?.message ?? null,

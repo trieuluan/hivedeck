@@ -1029,7 +1029,7 @@ impl McpServer {
             Err(e) => return Ok(McpServer::tool_error(e)),
         };
         let url = self.url(&format!("/api/workspaces/{}/git/merge", workspace_id));
-        let payload = serde_json::json!({ "repo_id": repo_id });
+        let payload = serde_json::json!({ "repo_id": repo_id, "await_approval": true });
         if let Err(e) = self
             .send_empty_json(self.client.post(&url).json(&payload))
             .await
@@ -1064,7 +1064,7 @@ impl McpServer {
             "push"
         };
         let url = self.url(&format!("/api/workspaces/{}/git/{}", workspace_id, segment));
-        let payload = serde_json::json!({ "repo_id": repo_id });
+        let payload = serde_json::json!({ "repo_id": repo_id, "await_approval": true });
         if let Err(e) = self
             .send_empty_json(self.client.post(&url).json(&payload))
             .await
