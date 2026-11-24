@@ -102,9 +102,14 @@ function getSelectedModel(
   return models.find((model) => model.id.toLowerCase() === selectedId) ?? null;
 }
 
-function getPopoverWidth(hasProviders: boolean, hasReasoning: boolean): string {
+function getPopoverWidth(
+  hasProviders: boolean,
+  hasReasoning: boolean,
+  hasHiveRouter: boolean
+): string {
   if (hasProviders) return 'w-[280px]';
-  if (hasReasoning) return 'w-[230px]';
+  if (hasReasoning && hasHiveRouter) return 'w-[280px]';
+  if (hasReasoning || hasHiveRouter) return 'w-[250px]';
   return 'w-[200px]';
 }
 
@@ -323,7 +328,11 @@ export function ModelSelectorPopover({
   const hasReasoning = models.some(
     (model) => model.reasoning_options.length > 0
   );
-  const popoverWidth = getPopoverWidth(hasProviders, hasReasoning);
+  const popoverWidth = getPopoverWidth(
+    hasProviders,
+    hasReasoning,
+    Boolean(hiveRouterRoleCombo)
+  );
   const popoverHeightClass = hasProviders ? 'h-[280px]' : '';
 
   let showSearch = true;
