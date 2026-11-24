@@ -74,6 +74,7 @@ export function IssueSubIssuesSectionContainer({
           title: issue.title,
           priority: issue.priority,
           statusColor: status?.color ?? '#888888',
+          statusName: status?.name,
           createdAt: issue.created_at,
           parentIssueSortOrder: issue.parent_issue_sort_order ?? null,
         };

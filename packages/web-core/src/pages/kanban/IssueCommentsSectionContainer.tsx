@@ -7,12 +7,13 @@ import {
   type Ref,
 } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { useTranslation } from 'react-i18next';
 import { IssueProvider } from '@/integrations/remote/IssueProvider';
 import { useIssueContext } from '@/shared/hooks/useIssueContext';
 import { useScratch } from '@/shared/hooks/useScratch';
 import { useDebouncedCallback } from '@/shared/hooks/useDebouncedCallback';
 import { useIssueAttachments } from '@/shared/hooks/useIssueAttachments';
-import { attachmentsApi } from '@/shared/lib/api';
+import { ApiError, attachmentsApi } from '@/shared/lib/api';
 import {
   IssueCommentsSection,
   type IssueCommentsEditorProps,
@@ -22,9 +23,28 @@ import WYSIWYGEditor, {
   type WYSIWYGEditorRef,
 } from '@/shared/components/WYSIWYGEditor';
 import { ScratchType } from 'shared/types';
+import type { IssueComment } from 'shared/remote-types';
+import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
 
 interface IssueCommentsSectionContainerProps {
   issueId: string;
+}
+
+const draftWrites = new Map<string, Promise<void>>();
+
+function queueDraftWrite(issueId: string, write: () => Promise<void>) {
+  const previous = draftWrites.get(issueId) ?? Promise.resolve();
+  const pending = previous.catch(() => {}).then(write);
+  draftWrites.set(issueId, pending);
+  void pending.then(
+    () => {
+      if (draftWrites.get(issueId) === pending) draftWrites.delete(issueId);
+    },
+    () => {
+      if (draftWrites.get(issueId) === pending) draftWrites.delete(issueId);
+    }
+  );
+  return pending;
 }
 
 /**
@@ -42,6 +62,7 @@ export function IssueCommentsSectionContainer({
 }
 
 function IssueCommentsSectionContent() {
+  const { t } = useTranslation('common');
   const issueContext = useIssueContext();
 
   // Ref to comment editor for programmatic focus
@@ -49,7 +70,22 @@ function IssueCommentsSectionContent() {
 
   // UI state for comment input
   const [commentInput, setCommentInput] = useState('');
-  const commentDraftId = `issue-comment:${issueContext.issueId}`;
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState(false);
+  const [draftSaveError, setDraftSaveError] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isDeletingCommentId, setIsDeletingCommentId] = useState<string | null>(
+    null
+  );
+  const sendingRef = useRef(false);
+  const retryCommentRef = useRef<{ id: string; message: string } | null>(null);
+  const commentDraftId = issueContext.issueId;
+  const currentDraftRef = useRef({
+    issueId: commentDraftId,
+    value: commentInput,
+  });
+  currentDraftRef.current = { issueId: commentDraftId, value: commentInput };
   const {
     scratch: commentDraftScratch,
     updateScratch: updateCommentDraft,
@@ -67,34 +103,69 @@ function IssueCommentsSectionContent() {
     async (value: string) => {
       try {
         if (!value.trim()) {
-          await deleteCommentDraft();
-          return;
+          await queueDraftWrite(commentDraftId, async () => {
+            try {
+              await deleteCommentDraft();
+            } catch (error) {
+              if (
+                !(
+                  error instanceof ApiError &&
+                  (error.statusCode === 404 ||
+                    (error.statusCode === 400 &&
+                      error.message === 'Scratch not found'))
+                )
+              )
+                throw error;
+            }
+          });
+        } else {
+          await queueDraftWrite(commentDraftId, () =>
+            updateCommentDraft({
+              payload: {
+                type: 'DRAFT_TASK',
+                data: value,
+              },
+            })
+          );
         }
-
-        await updateCommentDraft({
-          payload: {
-            type: 'DRAFT_TASK',
-            data: value,
-          },
-        });
+        if (
+          currentDraftRef.current.issueId === commentDraftId &&
+          currentDraftRef.current.value === value
+        )
+          setDraftSaveError(null);
       } catch (e) {
         console.error('[IssueCommentsSection] Failed to persist draft:', e);
+        if (currentDraftRef.current.issueId === commentDraftId)
+          setDraftSaveError(commentDraftId);
       }
     },
-    [updateCommentDraft, deleteCommentDraft]
+    [commentDraftId, updateCommentDraft, deleteCommentDraft]
   );
 
   const {
     debounced: debouncedPersistCommentDraft,
     cancel: cancelDebouncedPersistCommentDraft,
+    flush: flushDebouncedPersistCommentDraft,
   } = useDebouncedCallback(persistCommentDraft, 500);
 
   useEffect(() => {
+    flushDebouncedPersistCommentDraft();
     cancelDebouncedPersistCommentDraft();
     hydratedCommentDraftIdRef.current = null;
     skipNextPersistRef.current = false;
+    retryCommentRef.current = null;
     setCommentInput('');
-  }, [commentDraftId, cancelDebouncedPersistCommentDraft]);
+  }, [
+    commentDraftId,
+    flushDebouncedPersistCommentDraft,
+    cancelDebouncedPersistCommentDraft,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      flushDebouncedPersistCommentDraft();
+    };
+  }, [flushDebouncedPersistCommentDraft]);
 
   useEffect(() => {
     if (isCommentDraftLoading) return;
@@ -172,41 +243,74 @@ function IssueCommentsSectionContent() {
   }, [issueContext.comments]);
 
   const handleSubmitComment = useCallback(async () => {
-    if (!commentInput.trim()) return;
+    if (!commentInput.trim() || isUploading || sendingRef.current) return;
+    sendingRef.current = true;
+    setIsSending(true);
+    setSendError(false);
+    setMutationError(null);
     const message = commentInput.trim();
-    const { persisted } = issueContext.insertComment({
-      issue_id: issueContext.issueId,
-      message,
-      parent_id: null,
-    });
-    cancelDebouncedPersistCommentDraft();
-    setCommentInput('');
     try {
-      await deleteCommentDraft();
-    } catch (e) {
-      console.error('[IssueCommentsSection] Failed to clear draft:', e);
-    }
-
-    const allUploadedIds = getAttachmentIds();
-    if (allUploadedIds.length > 0) {
-      try {
-        const confirmedComment = await persisted;
-        await attachmentsApi.linkCommentAttachments(
-          confirmedComment.id,
-          allUploadedIds
-        );
-      } catch (err) {
-        console.error('Failed to link comment attachments:', err);
+      cancelDebouncedPersistCommentDraft();
+      await queueDraftWrite(commentDraftId, () =>
+        updateCommentDraft({
+          payload: { type: 'DRAFT_TASK', data: commentInput },
+        })
+      );
+      if (currentDraftRef.current.issueId === commentDraftId)
+        setDraftSaveError(null);
+      let confirmedComment: IssueComment;
+      const retry = retryCommentRef.current;
+      if (retry && retry.message === message) {
+        confirmedComment = { id: retry.id } as IssueComment;
+      } else {
+        retryCommentRef.current = null;
+        const { persisted } = issueContext.insertComment({
+          issue_id: issueContext.issueId,
+          message,
+          parent_id: null,
+        });
+        confirmedComment = await persisted;
       }
+      const allUploadedIds = getAttachmentIds();
+      if (allUploadedIds.length > 0) {
+        try {
+          await attachmentsApi.linkCommentAttachments(
+            confirmedComment.id,
+            allUploadedIds
+          );
+        } catch (err) {
+          console.error('Failed to link comment attachments:', err);
+          retryCommentRef.current = {
+            id: confirmedComment.id,
+            message,
+          };
+          setSendError(true);
+          return;
+        }
+      }
+      retryCommentRef.current = null;
+      cancelDebouncedPersistCommentDraft();
+      skipNextPersistRef.current = true;
+      setCommentInput('');
+      clearAttachments();
+      await persistCommentDraft('');
+    } catch (err) {
+      console.error('Failed to send comment:', err);
+      setSendError(true);
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
     }
-    clearAttachments();
   }, [
     commentInput,
     issueContext,
     getAttachmentIds,
     clearAttachments,
     cancelDebouncedPersistCommentDraft,
-    deleteCommentDraft,
+    updateCommentDraft,
+    commentDraftId,
+    isUploading,
+    persistCommentDraft,
   ]);
 
   const handleStartEdit = useCallback(
@@ -220,14 +324,24 @@ function IssueCommentsSectionContent() {
     [commentsData]
   );
 
-  const handleSaveEdit = useCallback(() => {
+  const handleSaveEdit = useCallback(async () => {
     if (!editingCommentId || !editingValue.trim()) return;
-    issueContext.updateComment(editingCommentId, {
-      message: editingValue.trim(),
-    });
-    setEditingCommentId(null);
-    setEditingValue('');
-  }, [editingCommentId, editingValue, issueContext]);
+    setIsSavingEdit(true);
+    setMutationError(null);
+    try {
+      const { persisted } = issueContext.updateComment(editingCommentId, {
+        message: editingValue.trim(),
+      });
+      await persisted;
+      setEditingCommentId(null);
+      setEditingValue('');
+    } catch (err) {
+      console.error('Failed to update comment:', err);
+      setMutationError(t('kanban.failedToUpdateComment'));
+    } finally {
+      setIsSavingEdit(false);
+    }
+  }, [editingCommentId, editingValue, issueContext, t]);
 
   const handleCancelEdit = useCallback(() => {
     setEditingCommentId(null);
@@ -235,10 +349,27 @@ function IssueCommentsSectionContent() {
   }, []);
 
   const handleDeleteComment = useCallback(
-    (id: string) => {
-      issueContext.removeComment(id);
+    async (id: string) => {
+      const result = await ConfirmDialog.show({
+        title: t('kanban.deleteCommentTitle'),
+        message: t('kanban.deleteCommentConfirm'),
+        confirmText: t('buttons.delete'),
+        variant: 'destructive',
+      });
+      if (result !== 'confirmed') return;
+      setIsDeletingCommentId(id);
+      setMutationError(null);
+      try {
+        const { persisted } = issueContext.removeComment(id);
+        await persisted;
+      } catch (err) {
+        console.error('Failed to delete comment:', err);
+        setMutationError(t('kanban.failedToDeleteComment'));
+      } finally {
+        setIsDeletingCommentId(null);
+      }
     },
-    [issueContext]
+    [issueContext, t]
   );
 
   const renderEditor = useCallback(
@@ -253,6 +384,7 @@ function IssueCommentsSectionContent() {
       onPasteFiles,
       localAttachments,
       editorRef,
+      showStaticToolbar,
     }: IssueCommentsEditorProps) => (
       <WYSIWYGEditor
         ref={editorRef as Ref<WYSIWYGEditorRef>}
@@ -265,6 +397,7 @@ function IssueCommentsSectionContent() {
         onCmdEnter={onCmdEnter}
         onPasteFiles={onPasteFiles}
         localAttachments={localAttachments}
+        showStaticToolbar={showStaticToolbar}
       />
     ),
     []
@@ -290,6 +423,17 @@ function IssueCommentsSectionContent() {
       dropzoneProps={{ getRootProps, getInputProps, isDragActive }}
       onBrowseAttachment={open}
       isUploading={isUploading}
+      isSending={isSending}
+      sendError={sendError}
+      draftSaveError={draftSaveError === commentDraftId}
+      onRetryDraftSave={() => {
+        cancelDebouncedPersistCommentDraft();
+        void persistCommentDraft(commentInput);
+      }}
+      mutationError={mutationError}
+      onDismissMutationError={() => setMutationError(null)}
+      isSavingEdit={isSavingEdit}
+      isDeletingCommentId={isDeletingCommentId}
       attachmentError={uploadError}
       onDismissAttachmentError={clearUploadError}
       renderEditor={renderEditor}

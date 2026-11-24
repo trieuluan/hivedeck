@@ -8,9 +8,17 @@ import { useRef, useEffect } from 'react';
 export function useDebouncedCallback<Args extends unknown[]>(
   callback: (...args: Args) => void,
   delay: number
-): { debounced: (...args: Args) => void; cancel: () => void } {
+): {
+  debounced: (...args: Args) => void;
+  cancel: () => void;
+  flush: () => void;
+} {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const callbackRef = useRef(callback);
+  const pendingRef = useRef<{
+    args: Args;
+    callback: (...args: Args) => void;
+  } | null>(null);
 
   // Keep callback ref up to date
   useEffect(() => {
@@ -31,8 +39,11 @@ export function useDebouncedCallback<Args extends unknown[]>(
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
+    pendingRef.current = { args, callback: callbackRef.current };
     timeoutRef.current = setTimeout(() => {
-      callbackRef.current(...args);
+      const pending = pendingRef.current;
+      pendingRef.current = null;
+      pending?.callback(...pending.args);
     }, delay);
   });
 
@@ -42,7 +53,22 @@ export function useDebouncedCallback<Args extends unknown[]>(
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
+    pendingRef.current = null;
   });
 
-  return { debounced: debouncedRef.current, cancel: cancelRef.current };
+  // Flush a pending invocation immediately, preserving its arguments.
+  const flushRef = useRef(() => {
+    if (!timeoutRef.current || !pendingRef.current) return;
+    const pending = pendingRef.current;
+    clearTimeout(timeoutRef.current);
+    timeoutRef.current = null;
+    pendingRef.current = null;
+    pending.callback(...pending.args);
+  });
+
+  return {
+    debounced: debouncedRef.current,
+    cancel: cancelRef.current,
+    flush: flushRef.current,
+  };
 }

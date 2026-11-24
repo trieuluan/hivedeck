@@ -82,6 +82,41 @@ interface KanbanIssuePanelContainerProps {
 
 type JsonObject = { [key in string]?: JsonValue };
 
+type PendingDescription = {
+  description: string | null;
+  block: string;
+  error: boolean;
+};
+
+function descriptionDraftKey(issueId: string) {
+  return `hivedeck:issue-description:${issueId}`;
+}
+
+function readDescriptionDraft(issueId: string): PendingDescription | undefined {
+  try {
+    const value = localStorage.getItem(descriptionDraftKey(issueId));
+    if (!value) return undefined;
+    const draft: unknown = JSON.parse(value);
+    if (
+      typeof draft === 'object' &&
+      draft !== null &&
+      'description' in draft &&
+      (typeof draft.description === 'string' || draft.description === null) &&
+      'block' in draft &&
+      typeof draft.block === 'string'
+    ) {
+      return {
+        description: draft.description,
+        block: draft.block,
+        error: true,
+      };
+    }
+  } catch (error) {
+    console.error('Failed to read description draft:', error);
+  }
+  return undefined;
+}
+
 /** Narrow a `JsonValue` to a plain (non-array) object, or `null`. */
 function asJsonObject(value: JsonValue | undefined | null): JsonObject | null {
   if (value == null || typeof value !== 'object' || Array.isArray(value)) {
@@ -461,8 +496,9 @@ export function KanbanIssuePanelContainer({
 
   // Save status for description (shown in WYSIWYG toolbar)
   const [descriptionSaveStatus, setDescriptionSaveStatus] = useState<
-    'idle' | 'saved'
+    'idle' | 'saved' | 'error'
   >('idle');
+  const pendingDescriptionsRef = useRef(new Map<string, PendingDescription>());
 
   // Debounced save for title changes
   const { debounced: debouncedSaveTitle, cancel: cancelDebouncedTitle } =
@@ -478,17 +514,74 @@ export function KanbanIssuePanelContainer({
   const {
     debounced: debouncedSaveDescription,
     cancel: cancelDebouncedDescription,
-  } = useDebouncedCallback((description: string | null) => {
-    if (selectedKanbanIssueId && !kanbanCreateMode) {
-      const block = pipelineBlockRef.current;
+    flush: flushDebouncedDescription,
+  } = useDebouncedCallback(
+    (issueId: string, description: string | null, block: string) => {
       const combined = block
         ? appendPipelineToDescription(description, block)
         : description;
-      updateIssue(selectedKanbanIssueId, { description: combined });
-      setDescriptionSaveStatus('saved');
-      setTimeout(() => setDescriptionSaveStatus('idle'), 1500);
-    }
-  }, 500);
+      const { persisted } = updateIssue(issueId, { description: combined });
+      void persisted.then(
+        () => {
+          const pending = pendingDescriptionsRef.current.get(issueId);
+          if (pending?.description !== description || pending.block !== block)
+            return;
+          pendingDescriptionsRef.current.delete(issueId);
+          try {
+            const savedDraft = readDescriptionDraft(issueId);
+            if (
+              savedDraft?.description === description &&
+              savedDraft.block === block
+            ) {
+              localStorage.removeItem(descriptionDraftKey(issueId));
+            }
+          } catch (error) {
+            console.error('Failed to clear description draft:', error);
+          }
+          if (prevIssueIdRef.current === issueId)
+            setDescriptionSaveStatus('saved');
+        },
+        () => {
+          const pending = pendingDescriptionsRef.current.get(issueId);
+          if (pending?.description !== description || pending.block !== block)
+            return;
+          pending.error = true;
+          if (prevIssueIdRef.current === issueId)
+            setDescriptionSaveStatus('error');
+        }
+      );
+    },
+    500
+  );
+  const queueDescriptionSave = useCallback(
+    (description: string | null) => {
+      if (!selectedKanbanIssueId || kanbanCreateMode) return;
+      const block = pipelineBlockRef.current;
+      pendingDescriptionsRef.current.set(selectedKanbanIssueId, {
+        description,
+        block,
+        error: false,
+      });
+      try {
+        localStorage.setItem(
+          descriptionDraftKey(selectedKanbanIssueId),
+          JSON.stringify({ description, block })
+        );
+      } catch (error) {
+        console.error('Failed to store description draft:', error);
+      }
+      setDescriptionSaveStatus('idle');
+      debouncedSaveDescription(selectedKanbanIssueId, description, block);
+    },
+    [selectedKanbanIssueId, kanbanCreateMode, debouncedSaveDescription]
+  );
+
+  // Flush any pending description save when the panel closes or unmounts.
+  useEffect(() => {
+    return () => {
+      flushDebouncedDescription();
+    };
+  }, [flushDebouncedDescription]);
 
   // Debounced save for edit-mode Pipeline changes. Description + provenance
   // are written in ONE atomic updateIssue call so a quick close can never
@@ -520,11 +613,6 @@ export function KanbanIssuePanelContainer({
     });
   }, 500);
 
-  // Reset save status only when switching to a different issue or mode
-  useEffect(() => {
-    setDescriptionSaveStatus('idle');
-  }, [selectedKanbanIssueId, kanbanCreateMode]);
-
   const createFormFallback = useMemo(
     () =>
       createBlankCreateFormData(defaultStatusId, createDraftWorkspaceByDefault),
@@ -554,14 +642,14 @@ export function KanbanIssuePanelContainer({
           type: 'setEditDescription',
           description: newDesc,
         });
-        debouncedSaveDescription(newDesc);
+        queueDescriptionSave(newDesc);
       }
     },
     [
       kanbanCreateMode,
       selectedKanbanIssueId,
       createFormFallback,
-      debouncedSaveDescription,
+      queueDescriptionSave,
     ]
   );
 
@@ -636,6 +724,7 @@ export function KanbanIssuePanelContainer({
 
     // Cancel any pending debounced saves when switching issues
     cancelDebouncedTitle();
+    flushDebouncedDescription();
     cancelDebouncedDescription();
     cancelDebouncedPipelineEdit();
     clearAttachments();
@@ -680,11 +769,25 @@ export function KanbanIssuePanelContainer({
       createFormData: nextCreateFormData,
       hasRestoredFromScratch: restoredFromScratch,
     });
+    const pending = currentIssueId
+      ? (pendingDescriptionsRef.current.get(currentIssueId) ??
+        readDescriptionDraft(currentIssueId))
+      : undefined;
+    setDescriptionSaveStatus(pending?.error ? 'error' : 'idle');
+    if (mode === 'edit' && pending) {
+      pendingDescriptionsRef.current.set(currentIssueId!, pending);
+      pipelineBlockRef.current = pending.block;
+      dispatchFormState({
+        type: 'setEditDescription',
+        description: pending.description,
+      });
+    }
   }, [
     mode,
     createFormData,
     selectedKanbanIssueId,
     cancelDebouncedTitle,
+    flushDebouncedDescription,
     cancelDebouncedDescription,
     cancelDebouncedPipelineEdit,
     createModeDefaults,
@@ -769,11 +872,12 @@ export function KanbanIssuePanelContainer({
         debouncedSaveTitle(value as string);
       } else if (field === 'description') {
         // Text field: update local state, then debounced save
+        setDescriptionSaveStatus('idle');
         dispatchFormState({
           type: 'setEditDescription',
           description: value as string | null,
         });
-        debouncedSaveDescription(value as string | null);
+        queueDescriptionSave(value as string | null);
       } else if (field === 'statusId') {
         // Status changes go through the command bar status selection
         openStatusSelection(projectId, [selectedKanbanIssueId]);
@@ -816,7 +920,7 @@ export function KanbanIssuePanelContainer({
       createFormFallback,
       createFormData,
       debouncedSaveTitle,
-      debouncedSaveDescription,
+      queueDescriptionSave,
       openStatusSelection,
       openPrioritySelection,
       updateIssueComposerDraft,
@@ -1149,6 +1253,9 @@ export function KanbanIssuePanelContainer({
       isSubmitting={isSubmitting}
       descriptionSaveStatus={
         mode === 'edit' ? descriptionSaveStatus : undefined
+      }
+      onRetryDescriptionSave={() =>
+        queueDescriptionSave(latestDescriptionRef.current)
       }
       titleInputRef={titleInputRef}
       onDeleteDraft={

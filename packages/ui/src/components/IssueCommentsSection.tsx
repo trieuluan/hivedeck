@@ -4,7 +4,6 @@ import type { LocalAttachmentMetadata } from './WorkspaceContext';
 import { cn } from '../lib/cn';
 import {
   DotsThreeIcon,
-  ArrowUpIcon,
   PencilSimpleIcon,
   TrashIcon,
   PaperclipIcon,
@@ -56,6 +55,7 @@ export interface IssueCommentsEditorProps {
   onCmdEnter?: () => void;
   onPasteFiles?: (files: File[]) => void;
   editorRef?: Ref<unknown>;
+  showStaticToolbar?: boolean;
 }
 
 interface IssueCommentsSectionProps {
@@ -77,6 +77,14 @@ interface IssueCommentsSectionProps {
   dropzoneProps?: DropzoneProps;
   onBrowseAttachment?: () => void;
   isUploading?: boolean;
+  isSending?: boolean;
+  sendError?: boolean;
+  draftSaveError?: boolean;
+  onRetryDraftSave?: () => void;
+  mutationError?: string | null;
+  onDismissMutationError?: () => void;
+  isSavingEdit?: boolean;
+  isDeletingCommentId?: string | null;
   attachmentError?: string | null;
   onDismissAttachmentError?: () => void;
   renderEditor: (props: IssueCommentsEditorProps) => ReactNode;
@@ -101,6 +109,14 @@ export function IssueCommentsSection({
   dropzoneProps,
   onBrowseAttachment,
   isUploading,
+  isSending,
+  sendError,
+  draftSaveError,
+  onRetryDraftSave,
+  mutationError,
+  onDismissMutationError,
+  isSavingEdit,
+  isDeletingCommentId,
   attachmentError,
   onDismissAttachmentError,
   renderEditor,
@@ -114,7 +130,14 @@ export function IssueCommentsSection({
       defaultExpanded={true}
       actions={[]}
     >
-      <div className="p-base flex flex-col gap-base border-t">
+      <div className="p-base flex flex-col gap-double">
+        {mutationError && (
+          <ErrorAlert
+            message={mutationError}
+            onDismiss={onDismissMutationError}
+            dismissLabel={t('buttons.close')}
+          />
+        )}
         {/* Comments list */}
         {isLoading ? (
           <div className="flex flex-col gap-double animate-pulse">
@@ -135,6 +158,8 @@ export function IssueCommentsSection({
               onSaveEdit={onSaveEdit}
               onCancelEdit={onCancelEdit}
               onDelete={() => onDeleteComment(comment.id)}
+              isSavingEdit={isSavingEdit}
+              isDeleting={isDeletingCommentId === comment.id}
               renderEditor={renderEditor}
             />
           ))
@@ -143,37 +168,30 @@ export function IssueCommentsSection({
         {/* Comment Input with WYSIWYG + dropzone */}
         <div
           {...dropzoneProps?.getRootProps()}
-          className="relative flex flex-col gap-double bg-secondary border border-border rounded-sm p-double"
+          className="relative min-w-0 bg-secondary border border-border rounded-sm p-base focus-within:border-brand [&_.static-editor-toolbar]:flex-nowrap [&_.static-editor-toolbar]:overflow-x-auto [&_.static-editor-toolbar]:mr-[112px] [&_.static-editor-toolbar]:px-0 [&_.static-editor-toolbar]:border-0 [&_.static-editor-toolbar>*]:shrink-0"
         >
           <input {...dropzoneProps?.getInputProps()} />
           {renderEditor({
             value: commentInput,
             onChange: onCommentInputChange,
             placeholder: t('kanban.enterCommentPlaceholder'),
-            className: 'min-h-[20px]',
+            className: 'min-h-[32px] break-words',
             localAttachments,
             onCmdEnter: onSubmitComment,
+            disabled: isSending,
+            showStaticToolbar: true,
             onPasteFiles,
             autoFocus: false,
             editorRef: commentEditorRef,
           })}
-          {attachmentError && (
-            <div className="mb-half">
-              <ErrorAlert
-                message={attachmentError}
-                onDismiss={onDismissAttachmentError}
-                dismissLabel={t('buttons.close')}
-              />
-            </div>
-          )}
-          <div className="flex items-center justify-end gap-half">
+          <div className="absolute bottom-2 right-2 flex items-center justify-end gap-half">
             {onBrowseAttachment && (
               <button
                 type="button"
                 onClick={onBrowseAttachment}
                 title={t('kanban.attachFile')}
                 className={cn(
-                  'size-[22px] rounded-full bg-panel border border-border',
+                  'size-7 rounded-sm',
                   'flex items-center justify-center',
                   'text-low hover:text-normal transition-colors'
                 )}
@@ -185,15 +203,14 @@ export function IssueCommentsSection({
             <button
               type="button"
               onClick={onSubmitComment}
-              disabled={!commentInput.trim() || isUploading}
+              disabled={!commentInput.trim() || isUploading || isSending}
               className={cn(
-                'size-[22px] rounded-full bg-panel border border-border',
-                'flex items-center justify-center',
-                'text-high hover:bg-secondary transition-colors',
+                'px-base py-half rounded-sm bg-brand text-on-brand font-medium',
+                'hover:bg-brand-hover transition-colors',
                 'disabled:opacity-50 disabled:cursor-not-allowed'
               )}
             >
-              <ArrowUpIcon size={12} weight="bold" />
+              {isSending ? '…' : t('buttons.send')}
             </button>
           </div>
           {dropzoneProps?.isDragActive && (
@@ -204,6 +221,39 @@ export function IssueCommentsSection({
             </div>
           )}
         </div>
+        {attachmentError && (
+          <ErrorAlert
+            message={attachmentError}
+            onDismiss={onDismissAttachmentError}
+            dismissLabel={t('buttons.close')}
+          />
+        )}
+        <p className="text-xs text-low">Enter · ⌘/Ctrl + Enter</p>
+        {draftSaveError && (
+          <div role="alert" className="text-sm text-error">
+            {t('kanban.failedToSaveCommentDraft')}{' '}
+            <button
+              type="button"
+              onClick={onRetryDraftSave}
+              disabled={isSending}
+              className="underline"
+            >
+              {t('buttons.retry')}
+            </button>
+          </div>
+        )}
+        {sendError && (
+          <div role="alert" className="text-sm text-low">
+            {t('errors.generic')}{' '}
+            <button
+              type="button"
+              onClick={onSubmitComment}
+              className="underline"
+            >
+              {t('buttons.retry')}
+            </button>
+          </div>
+        )}
       </div>
     </CollapsibleSectionHeader>
   );
@@ -218,6 +268,8 @@ interface CommentItemProps {
   onSaveEdit: () => void;
   onCancelEdit: () => void;
   onDelete: () => void;
+  isSavingEdit?: boolean;
+  isDeleting?: boolean;
   renderEditor: (props: IssueCommentsEditorProps) => ReactNode;
 }
 
@@ -230,23 +282,29 @@ function CommentItem({
   onSaveEdit,
   onCancelEdit,
   onDelete,
+  isSavingEdit,
+  isDeleting,
   renderEditor,
 }: CommentItemProps) {
   const { t } = useTranslation('common');
   const timeAgo = formatRelativeTime(comment.createdAt);
 
   return (
-    <div className="flex flex-col gap-base">
+    <div className="flex flex-col gap-half">
       {/* Header row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-base">
-          <span className="font-light text-low">{timeAgo}</span>
+          <span className="text-xs text-low">{timeAgo}</span>
         </div>
         {/* Menu dropdown - only shown if user can modify */}
         {comment.canModify && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="size-5 flex items-center justify-center text-low hover:text-normal">
+              <button
+                type="button"
+                aria-label={t('kanban.comments')}
+                className="size-8 flex items-center justify-center text-low hover:text-normal"
+              >
                 <DotsThreeIcon size={16} weight="bold" />
               </button>
             </DropdownMenuTrigger>
@@ -257,9 +315,10 @@ function CommentItem({
               <DropdownMenuItem
                 icon={TrashIcon}
                 variant="destructive"
+                disabled={isDeleting}
                 onSelect={onDelete}
               >
-                {t('buttons.delete')}
+                {isDeleting ? '…' : t('buttons.delete')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -287,13 +346,13 @@ function CommentItem({
             <button
               type="button"
               onClick={onSaveEdit}
-              disabled={!editValue.trim()}
+              disabled={!editValue.trim() || isSavingEdit}
               className={cn(
                 'px-base py-half bg-brand text-on-brand rounded-sm',
                 'hover:bg-brand-hover disabled:opacity-50'
               )}
             >
-              {t('buttons.save')}
+              {isSavingEdit ? '…' : t('buttons.save')}
             </button>
           </div>
         </div>

@@ -13,6 +13,7 @@ export interface SubIssueData {
   title: string;
   priority: PriorityLevel | null;
   statusColor: string;
+  statusName?: string;
   createdAt: string;
   parentIssueSortOrder: number | null;
 }
@@ -54,7 +55,7 @@ export function IssueSubIssuesSection({
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className="p-base flex flex-col relative border-t"
+            className="p-base flex flex-col relative"
           >
             {isReordering && (
               <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-10">
@@ -79,6 +80,7 @@ export function IssueSubIssuesSection({
                   title={subIssue.title}
                   priority={subIssue.priority}
                   statusColor={subIssue.statusColor}
+                  statusName={subIssue.statusName}
                   createdAt={subIssue.createdAt}
                   onClick={() => onSubIssueClick(subIssue.id)}
                   onMarkIndependentClick={

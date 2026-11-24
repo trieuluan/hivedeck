@@ -40,6 +40,7 @@ export function IssueRelationshipsSectionContainer({
     getRelationshipsForIssue,
     removeIssueRelationship,
     issuesById,
+    statusesById,
     isLoading,
   } = useProjectContext();
 
@@ -49,8 +50,14 @@ export function IssueRelationshipsSectionContainer({
         issueId,
         getRelationshipsForIssue(issueId),
         issuesById
-      ),
-    [issueId, getRelationshipsForIssue, issuesById]
+      ).map((relationship) => ({
+        ...relationship,
+        relatedIssueTitle: issuesById.get(relationship.relatedIssueId)?.title,
+        relatedIssueStatus: statusesById.get(
+          issuesById.get(relationship.relatedIssueId)?.status_id ?? ''
+        )?.name,
+      })),
+    [issueId, getRelationshipsForIssue, issuesById, statusesById]
   );
 
   const handleRelationshipClick = useCallback(

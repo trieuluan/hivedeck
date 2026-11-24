@@ -2,7 +2,6 @@ import {
   useState,
   useEffect,
   useRef,
-  useCallback,
   type ReactNode,
   type RefObject,
 } from 'react';
@@ -127,7 +126,8 @@ export interface KanbanIssuePanelProps {
   isSubmitting?: boolean;
 
   // Save status for description field
-  descriptionSaveStatus?: 'idle' | 'saved';
+  descriptionSaveStatus?: 'idle' | 'saved' | 'error';
+  onRetryDescriptionSave?: () => void;
 
   // Ref for title input (created in container)
   titleInputRef: RefObject<HTMLTextAreaElement>;
@@ -188,6 +188,7 @@ export function KanbanIssuePanel({
   renderPipeline,
   isSubmitting,
   descriptionSaveStatus,
+  onRetryDescriptionSave,
   titleInputRef,
   onCopyLink,
   onMoreActions,
@@ -213,24 +214,17 @@ export function KanbanIssuePanel({
     'min-w-0 text-sm text-normal truncate rounded-sm px-1 py-0.5 hover:bg-panel hover:text-high transition-colors';
 
   // Description edit state: in edit mode, show preview by default; in create mode, always editable
-  const [isDescriptionEditing, setIsDescriptionEditing] =
-    useState(isCreateMode);
+  const [isDescriptionEditing, setIsDescriptionEditing] = useState(true);
   const descriptionContainerRef = useRef<HTMLDivElement>(null);
   const [tab, setTab] = useState<'details' | 'artifacts'>(initialTab);
 
   // Reset description editing state when switching between create/edit mode or when issue changes
   useEffect(() => {
-    setIsDescriptionEditing(isCreateMode);
+    setIsDescriptionEditing(true);
     setTab(isCreateMode ? 'details' : initialTab);
   }, [isCreateMode, issueId, initialTab]);
 
   // Click outside the description area to exit editing
-  const handleDescriptionBlur = useCallback(() => {
-    if (!isCreateMode) {
-      setIsDescriptionEditing(false);
-    }
-  }, [isCreateMode]);
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       const target = e.target as HTMLElement;
@@ -239,14 +233,6 @@ export function KanbanIssuePanel({
         target.tagName === 'TEXTAREA' ||
         target.isContentEditable;
       if (isEditable) {
-        // If editing description, exit edit mode first
-        if (
-          isDescriptionEditing &&
-          !isCreateMode &&
-          descriptionContainerRef.current?.contains(target)
-        ) {
-          setIsDescriptionEditing(false);
-        }
         target.blur();
         (e.currentTarget as HTMLElement).focus();
         e.stopPropagation();
@@ -308,8 +294,25 @@ export function KanbanIssuePanel({
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto">
+        <div className="w-full mt-double">
+          <AutoResizeTextarea
+            ref={titleInputRef}
+            value={formData.title}
+            onChange={(value) => onFormChange('title', value)}
+            onKeyDown={handleTitleKeyDown}
+            placeholder={t('common:ui.issueTitle')}
+            autoFocus={isCreateMode}
+            aria-label={t('common:ui.issueTitle2')}
+            disabled={isSubmitting}
+            className={cn(
+              'px-7 text-2xl font-semibold tracking-tight text-high',
+              'placeholder:text-high/50',
+              isSubmitting && 'opacity-50 pointer-events-none'
+            )}
+          />
+        </div>
         {/* Property Row */}
-        <div className="px-base py-base border-b">
+        <div className="px-7 py-base">
           <IssuePropertyRow
             statusId={formData.statusId}
             priority={formData.priority}
@@ -324,7 +327,7 @@ export function KanbanIssuePanel({
         </div>
 
         {/* Tags Row */}
-        <div className="px-base py-base border-b">
+        <div className="px-7 pb-base">
           <IssueTagsRow
             selectedTagIds={formData.tagIds}
             availableTags={tags}
@@ -337,16 +340,8 @@ export function KanbanIssuePanel({
           />
         </div>
 
-        {!isCreateMode && tab === 'artifacts' && (
-          <h2 className="px-base pt-base text-lg font-medium text-high">
-            {formData.title}
-          </h2>
-        )}
         {!isCreateMode && issueId && renderArtifactsSection && (
-          <div
-            aria-label="Issue sections"
-            className="flex gap-base px-base border-b"
-          >
+          <div aria-label="Issue sections" className="flex gap-6 px-7 border-b">
             {(['details', 'artifacts'] as const).map((value) => (
               <button
                 key={value}
@@ -375,36 +370,6 @@ export function KanbanIssuePanel({
         <div hidden={tab === 'artifacts'}>
           {/* Title and Description */}
           <div className="rounded-sm">
-            {/* Title Input */}
-            <div className="w-full mt-base">
-              <AutoResizeTextarea
-                ref={titleInputRef}
-                value={formData.title}
-                onChange={(value) => onFormChange('title', value)}
-                onKeyDown={handleTitleKeyDown}
-                placeholder={t('common:ui.issueTitle')}
-                autoFocus={isCreateMode}
-                aria-label={t('common:ui.issueTitle2')}
-                disabled={isSubmitting}
-                className={cn(
-                  'px-base text-lg font-medium text-high',
-                  'placeholder:text-high/50',
-                  isSubmitting && 'opacity-50 pointer-events-none'
-                )}
-              />
-
-              <div
-                className={cn(
-                  'pointer-events-none absolute inset-0 px-base',
-                  'text-high/50 font-medium text-lg',
-                  'hidden',
-                  "[[data-empty='true']_+_&]:block" // show placeholder when previous sibling data-empty=true
-                )}
-              >
-                {t('kanban.issueTitlePlaceholder')}
-              </div>
-            </div>
-
             {/* Description WYSIWYG Editor with image dropzone */}
             <div
               ref={descriptionContainerRef}
@@ -419,17 +384,6 @@ export function KanbanIssuePanel({
                   const selection = window.getSelection();
                   if (selection && selection.toString().length > 0) return;
                   setIsDescriptionEditing(true);
-                }
-              }}
-              onBlur={(e) => {
-                // Exit edit mode when focus leaves the description container
-                if (
-                  descriptionContainerRef.current &&
-                  !descriptionContainerRef.current.contains(
-                    e.relatedTarget as Node
-                  )
-                ) {
-                  handleDescriptionBlur();
                 }
               }}
             >
@@ -452,14 +406,17 @@ export function KanbanIssuePanel({
                 disabled: !isDescriptionEditing || isSubmitting,
                 autoFocus: false,
                 className: cn(
-                  'px-base',
+                  'px-7',
                   isDescriptionEditing ? 'min-h-[100px]' : 'min-h-[2rem]',
                   !isDescriptionEditing && !formData.description && 'text-low'
                 ),
                 localAttachments,
                 showStaticToolbar: !isCreateMode || isDescriptionEditing,
                 hideActions: true,
-                saveStatus: descriptionSaveStatus,
+                saveStatus:
+                  descriptionSaveStatus === 'error'
+                    ? 'idle'
+                    : descriptionSaveStatus,
                 onRequestEdit: !isCreateMode
                   ? () => setIsDescriptionEditing(true)
                   : undefined,
@@ -498,6 +455,18 @@ export function KanbanIssuePanel({
                   </>
                 ),
               })}
+              {descriptionSaveStatus === 'error' && (
+                <div role="alert" className="px-base text-error">
+                  {t('errors.generic')}{' '}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={onRetryDescriptionSave}
+                  >
+                    {t('buttons.retry')}
+                  </button>
+                </div>
+              )}
               {attachmentError && (
                 <div className="px-base">
                   <ErrorAlert
@@ -582,24 +551,30 @@ export function KanbanIssuePanel({
 
           {/* Workspaces Section (Edit mode only) */}
           {!isCreateMode && issueId && renderWorkspacesSection && (
-            <div className="border-t">{renderWorkspacesSection(issueId)}</div>
+            <div className="mx-4 border-t">
+              {renderWorkspacesSection(issueId)}
+            </div>
           )}
 
           {/* Relationships Section (Edit mode only) */}
           {!isCreateMode && issueId && renderRelationshipsSection && (
-            <div className="border-t">
+            <div className="mx-4 border-t">
               {renderRelationshipsSection(issueId)}
             </div>
           )}
 
           {/* Sub-Issues Section (Edit mode only) */}
           {!isCreateMode && issueId && renderSubIssuesSection && (
-            <div className="border-t">{renderSubIssuesSection(issueId)}</div>
+            <div className="mx-4 border-t">
+              {renderSubIssuesSection(issueId)}
+            </div>
           )}
 
           {/* Comments Section (Edit mode only) */}
           {!isCreateMode && issueId && renderCommentsSection && (
-            <div className="border-t">{renderCommentsSection(issueId)}</div>
+            <div className="mx-4 border-t">
+              {renderCommentsSection(issueId)}
+            </div>
           )}
         </div>
       </div>

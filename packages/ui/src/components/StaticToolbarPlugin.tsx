@@ -88,7 +88,7 @@ export function StaticToolbarPlugin({
   };
 
   return (
-    <div className="flex items-center gap-half mt-half px-base py-half border-t border-border/50">
+    <div className="static-editor-toolbar flex flex-wrap items-center gap-half mt-half px-base py-half border-t border-border/50">
       {/* Undo button */}
       <ToolbarButton
         onClick={() =>

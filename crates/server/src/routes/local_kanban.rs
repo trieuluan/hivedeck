@@ -11,11 +11,11 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 use api_types::{
-    CreateIssueCommentRequest, CreateIssueRequest, CreateIssueTagRequest, CreateProjectRequest,
-    CreateProjectStatusRequest, CreateTagRequest, DeleteResponse, IssueComment, IssuePriority,
-    ListIssueCommentsQuery, ListIssueCommentsResponse, MutationResponse, Project as ApiProject,
-    UpdateIssueRequest, UpdateProjectRequest, UpdateProjectStatusRequest, UpdateTagRequest,
-    Workspace as ApiWorkspace,
+    CreateIssueCommentRequest, CreateIssueRelationshipRequest, CreateIssueRequest,
+    CreateIssueTagRequest, CreateProjectRequest, CreateProjectStatusRequest, CreateTagRequest,
+    DeleteResponse, IssueComment, IssuePriority, IssueRelationshipType, ListIssueCommentsQuery,
+    ListIssueCommentsResponse, MutationResponse, Project as ApiProject, UpdateIssueRequest,
+    UpdateProjectRequest, UpdateProjectStatusRequest, UpdateTagRequest, Workspace as ApiWorkspace,
 };
 use axum::{
     Router,
@@ -26,6 +26,7 @@ use axum::{
 use db::models::{
     issue::{Issue as DbIssue, IssueUpdate, NewIssue},
     issue_comment::{IssueComment as DbIssueComment, NewIssueComment},
+    issue_relationship::IssueRelationship as DbIssueRelationship,
     issue_workspace::{IssueWorkspace, LinkedWorkspaceRow},
     kanban_tag::{IssueTag as DbIssueTag, KanbanTag},
     project::{self, NewProject, Project as DbProject, ProjectUpdate},
@@ -176,6 +177,42 @@ async fn fb_issue_tags(
 ) -> Result<ResponseJson<Value>, ApiError> {
     let rows = DbIssueTag::list_by_project(&deployment.db().pool, q.project_id).await?;
     Ok(ResponseJson(json!({ "issue_tags": rows })))
+}
+
+async fn fb_issue_relationships(
+    State(deployment): State<DeploymentImpl>,
+    Query(q): Query<ProjectScope>,
+) -> Result<ResponseJson<Value>, ApiError> {
+    let rows = DbIssueRelationship::list_by_project(&deployment.db().pool, q.project_id).await?;
+    Ok(ResponseJson(json!({ "issue_relationships": rows })))
+}
+
+async fn create_issue_relationship(
+    State(deployment): State<DeploymentImpl>,
+    ResponseJson(req): ResponseJson<CreateIssueRelationshipRequest>,
+) -> Result<ResponseJson<MutationResponse<DbIssueRelationship>>, ApiError> {
+    let kind = match req.relationship_type {
+        IssueRelationshipType::Blocking => "blocking",
+        IssueRelationshipType::Related => "related",
+        IssueRelationshipType::HasDuplicate => "has_duplicate",
+    };
+    let row = DbIssueRelationship::create(
+        &deployment.db().pool,
+        req.id.unwrap_or_else(Uuid::new_v4),
+        req.issue_id,
+        req.related_issue_id,
+        kind,
+    )
+    .await?;
+    Ok(mutation(row))
+}
+
+async fn delete_issue_relationship(
+    State(deployment): State<DeploymentImpl>,
+    Path(id): Path<Uuid>,
+) -> Result<ResponseJson<DeleteResponse>, ApiError> {
+    DbIssueRelationship::delete(&deployment.db().pool, id).await?;
+    Ok(deleted())
 }
 
 /// Synthesize the wire `Workspace` shape from a local issue<->workspace link.
@@ -1354,6 +1391,15 @@ pub fn router() -> Router<DeploymentImpl> {
         .route("/v1/fallback/issues", get(fb_issues))
         .route("/v1/fallback/tags", get(fb_tags))
         .route("/v1/fallback/issue_tags", get(fb_issue_tags))
+        .route(
+            "/v1/fallback/issue_relationships",
+            get(fb_issue_relationships),
+        )
+        .route("/v1/issue_relationships", post(create_issue_relationship))
+        .route(
+            "/v1/issue_relationships/{id}",
+            axum::routing::delete(delete_issue_relationship),
+        )
         .route("/v1/fallback/issue_comments", get(fb_issue_comments))
         .route(
             "/v1/fallback/project_workspaces",

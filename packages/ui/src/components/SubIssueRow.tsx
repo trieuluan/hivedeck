@@ -43,6 +43,7 @@ export interface SubIssueRowProps {
   title: string;
   priority: PriorityLevel | null;
   statusColor: string;
+  statusName?: string;
   createdAt: string;
   onClick?: () => void;
   onPriorityClick?: (e: React.MouseEvent) => void;
@@ -58,6 +59,7 @@ export function SubIssueRow({
   title,
   priority,
   statusColor,
+  statusName,
   createdAt,
   onClick,
   onPriorityClick,
@@ -124,7 +126,12 @@ export function SubIssueRow({
               {simpleId}
             </span>
             <StatusDot color={statusColor} />
-            <span className="text-base text-high truncate">{title}</span>
+            <div className="min-w-0">
+              <div className="text-base text-high break-words">{title}</div>
+              {statusName && (
+                <div className="text-xs text-low">{statusName}</div>
+              )}
+            </div>
           </div>
 
           {/* Right side: Age + actions menu */}

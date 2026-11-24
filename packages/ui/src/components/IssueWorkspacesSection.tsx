@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import {
   IssueWorkspaceCard,
-  IssueWorkspaceCreateCard,
   type WorkspaceWithStats,
 } from './IssueWorkspaceCard';
 import {
@@ -45,14 +44,21 @@ export function IssueWorkspacesSection({
       defaultExpanded={true}
       actions={actions}
     >
-      <div className="px-base p-base flex flex-col gap-base border-t">
+      <div className="p-base flex flex-col gap-base">
         {isLoading ? (
           <p className="text-low py-half">{t('workspaces.loading')}</p>
         ) : workspaces.length === 0 ? (
-          <IssueWorkspaceCreateCard
-            onClick={onCreateWorkspace}
-            shouldAnimateCreateButton={shouldAnimateCreateButton}
-          />
+          <div className="flex items-center justify-between gap-base py-half">
+            <span className="text-low">{t('workspaces.newWorkspace')}</span>
+            <button
+              type="button"
+              onClick={onCreateWorkspace}
+              disabled={!onCreateWorkspace}
+              className={`shrink-0 rounded-sm px-base py-half text-brand hover:bg-panel disabled:opacity-50 ${shouldAnimateCreateButton ? 'create-issue-attention' : ''}`}
+            >
+              {t('buttons.create')}
+            </button>
+          </div>
         ) : (
           workspaces.map((workspace) => {
             const { localWorkspaceId } = workspace;

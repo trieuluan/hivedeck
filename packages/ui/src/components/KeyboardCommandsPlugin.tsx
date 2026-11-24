@@ -152,6 +152,7 @@ export function KeyboardCommandsPlugin({
     const unregisterModifier = editor.registerCommand(
       KEY_MODIFIER_COMMAND,
       (event: KeyboardEvent) => {
+        if (event.isComposing || editor.isComposing()) return false;
         if (!(event.metaKey || event.ctrlKey) || event.key !== 'Enter') {
           return false;
         }
@@ -177,7 +178,7 @@ export function KeyboardCommandsPlugin({
     const unregisterEnter = editor.registerCommand(
       KEY_ENTER_COMMAND,
       (event: KeyboardEvent | null) => {
-        if (!event) return false;
+        if (!event || event.isComposing || editor.isComposing()) return false;
 
         // If typeahead is open, let it handle Enter
         if (isTypeaheadOpen) {
