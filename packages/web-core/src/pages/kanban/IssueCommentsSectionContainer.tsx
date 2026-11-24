@@ -385,6 +385,7 @@ function IssueCommentsSectionContent() {
       localAttachments,
       editorRef,
       showStaticToolbar,
+      staticToolbarActions,
     }: IssueCommentsEditorProps) => (
       <WYSIWYGEditor
         ref={editorRef as Ref<WYSIWYGEditorRef>}
@@ -398,6 +399,7 @@ function IssueCommentsSectionContent() {
         onPasteFiles={onPasteFiles}
         localAttachments={localAttachments}
         showStaticToolbar={showStaticToolbar}
+        staticToolbarActions={staticToolbarActions}
       />
     ),
     []

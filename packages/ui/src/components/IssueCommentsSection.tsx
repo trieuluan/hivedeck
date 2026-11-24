@@ -56,6 +56,7 @@ export interface IssueCommentsEditorProps {
   onPasteFiles?: (files: File[]) => void;
   editorRef?: Ref<unknown>;
   showStaticToolbar?: boolean;
+  staticToolbarActions?: ReactNode;
 }
 
 interface IssueCommentsSectionProps {
@@ -174,56 +175,73 @@ export function IssueCommentsSection({
               setIsComposerFocused(false);
             }
           }}
-          className="relative min-w-0 bg-secondary border border-border rounded-sm p-base focus-within:border-brand [&_.static-editor-toolbar]:flex-nowrap [&_.static-editor-toolbar]:items-center [&_.static-editor-toolbar]:h-8 [&_.static-editor-toolbar]:py-0 [&_.static-editor-toolbar]:mt-1.5 [&_.static-editor-toolbar]:overflow-x-auto [&_.static-editor-toolbar]:mr-[104px] [&_.static-editor-toolbar]:px-0 [&_.static-editor-toolbar]:border-0 [&_.static-editor-toolbar>*]:shrink-0"
+          className="relative min-w-0 bg-secondary border border-border rounded-sm p-base focus-within:border-brand [&_.static-editor-toolbar]:flex-nowrap [&_.static-editor-toolbar]:items-center [&_.static-editor-toolbar]:w-full [&_.static-editor-toolbar]:pt-2 [&_.static-editor-toolbar]:pb-0 [&_.static-editor-toolbar]:px-0 [&_.static-editor-toolbar]:border-0 [&_.static-editor-toolbar>*]:shrink-0"
         >
           <input {...dropzoneProps?.getInputProps()} />
-          {renderEditor({
-            value: commentInput,
-            onChange: onCommentInputChange,
-            placeholder: t('kanban.enterCommentPlaceholder'),
-            className: showToolbar ? 'min-h-[32px] break-words' : 'min-h-[28px] pr-[96px] break-words',
-            localAttachments,
-            onCmdEnter: onSubmitComment,
-            disabled: isSending,
-            showStaticToolbar: showToolbar,
-            onPasteFiles,
-            autoFocus: false,
-            editorRef: commentEditorRef,
-          })}
-          <div
-            className={cn(
-              'absolute right-2.5 flex items-center justify-end gap-1.5',
-              showToolbar ? 'bottom-base h-8' : 'top-1/2 -translate-y-1/2'
-            )}
-          >
-            {onBrowseAttachment && (
-              <button
-                type="button"
-                onClick={onBrowseAttachment}
-                title={t('kanban.attachFile')}
+          {(() => {
+            const actionButtons = (
+              <div
                 className={cn(
-                  'size-7 rounded-sm',
-                  'flex items-center justify-center',
-                  'text-low hover:text-normal transition-colors'
+                  'flex items-center justify-end gap-1.5',
+                  showToolbar
+                    ? 'ml-auto'
+                    : 'absolute right-2.5 top-1/2 -translate-y-1/2'
                 )}
-                aria-label={t('kanban.attachFile')}
               >
-                <PaperclipIcon size={12} />
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={onSubmitComment}
-              disabled={!commentInput.trim() || isUploading || isSending}
-              className={cn(
-                'px-base py-half rounded-sm bg-brand text-on-brand font-medium',
-                'hover:bg-brand-hover transition-colors',
-                'disabled:opacity-50 disabled:cursor-not-allowed'
-              )}
-            >
-              {isSending ? '…' : t('buttons.send')}
-            </button>
-          </div>
+                {onBrowseAttachment && (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={onBrowseAttachment}
+                    title={t('kanban.attachFile')}
+                    className={cn(
+                      'size-7 rounded-sm',
+                      'flex items-center justify-center',
+                      'text-low hover:text-normal transition-colors'
+                    )}
+                    aria-label={t('kanban.attachFile')}
+                  >
+                    <PaperclipIcon size={12} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={onSubmitComment}
+                  disabled={!commentInput.trim() || isUploading || isSending}
+                  className={cn(
+                    'px-base py-half rounded-sm bg-brand text-on-brand font-medium',
+                    'hover:bg-brand-hover transition-colors',
+                    'disabled:opacity-50 disabled:cursor-not-allowed'
+                  )}
+                >
+                  {isSending ? '…' : t('buttons.send')}
+                </button>
+              </div>
+            );
+
+            return (
+              <>
+                {renderEditor({
+                  value: commentInput,
+                  onChange: onCommentInputChange,
+                  placeholder: t('kanban.enterCommentPlaceholder'),
+                  className: showToolbar
+                    ? 'min-h-[32px] break-words'
+                    : 'min-h-[28px] pr-[96px] break-words',
+                  localAttachments,
+                  onCmdEnter: onSubmitComment,
+                  disabled: isSending,
+                  showStaticToolbar: showToolbar,
+                  staticToolbarActions: showToolbar ? actionButtons : undefined,
+                  onPasteFiles,
+                  autoFocus: false,
+                  editorRef: commentEditorRef,
+                })}
+                {!showToolbar && actionButtons}
+              </>
+            );
+          })()}
           {dropzoneProps?.isDragActive && (
             <div className="absolute inset-0 z-50 bg-primary/80 backdrop-blur-sm border-2 border-dashed border-brand rounded flex items-center justify-center">
               <p className="text-sm font-medium text-high">
