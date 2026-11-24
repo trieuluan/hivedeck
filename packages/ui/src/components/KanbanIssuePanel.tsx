@@ -667,28 +667,28 @@ export function KanbanIssuePanel({
 
           {/* Workspaces Section (Edit mode only) */}
           {!isCreateMode && issueId && renderWorkspacesSection && (
-            <div className="mx-4 border-t">
+            <div className="mx-7 mt-3 overflow-hidden rounded-lg border border-border bg-panel/40">
               {renderWorkspacesSection(issueId)}
             </div>
           )}
 
           {/* Relationships Section (Edit mode only) */}
           {!isCreateMode && issueId && renderRelationshipsSection && (
-            <div className="mx-4 border-t">
+            <div className="mx-7 mt-3 overflow-hidden rounded-lg border border-border bg-panel/40">
               {renderRelationshipsSection(issueId)}
             </div>
           )}
 
           {/* Sub-Issues Section (Edit mode only) */}
           {!isCreateMode && issueId && renderSubIssuesSection && (
-            <div className="mx-4 border-t">
+            <div className="mx-7 mt-3 overflow-hidden rounded-lg border border-border bg-panel/40">
               {renderSubIssuesSection(issueId)}
             </div>
           )}
 
           {/* Comments Section (Edit mode only) */}
           {!isCreateMode && issueId && renderCommentsSection && (
-            <div className="mx-4 border-t">
+            <div className="mx-7 mt-3 mb-6 overflow-hidden rounded-lg border border-border bg-panel/40">
               {renderCommentsSection(issueId)}
             </div>
           )}
