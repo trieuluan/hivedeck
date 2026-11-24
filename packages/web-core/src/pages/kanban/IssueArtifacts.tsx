@@ -12,6 +12,7 @@ import {
   FileTextIcon,
   ImageIcon,
   ListIcon,
+  MagnifyingGlassIcon,
   MagnifyingGlassMinusIcon,
   MagnifyingGlassPlusIcon,
   SquaresFourIcon,
@@ -153,6 +154,7 @@ export function IssueArtifacts({
   const [typeFilter, setTypeFilter] = useState<
     'all' | 'image' | 'html' | 'markdown'
   >('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'name'>(
     'newest'
   );
@@ -169,10 +171,12 @@ export function IssueArtifacts({
     return { image, html, markdown };
   }, [files]);
   const sortedFiles = useMemo(() => {
-    const filtered =
-      typeFilter === 'all'
-        ? files
-        : files.filter((f) => previewKind(f) === typeFilter);
+    const q = searchQuery.trim().toLowerCase();
+    const filtered = files.filter((f) => {
+      if (typeFilter !== 'all' && previewKind(f) !== typeFilter) return false;
+      if (q && !f.name.toLowerCase().includes(q)) return false;
+      return true;
+    });
     const next = [...filtered];
     next.sort((a, b) => {
       if (sortOrder === 'name') {
@@ -186,7 +190,7 @@ export function IssueArtifacts({
       return a.path.localeCompare(b.path);
     });
     return next;
-  }, [files, sortOrder, typeFilter]);
+  }, [files, searchQuery, sortOrder, typeFilter]);
   const [selected, setSelected] = useState<Artifact | null>(null);
   const [content, setContent] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState('');
@@ -327,10 +331,6 @@ export function IssueArtifacts({
 
   return (
     <section className="p-base space-y-base" aria-label="Artifacts">
-      <div>
-        <h2 className="text-high font-medium">Artifacts</h2>
-        <p className="text-low text-sm">{files.length} tệp</p>
-      </div>
       {!isLoading &&
         !error &&
         outputs(description, files).map(
@@ -388,6 +388,31 @@ export function IssueArtifacts({
               ))}
           </div>
 
+          <div className="relative min-w-[90px] flex-1">
+            <MagnifyingGlassIcon
+              className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-low"
+              aria-hidden
+            />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm tệp…"
+              aria-label="Tìm tệp artifacts"
+              className="h-7 w-full rounded-md border border-border bg-panel pl-7 pr-6 text-[11px] text-normal placeholder:text-low/70 focus-visible:border-brand focus-visible:outline-none"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                aria-label="Xoá từ khoá tìm kiếm"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-low hover:text-high"
+              >
+                <XIcon className="size-3" aria-hidden />
+              </button>
+            )}
+          </div>
+
           <div className="flex shrink-0 items-center gap-1.5">
             <select
               aria-label="Sắp xếp artifacts"
@@ -395,7 +420,7 @@ export function IssueArtifacts({
               onChange={(e) =>
                 setSortOrder(e.target.value as 'newest' | 'oldest' | 'name')
               }
-              className="h-7 rounded-md border border-border bg-panel px-2 text-[11px] font-medium text-normal focus:border-brand focus:outline-none"
+              className="h-7 rounded-md border border-border bg-panel px-2 text-[11px] font-medium text-normal focus-visible:border-brand focus-visible:outline-none"
             >
               <option value="newest">Mới nhất</option>
               <option value="oldest">Cũ nhất</option>
@@ -435,6 +460,11 @@ export function IssueArtifacts({
             </div>
           </div>
         </div>
+      )}
+      {files.length > 0 && sortedFiles.length === 0 && (
+        <p className="py-6 text-center text-xs text-low">
+          Không tìm thấy tệp phù hợp.
+        </p>
       )}
       <div
         className={cn(
