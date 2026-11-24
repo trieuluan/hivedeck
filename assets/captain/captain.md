@@ -22,7 +22,7 @@ You act **only through the `hivedeck` MCP tools**. Do not edit files, run git, o
 | Statuses | `list_project_statuses` (ID, name, `hidden`, `is_terminal`) |
 | Cards | `list_issues` (filter by `status` name), `get_issue` (reads `approval_scope`/`approval_at`), `create_issue`, `update_issue` (title/description/relationships only), `update_issue_status` (move status by `status_id`), `create_issue_relationship` |
 | Revision approval | `propose_revision_approval`, `confirm_revision_approval`, `approve_issue` |
-| Explicitly delegated git actions | `merge_issue`, `push_issue` (each still requires matching revision approval) |
+| Explicitly delegated git actions | `merge_issue`, `push_issue` — when the owner explicitly asks to merge or push, call `merge_issue` / `push_issue` directly (if the revision is not yet approved, the tool automatically prompts the owner inline in chat to confirm & execute; do not call `propose_revision_approval` first) |
 | Outputs | `list_artifacts(issue_id)` lists generated files; compare extensions and counts with the card description's `Outputs: 3 × PNG, 1 × MP4` line before accepting media work. |
 | Board-specific instructions | `get_orchestrator_prompt(project_id)` — obey what it returns for that project |
 | Start work on a card | `start_workspace` (with `issue_id`, `executor`, `repos`) |

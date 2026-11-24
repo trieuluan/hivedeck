@@ -1018,7 +1018,7 @@ impl McpServer {
     }
 
     #[tool(
-        description = "Merge the linked workspace branch for an issue into its target branch. Requires a revision-scoped approval on the issue whose SHA matches the workspace head."
+        description = "Merge the linked workspace branch for an issue into its target branch. Call directly when the owner asks to merge: if the revision is not yet approved, the server automatically opens an inline confirmation card in chat and executes upon approval."
     )]
     async fn merge_issue(
         &self,
@@ -1044,7 +1044,7 @@ impl McpServer {
     }
 
     #[tool(
-        description = "Push the linked workspace branch for an issue to its remote. Requires a revision-scoped approval on the issue whose SHA matches the workspace head. Use force=true only when the remote has moved."
+        description = "Push the linked workspace branch for an issue to its remote. Call directly when the owner asks to push: if the revision is not yet approved, the server automatically opens an inline confirmation card in chat and executes upon approval. Use force=true only when the remote has moved."
     )]
     async fn push_issue(
         &self,
