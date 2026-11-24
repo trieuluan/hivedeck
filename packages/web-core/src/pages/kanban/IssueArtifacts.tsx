@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
@@ -23,7 +23,7 @@ import {
 import { cn } from '@/shared/lib/utils';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
 
-type Artifact = {
+export type Artifact = {
   path: string;
   name: string;
   mime: string;
@@ -202,125 +202,9 @@ export function IssueArtifacts({
     return next;
   }, [files, searchQuery, sortOrder, typeFilter]);
   const [selected, setSelected] = useState<Artifact | null>(null);
-  const [content, setContent] = useState<string | null>(null);
-  const [previewError, setPreviewError] = useState('');
   const [deleteError, setDeleteError] = useState('');
-  const [zoomMode, setZoomMode] = useState<'fit' | 'actual'>('fit');
-  const [zoomScale, setZoomScale] = useState(1);
-  const [dimensions, setDimensions] = useState<{
-    w: number;
-    h: number;
-  } | null>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
-  const dialogRef = useRef<HTMLDivElement | null>(null);
   const navigableFiles = sortedFiles.length > 0 ? sortedFiles : files;
-  const current = selected;
-  const kind = current ? previewKind(current) : null;
-  const rawIndex = navigableFiles.findIndex(
-    (file) => file.path === selected?.path
-  );
-  const index = rawIndex >= 0 ? rawIndex : 0;
-
-  useEffect(() => {
-    setZoomMode('fit');
-    setZoomScale(1);
-    setDimensions(null);
-    setContent(null);
-    setPreviewError('');
-    if (
-      !selected ||
-      (kind !== 'markdown' && kind !== 'html' && kind !== 'text') ||
-      selected.size > previewLimit
-    )
-      return;
-    const controller = new AbortController();
-    fetch(fileUrl(issueId, selected.path), {
-      signal: controller.signal,
-      cache: 'no-store',
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error('fetch failed');
-        const length = Number(response.headers.get('content-length'));
-        if (length > previewLimit) throw new Error('file too large');
-        const blob = await response.blob();
-        if (blob.size > previewLimit) throw new Error('file too large');
-        return blob.text();
-      })
-      .then(setContent)
-      .catch(() => {
-        if (!controller.signal.aborted)
-          setPreviewError('Không thể tải bản xem trước.');
-      });
-    return () => controller.abort();
-  }, [issueId, selected, kind]);
-
-  const open = current !== null;
-  useEffect(() => {
-    if (!open) return;
-    dialogRef.current?.focus();
-    return () => returnFocus.current?.focus();
-  }, [open]);
-
-  useEffect(() => {
-    if (!current) return;
-    const dialog = dialogRef.current;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        event.stopPropagation();
-        setSelected(null);
-      } else if (event.key === 'Tab' && dialog) {
-        const items = Array.from(
-          dialog.querySelectorAll<HTMLElement>(
-            'a[href], button:not([disabled]), [tabindex="0"]'
-          )
-        );
-        if (!items.length) return;
-        const first = items[0];
-        const last = items[items.length - 1];
-        const active = document.activeElement;
-        if (!dialog.contains(active) || (event.shiftKey && active === first)) {
-          event.preventDefault();
-          last.focus();
-        } else if (!event.shiftKey && active === last) {
-          event.preventDefault();
-          first.focus();
-        }
-      } else if (
-        (event.key === 'ArrowLeft' || event.key === 'ArrowRight') &&
-        navigableFiles.length > 1
-      ) {
-        event.preventDefault();
-        event.stopPropagation();
-        setSelected(
-          navigableFiles[
-            (index +
-              (event.key === 'ArrowRight' ? 1 : -1) +
-              navigableFiles.length) %
-              navigableFiles.length
-          ]
-        );
-      } else if (kind !== 'image') {
-        return;
-      } else if (event.key === '+' || event.key === '=') {
-        event.preventDefault();
-        setZoomMode('actual');
-        setZoomScale((s) => Math.min(3, Number((s + 0.25).toFixed(2))));
-      } else if (event.key === '-') {
-        event.preventDefault();
-        setZoomMode('actual');
-        setZoomScale((s) => Math.max(0.25, Number((s - 0.25).toFixed(2))));
-      } else if (event.key === '0' || event.key.toLowerCase() === 'f') {
-        event.preventDefault();
-        setZoomMode((m) => (m === 'fit' ? 'actual' : 'fit'));
-        setZoomScale(1);
-      }
-    };
-    window.addEventListener('keydown', onKeyDown, true);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown, true);
-    };
-  }, [current, navigableFiles, index, kind]);
 
   async function remove(file: Artifact) {
     const result = await ConfirmDialog.show({
@@ -610,7 +494,9 @@ export function IssueArtifacts({
                             relTime.isRecent && 'font-medium text-emerald-400'
                           )}
                         >
-                          {relTime.isRecent ? `● ${relTime.label}` : relTime.label}
+                          {relTime.isRecent
+                            ? `● ${relTime.label}`
+                            : relTime.label}
                         </span>
                       )}
                       {relTime.label ? ' · ' : ''}
@@ -657,352 +543,489 @@ export function IssueArtifacts({
           );
         })}
       </div>
-      {current &&
-        typeof document !== 'undefined' &&
-        createPortal(
-          <div
-            ref={dialogRef}
-            tabIndex={-1}
-            role="dialog"
-            aria-modal="true"
-            aria-label={current.name}
-            className="fixed inset-0 z-50 flex flex-col bg-zinc-950/95 backdrop-blur-md select-none"
-            onClick={() => setSelected(null)}
-          >
-            {/* Top floating bar */}
-            <header
-              className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-zinc-950/80 px-4 py-2.5"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex min-w-0 items-center gap-2.5">
-                {kind === 'image' ? (
-                  <ImageIcon className="size-4 shrink-0 text-brand" />
-                ) : kind === 'video' ? (
-                  <VideoCameraIcon className="size-4 shrink-0 text-brand" />
-                ) : kind === 'html' ? (
-                  <FileHtmlIcon className="size-4 shrink-0 text-brand" />
-                ) : (
-                  <FileTextIcon className="size-4 shrink-0 text-brand" />
-                )}
-                <span className="truncate text-sm font-medium text-white">
-                  {current.name}
-                </span>
-                <span className="hidden shrink-0 rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-zinc-400 tabular-nums sm:inline-flex">
-                  {kind === 'image' && dimensions
-                    ? `${dimensions.w} × ${dimensions.h} · `
-                    : ''}
-                  {size(current.size)}
-                </span>
-                {navigableFiles.length > 1 && (
-                  <span className="shrink-0 rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-zinc-300 tabular-nums">
-                    {index + 1} / {navigableFiles.length}
+      <ArtifactLightbox
+        issueId={issueId}
+        selected={selected}
+        setSelected={setSelected}
+        navigableFiles={navigableFiles}
+        returnFocus={returnFocus}
+      />
+    </section>
+  );
+}
+
+export function ArtifactLightbox({
+  issueId,
+  selected,
+  setSelected,
+  navigableFiles,
+  returnFocus,
+}: {
+  issueId: string;
+  selected: Artifact | null;
+  setSelected: (file: Artifact | null) => void;
+  navigableFiles: Artifact[];
+  returnFocus: RefObject<HTMLElement>;
+}) {
+  const [content, setContent] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState('');
+  const [zoomMode, setZoomMode] = useState<'fit' | 'actual'>('fit');
+  const [zoomScale, setZoomScale] = useState(1);
+  const [dimensions, setDimensions] = useState<{
+    w: number;
+    h: number;
+  } | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const current = selected;
+  const kind = current ? previewKind(current) : null;
+  const rawIndex = navigableFiles.findIndex(
+    (file) => file.path === selected?.path
+  );
+  const index = rawIndex >= 0 ? rawIndex : 0;
+
+  useEffect(() => {
+    setZoomMode('fit');
+    setZoomScale(1);
+    setDimensions(null);
+    setContent(null);
+    setPreviewError('');
+    if (
+      !selected ||
+      (kind !== 'markdown' && kind !== 'html' && kind !== 'text') ||
+      selected.size > previewLimit
+    )
+      return;
+    const controller = new AbortController();
+    fetch(fileUrl(issueId, selected.path), {
+      signal: controller.signal,
+      cache: 'no-store',
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('fetch failed');
+        const length = Number(response.headers.get('content-length'));
+        if (length > previewLimit) throw new Error('file too large');
+        const blob = await response.blob();
+        if (blob.size > previewLimit) throw new Error('file too large');
+        return blob.text();
+      })
+      .then(setContent)
+      .catch(() => {
+        if (!controller.signal.aborted)
+          setPreviewError('Không thể tải bản xem trước.');
+      });
+    return () => controller.abort();
+  }, [issueId, selected, kind]);
+
+  const open = current !== null;
+  useEffect(() => {
+    if (!open) return;
+    const trigger = returnFocus.current;
+    dialogRef.current?.focus();
+    return () => trigger?.focus();
+  }, [open, returnFocus]);
+
+  useEffect(() => {
+    if (!current) return;
+    const dialog = dialogRef.current;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        setSelected(null);
+      } else if (event.key === 'Tab' && dialog) {
+        const items = Array.from(
+          dialog.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), [tabindex="0"]'
+          )
+        );
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        const active = document.activeElement;
+        if (!dialog.contains(active) || (event.shiftKey && active === first)) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && active === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      } else if (
+        (event.key === 'ArrowLeft' || event.key === 'ArrowRight') &&
+        navigableFiles.length > 1
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        setSelected(
+          navigableFiles[
+            (index +
+              (event.key === 'ArrowRight' ? 1 : -1) +
+              navigableFiles.length) %
+              navigableFiles.length
+          ]
+        );
+      } else if (kind !== 'image') {
+        return;
+      } else if (event.key === '+' || event.key === '=') {
+        event.preventDefault();
+        setZoomMode('actual');
+        setZoomScale((s) => Math.min(3, Number((s + 0.25).toFixed(2))));
+      } else if (event.key === '-') {
+        event.preventDefault();
+        setZoomMode('actual');
+        setZoomScale((s) => Math.max(0.25, Number((s - 0.25).toFixed(2))));
+      } else if (event.key === '0' || event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        setZoomMode((m) => (m === 'fit' ? 'actual' : 'fit'));
+        setZoomScale(1);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true);
+    };
+  }, [current, navigableFiles, index, kind, setSelected]);
+
+  return (
+    current &&
+    typeof document !== 'undefined' &&
+    createPortal(
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-label={current.name}
+        className="fixed inset-0 z-50 flex flex-col bg-zinc-950/95 backdrop-blur-md select-none"
+        onClick={() => setSelected(null)}
+      >
+        {/* Top floating bar */}
+        <header
+          className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-zinc-950/80 px-4 py-2.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex min-w-0 items-center gap-2.5">
+            {kind === 'image' ? (
+              <ImageIcon className="size-4 shrink-0 text-brand" />
+            ) : kind === 'video' ? (
+              <VideoCameraIcon className="size-4 shrink-0 text-brand" />
+            ) : kind === 'html' ? (
+              <FileHtmlIcon className="size-4 shrink-0 text-brand" />
+            ) : (
+              <FileTextIcon className="size-4 shrink-0 text-brand" />
+            )}
+            <span className="truncate text-sm font-medium text-white">
+              {current.name}
+            </span>
+            <span className="hidden shrink-0 rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-zinc-400 tabular-nums sm:inline-flex">
+              {kind === 'image' && dimensions
+                ? `${dimensions.w} × ${dimensions.h} · `
+                : ''}
+              {size(current.size)}
+            </span>
+            {navigableFiles.length > 1 && (
+              <span className="shrink-0 rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-zinc-300 tabular-nums">
+                {index + 1} / {navigableFiles.length}
+              </span>
+            )}
+          </div>
+
+          <div className="flex shrink-0 items-center gap-1.5">
+            {kind === 'image' && (
+              <>
+                <div className="inline-flex items-center rounded-lg border border-white/10 bg-white/5 p-0.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setZoomMode('fit');
+                      setZoomScale(1);
+                    }}
+                    className={cn(
+                      'rounded-md px-2 py-1 font-medium transition-colors',
+                      zoomMode === 'fit'
+                        ? 'bg-brand text-white'
+                        : 'text-zinc-300 hover:text-white'
+                    )}
+                  >
+                    Vừa khung
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setZoomMode('actual');
+                      setZoomScale(1);
+                    }}
+                    className={cn(
+                      'rounded-md px-2 py-1 font-medium transition-colors',
+                      zoomMode === 'actual' && zoomScale === 1
+                        ? 'bg-brand text-white'
+                        : 'text-zinc-300 hover:text-white'
+                    )}
+                  >
+                    1:1
+                  </button>
+                </div>
+
+                <div className="hidden items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 p-0.5 sm:inline-flex">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setZoomMode('actual');
+                      setZoomScale((s) =>
+                        Math.max(0.25, Number((s - 0.25).toFixed(2)))
+                      );
+                    }}
+                    className="rounded-md p-1.5 text-zinc-300 hover:bg-white/10 hover:text-white"
+                    aria-label="Thu nhỏ"
+                    title="Thu nhỏ (-)"
+                  >
+                    <MagnifyingGlassMinusIcon className="size-3.5" />
+                  </button>
+                  <span className="min-w-[44px] text-center text-[11px] text-zinc-300 tabular-nums">
+                    {zoomMode === 'fit'
+                      ? 'Fit'
+                      : `${Math.round(zoomScale * 100)}%`}
                   </span>
-                )}
-              </div>
-
-              <div className="flex shrink-0 items-center gap-1.5">
-                {kind === 'image' && (
-                  <>
-                    <div className="inline-flex items-center rounded-lg border border-white/10 bg-white/5 p-0.5 text-xs">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setZoomMode('fit');
-                          setZoomScale(1);
-                        }}
-                        className={cn(
-                          'rounded-md px-2 py-1 font-medium transition-colors',
-                          zoomMode === 'fit'
-                            ? 'bg-brand text-white'
-                            : 'text-zinc-300 hover:text-white'
-                        )}
-                      >
-                        Vừa khung
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setZoomMode('actual');
-                          setZoomScale(1);
-                        }}
-                        className={cn(
-                          'rounded-md px-2 py-1 font-medium transition-colors',
-                          zoomMode === 'actual' && zoomScale === 1
-                            ? 'bg-brand text-white'
-                            : 'text-zinc-300 hover:text-white'
-                        )}
-                      >
-                        1:1
-                      </button>
-                    </div>
-
-                    <div className="hidden items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 p-0.5 sm:inline-flex">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setZoomMode('actual');
-                          setZoomScale((s) =>
-                            Math.max(0.25, Number((s - 0.25).toFixed(2)))
-                          );
-                        }}
-                        className="rounded-md p-1.5 text-zinc-300 hover:bg-white/10 hover:text-white"
-                        aria-label="Thu nhỏ"
-                        title="Thu nhỏ (-)"
-                      >
-                        <MagnifyingGlassMinusIcon className="size-3.5" />
-                      </button>
-                      <span className="min-w-[44px] text-center text-[11px] text-zinc-300 tabular-nums">
-                        {zoomMode === 'fit'
-                          ? 'Fit'
-                          : `${Math.round(zoomScale * 100)}%`}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setZoomMode('actual');
-                          setZoomScale((s) =>
-                            Math.min(3, Number((s + 0.25).toFixed(2)))
-                          );
-                        }}
-                        className="rounded-md p-1.5 text-zinc-300 hover:bg-white/10 hover:text-white"
-                        aria-label="Phóng to"
-                        title="Phóng to (+)"
-                      >
-                        <MagnifyingGlassPlusIcon className="size-3.5" />
-                      </button>
-                    </div>
-
-                    <a
-                      href={fileUrl(issueId, current.path)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-lg border border-white/10 bg-white/5 p-2 text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
-                      aria-label="Mở tab mới"
-                      title="Mở ảnh gốc ở tab mới"
-                    >
-                      <ArrowSquareOutIcon className="size-4" />
-                    </a>
-                  </>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setZoomMode('actual');
+                      setZoomScale((s) =>
+                        Math.min(3, Number((s + 0.25).toFixed(2)))
+                      );
+                    }}
+                    className="rounded-md p-1.5 text-zinc-300 hover:bg-white/10 hover:text-white"
+                    aria-label="Phóng to"
+                    title="Phóng to (+)"
+                  >
+                    <MagnifyingGlassPlusIcon className="size-3.5" />
+                  </button>
+                </div>
 
                 <a
                   href={fileUrl(issueId, current.path)}
-                  download={current.name}
+                  target="_blank"
+                  rel="noreferrer"
                   className="rounded-lg border border-white/10 bg-white/5 p-2 text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
-                  aria-label="Tải xuống"
-                  title="Tải xuống"
+                  aria-label="Mở tab mới"
+                  title="Mở ảnh gốc ở tab mới"
                 >
-                  <DownloadSimpleIcon className="size-4" />
+                  <ArrowSquareOutIcon className="size-4" />
                 </a>
-                <button
-                  type="button"
-                  onClick={() => setSelected(null)}
-                  className="rounded-lg border border-white/10 bg-white/5 p-2 text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
-                  aria-label="Đóng"
-                  title="Đóng (Esc)"
-                >
-                  <XIcon className="size-4" />
-                </button>
-              </div>
-            </header>
+              </>
+            )}
 
-            {/* Main image viewport */}
-            <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-auto p-4 sm:p-6">
-              {navigableFiles.length > 1 && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelected(
-                      navigableFiles[
-                        (index - 1 + navigableFiles.length) %
-                          navigableFiles.length
-                      ]
-                    );
-                  }}
-                  className="fixed left-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/60 text-white/80 shadow-lg backdrop-blur-sm transition-colors hover:bg-black/85 hover:text-white"
-                  aria-label="Tệp trước"
-                  title="Tệp trước (←)"
-                >
-                  <CaretLeftIcon className="size-5" weight="bold" />
-                </button>
-              )}
+            <a
+              href={fileUrl(issueId, current.path)}
+              download={current.name}
+              className="rounded-lg border border-white/10 bg-white/5 p-2 text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
+              aria-label="Tải xuống"
+              title="Tải xuống"
+            >
+              <DownloadSimpleIcon className="size-4" />
+            </a>
+            <button
+              type="button"
+              onClick={() => setSelected(null)}
+              className="rounded-lg border border-white/10 bg-white/5 p-2 text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
+              aria-label="Đóng"
+              title="Đóng (Esc)"
+            >
+              <XIcon className="size-4" />
+            </button>
+          </div>
+        </header>
 
-              {kind === 'image' && (
-                <img
-                  src={fileUrl(issueId, current.path)}
-                  alt={current.name}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setZoomMode((m) => (m === 'fit' ? 'actual' : 'fit'));
-                    setZoomScale(1);
-                  }}
-                  onLoad={(e) =>
-                    setDimensions({
-                      w: e.currentTarget.naturalWidth,
-                      h: e.currentTarget.naturalHeight,
-                    })
-                  }
-                  style={
-                    zoomMode === 'actual' && dimensions
-                      ? {
-                          width: Math.round(dimensions.w * zoomScale),
-                          height: Math.round(dimensions.h * zoomScale),
-                        }
-                      : undefined
-                  }
-                  onError={() =>
-                    setPreviewError('Không thể tải bản xem trước.')
-                  }
-                  className={cn(
-                    'rounded-lg shadow-2xl transition-transform',
-                    zoomMode === 'fit'
-                      ? 'max-h-full max-w-full cursor-zoom-in object-contain'
-                      : 'max-h-none max-w-none shrink-0 cursor-zoom-out'
-                  )}
-                />
+        {/* Main image viewport */}
+        <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-auto p-4 sm:p-6">
+          {navigableFiles.length > 1 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelected(
+                  navigableFiles[
+                    (index - 1 + navigableFiles.length) % navigableFiles.length
+                  ]
+                );
+              }}
+              className="fixed left-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/60 text-white/80 shadow-lg backdrop-blur-sm transition-colors hover:bg-black/85 hover:text-white"
+              aria-label="Tệp trước"
+              title="Tệp trước (←)"
+            >
+              <CaretLeftIcon className="size-5" weight="bold" />
+            </button>
+          )}
+
+          {kind === 'image' && (
+            <img
+              src={fileUrl(issueId, current.path)}
+              alt={current.name}
+              onClick={(e) => {
+                e.stopPropagation();
+                setZoomMode((m) => (m === 'fit' ? 'actual' : 'fit'));
+                setZoomScale(1);
+              }}
+              onLoad={(e) =>
+                setDimensions({
+                  w: e.currentTarget.naturalWidth,
+                  h: e.currentTarget.naturalHeight,
+                })
+              }
+              style={
+                zoomMode === 'actual' && dimensions
+                  ? {
+                      width: Math.round(dimensions.w * zoomScale),
+                      height: Math.round(dimensions.h * zoomScale),
+                    }
+                  : undefined
+              }
+              onError={() => setPreviewError('Không thể tải bản xem trước.')}
+              className={cn(
+                'rounded-lg shadow-2xl transition-transform',
+                zoomMode === 'fit'
+                  ? 'max-h-full max-w-full cursor-zoom-in object-contain'
+                  : 'max-h-none max-w-none shrink-0 cursor-zoom-out'
               )}
-              {kind === 'video' && (
-                <video
-                  controls
-                  preload="metadata"
-                  src={fileUrl(issueId, current.path)}
-                  onClick={(e) => e.stopPropagation()}
-                  onError={() =>
-                    setPreviewError('Không thể tải bản xem trước.')
-                  }
-                  className="max-h-full max-w-full rounded-lg bg-black shadow-2xl"
-                />
-              )}
-              {(kind === 'markdown' || kind === 'html' || kind === 'text') && (
-                <div
-                  className="flex h-full w-full max-w-4xl flex-col"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {content === null &&
-                    !previewError &&
-                    current.size <= previewLimit && (
-                      <p className="text-sm text-zinc-300">Loading preview…</p>
-                    )}
-                  {kind === 'markdown' && content !== null && (
-                    <article
-                      tabIndex={0}
-                      className="min-h-0 max-w-none space-y-3 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:text-lg [&_h3]:font-medium [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_code]:rounded [&_code]:bg-white/10 [&_code]:px-1 [&_pre]:overflow-auto [&_pre]:rounded-lg [&_pre]:bg-black/40 [&_pre]:p-3 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-white/15 [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_td]:border [&_td]:border-white/15 [&_td]:px-2 [&_td]:py-1 [&_blockquote]:border-l-2 [&_blockquote]:border-white/20 [&_blockquote]:pl-3 [&_blockquote]:text-zinc-300 flex-1 overflow-auto break-words rounded-lg border border-white/10 bg-zinc-900 p-4 text-zinc-100"
-                    >
-                      <ReactMarkdown
-                        skipHtml
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          a: ({ children }) => <span>{children}</span>,
-                          img: ({ alt }) => <span>{alt}</span>,
-                        }}
-                      >
-                        {content}
-                      </ReactMarkdown>
-                    </article>
-                  )}
-                  {kind === 'html' && content !== null && (
-                    <iframe
-                      title={current.name}
-                      sandbox=""
-                      referrerPolicy="no-referrer"
-                      srcDoc={safeHtml(content)}
-                      className="min-h-0 w-full flex-1 rounded-lg bg-white"
-                    />
-                  )}
-                  {kind === 'text' && content !== null && (
-                    <pre className="min-h-0 flex-1 overflow-auto rounded-lg border border-white/10 bg-zinc-900 p-5 font-mono text-xs leading-relaxed text-zinc-100 whitespace-pre-wrap">
-                      {content}
-                    </pre>
-                  )}
-                </div>
-              )}
-              {(kind === 'markdown' || kind === 'html' || kind === 'text') &&
-                current.size > previewLimit && (
-                  <p className="text-sm text-zinc-300">
-                    Tệp quá lớn để xem trước. Dùng nút Tải xuống.
-                  </p>
+            />
+          )}
+          {kind === 'video' && (
+            <video
+              controls
+              preload="metadata"
+              src={fileUrl(issueId, current.path)}
+              onClick={(e) => e.stopPropagation()}
+              onError={() => setPreviewError('Không thể tải bản xem trước.')}
+              className="max-h-full max-w-full rounded-lg bg-black shadow-2xl"
+            />
+          )}
+          {(kind === 'markdown' || kind === 'html' || kind === 'text') && (
+            <div
+              className="flex h-full w-full max-w-4xl flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {content === null &&
+                !previewError &&
+                current.size <= previewLimit && (
+                  <p className="text-sm text-zinc-300">Loading preview…</p>
                 )}
-              {kind === 'unsupported' && (
-                <p className="text-sm text-zinc-300">
-                  Không hỗ trợ xem trước loại tệp này. Dùng nút Tải xuống.
-                </p>
-              )}
-              {previewError && (
-                <p role="alert" className="text-sm text-red-300">
-                  {previewError} Dùng nút Tải xuống.
-                </p>
-              )}
-
-              {navigableFiles.length > 1 && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelected(
-                      navigableFiles[(index + 1) % navigableFiles.length]
-                    );
-                  }}
-                  className="fixed right-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/60 text-white/80 shadow-lg backdrop-blur-sm transition-colors hover:bg-black/85 hover:text-white"
-                  aria-label="Tệp tiếp theo"
-                  title="Tệp tiếp theo (→)"
+              {kind === 'markdown' && content !== null && (
+                <article
+                  tabIndex={0}
+                  className="min-h-0 max-w-none space-y-3 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:text-lg [&_h3]:font-medium [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_code]:rounded [&_code]:bg-white/10 [&_code]:px-1 [&_pre]:overflow-auto [&_pre]:rounded-lg [&_pre]:bg-black/40 [&_pre]:p-3 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-white/15 [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_td]:border [&_td]:border-white/15 [&_td]:px-2 [&_td]:py-1 [&_blockquote]:border-l-2 [&_blockquote]:border-white/20 [&_blockquote]:pl-3 [&_blockquote]:text-zinc-300 flex-1 overflow-auto break-words rounded-lg border border-white/10 bg-zinc-900 p-4 text-zinc-100"
                 >
-                  <CaretRightIcon className="size-5" weight="bold" />
-                </button>
+                  <ReactMarkdown
+                    skipHtml
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      a: ({ children }) => <span>{children}</span>,
+                      img: ({ alt }) => <span>{alt}</span>,
+                    }}
+                  >
+                    {content}
+                  </ReactMarkdown>
+                </article>
+              )}
+              {kind === 'html' && content !== null && (
+                <iframe
+                  title={current.name}
+                  sandbox=""
+                  referrerPolicy="no-referrer"
+                  srcDoc={safeHtml(content)}
+                  className="min-h-0 w-full flex-1 rounded-lg bg-white"
+                />
+              )}
+              {kind === 'text' && content !== null && (
+                <pre className="min-h-0 flex-1 overflow-auto rounded-lg border border-white/10 bg-zinc-900 p-5 font-mono text-xs leading-relaxed text-zinc-100 whitespace-pre-wrap">
+                  {content}
+                </pre>
               )}
             </div>
-
-            {/* Bottom thumbnail filmstrip dock */}
-            {navigableFiles.length > 1 && (
-              <div
-                className="mx-auto mb-4 flex max-w-[90vw] shrink-0 items-center gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-zinc-900/90 p-2 shadow-2xl backdrop-blur-md"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {navigableFiles.map((item) => {
-                  const active = item.path === current.path;
-                  const itemKind = previewKind(item);
-                  return (
-                    <button
-                      key={item.path}
-                      type="button"
-                      onClick={() => setSelected(item)}
-                      title={item.name}
-                      className={cn(
-                        'flex h-12 w-12 shrink-0 flex-col items-center justify-center overflow-hidden rounded-lg border-2 transition-all',
-                        active
-                          ? 'scale-105 border-brand ring-2 ring-brand/30'
-                          : 'border-white/10 bg-zinc-800/80 opacity-65 hover:opacity-100'
-                      )}
-                    >
-                      {itemKind === 'image' ? (
-                        <img
-                          src={fileUrl(issueId, item.path)}
-                          alt={item.name}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : itemKind === 'html' ? (
-                        <span className="font-mono text-[10px] font-bold text-brand">
-                          &lt;/&gt;
-                        </span>
-                      ) : itemKind === 'markdown' ? (
-                        <span className="font-mono text-[10px] font-bold text-sky-400">
-                          MD
-                        </span>
-                      ) : itemKind === 'video' ? (
-                        <VideoCameraIcon className="size-4 text-zinc-200" />
-                      ) : (
-                        <span className="font-mono text-[10px] font-bold text-zinc-300">
-                          {itemKind === 'text' ? 'CODE' : 'FILE'}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+          )}
+          {(kind === 'markdown' || kind === 'html' || kind === 'text') &&
+            current.size > previewLimit && (
+              <p className="text-sm text-zinc-300">
+                Tệp quá lớn để xem trước. Dùng nút Tải xuống.
+              </p>
             )}
-          </div>,
-          document.body
+          {kind === 'unsupported' && (
+            <p className="text-sm text-zinc-300">
+              Không hỗ trợ xem trước loại tệp này. Dùng nút Tải xuống.
+            </p>
+          )}
+          {previewError && (
+            <p role="alert" className="text-sm text-red-300">
+              {previewError} Dùng nút Tải xuống.
+            </p>
+          )}
+
+          {navigableFiles.length > 1 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelected(
+                  navigableFiles[(index + 1) % navigableFiles.length]
+                );
+              }}
+              className="fixed right-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/60 text-white/80 shadow-lg backdrop-blur-sm transition-colors hover:bg-black/85 hover:text-white"
+              aria-label="Tệp tiếp theo"
+              title="Tệp tiếp theo (→)"
+            >
+              <CaretRightIcon className="size-5" weight="bold" />
+            </button>
+          )}
+        </div>
+
+        {/* Bottom thumbnail filmstrip dock */}
+        {navigableFiles.length > 1 && (
+          <div
+            className="mx-auto mb-4 flex max-w-[90vw] shrink-0 items-center gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-zinc-900/90 p-2 shadow-2xl backdrop-blur-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {navigableFiles.map((item) => {
+              const active = item.path === current.path;
+              const itemKind = previewKind(item);
+              return (
+                <button
+                  key={item.path}
+                  type="button"
+                  onClick={() => setSelected(item)}
+                  title={item.name}
+                  className={cn(
+                    'flex h-12 w-12 shrink-0 flex-col items-center justify-center overflow-hidden rounded-lg border-2 transition-all',
+                    active
+                      ? 'scale-105 border-brand ring-2 ring-brand/30'
+                      : 'border-white/10 bg-zinc-800/80 opacity-65 hover:opacity-100'
+                  )}
+                >
+                  {itemKind === 'image' ? (
+                    <img
+                      src={fileUrl(issueId, item.path)}
+                      alt={item.name}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : itemKind === 'html' ? (
+                    <span className="font-mono text-[10px] font-bold text-brand">
+                      &lt;/&gt;
+                    </span>
+                  ) : itemKind === 'markdown' ? (
+                    <span className="font-mono text-[10px] font-bold text-sky-400">
+                      MD
+                    </span>
+                  ) : itemKind === 'video' ? (
+                    <VideoCameraIcon className="size-4 text-zinc-200" />
+                  ) : (
+                    <span className="font-mono text-[10px] font-bold text-zinc-300">
+                      {itemKind === 'text' ? 'CODE' : 'FILE'}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         )}
-    </section>
+      </div>,
+      document.body
+    )
   );
 }

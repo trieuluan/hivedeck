@@ -3,8 +3,20 @@ export type ArtifactFile = {
   name: string;
   mime: string;
   size: number;
+  execution_id: string;
   created_at: string;
 };
+
+export function executionGroups(files: ArtifactFile[]) {
+  const groups = new Map<string, ArtifactFile[]>();
+  for (const file of files) {
+    const execution = file.execution_id || 'Unknown';
+    const group = groups.get(execution);
+    if (group) group.push(file);
+    else groups.set(execution, [file]);
+  }
+  return groups;
+}
 
 export function artifactGroups(
   artifacts: Record<string, ArtifactFile[]>,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { artifactGroups, type ArtifactFile } from './groups';
+import { artifactGroups, executionGroups, type ArtifactFile } from './groups';
 
 describe('artifactGroups', () => {
   it('totals files, finds the first image, and sorts by date or size', () => {
@@ -13,6 +13,7 @@ describe('artifactGroups', () => {
       size,
       created_at,
       mime,
+      execution_id: 'run',
     });
     const artifacts = {
       older: [
@@ -43,5 +44,26 @@ describe('artifactGroups', () => {
         'date'
       )[0]?.latest
     ).toBe('2026-01-01T00:00:00.100Z');
+  });
+});
+
+describe('executionGroups', () => {
+  it('keeps files from different executions separate and preserves order', () => {
+    const file = (execution_id: string, name: string): ArtifactFile => ({
+      execution_id,
+      name,
+      path: name,
+      mime: 'text/plain',
+      size: 1,
+      created_at: '',
+    });
+    const groups = executionGroups([
+      file('run-1', 'a'),
+      file('run-2', 'b'),
+      file('run-1', 'c'),
+      file('', 'd'),
+    ]);
+    expect([...groups.keys()]).toEqual(['run-1', 'run-2', 'Unknown']);
+    expect(groups.get('run-1')?.map((item) => item.name)).toEqual(['a', 'c']);
   });
 });
