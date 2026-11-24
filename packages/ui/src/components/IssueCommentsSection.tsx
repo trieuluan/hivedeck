@@ -193,7 +193,7 @@ export function IssueCommentsSection({
           <div
             className={cn(
               'absolute right-2.5 flex items-center justify-end gap-1.5',
-              showToolbar ? 'bottom-2 h-8' : 'top-1/2 -translate-y-1/2'
+              showToolbar ? 'bottom-base h-8' : 'top-1/2 -translate-y-1/2'
             )}
           >
             {onBrowseAttachment && (
