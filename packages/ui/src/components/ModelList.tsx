@@ -250,6 +250,11 @@ export function ModelList({
                     title={model.name}
                   >
                     {model.name}
+                    {defaultSuffix && model.id.toLowerCase() === 'default' && (
+                      <span className="ml-1.5 text-xs font-normal text-brand">
+                        {defaultSuffix}
+                      </span>
+                    )}
                   </span>
                 </button>
                 <div className="flex items-center justify-end gap-half pr-base">
