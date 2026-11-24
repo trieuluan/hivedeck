@@ -174,14 +174,14 @@ export function IssueCommentsSection({
               setIsComposerFocused(false);
             }
           }}
-          className="relative min-w-0 bg-secondary border border-border rounded-sm p-base focus-within:border-brand [&_.static-editor-toolbar]:flex-nowrap [&_.static-editor-toolbar]:overflow-x-auto [&_.static-editor-toolbar]:mr-[112px] [&_.static-editor-toolbar]:px-0 [&_.static-editor-toolbar]:border-0 [&_.static-editor-toolbar>*]:shrink-0"
+          className="relative min-w-0 bg-secondary border border-border rounded-sm p-base focus-within:border-brand [&_.static-editor-toolbar]:flex-nowrap [&_.static-editor-toolbar]:items-center [&_.static-editor-toolbar]:h-8 [&_.static-editor-toolbar]:py-0 [&_.static-editor-toolbar]:mt-1.5 [&_.static-editor-toolbar]:overflow-x-auto [&_.static-editor-toolbar]:mr-[104px] [&_.static-editor-toolbar]:px-0 [&_.static-editor-toolbar]:border-0 [&_.static-editor-toolbar>*]:shrink-0"
         >
           <input {...dropzoneProps?.getInputProps()} />
           {renderEditor({
             value: commentInput,
             onChange: onCommentInputChange,
             placeholder: t('kanban.enterCommentPlaceholder'),
-            className: showToolbar ? 'min-h-[32px] break-words' : 'min-h-[24px] pr-[96px] break-words',
+            className: showToolbar ? 'min-h-[32px] break-words' : 'min-h-[28px] pr-[96px] break-words',
             localAttachments,
             onCmdEnter: onSubmitComment,
             disabled: isSending,
@@ -190,7 +190,12 @@ export function IssueCommentsSection({
             autoFocus: false,
             editorRef: commentEditorRef,
           })}
-          <div className="absolute bottom-2 right-2 flex items-center justify-end gap-half">
+          <div
+            className={cn(
+              'absolute right-2.5 flex items-center justify-end gap-1.5',
+              showToolbar ? 'bottom-2 h-8' : 'top-1/2 -translate-y-1/2'
+            )}
+          >
             {onBrowseAttachment && (
               <button
                 type="button"
