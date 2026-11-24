@@ -65,6 +65,7 @@ export interface IssueWorkspaceCardProps {
   showStatusBadge?: boolean;
   showNoPrText?: boolean;
   compact?: boolean;
+  flat?: boolean;
   /** Current 1-based pipeline stage reported by the running agent. */
   pipelineStage?: number | null;
   /** Total pipeline stages parsed from the card description. */
@@ -80,20 +81,26 @@ export interface IssueWorkspaceCreateCardProps {
 
 interface IssueWorkspaceCardContainerProps {
   onClick?: () => void;
+  flat?: boolean;
   className?: string;
   children: React.ReactNode;
 }
 
 function IssueWorkspaceCardContainer({
   onClick,
+  flat = false,
   className,
   children,
 }: IssueWorkspaceCardContainerProps) {
   return (
     <div
       className={cn(
-        "flex flex-col gap-half p-base bg-panel rounded-sm transition-all duration-150",
-        onClick && "cursor-pointer hover:bg-secondary/70",
+        "flex flex-col gap-half transition-all duration-150",
+        flat ? "px-3 py-2 bg-transparent rounded-none" : "p-base bg-panel rounded-sm",
+        onClick &&
+          (flat
+            ? "cursor-pointer hover:bg-secondary/40"
+            : "cursor-pointer hover:bg-secondary/70"),
         className,
       )}
       onClick={
@@ -180,6 +187,7 @@ export function IssueWorkspaceCard({
   showStatusBadge = true,
   showNoPrText = true,
   compact = false,
+  flat = false,
   pipelineStage,
   pipelineTotal,
   className,
@@ -197,7 +205,7 @@ export function IssueWorkspaceCard({
     hasRunningDevServer ||
     isFailed ||
     isRunning ||
-    (hasUnseenActivity && !isRunning);
+    (!flat && hasUnseenActivity && !isRunning);
   const [, setTick] = useState(0);
   useEffect(() => {
     if (!isRunning || !workspace.latestProcessStartedAt) return;
@@ -384,9 +392,13 @@ export function IssueWorkspaceCard({
   }
 
   return (
-    <IssueWorkspaceCardContainer onClick={onClick} className={className}>
-      {/* Row 1: Status badge + Name (left), Owner avatar + menu (right) */}
-      <div className="flex items-center justify-between">
+    <IssueWorkspaceCardContainer
+      onClick={onClick}
+      flat={flat}
+      className={className}
+    >
+      {/* Row 1: Status badge + Name (left), Open action + Owner avatar + menu (right) */}
+      <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-half min-w-0">
           {showStatusBadge && (
             <span
@@ -407,7 +419,20 @@ export function IssueWorkspaceCard({
           )}
         </div>
 
-        <div className="flex items-center gap-half">
+        <div className="flex items-center gap-1.5 shrink-0">
+          {flat && onClick && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClick();
+              }}
+              className="inline-flex items-center gap-1 rounded border border-border bg-secondary/60 px-2 py-0.5 text-[11px] font-medium text-high transition-colors hover:bg-secondary shrink-0"
+            >
+              {t("buttons.open", { defaultValue: "Mở" })}
+              <ArrowSquareOutIcon className="size-3" aria-hidden />
+            </button>
+          )}
           {showOwner && workspace.owner && (
             <UserAvatar
               user={workspace.owner}
@@ -497,7 +522,7 @@ export function IssueWorkspaceCard({
                 <RunningDots />
               ))}
 
-            {hasUnseenActivity && !isRunning && !isFailed && (
+            {!flat && hasUnseenActivity && !isRunning && !isFailed && (
               <CircleIcon
                 className="size-icon-xs text-brand shrink-0"
                 weight="fill"

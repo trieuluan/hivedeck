@@ -171,6 +171,11 @@
     },
     "bucketEmpty": "Chưa có workspace",
     "bucketBarLabel": "Nhóm workspace",
+    "bucketShort": {
+      "attention": "Chú ý",
+      "running": "Chạy",
+      "idle": "Rảnh"
+    },
     "createDraftError": "Không chuẩn bị được bản nháp workspace. Vui lòng thử lại."
   },
   "fileTree": {

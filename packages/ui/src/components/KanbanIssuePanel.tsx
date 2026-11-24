@@ -333,14 +333,14 @@ export function KanbanIssuePanel({
             aria-label={t('common:ui.issueTitle2')}
             disabled={isSubmitting}
             className={cn(
-              'px-7 text-2xl font-semibold tracking-tight text-high',
+              'px-4 text-2xl font-semibold tracking-tight text-high',
               'placeholder:text-high/50',
               isSubmitting && 'opacity-50 pointer-events-none'
             )}
           />
         </div>
         {/* Unified Properties & Tags Row */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-7 pb-base pt-half">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-4 pb-base pt-half">
           <IssuePropertyRow
             statusId={formData.statusId}
             priority={formData.priority}
@@ -365,7 +365,7 @@ export function KanbanIssuePanel({
         </div>
 
         {!isCreateMode && issueId && renderArtifactsSection && (
-          <div aria-label="Issue sections" className="flex gap-6 px-7 border-b">
+          <div aria-label="Issue sections" className="flex gap-6 px-4 border-b">
             {(['details', 'artifacts'] as const).map((value) => (
               <button
                 key={value}
@@ -394,7 +394,7 @@ export function KanbanIssuePanel({
         <div hidden={tab === 'artifacts'}>
           {!isCreateMode &&
             (specInfo.agent || specInfo.tier || specInfo.previewUrl) && (
-              <div className="flex flex-wrap items-center gap-1.5 px-7 pt-3">
+              <div className="flex flex-wrap items-center gap-1.5 px-4 pt-3">
                 {specInfo.agent && (
                   <span className="inline-flex items-center gap-1 rounded-md border border-border bg-panel px-2 py-0.5 text-[11px] text-normal">
                     <span className="font-semibold text-high">Agent:</span>
@@ -425,7 +425,7 @@ export function KanbanIssuePanel({
           <div
             className={cn(
               !isCreateMode &&
-                'mx-7 mt-3 overflow-hidden rounded-lg border border-border bg-panel/40'
+                'mx-4 mt-3 overflow-hidden rounded-lg border border-border bg-panel/40'
             )}
           >
             {!isCreateMode && (
@@ -497,7 +497,7 @@ export function KanbanIssuePanel({
                 disabled: !isDescriptionEditing || isSubmitting,
                 autoFocus: false,
                 className: cn(
-                  isCreateMode ? 'px-7' : 'px-3 py-2',
+                  isCreateMode ? 'px-4' : 'px-3 py-2',
                   isDescriptionEditing ? 'min-h-[120px]' : 'min-h-[2rem]',
                   !isDescriptionEditing && !formData.description && 'text-low'
                 ),
@@ -667,28 +667,28 @@ export function KanbanIssuePanel({
 
           {/* Workspaces Section (Edit mode only) */}
           {!isCreateMode && issueId && renderWorkspacesSection && (
-            <div className="mx-7 mt-3 overflow-hidden rounded-lg border border-border bg-panel/40">
+            <div className="mx-4 mt-3 overflow-hidden rounded-lg border border-border bg-panel/40">
               {renderWorkspacesSection(issueId)}
             </div>
           )}
 
           {/* Relationships Section (Edit mode only) */}
           {!isCreateMode && issueId && renderRelationshipsSection && (
-            <div className="mx-7 mt-3 overflow-hidden rounded-lg border border-border bg-panel/40">
+            <div className="mx-4 mt-3 overflow-hidden rounded-lg border border-border bg-panel/40">
               {renderRelationshipsSection(issueId)}
             </div>
           )}
 
           {/* Sub-Issues Section (Edit mode only) */}
           {!isCreateMode && issueId && renderSubIssuesSection && (
-            <div className="mx-7 mt-3 overflow-hidden rounded-lg border border-border bg-panel/40">
+            <div className="mx-4 mt-3 overflow-hidden rounded-lg border border-border bg-panel/40">
               {renderSubIssuesSection(issueId)}
             </div>
           )}
 
           {/* Comments Section (Edit mode only) */}
           {!isCreateMode && issueId && renderCommentsSection && (
-            <div className="mx-7 mt-3 mb-6 overflow-hidden rounded-lg border border-border bg-panel/40">
+            <div className="mx-4 mt-3 mb-6 overflow-hidden rounded-lg border border-border bg-panel/40">
               {renderCommentsSection(issueId)}
             </div>
           )}

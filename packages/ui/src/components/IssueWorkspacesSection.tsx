@@ -51,7 +51,13 @@ export function IssueWorkspacesSection({
       defaultExpanded={true}
       actions={actions}
     >
-      <div className="p-base flex flex-col gap-base">
+      <div
+        className={
+          isLoading || workspaces.length === 0
+            ? 'px-base py-2 flex flex-col gap-base'
+            : 'border-t border-border/70 divide-y divide-border/70 flex flex-col'
+        }
+      >
         {isLoading ? (
           <p className="text-low py-half">{t('workspaces.loading')}</p>
         ) : workspaces.length === 0 ? (
@@ -74,6 +80,7 @@ export function IssueWorkspacesSection({
                 key={workspace.id}
                 workspace={workspace}
                 showNoPrText={false}
+                flat
                 onClick={
                   onWorkspaceClick && localWorkspaceId
                     ? () => onWorkspaceClick(localWorkspaceId)

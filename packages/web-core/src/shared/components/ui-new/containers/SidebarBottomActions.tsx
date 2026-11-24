@@ -77,7 +77,7 @@ export function SidebarRailNav({
         iconClass={isProjects ? 'text-brand' : undefined}
       />
       <SidebarBarButton
-        label="Workspaces"
+        label="Spaces"
         icon={FolderSimpleIcon}
         onClick={() => appNavigation.goToWorkspaces()}
         className={cn(

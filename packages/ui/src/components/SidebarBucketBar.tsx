@@ -143,6 +143,9 @@ function BucketButton({
   const { t } = useTranslation('common');
   const count = items.length;
   const label = t(meta.labelKey);
+  const shortKey = `workspaces.bucketShort.${meta.id}`;
+  const resolvedShort = t(shortKey, { defaultValue: label });
+  const shortLabel = resolvedShort === shortKey ? label : resolvedShort;
   const showBadge = !meta.hideBadge && count > 0;
 
   return (
@@ -151,6 +154,7 @@ function BucketButton({
         <button
           type="button"
           aria-label={showBadge ? `${label} — ${count}` : undefined}
+          title={label}
           className={cn(
             'flex flex-1 min-w-0 items-center justify-center gap-1 rounded-md px-1 py-1 text-[10.5px] font-medium whitespace-nowrap transition-colors',
             showBadge
@@ -162,7 +166,7 @@ function BucketButton({
             className={cn('size-3 shrink-0', meta.iconClass)}
             weight="bold"
           />
-          <span className="truncate">{label}</span>
+          <span className="truncate">{shortLabel}</span>
           {showBadge && (
             <span className="rounded bg-primary/80 px-1 text-[10px] tabular-nums text-normal">
               {count}
@@ -265,6 +269,9 @@ function AttentionInboxButton({
   const { t } = useTranslation('common');
   const count = items.length;
   const label = t(meta.labelKey);
+  const shortKey = `workspaces.bucketShort.${meta.id}`;
+  const resolvedShort = t(shortKey, { defaultValue: label });
+  const shortLabel = resolvedShort === shortKey ? label : resolvedShort;
   // Approvals clear only by answering them; the rest can be dismissed.
   const dismissable = items
     .filter((ws) => attentionReason(ws) !== 'approval')
@@ -276,6 +283,7 @@ function AttentionInboxButton({
         <button
           type="button"
           aria-label={count > 0 ? `${label} — ${count}` : undefined}
+          title={label}
           className={cn(
             'flex flex-1 min-w-0 items-center justify-center gap-1 rounded-md px-1 py-1 text-[10.5px] font-medium whitespace-nowrap transition-colors',
             count > 0
@@ -287,7 +295,7 @@ function AttentionInboxButton({
             className={cn('size-3 shrink-0', meta.iconClass)}
             weight="bold"
           />
-          <span className="truncate">{label}</span>
+          <span className="truncate">{shortLabel}</span>
           {count > 0 && (
             <span className="rounded bg-warning/25 px-1 text-[10px] tabular-nums text-warning">
               {count}
