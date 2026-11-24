@@ -159,7 +159,12 @@ fn list(issue_dir: &Path) -> Result<Vec<Artifact>, Error> {
             collect(issue_dir, &entry.path(), execution_id, &mut files)?;
         }
     }
-    files.sort_by(|left, right| left.path.cmp(&right.path));
+    files.sort_by(|left, right| {
+        right
+            .created_at
+            .cmp(&left.created_at)
+            .then_with(|| left.path.cmp(&right.path))
+    });
     Ok(files)
 }
 
@@ -349,13 +354,18 @@ mod tests {
         let json: serde_json::Value =
             serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
                 .unwrap();
-        assert_eq!(json["data"].as_array().unwrap().len(), 2);
-        assert_eq!(json["data"][0]["path"], relative);
-        assert_eq!(json["data"][0]["name"], "movie.mp4");
-        assert_eq!(json["data"][0]["mime"], "video/mp4");
-        assert_eq!(json["data"][0]["size"], 10);
-        assert_eq!(json["data"][0]["execution_id"], execution_id.to_string());
-        assert!(json["data"][0]["created_at"].is_string());
+        let items = json["data"].as_array().unwrap();
+        assert_eq!(items.len(), 2);
+        assert!(
+            items[0]["created_at"].as_str().unwrap()
+                >= items[1]["created_at"].as_str().unwrap()
+        );
+        let movie = items.iter().find(|item| item["path"] == relative).unwrap();
+        assert_eq!(movie["name"], "movie.mp4");
+        assert_eq!(movie["mime"], "video/mp4");
+        assert_eq!(movie["size"], 10);
+        assert_eq!(movie["execution_id"], execution_id.to_string());
+        assert!(movie["created_at"].is_string());
 
         let response = app
             .clone()

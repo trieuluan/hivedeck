@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
@@ -132,6 +132,24 @@ export function IssueArtifacts({
   });
   const client = useQueryClient();
   const [view, setView] = useState<'grid' | 'list'>('grid');
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'name'>(
+    'newest'
+  );
+  const sortedFiles = useMemo(() => {
+    const next = [...files];
+    next.sort((a, b) => {
+      if (sortOrder === 'name') {
+        return a.name.localeCompare(b.name) || a.path.localeCompare(b.path);
+      }
+      const ta = Date.parse(a.created_at) || 0;
+      const tb = Date.parse(b.created_at) || 0;
+      if (ta !== tb) {
+        return sortOrder === 'newest' ? tb - ta : ta - tb;
+      }
+      return a.path.localeCompare(b.path);
+    });
+    return next;
+  }, [files, sortOrder]);
   const [selected, setSelected] = useState<Artifact | null>(null);
   const [content, setContent] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState('');
@@ -300,7 +318,33 @@ export function IssueArtifacts({
         <p className="text-low">No artifacts yet</p>
       )}
       {files.length > 0 && (
-        <div className="flex justify-end border-b border-border pb-base">
+        <div className="flex flex-wrap items-center justify-between gap-base border-b border-border pb-base">
+          <div
+            role="group"
+            aria-label="Sắp xếp artifacts"
+            className="inline-flex rounded-sm border border-border p-1"
+          >
+            {(
+              [
+                { id: 'newest', label: 'Mới nhất' },
+                { id: 'oldest', label: 'Cũ nhất' },
+                { id: 'name', label: 'Tên' },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                aria-pressed={sortOrder === opt.id}
+                onClick={() => setSortOrder(opt.id)}
+                className={cn(
+                  'px-3 py-1.5 rounded-sm text-xs',
+                  sortOrder === opt.id ? 'bg-brand text-white' : 'text-normal'
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
           <div
             role="group"
             aria-label="Kiểu xem artifacts"
@@ -330,7 +374,7 @@ export function IssueArtifacts({
             : 'divide-y divide-border border-t border-border'
         )}
       >
-        {files.map((file) => {
+        {sortedFiles.map((file) => {
           const url = fileUrl(issueId, file.path);
           const fileKind = previewKind(file);
           return (
