@@ -27,10 +27,12 @@ function ExecutionFiles({
   children,
   view,
   label,
+  headerLeft,
 }: {
   children: ReactNode;
   view: 'grid' | 'list';
   label: string;
+  headerLeft?: ReactNode;
 }) {
   const { t } = useTranslation('common');
   const rail = useRef<HTMLDivElement>(null);
@@ -64,8 +66,20 @@ function ExecutionFiles({
     };
   }, [view, expanded, fileCount]);
 
-  if (view === 'list')
-    return <div className="divide-y divide-border">{children}</div>;
+  if (view === 'list') {
+    return (
+      <div className="space-y-2.5">
+        {headerLeft && (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {headerLeft}
+          </div>
+        )}
+        <div className="-mx-base divide-y divide-border/70 border-t border-border/70 sm:-mx-double">
+          {children}
+        </div>
+      </div>
+    );
+  }
 
   const scroll = (direction: number) => {
     const element = rail.current;
@@ -80,52 +94,49 @@ function ExecutionFiles({
 
   return (
     <div className="min-w-0 space-y-base">
-      <div className="flex items-center justify-between gap-base">
-        <span className="font-semibold">
-          {t('artifactRail.files')}
-          {edges.overflow && !expanded && (
-            <span className="sm:hidden"> · {t('artifactRail.swipe')}</span>
+      {(headerLeft || edges.overflow || expanded) && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-2.5">
+          <div className="min-w-0 flex-1">{headerLeft}</div>
+          {(edges.overflow || expanded) && (
+            <div className="flex shrink-0 items-center gap-half">
+              <button
+                type="button"
+                aria-expanded={expanded}
+                onClick={() => {
+                  if (!expanded)
+                    savedPosition.current = rail.current?.scrollLeft ?? 0;
+                  setExpanded(!expanded);
+                }}
+                className="rounded px-half py-half text-xs text-low hover:text-high focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+              >
+                {t(expanded ? 'artifactRail.collapse' : 'artifactRail.showAll')}
+              </button>
+              {!expanded && (
+                <div className="hidden gap-half sm:flex">
+                  <button
+                    type="button"
+                    aria-label={t('artifactRail.previous')}
+                    disabled={edges.start}
+                    onClick={() => scroll(-1)}
+                    className="rounded border border-border bg-secondary/50 p-1 text-high disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                  >
+                    <CaretLeft className="size-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={t('artifactRail.next')}
+                    disabled={edges.end}
+                    onClick={() => scroll(1)}
+                    className="rounded border border-border bg-secondary/50 p-1 text-high disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                  >
+                    <CaretRight className="size-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
           )}
-        </span>
-        {(edges.overflow || expanded) && (
-          <div className="flex items-center gap-half">
-            <button
-              type="button"
-              aria-expanded={expanded}
-              onClick={() => {
-                if (!expanded)
-                  savedPosition.current = rail.current?.scrollLeft ?? 0;
-                setExpanded(!expanded);
-              }}
-              className="rounded px-half py-half text-low hover:text-high focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
-            >
-              {t(expanded ? 'artifactRail.collapse' : 'artifactRail.showAll')}
-            </button>
-            {!expanded && (
-              <div className="hidden gap-half sm:flex">
-                <button
-                  type="button"
-                  aria-label={t('artifactRail.previous')}
-                  disabled={edges.start}
-                  onClick={() => scroll(-1)}
-                  className="rounded border border-border p-half text-high disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
-                >
-                  <CaretLeft />
-                </button>
-                <button
-                  type="button"
-                  aria-label={t('artifactRail.next')}
-                  disabled={edges.end}
-                  onClick={() => scroll(1)}
-                  className="rounded border border-border p-half text-high disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
-                >
-                  <CaretRight />
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+        </div>
+      )}
       <div
         ref={rail}
         aria-label={`${t('artifactRail.files')} · ${label}`}
@@ -191,14 +202,78 @@ function IssueArtifactCard({
       )
     ).toLocaleString();
 
+  const shortTime = (list: ArtifactFile[]) =>
+    new Date(
+      list.reduce(
+        (latest, f) =>
+          Date.parse(f.created_at) > Date.parse(latest) ? f.created_at : latest,
+        list[0].created_at
+      )
+    ).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const executionHeader =
+    executions.length > 1 ? (
+      <div className="flex flex-wrap items-center gap-1.5">
+        {executions.map(([execId, execFiles], idx) => {
+          const isSelected = activeExec === execId;
+          return (
+            <button
+              key={execId}
+              type="button"
+              aria-pressed={isSelected}
+              onClick={() => setSelectedExec(execId)}
+              title={`${execId} · ${latestTime(execFiles)}`}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                isSelected
+                  ? 'border-brand/60 bg-brand/15 font-medium text-brand'
+                  : 'border-border bg-secondary/50 text-low hover:text-high'
+              }`}
+            >
+              {idx === 0 && (
+                <span
+                  className="size-1.5 rounded-full bg-success"
+                  aria-hidden
+                />
+              )}
+              <span>
+                {idx === 0 ? 'Mới nhất · ' : ''}
+                {execId.slice(0, 8)} ({execFiles.length}) ·{' '}
+                {shortTime(execFiles)}
+              </span>
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          aria-pressed={activeExec === 'all'}
+          onClick={() => setSelectedExec('all')}
+          className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+            activeExec === 'all'
+              ? 'border-brand/60 bg-brand/15 font-medium text-brand'
+              : 'border-border bg-secondary/50 text-low hover:text-high'
+          }`}
+        >
+          Tất cả ({files.length})
+        </button>
+      </div>
+    ) : (
+      executions[0] && (
+        <p className="text-xs text-low" title={executions[0][0]}>
+          Execution {executions[0][0].slice(0, 8)} · {executions[0][1].length}{' '}
+          {executions[0][1].length === 1 ? 'file' : 'files'} ·{' '}
+          {latestTime(executions[0][1])}
+        </p>
+      )
+    );
+
   return (
     <article className="space-y-base rounded-lg border border-border/70 bg-panel p-base sm:p-double">
       <header className="flex flex-wrap items-start justify-between gap-base">
         <div className="min-w-0">
-          <p className="font-semibold text-brand">
+          <p className="font-mono text-xs font-semibold text-brand">
             {issue?.simple_id ?? 'Orphan'}
             {projectName && (
-              <span className="ml-1.5 font-normal text-low">
+              <span className="ml-1.5 font-sans font-normal text-low">
                 · {projectName}
               </span>
             )}
@@ -210,7 +285,7 @@ function IssueArtifactCard({
         <div className="flex items-center gap-base">
           {issue && (
             <a
-              className="rounded border border-border px-base py-half text-high hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+              className="rounded-md border border-border bg-secondary/60 px-2.5 py-1 text-xs font-medium text-high hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
               href={`/projects/${issue.project_id}/issues/${issue.id}?tab=artifacts`}
             >
               Mở card ↗
@@ -220,68 +295,14 @@ function IssueArtifactCard({
             type="button"
             disabled={busy !== null}
             onClick={() => onRemove(issueId, label)}
-            className="px-half py-half text-low hover:text-error disabled:opacity-50"
+            className="px-half py-half text-xs text-low hover:text-error disabled:opacity-50"
           >
             {busy === issueId ? 'Deleting…' : 'Xóa card artifacts'}
           </button>
         </div>
       </header>
 
-      {executions.length > 1 ? (
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-border/60 pb-base">
-          {executions.map(([execId, execFiles], idx) => {
-            const isSelected = activeExec === execId;
-            return (
-              <button
-                key={execId}
-                type="button"
-                aria-pressed={isSelected}
-                onClick={() => setSelectedExec(execId)}
-                title={`${execId} · ${latestTime(execFiles)}`}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                  isSelected
-                    ? 'border-brand/60 bg-brand/15 font-medium text-brand'
-                    : 'border-border bg-secondary/50 text-low hover:text-high'
-                }`}
-              >
-                {idx === 0 && (
-                  <span
-                    className="size-1.5 rounded-full bg-success"
-                    aria-hidden
-                  />
-                )}
-                <span>
-                  {idx === 0 ? 'Mới nhất · ' : ''}
-                  {execId.slice(0, 8)} ({execFiles.length}{' '}
-                  {execFiles.length === 1 ? 'file' : 'files'})
-                </span>
-              </button>
-            );
-          })}
-          <button
-            type="button"
-            aria-pressed={activeExec === 'all'}
-            onClick={() => setSelectedExec('all')}
-            className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
-              activeExec === 'all'
-                ? 'border-brand/60 bg-brand/15 font-medium text-brand'
-                : 'border-border bg-secondary/50 text-low hover:text-high'
-            }`}
-          >
-            Tất cả ({files.length})
-          </button>
-        </div>
-      ) : (
-        executions[0] && (
-          <p className="text-xs text-low" title={executions[0][0]}>
-            Execution {executions[0][0].slice(0, 8)} · {executions[0][1].length}{' '}
-            {executions[0][1].length === 1 ? 'file' : 'files'} ·{' '}
-            {latestTime(executions[0][1])}
-          </p>
-        )
-      )}
-
-      <ExecutionFiles view={view} label={label}>
+      <ExecutionFiles view={view} label={label} headerLeft={executionHeader}>
         {visibleFiles.map((file) => {
           const kind = previewKind(file);
           return (
@@ -289,8 +310,8 @@ function IssueArtifactCard({
               key={file.path}
               className={
                 view === 'list'
-                  ? 'flex items-center justify-between gap-base py-2'
-                  : 'min-w-0'
+                  ? 'flex items-center justify-between gap-base px-base py-2.5 transition-colors hover:bg-secondary/30 sm:px-double'
+                  : 'flex min-w-0 flex-col overflow-hidden rounded-lg border border-border/70 bg-primary/50 transition-colors hover:border-border'
               }
             >
               <button
@@ -306,7 +327,7 @@ function IssueArtifactCard({
                 }
               >
                 <span
-                  className={`flex shrink-0 items-center justify-center overflow-hidden rounded bg-secondary text-low ${view === 'list' ? 'h-12 w-16' : 'h-36 w-full sm:h-44'}`}
+                  className={`flex shrink-0 items-center justify-center overflow-hidden bg-secondary text-low ${view === 'list' ? 'h-10 w-14 rounded' : 'h-32 w-full border-b border-border/50 sm:h-36'}`}
                 >
                   {kind === 'image' ? (
                     <img
@@ -332,11 +353,22 @@ function IssueArtifactCard({
                     </span>
                   )}
                 </span>
-                <span className="block min-w-0 py-half">
-                  <span className="block break-all font-medium text-high">
+                <span
+                  className={
+                    view === 'list' ? 'block min-w-0' : 'block min-w-0 px-2.5 pt-2'
+                  }
+                >
+                  <span
+                    title={file.name}
+                    className={
+                      view === 'list'
+                        ? 'block truncate text-sm font-medium text-high'
+                        : 'block truncate text-xs font-semibold text-high'
+                    }
+                  >
                     {file.name}
                   </span>
-                  <span className="block text-xs text-low">
+                  <span className="block truncate text-xs text-low">
                     {kind.toUpperCase()} · {size(file.size)}
                     {file.execution_id
                       ? ` · ${file.execution_id.slice(0, 8)}`
@@ -344,17 +376,28 @@ function IssueArtifactCard({
                   </span>
                 </span>
               </button>
-              <div className="flex shrink-0 items-center gap-base">
+              <div
+                className={
+                  view === 'list'
+                    ? 'flex shrink-0 items-center gap-2'
+                    : 'flex shrink-0 items-center justify-between gap-base px-2.5 pb-2.5 pt-1'
+                }
+              >
                 {view === 'list' && (
-                  <button
-                    type="button"
-                    onClick={(event) =>
-                      onOpenFile(issueId, file, event.currentTarget)
-                    }
-                    className="rounded border border-border px-2 py-0.5 text-xs text-normal hover:bg-secondary hover:text-high"
-                  >
-                    Xem
-                  </button>
+                  <>
+                    <span className="hidden rounded bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-low sm:inline-block">
+                      {kind.toUpperCase()}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(event) =>
+                        onOpenFile(issueId, file, event.currentTarget)
+                      }
+                      className="rounded border border-border bg-secondary/60 px-2 py-0.5 text-xs text-normal hover:bg-secondary hover:text-high"
+                    >
+                      Xem
+                    </button>
+                  </>
                 )}
                 <a
                   href={fileUrl(issueId, file.path)}
@@ -471,14 +514,14 @@ export function ArtifactsDashboard() {
               {size(total)}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-base">
+          <div className="flex flex-wrap items-center gap-2.5">
             {(projects.data?.length ?? 0) > 1 && (
-              <label className="flex items-center gap-half text-sm">
-                Project{' '}
+              <label className="flex items-center gap-1.5 rounded-md border border-border bg-panel px-2.5 py-1 text-xs text-low">
+                <span>Project:</span>
                 <select
                   value={selectedProjectId}
                   onChange={(event) => setSelectedProjectId(event.target.value)}
-                  className="rounded border border-border bg-secondary p-half text-high"
+                  className="bg-transparent font-medium text-high focus:outline-none"
                 >
                   <option value="all">Tất cả</option>
                   {(projects.data ?? []).map((p) => (
@@ -492,33 +535,33 @@ export function ArtifactsDashboard() {
             <div
               role="group"
               aria-label="Kiểu hiển thị"
-              className="flex gap-half"
+              className="inline-flex rounded-md border border-border bg-panel p-0.5"
             >
-            {(['grid', 'list'] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                aria-pressed={view === mode}
-                onClick={() => setView(mode)}
-                className={`rounded px-base py-half focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand ${view === mode ? 'bg-brand text-white' : 'bg-secondary text-normal'}`}
+              {(['grid', 'list'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  aria-pressed={view === mode}
+                  onClick={() => setView(mode)}
+                  className={`rounded px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand ${view === mode ? 'bg-brand font-semibold text-white' : 'text-low hover:text-high'}`}
+                >
+                  {mode === 'grid' ? 'Grid' : 'List'}
+                </button>
+              ))}
+            </div>
+            <label className="flex items-center gap-1.5 rounded-md border border-border bg-panel px-2.5 py-1 text-xs text-low">
+              <span>Sort by:</span>
+              <select
+                value={sort}
+                onChange={(event) =>
+                  setSort(event.target.value as 'date' | 'size')
+                }
+                className="bg-transparent font-medium text-high focus:outline-none"
               >
-                {mode === 'grid' ? 'Grid' : 'List'}
-              </button>
-            ))}
-          </div>
-          <label className="flex items-center gap-half">
-            Sort by{' '}
-            <select
-              value={sort}
-              onChange={(event) =>
-                setSort(event.target.value as 'date' | 'size')
-              }
-              className="rounded border bg-secondary p-half"
-            >
-              <option value="date">Newest</option>
-              <option value="size">Size</option>
-            </select>
-          </label>
+                <option value="date">Newest</option>
+                <option value="size">Size</option>
+              </select>
+            </label>
           </div>
         </header>
         {isLoading && <p>Loading artifacts…</p>}
