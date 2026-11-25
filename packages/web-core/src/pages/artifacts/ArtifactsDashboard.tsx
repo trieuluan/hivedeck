@@ -142,12 +142,244 @@ function ExecutionFiles({
   );
 }
 
+function IssueArtifactCard({
+  issueId,
+  files,
+  issue,
+  projectName,
+  label,
+  view,
+  busy,
+  onRemove,
+  onOpenFile,
+}: {
+  issueId: string;
+  files: ArtifactFile[];
+  issue: Issue | undefined;
+  projectName?: string;
+  label: string;
+  view: 'grid' | 'list';
+  busy: string | null;
+  onRemove: (issueId: string, label: string) => void;
+  onOpenFile: (
+    issueId: string,
+    file: Artifact,
+    trigger: HTMLElement
+  ) => void;
+}) {
+  const executions = Array.from(executionGroups(files));
+  const [selectedExec, setSelectedExec] = useState<string>(
+    () => executions[0]?.[0] ?? 'all'
+  );
+
+  const activeExec =
+    selectedExec === 'all' || executions.some(([id]) => id === selectedExec)
+      ? selectedExec
+      : (executions[0]?.[0] ?? 'all');
+
+  const visibleFiles =
+    activeExec === 'all'
+      ? files
+      : (executions.find(([id]) => id === activeExec)?.[1] ?? files);
+
+  const latestTime = (list: ArtifactFile[]) =>
+    new Date(
+      list.reduce(
+        (latest, f) =>
+          Date.parse(f.created_at) > Date.parse(latest) ? f.created_at : latest,
+        list[0].created_at
+      )
+    ).toLocaleString();
+
+  return (
+    <article className="space-y-base rounded-lg border border-border/70 bg-panel p-base sm:p-double">
+      <header className="flex flex-wrap items-start justify-between gap-base">
+        <div className="min-w-0">
+          <p className="font-semibold text-brand">
+            {issue?.simple_id ?? 'Orphan'}
+            {projectName && (
+              <span className="ml-1.5 font-normal text-low">
+                · {projectName}
+              </span>
+            )}
+          </p>
+          <h2 className="break-words text-lg font-semibold text-high">
+            {issue?.title ?? label}
+          </h2>
+        </div>
+        <div className="flex items-center gap-base">
+          {issue && (
+            <a
+              className="rounded border border-border px-base py-half text-high hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+              href={`/projects/${issue.project_id}/issues/${issue.id}?tab=artifacts`}
+            >
+              Mở card ↗
+            </a>
+          )}
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => onRemove(issueId, label)}
+            className="px-half py-half text-low hover:text-error disabled:opacity-50"
+          >
+            {busy === issueId ? 'Deleting…' : 'Xóa card artifacts'}
+          </button>
+        </div>
+      </header>
+
+      {executions.length > 1 ? (
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-border/60 pb-base">
+          {executions.map(([execId, execFiles], idx) => {
+            const isSelected = activeExec === execId;
+            return (
+              <button
+                key={execId}
+                type="button"
+                aria-pressed={isSelected}
+                onClick={() => setSelectedExec(execId)}
+                title={`${execId} · ${latestTime(execFiles)}`}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                  isSelected
+                    ? 'border-brand/60 bg-brand/15 font-medium text-brand'
+                    : 'border-border bg-secondary/50 text-low hover:text-high'
+                }`}
+              >
+                {idx === 0 && (
+                  <span
+                    className="size-1.5 rounded-full bg-success"
+                    aria-hidden
+                  />
+                )}
+                <span>
+                  {idx === 0 ? 'Mới nhất · ' : ''}
+                  {execId.slice(0, 8)} ({execFiles.length}{' '}
+                  {execFiles.length === 1 ? 'file' : 'files'})
+                </span>
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            aria-pressed={activeExec === 'all'}
+            onClick={() => setSelectedExec('all')}
+            className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+              activeExec === 'all'
+                ? 'border-brand/60 bg-brand/15 font-medium text-brand'
+                : 'border-border bg-secondary/50 text-low hover:text-high'
+            }`}
+          >
+            Tất cả ({files.length})
+          </button>
+        </div>
+      ) : (
+        executions[0] && (
+          <p className="text-xs text-low" title={executions[0][0]}>
+            Execution {executions[0][0].slice(0, 8)} · {executions[0][1].length}{' '}
+            {executions[0][1].length === 1 ? 'file' : 'files'} ·{' '}
+            {latestTime(executions[0][1])}
+          </p>
+        )
+      )}
+
+      <ExecutionFiles view={view} label={label}>
+        {visibleFiles.map((file) => {
+          const kind = previewKind(file);
+          return (
+            <div
+              key={file.path}
+              className={
+                view === 'list'
+                  ? 'flex items-center justify-between gap-base py-2'
+                  : 'min-w-0'
+              }
+            >
+              <button
+                type="button"
+                aria-label={`Open ${file.name}`}
+                onClick={(event) =>
+                  onOpenFile(issueId, file, event.currentTarget)
+                }
+                className={
+                  view === 'list'
+                    ? 'flex min-w-0 flex-1 items-center gap-base text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand'
+                    : 'block w-full min-w-0 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand'
+                }
+              >
+                <span
+                  className={`flex shrink-0 items-center justify-center overflow-hidden rounded bg-secondary text-low ${view === 'list' ? 'h-12 w-16' : 'h-36 w-full sm:h-44'}`}
+                >
+                  {kind === 'image' ? (
+                    <img
+                      src={fileUrl(issueId, file.path)}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span
+                      className={
+                        view === 'list'
+                          ? 'text-xs font-semibold'
+                          : 'text-lg font-semibold'
+                      }
+                    >
+                      {kind === 'markdown'
+                        ? 'MD'
+                        : kind === 'html'
+                          ? 'HTML'
+                          : kind === 'video'
+                            ? 'VIDEO'
+                            : 'FILE'}
+                    </span>
+                  )}
+                </span>
+                <span className="block min-w-0 py-half">
+                  <span className="block break-all font-medium text-high">
+                    {file.name}
+                  </span>
+                  <span className="block text-xs text-low">
+                    {kind.toUpperCase()} · {size(file.size)}
+                    {file.execution_id
+                      ? ` · ${file.execution_id.slice(0, 8)}`
+                      : ''}
+                  </span>
+                </span>
+              </button>
+              <div className="flex shrink-0 items-center gap-base">
+                {view === 'list' && (
+                  <button
+                    type="button"
+                    onClick={(event) =>
+                      onOpenFile(issueId, file, event.currentTarget)
+                    }
+                    className="rounded border border-border px-2 py-0.5 text-xs text-normal hover:bg-secondary hover:text-high"
+                  >
+                    Xem
+                  </button>
+                )}
+                <a
+                  href={fileUrl(issueId, file.path)}
+                  download={file.name}
+                  aria-label={`Download ${file.name}`}
+                  className="text-xs text-low hover:text-high"
+                >
+                  Tải xuống
+                </a>
+              </div>
+            </div>
+          );
+        })}
+      </ExecutionFiles>
+    </article>
+  );
+}
+
 export function ArtifactsDashboard() {
   const { data: artifacts, isLoading, error } = useArtifacts();
   const projects = useProjects();
   const client = useQueryClient();
   const [sort, setSort] = useState<'date' | 'size'>('date');
   const [view, setView] = useState<'grid' | 'list'>('grid');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
   const [busy, setBusy] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState('');
   const [selection, setSelection] = useState<{
@@ -183,11 +415,24 @@ export function ArtifactsDashboard() {
     projects.isLoading || issueQueries.some((query) => query.isLoading);
   const metadataError =
     projects.isError || issueQueries.some((query) => query.isError);
+  const projectNames = new Map(
+    (projects.data ?? []).map((p) => [p.id, p.name])
+  );
   const groups = artifactGroups(
     (artifacts ?? {}) as Record<string, ArtifactFile[]>,
     sort
   );
-  const total = groups.reduce((sum, group) => sum + group.total, 0);
+  const filteredGroups =
+    selectedProjectId === 'all'
+      ? groups
+      : groups.filter(
+          (g) => issues.get(g.issueId)?.project_id === selectedProjectId
+        );
+  const total = filteredGroups.reduce((sum, group) => sum + group.total, 0);
+  const totalFiles = filteredGroups.reduce(
+    (sum, group) => sum + group.files.length,
+    0
+  );
 
   async function remove(issueId: string, label: string) {
     const confirmed = await ConfirmDialog.show({
@@ -222,14 +467,33 @@ export function ArtifactsDashboard() {
           <div>
             <h1 className="text-xl font-semibold text-high">Artifacts</h1>
             <p className="text-low">
-              File từ các card và lần chạy · {size(total)}
+              {filteredGroups.length} card · {totalFiles} file từ các lần chạy ·{' '}
+              {size(total)}
             </p>
           </div>
-          <div
-            role="group"
-            aria-label="Kiểu hiển thị"
-            className="flex gap-half"
-          >
+          <div className="flex flex-wrap items-center gap-base">
+            {(projects.data?.length ?? 0) > 1 && (
+              <label className="flex items-center gap-half text-sm">
+                Project{' '}
+                <select
+                  value={selectedProjectId}
+                  onChange={(event) => setSelectedProjectId(event.target.value)}
+                  className="rounded border border-border bg-secondary p-half text-high"
+                >
+                  <option value="all">Tất cả</option>
+                  {(projects.data ?? []).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <div
+              role="group"
+              aria-label="Kiểu hiển thị"
+              className="flex gap-half"
+            >
             {(['grid', 'list'] as const).map((mode) => (
               <button
                 key={mode}
@@ -255,6 +519,7 @@ export function ArtifactsDashboard() {
               <option value="size">Size</option>
             </select>
           </label>
+          </div>
         </header>
         {isLoading && <p>Loading artifacts…</p>}
         {error && (
@@ -272,140 +537,35 @@ export function ArtifactsDashboard() {
             {deleteError}
           </p>
         )}
-        {!isLoading && !error && groups.length === 0 && (
+        {!isLoading && !error && filteredGroups.length === 0 && (
           <p className="text-low">No artifacts yet.</p>
         )}
         <ul className="space-y-base">
-          {groups.map((group) => {
+          {filteredGroups.map((group) => {
             const issue = issues.get(group.issueId);
             const label = issue
               ? `${issue.simple_id} ${issue.title}`
               : metadataLoading || metadataError
                 ? group.issueId
                 : `Orphan · ${group.issueId}`;
-            const executions = executionGroups(group.files);
             return (
               <li key={group.issueId}>
-                <div className="space-y-base">
-                  {Array.from(executions, ([execution, files]) => (
-                    <article
-                      key={execution}
-                      className="space-y-base rounded-lg bg-panel p-base sm:p-double"
-                    >
-                      <header className="flex flex-wrap items-start justify-between gap-base">
-                        <div className="min-w-0">
-                          <p className="font-semibold text-brand">
-                            {issue?.simple_id ?? 'Orphan'}
-                          </p>
-                          <h2 className="break-words text-lg font-semibold text-high">
-                            {issue?.title ?? label}
-                          </h2>
-                          <p className="text-low" title={execution}>
-                            Execution {execution.slice(0, 8)} · {files.length}{' '}
-                            {files.length === 1 ? 'file' : 'files'} ·{' '}
-                            {new Date(
-                              files.reduce(
-                                (latest, file) =>
-                                  Date.parse(file.created_at) >
-                                  Date.parse(latest)
-                                    ? file.created_at
-                                    : latest,
-                                files[0].created_at
-                              )
-                            ).toLocaleString()}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-base">
-                          {issue && (
-                            <a
-                              className="rounded border border-border px-base py-half text-high hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
-                              href={`/projects/${issue.project_id}/issues/${issue.id}?tab=artifacts`}
-                            >
-                              Mở card ↗
-                            </a>
-                          )}
-                          <button
-                            type="button"
-                            disabled={busy !== null}
-                            onClick={() => void remove(group.issueId, label)}
-                            className="px-half py-half text-low hover:text-error disabled:opacity-50"
-                          >
-                            {busy === group.issueId
-                              ? 'Deleting…'
-                              : 'Xóa card artifacts'}
-                          </button>
-                        </div>
-                      </header>
-                      <ExecutionFiles view={view} label={label}>
-                        {files.map((file) => {
-                          const kind = previewKind(file);
-                          return (
-                            <div
-                              key={file.path}
-                              className={
-                                view === 'list'
-                                  ? 'flex items-center gap-base py-half'
-                                  : 'min-w-0'
-                              }
-                            >
-                              <button
-                                type="button"
-                                aria-label={`Open ${file.name}`}
-                                onClick={(event) => (
-                                  (returnFocus.current = event.currentTarget),
-                                  setSelection({ issueId: group.issueId, file })
-                                )}
-                                className={
-                                  view === 'list'
-                                    ? 'flex min-w-0 flex-1 items-center gap-base text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand'
-                                    : 'block w-full min-w-0 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand'
-                                }
-                              >
-                                <span
-                                  className={`flex shrink-0 items-center justify-center overflow-hidden rounded bg-secondary text-low ${view === 'list' ? 'h-14 w-20' : 'h-36 w-full sm:h-44'}`}
-                                >
-                                  {kind === 'image' ? (
-                                    <img
-                                      src={fileUrl(group.issueId, file.path)}
-                                      alt=""
-                                      className="h-full w-full object-cover"
-                                    />
-                                  ) : (
-                                    <span className="text-lg font-semibold">
-                                      {kind === 'markdown'
-                                        ? 'MD'
-                                        : kind === 'html'
-                                          ? 'HTML'
-                                          : kind === 'video'
-                                            ? 'VIDEO'
-                                            : 'FILE'}
-                                    </span>
-                                  )}
-                                </span>
-                                <span className="block min-w-0 py-half">
-                                  <span className="block break-all font-medium text-high">
-                                    {file.name}
-                                  </span>
-                                  <span className="block text-low">
-                                    {kind.toUpperCase()} · {size(file.size)}
-                                  </span>
-                                </span>
-                              </button>
-                              <a
-                                href={fileUrl(group.issueId, file.path)}
-                                download={file.name}
-                                aria-label={`Download ${file.name}`}
-                                className="text-low hover:text-high"
-                              >
-                                Tải xuống
-                              </a>
-                            </div>
-                          );
-                        })}
-                      </ExecutionFiles>
-                    </article>
-                  ))}
-                </div>
+                <IssueArtifactCard
+                  issueId={group.issueId}
+                  files={group.files}
+                  issue={issue}
+                  projectName={
+                    issue ? projectNames.get(issue.project_id) : undefined
+                  }
+                  label={label}
+                  view={view}
+                  busy={busy}
+                  onRemove={(id, lbl) => void remove(id, lbl)}
+                  onOpenFile={(id, file, trigger) => {
+                    returnFocus.current = trigger;
+                    setSelection({ issueId: id, file });
+                  }}
+                />
               </li>
             );
           })}
