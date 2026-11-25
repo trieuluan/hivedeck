@@ -65,7 +65,7 @@ function ExecutionFiles({
   }, [view, expanded, fileCount]);
 
   if (view === 'list')
-    return <div className="max-w-3xl divide-y divide-border">{children}</div>;
+    return <div className="divide-y divide-border">{children}</div>;
 
   const scroll = (direction: number) => {
     const element = rail.current;
