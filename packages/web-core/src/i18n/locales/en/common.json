@@ -1,4 +1,12 @@
 {
+  "artifactRail": {
+    "files": "Files",
+    "swipe": "Swipe horizontally",
+    "showAll": "Show all",
+    "collapse": "Collapse",
+    "previous": "Scroll to previous files",
+    "next": "Scroll to next files"
+  },
   "editorNames": {
     "custom": "Custom"
   },

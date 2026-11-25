@@ -1,4 +1,12 @@
 {
+  "artifactRail": {
+    "files": "Files",
+    "swipe": "Vuốt ngang",
+    "showAll": "Xem tất cả",
+    "collapse": "Thu gọn",
+    "previous": "Cuộn về trước",
+    "next": "Cuộn tiếp"
+  },
   "editorNames": {
     "custom": "Tuỳ chỉnh"
   },

@@ -1,5 +1,14 @@
-import { useCallback, useRef, useState } from 'react';
+import {
+  Children,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
+import { CaretLeft, CaretRight } from '@phosphor-icons/react';
 import type { Issue } from 'shared/remote-types';
 import { useProjects } from '@/shared/hooks/useProjects';
 import { makeRequest } from '@/shared/lib/remoteApi';
@@ -13,6 +22,125 @@ import {
 } from '@/pages/kanban/IssueArtifacts';
 import { ConfirmDialog } from '@vibe/ui/components/ConfirmDialog';
 import { artifactGroups, executionGroups, type ArtifactFile } from './groups';
+
+function ExecutionFiles({
+  children,
+  view,
+  label,
+}: {
+  children: ReactNode;
+  view: 'grid' | 'list';
+  label: string;
+}) {
+  const { t } = useTranslation('common');
+  const rail = useRef<HTMLDivElement>(null);
+  const savedPosition = useRef(0);
+  const fileCount = Children.count(children);
+  const [expanded, setExpanded] = useState(false);
+  const [edges, setEdges] = useState({
+    overflow: false,
+    start: true,
+    end: true,
+  });
+
+  useLayoutEffect(() => {
+    const element = rail.current;
+    if (!element || view !== 'grid' || expanded) return;
+    element.scrollLeft = savedPosition.current;
+    const update = () =>
+      setEdges({
+        overflow: element.scrollWidth > element.clientWidth + 1,
+        start: element.scrollLeft <= 1,
+        end:
+          element.scrollLeft + element.clientWidth >= element.scrollWidth - 1,
+      });
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    element.addEventListener('scroll', update);
+    return () => {
+      observer.disconnect();
+      element.removeEventListener('scroll', update);
+    };
+  }, [view, expanded, fileCount]);
+
+  if (view === 'list')
+    return <div className="max-w-3xl divide-y divide-border">{children}</div>;
+
+  const scroll = (direction: number) => {
+    const element = rail.current;
+    if (!element) return;
+    element.scrollBy({
+      left: direction * element.clientWidth,
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ? 'instant'
+        : 'smooth',
+    });
+  };
+
+  return (
+    <div className="min-w-0 space-y-base">
+      <div className="flex items-center justify-between gap-base">
+        <span className="font-semibold">
+          {t('artifactRail.files')}
+          {edges.overflow && !expanded && (
+            <span className="sm:hidden"> · {t('artifactRail.swipe')}</span>
+          )}
+        </span>
+        {(edges.overflow || expanded) && (
+          <div className="flex items-center gap-half">
+            <button
+              type="button"
+              aria-expanded={expanded}
+              onClick={() => {
+                if (!expanded)
+                  savedPosition.current = rail.current?.scrollLeft ?? 0;
+                setExpanded(!expanded);
+              }}
+              className="rounded px-half py-half text-low hover:text-high focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+            >
+              {t(expanded ? 'artifactRail.collapse' : 'artifactRail.showAll')}
+            </button>
+            {!expanded && (
+              <div className="hidden gap-half sm:flex">
+                <button
+                  type="button"
+                  aria-label={t('artifactRail.previous')}
+                  disabled={edges.start}
+                  onClick={() => scroll(-1)}
+                  className="rounded border border-border p-half text-high disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                >
+                  <CaretLeft />
+                </button>
+                <button
+                  type="button"
+                  aria-label={t('artifactRail.next')}
+                  disabled={edges.end}
+                  onClick={() => scroll(1)}
+                  className="rounded border border-border p-half text-high disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand"
+                >
+                  <CaretRight />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      <div
+        ref={rail}
+        aria-label={`${t('artifactRail.files')} · ${label}`}
+        tabIndex={expanded ? undefined : 0}
+        className={
+          expanded
+            ? 'grid grid-cols-2 gap-base md:grid-cols-4'
+            : 'grid auto-cols-[69%] grid-flow-col snap-x snap-mandatory gap-base overflow-x-auto sm:auto-cols-[calc((100%-2.25rem)/4)] [&>div]:snap-start'
+        }
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export function ArtifactsDashboard() {
   const { data: artifacts, isLoading, error } = useArtifacts();
@@ -208,13 +336,7 @@ export function ArtifactsDashboard() {
                           </button>
                         </div>
                       </header>
-                      <div
-                        className={
-                          view === 'grid'
-                            ? 'grid grid-cols-2 gap-base md:grid-cols-3'
-                            : 'max-w-3xl divide-y divide-border'
-                        }
-                      >
+                      <ExecutionFiles view={view} label={label}>
                         {files.map((file) => {
                           const kind = previewKind(file);
                           return (
@@ -280,7 +402,7 @@ export function ArtifactsDashboard() {
                             </div>
                           );
                         })}
-                      </div>
+                      </ExecutionFiles>
                     </article>
                   ))}
                 </div>
