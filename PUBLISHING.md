@@ -98,8 +98,8 @@ Publisher → GitHub Actions**, enter:
 
 | Field            | Value                     |
 | ---------------- | ------------------------- |
-| Organization/user| `dexloom`                 |
-| Repository       | `hivedeck`       |
+| Organization/user| `trieuluan`               |
+| Repository       | `hivedeck`                |
 | Workflow filename| `release-indie.yml`       |
 | Environment      | *(leave blank)*           |
 
