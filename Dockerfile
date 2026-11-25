@@ -12,6 +12,7 @@ RUN corepack enable
 RUN pnpm config set store-dir /pnpm/store
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY patches/ patches/
 COPY packages/local-web/package.json packages/local-web/package.json
 COPY packages/ui/package.json packages/ui/package.json
 COPY packages/web-core/package.json packages/web-core/package.json
@@ -50,6 +51,7 @@ RUN cargo --version >/dev/null
 
 COPY Cargo.toml Cargo.lock ./
 COPY crates/api-types/Cargo.toml crates/api-types/Cargo.toml
+COPY crates/client-info/Cargo.toml crates/client-info/Cargo.toml
 COPY crates/db/Cargo.toml crates/db/Cargo.toml
 COPY crates/deployment/Cargo.toml crates/deployment/Cargo.toml
 COPY crates/executors/Cargo.toml crates/executors/Cargo.toml
@@ -57,16 +59,20 @@ COPY crates/git/Cargo.toml crates/git/Cargo.toml
 COPY crates/git-host/Cargo.toml crates/git-host/Cargo.toml
 COPY crates/local-deployment/Cargo.toml crates/local-deployment/Cargo.toml
 COPY crates/mcp/Cargo.toml crates/mcp/Cargo.toml
+COPY crates/preview-proxy/Cargo.toml crates/preview-proxy/Cargo.toml
 COPY crates/review/Cargo.toml crates/review/Cargo.toml
 COPY crates/server/Cargo.toml crates/server/Cargo.toml
 COPY crates/server-info/Cargo.toml crates/server-info/Cargo.toml
 COPY crates/services/Cargo.toml crates/services/Cargo.toml
 COPY crates/tauri-app/Cargo.toml crates/tauri-app/Cargo.toml
+COPY crates/telegram-bridge/Cargo.toml crates/telegram-bridge/Cargo.toml
+COPY crates/tui/Cargo.toml crates/tui/Cargo.toml
 COPY crates/utils/Cargo.toml crates/utils/Cargo.toml
 COPY crates/workspace-manager/Cargo.toml crates/workspace-manager/Cargo.toml
 COPY crates/worktree-manager/Cargo.toml crates/worktree-manager/Cargo.toml
 
 COPY crates/api-types/ crates/api-types/
+COPY crates/client-info/ crates/client-info/
 COPY crates/db/ crates/db/
 COPY crates/deployment/ crates/deployment/
 COPY crates/executors/ crates/executors/
@@ -74,10 +80,13 @@ COPY crates/git/ crates/git/
 COPY crates/git-host/ crates/git-host/
 COPY crates/local-deployment/ crates/local-deployment/
 COPY crates/mcp/ crates/mcp/
+COPY crates/preview-proxy/ crates/preview-proxy/
 COPY crates/review/ crates/review/
 COPY crates/server/ crates/server/
 COPY crates/server-info/ crates/server-info/
 COPY crates/services/ crates/services/
+COPY crates/telegram-bridge/ crates/telegram-bridge/
+COPY crates/tui/ crates/tui/
 COPY crates/utils/ crates/utils/
 COPY crates/workspace-manager/ crates/workspace-manager/
 COPY crates/worktree-manager/ crates/worktree-manager/
