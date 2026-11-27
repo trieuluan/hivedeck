@@ -1,19 +1,232 @@
-import { useMemo, useEffect, useState, useCallback } from 'react';
+import { useMemo, useEffect, useState, useCallback, useRef } from 'react';
 import Form from '@rjsf/core';
 import type { IChangeEvent } from '@rjsf/core';
-import { RJSFValidationError, type ObjectFieldTemplateProps } from '@rjsf/utils';
+import {
+  RJSFValidationError,
+  type ObjectFieldTemplateProps,
+  type WidgetProps,
+} from '@rjsf/utils';
 import validator from '@rjsf/validator-ajv8';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
 import {
   ArrowSquareOutIcon,
+  ArrowsClockwiseIcon,
   CaretDownIcon,
   CaretUpIcon,
+  SpinnerIcon,
 } from '@phosphor-icons/react';
 import { BaseCodingAgent } from 'shared/types';
 import { useAppNavigation } from '@/shared/hooks/useAppNavigation';
+import { useExecutorDiscovery } from '@/shared/hooks/useExecutorDiscovery';
 import { useHiveRouterRouting } from '@/shared/lib/hiveRouterRouting';
+import { nineRouterApi } from '@/shared/lib/api';
+import { getAgentName } from '@/shared/components/AgentIcon';
+import { cn } from '@/shared/lib/utils';
 import { settingsRjsfTheme } from './rjsf/theme';
 import { SettingsSaveBar } from './SettingsComponents';
+
+interface ModelOptionItem {
+  id: string;
+  badge?: string;
+  group: 'combos' | 'models' | 'direct';
+}
+
+interface ModelComboboxContext {
+  modelOptions?: ModelOptionItem[];
+  isRouted?: boolean;
+  loadingModels?: boolean;
+  onRefreshModels?: () => void;
+  agentLabel?: string;
+}
+
+function ModelComboboxWidget(props: WidgetProps) {
+  const {
+    id,
+    value,
+    disabled,
+    readonly,
+    onChange,
+    onBlur,
+    placeholder,
+    options,
+    formContext,
+  } = props;
+  const ctx = (formContext ?? {}) as ModelComboboxContext;
+  const items = useMemo(() => ctx.modelOptions ?? [], [ctx.modelOptions]);
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const query = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  const filtered = useMemo(() => {
+    if (!query) return items;
+    return items.filter(
+      (item) =>
+        item.id.toLowerCase().includes(query) ||
+        (item.badge && item.badge.toLowerCase().includes(query))
+    );
+  }, [items, query]);
+
+  const combos = useMemo(
+    () => filtered.filter((i) => i.group === 'combos'),
+    [filtered]
+  );
+  const models = useMemo(
+    () => filtered.filter((i) => i.group !== 'combos'),
+    [filtered]
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [open]);
+
+  const selectValue = (next: string) => {
+    onChange(next === '' ? options.emptyValue : next);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className="flex items-center gap-1.5">
+        <input
+          id={id}
+          type="text"
+          value={value ?? ''}
+          placeholder={placeholder || 'Để trống = mặc định của CLI'}
+          disabled={disabled || readonly}
+          autoComplete="off"
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            const v = e.target.value;
+            onChange(v === '' ? options.emptyValue : v);
+            setOpen(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setOpen(false);
+            }
+          }}
+          onBlur={(e) => onBlur?.(id, e.target.value)}
+          className={cn(
+            'w-full rounded-sm border border-border bg-secondary px-base py-half text-base text-high',
+            'placeholder:text-low focus:border-brand focus:outline-none',
+            'disabled:cursor-not-allowed disabled:opacity-50'
+          )}
+        />
+        {ctx.onRefreshModels && (
+          <button
+            type="button"
+            onClick={ctx.onRefreshModels}
+            disabled={disabled || readonly || ctx.loadingModels}
+            title="Làm mới danh sách model"
+            className="shrink-0 rounded-sm border border-border bg-secondary p-1.5 text-low hover:text-high disabled:opacity-50"
+          >
+            {ctx.loadingModels ? (
+              <SpinnerIcon className="size-3.5 animate-spin" />
+            ) : (
+              <ArrowsClockwiseIcon className="size-3.5" />
+            )}
+          </button>
+        )}
+      </div>
+
+      {open && !disabled && !readonly && (
+        <div className="absolute left-0 right-0 z-50 mt-1 max-h-64 overflow-auto rounded-sm border border-border bg-panel shadow-lg">
+          {ctx.loadingModels && filtered.length === 0 ? (
+            <div className="flex items-center gap-2 px-3 py-2.5 text-xs text-low">
+              <SpinnerIcon className="size-3.5 animate-spin" />
+              <span>Đang tải danh sách model...</span>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="px-3 py-2.5 text-xs text-low">
+              Không tìm thấy model khớp. Bạn vẫn có thể nhập trực tiếp tên
+              model.
+            </div>
+          ) : (
+            <div className="divide-y divide-border/50">
+              {combos.length > 0 && (
+                <div className="py-1">
+                  <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-low">
+                    HiveRouter Combos
+                  </div>
+                  {combos.map((item) => (
+                    <button
+                      key={`combo-${item.id}`}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        selectValue(item.id);
+                      }}
+                      className={cn(
+                        'flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs hover:bg-secondary/70',
+                        value === item.id && 'bg-brand/10 text-brand'
+                      )}
+                    >
+                      <span className="truncate font-mono font-medium text-high">
+                        {item.id}
+                      </span>
+                      {item.badge && (
+                        <span className="shrink-0 rounded border border-brand/40 bg-brand/15 px-1.5 py-0.5 text-[10px] text-brand">
+                          {item.badge}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {models.length > 0 && (
+                <div className="py-1">
+                  <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-low">
+                    {ctx.isRouted
+                      ? 'HiveRouter Models'
+                      : `${ctx.agentLabel ?? 'CLI'} Models`}
+                  </div>
+                  {models.map((item) => (
+                    <button
+                      key={`model-${item.id}`}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        selectValue(item.id);
+                      }}
+                      className={cn(
+                        'flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-xs hover:bg-secondary/70',
+                        value === item.id && 'bg-brand/10 text-brand'
+                      )}
+                    >
+                      <span className="truncate font-mono text-high">
+                        {item.id}
+                      </span>
+                      {item.badge && (
+                        <span className="shrink-0 truncate text-[11px] text-low">
+                          {item.badge}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <div className="border-t border-border/60 bg-secondary/30 px-3 py-1.5 text-[11px] text-low">
+            Để trống để dùng mặc định, hoặc nhập bất kỳ model ID nào.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const ADVANCED_FIELDS = new Set([
   'claude_code_router',
@@ -137,6 +350,64 @@ export function ExecutorConfigForm({
 
   const hiveRouter = useHiveRouterRouting(executor);
   const appNavigation = useAppNavigation();
+  const [discoveryNonce, setDiscoveryNonce] = useState(0);
+  const discovery = useExecutorDiscovery(
+    hiveRouter.isRouted ? null : executor,
+    discoveryNonce ? { sessionId: `settings-${discoveryNonce}` } : undefined
+  );
+  const {
+    data: routerSuggestions,
+    isFetching: suggestionsFetching,
+    refetch: refetchSuggestions,
+  } = useQuery({
+    queryKey: ['router', 'suggestions', 'for-model-combobox'],
+    queryFn: nineRouterApi.getSuggestions,
+    enabled: hiveRouter.isRouted,
+    staleTime: 30_000,
+  });
+
+  const modelOptions = useMemo<ModelOptionItem[]>(() => {
+    if (hiveRouter.isRouted) {
+      const items: ModelOptionItem[] = [];
+      const seenModels = new Set<string>();
+      for (const c of hiveRouter.combos) {
+        items.push({ id: c, badge: 'Role Combo', group: 'combos' });
+      }
+      for (const role of routerSuggestions?.roles ?? []) {
+        for (const id of role.existing_models ?? []) {
+          if (!seenModels.has(id)) {
+            seenModels.add(id);
+            items.push({ id, group: 'models' });
+          }
+        }
+        for (const m of role.models ?? []) {
+          if (!seenModels.has(m.id)) {
+            seenModels.add(m.id);
+            items.push({ id: m.id, badge: m.provider, group: 'models' });
+          }
+        }
+      }
+      return items;
+    }
+    return (discovery.options?.model_selector.models ?? []).map((m) => ({
+      id: m.id,
+      badge: m.name && m.name !== m.id ? m.name : undefined,
+      group: 'direct',
+    }));
+  }, [
+    hiveRouter.isRouted,
+    hiveRouter.combos,
+    routerSuggestions,
+    discovery.options?.model_selector.models,
+  ]);
+
+  const customWidgets = useMemo(
+    () => ({
+      ...settingsRjsfTheme.widgets,
+      ModelComboboxWidget,
+    }),
+    []
+  );
 
   const customTemplates = useMemo(
     () => ({
@@ -175,13 +446,18 @@ export function ExecutorConfigForm({
         'ui:field': 'KeyValueField',
       },
     };
+    if ('model' in props) {
+      ui.model = hiveRouter.isRouted
+        ? {
+            'ui:widget': 'ModelComboboxWidget',
+            'ui:placeholder': `Mặc định · Theo HiveRouter (${hiveRouter.defaultCoderCombo})`,
+            'ui:help': `Để trống = tự dùng combo ${hiveRouter.defaultCoderCombo} (task) / ${hiveRouter.defaultPlannerCombo} (Thuyền trưởng). Nhập tên combo hoặc model ID để ghi đè.`,
+          }
+        : {
+            'ui:widget': 'ModelComboboxWidget',
+          };
+    }
     if (hiveRouter.isRouted) {
-      if ('model' in props) {
-        ui.model = {
-          'ui:placeholder': `Mặc định · Theo HiveRouter (${hiveRouter.defaultCoderCombo})`,
-          'ui:help': `Để trống = tự dùng combo ${hiveRouter.defaultCoderCombo} (task) / ${hiveRouter.defaultPlannerCombo} (Thuyền trưởng). Nhập tên combo hoặc model ID để ghi đè.`,
-        };
-      }
       if ('claude_code_router' in props) {
         ui.claude_code_router = {
           'ui:help':
@@ -215,12 +491,29 @@ export function ExecutorConfigForm({
     hiveRouter.defaultPlannerCombo,
   ]);
 
-  // Pass the env update handler via formContext
+  // Pass the env update handler and model combobox options via formContext
   const formContext = useMemo(
     () => ({
       onEnvChange: handleEnvChange,
+      modelOptions,
+      isRouted: hiveRouter.isRouted,
+      loadingModels: hiveRouter.isRouted
+        ? suggestionsFetching
+        : Boolean(discovery.options?.loading_models),
+      onRefreshModels: hiveRouter.isRouted
+        ? () => void refetchSuggestions()
+        : () => setDiscoveryNonce((n) => n + 1),
+      agentLabel: getAgentName(executor),
     }),
-    [handleEnvChange]
+    [
+      handleEnvChange,
+      modelOptions,
+      hiveRouter.isRouted,
+      suggestionsFetching,
+      discovery.options?.loading_models,
+      refetchSuggestions,
+      executor,
+    ]
   );
 
   useEffect(() => {
@@ -361,7 +654,7 @@ export function ExecutorConfigForm({
         disabled={disabled}
         liveValidate
         showErrorList={false}
-        widgets={settingsRjsfTheme.widgets}
+        widgets={customWidgets}
         templates={customTemplates}
         fields={settingsRjsfTheme.fields}
       >

@@ -22,7 +22,7 @@ const defaultOptions: ExecutorDiscoveredOptions = {
   error: null,
 };
 
-function useExecutorDiscovery(
+export function useExecutorDiscovery(
   agent: BaseCodingAgent | null | undefined,
   opts?: { workspaceId?: string; sessionId?: string; repoId?: string }
 ) {

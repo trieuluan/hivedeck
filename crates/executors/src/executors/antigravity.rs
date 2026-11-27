@@ -10,13 +10,17 @@ use workspace_utils::{command_ext::GroupSpawnNoWindowExt, msg_store::MsgStore};
 use crate::{
     command::{CmdOverrides, CommandBuildError, CommandBuilder, apply_overrides},
     env::ExecutionEnv,
+    executor_discovery::ExecutorDiscoveredOptions,
     executors::{
         AppendPrompt, AvailabilityInfo, BaseCodingAgent, ExecutorError, SpawnedChild,
         StandardCodingAgentExecutor,
         claude::{ClaudeLogProcessor, HistoryStrategy},
     },
-    logs::{stderr_processor::normalize_stderr_logs, utils::EntryIndexProvider},
-    model_selector::PermissionPolicy,
+    logs::{
+        stderr_processor::normalize_stderr_logs,
+        utils::{EntryIndexProvider, patch},
+    },
+    model_selector::{ModelInfo, ModelSelectorConfig, PermissionPolicy},
     profile::ExecutorConfig,
 };
 
@@ -43,8 +47,8 @@ impl Antigravity {
         &self,
         env: &ExecutionEnv,
     ) -> Result<CommandBuilder, CommandBuildError> {
-        let mut builder =
-            CommandBuilder::new("agy").params(["-p", "--output-format=stream-json"]);
+        let mut builder = CommandBuilder::new(resolve_agy_binary().to_string_lossy().into_owned())
+            .params(["-p", "--output-format=stream-json"]);
         if self.dangerously_skip_permissions.unwrap_or(false) {
             builder = builder.extend_params(["--dangerously-skip-permissions"]);
         }
@@ -199,4 +203,80 @@ impl StandardCodingAgentExecutor for Antigravity {
         }
         AvailabilityInfo::NotFound
     }
+
+    async fn discover_options(
+        &self,
+        _workdir: Option<&Path>,
+        _repo_path: Option<&Path>,
+    ) -> Result<futures::stream::BoxStream<'static, json_patch::Patch>, ExecutorError> {
+        let models = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            discover_agy_models(),
+        )
+        .await
+        .unwrap_or_default();
+
+        let options = ExecutorDiscoveredOptions {
+            model_selector: ModelSelectorConfig {
+                models,
+                default_model: None,
+                permissions: vec![PermissionPolicy::Auto, PermissionPolicy::Supervised],
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        Ok(Box::pin(futures::stream::once(async move {
+            patch::executor_discovered_options(options)
+        })))
+    }
+}
+
+fn resolve_agy_binary() -> std::path::PathBuf {
+    if let Some(home) = dirs::home_dir() {
+        let local_bin = home.join(".local").join("bin").join(if cfg!(windows) {
+            "agy.exe"
+        } else {
+            "agy"
+        });
+        if local_bin.is_file() {
+            return local_bin;
+        }
+    }
+    std::path::PathBuf::from("agy")
+}
+
+async fn discover_agy_models() -> Vec<ModelInfo> {
+    let bin = resolve_agy_binary();
+    let Ok(output) = Command::new(bin).arg("models").output().await else {
+        return Vec::new();
+    };
+    if !output.status.success() {
+        return Vec::new();
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut models = Vec::new();
+    for raw_line in stdout.lines() {
+        // Spinner lines use '\r'; take the final segment after '\r'
+        let line = raw_line.rsplit('\r').next().unwrap_or("").trim();
+        if line.is_empty() || line.contains("Fetching available models") {
+            continue;
+        }
+        let mut parts = line.splitn(2, char::is_whitespace);
+        let Some(id) = parts.next().map(str::trim).filter(|s| !s.is_empty()) else {
+            continue;
+        };
+        let name = parts
+            .next()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or(id);
+        models.push(ModelInfo {
+            id: id.to_string(),
+            name: name.to_string(),
+            provider_id: None,
+            reasoning_options: vec![],
+        });
+    }
+    models
 }
