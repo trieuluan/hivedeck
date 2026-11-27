@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { TerminalIcon, WarningIcon } from '@phosphor-icons/react';
+import { WarningIcon } from '@phosphor-icons/react';
 import {
   BaseCodingAgent,
   type ComboRole,
@@ -264,9 +264,6 @@ export function RoutingView({
                   <div className="flex min-w-0 items-center gap-2.5">
                     <span className="flex size-6 shrink-0 items-center justify-center rounded border border-border/70 bg-secondary/60">
                       <AgentIcon agent={entry.agent} className="size-3.5" />
-                      {entry.agent === BaseCodingAgent.ANTIGRAVITY && (
-                        <TerminalIcon className="size-3.5 text-brand" />
-                      )}
                     </span>
                     <span className="truncate text-sm font-medium text-high">
                       {entry.label}

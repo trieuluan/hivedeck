@@ -81,6 +81,9 @@ export function AgentIcon({ agent, className = 'h-4 w-4' }: AgentIconProps) {
     case BaseCodingAgent.DROID:
       iconPath = `/agents/droid${suffix}.svg`;
       break;
+    case BaseCodingAgent.ANTIGRAVITY:
+      iconPath = `/agents/antigravity${suffix}.svg`;
+      break;
     default:
       return null;
   }
