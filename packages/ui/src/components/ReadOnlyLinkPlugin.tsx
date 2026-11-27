@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
-import { LinkNode } from '@lexical/link';
+import { $isLinkNode, LinkNode } from '@lexical/link';
+import { $getNodeByKey, $nodesOfType } from 'lexical';
 
 const ARTIFACT_FILE_URL_RE =
   /^file:\/\/.*\/\.hivedeck\/artifacts\/([0-9a-fA-F-]{36})\/(.+)$/;
@@ -65,9 +66,9 @@ export function isClickableHref(href?: string): boolean {
   );
 }
 
-function applyReadOnlyLinkPolicy(dom: HTMLAnchorElement) {
-  const href = dom.getAttribute('href');
-  const safeHref = sanitizeHref(href ?? undefined);
+function applyReadOnlyLinkPolicy(dom: HTMLAnchorElement, rawUrl?: string) {
+  const href = rawUrl ?? dom.getAttribute('href') ?? undefined;
+  const safeHref = sanitizeHref(href);
 
   if (!safeHref) {
     dom.removeAttribute('href');
@@ -77,9 +78,7 @@ function applyReadOnlyLinkPolicy(dom: HTMLAnchorElement) {
   }
 
   if (isClickableHref(safeHref)) {
-    if (safeHref !== href) {
-      dom.setAttribute('href', safeHref);
-    }
+    dom.setAttribute('href', safeHref);
     dom.setAttribute('target', '_blank');
     dom.setAttribute('rel', 'noopener noreferrer');
     dom.style.cursor = 'pointer';
@@ -110,27 +109,28 @@ export function ReadOnlyLinkPlugin() {
     const unregister = editor.registerMutationListener(
       LinkNode,
       (mutations) => {
-        for (const [nodeKey, mutation] of mutations) {
-          if (mutation === 'destroyed') continue;
+        editor.getEditorState().read(() => {
+          for (const [nodeKey, mutation] of mutations) {
+            if (mutation === 'destroyed') continue;
 
-          const dom = editor.getElementByKey(nodeKey);
-          if (!dom || !(dom instanceof HTMLAnchorElement)) continue;
-          applyReadOnlyLinkPolicy(dom);
-        }
+            const dom = editor.getElementByKey(nodeKey);
+            if (!dom || !(dom instanceof HTMLAnchorElement)) continue;
+            const node = $getNodeByKey(nodeKey);
+            const rawUrl = $isLinkNode(node) ? node.getURL() : undefined;
+            applyReadOnlyLinkPolicy(dom, rawUrl);
+          }
+        });
       }
     );
 
-    // Also handle existing links on mount by triggering a read
+    // Also handle existing links on mount using LinkNode.getURL() (before Lexical's about:blank DOM sanitization)
     editor.getEditorState().read(() => {
-      const root = editor.getRootElement();
-      if (!root) return;
-
-      const links = root.querySelectorAll('a');
-      links.forEach((link) => {
-        if (link instanceof HTMLAnchorElement) {
-          applyReadOnlyLinkPolicy(link);
+      for (const node of $nodesOfType(LinkNode)) {
+        const dom = editor.getElementByKey(node.getKey());
+        if (dom instanceof HTMLAnchorElement) {
+          applyReadOnlyLinkPolicy(dom, node.getURL());
         }
-      });
+      }
     });
 
     return unregister;
