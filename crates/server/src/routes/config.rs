@@ -55,6 +55,9 @@ pub fn router() -> Router<DeploymentImpl> {
             get(check_editor_availability),
         )
         .route("/agents/check-availability", get(check_agent_availability))
+        .route("/agents/cli-status", get(get_cli_statuses))
+        .route("/agents/cli-install", post(install_cli))
+        .route("/agents/cli-login", post(login_cli))
         .route("/agents/preset-options", get(get_agent_preset_options))
         .route(
             "/agents/discovered-options/ws",
@@ -357,6 +360,355 @@ async fn check_agent_availability(
     };
 
     ResponseJson(ApiResponse::success(info))
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CliInstallMode {
+    Npx,
+    Binary,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct CliStatusInfo {
+    pub agent: BaseCodingAgent,
+    pub binary_name: String,
+    pub install_mode: CliInstallMode,
+    pub installed: bool,
+    pub binary_path: Option<String>,
+    pub logged_in: bool,
+    pub install_supported: bool,
+    pub login_command: String,
+}
+
+#[derive(Debug, Deserialize, TS)]
+pub struct CliAgentRequest {
+    pub executor: BaseCodingAgent,
+}
+
+#[derive(Debug, Serialize, Deserialize, TS)]
+pub struct CliActionResult {
+    pub ok: bool,
+    pub message: String,
+}
+
+struct CliSpec {
+    agent: BaseCodingAgent,
+    binary_name: &'static str,
+    install_mode: CliInstallMode,
+    install_unix: Option<&'static str>,
+    install_win: Option<&'static str>,
+    login_command: &'static str,
+}
+
+const CLI_SPECS: &[CliSpec] = &[
+    CliSpec {
+        agent: BaseCodingAgent::ClaudeCode,
+        binary_name: "claude",
+        install_mode: CliInstallMode::Npx,
+        install_unix: None,
+        install_win: None,
+        login_command: "npx -y @anthropic-ai/claude-code@latest",
+    },
+    CliSpec {
+        agent: BaseCodingAgent::Antigravity,
+        binary_name: "agy",
+        install_mode: CliInstallMode::Binary,
+        install_unix: Some("curl -fsSL https://antigravity.google/cli/install.sh | bash"),
+        install_win: Some("irm https://antigravity.google/cli/install.ps1 | iex"),
+        login_command: "agy",
+    },
+    CliSpec {
+        agent: BaseCodingAgent::Codex,
+        binary_name: "codex",
+        install_mode: CliInstallMode::Npx,
+        install_unix: None,
+        install_win: None,
+        login_command: "npx -y @openai/codex@0.152.1 login",
+    },
+    CliSpec {
+        agent: BaseCodingAgent::Gemini,
+        binary_name: "gemini",
+        install_mode: CliInstallMode::Npx,
+        install_unix: None,
+        install_win: None,
+        login_command: "npx -y @google/gemini-cli@0.29.3",
+    },
+    CliSpec {
+        agent: BaseCodingAgent::Opencode,
+        binary_name: "opencode",
+        install_mode: CliInstallMode::Binary,
+        install_unix: Some("curl -fsSL https://opencode.ai/install | bash"),
+        install_win: None,
+        login_command: "opencode auth login",
+    },
+    CliSpec {
+        agent: BaseCodingAgent::CursorAgent,
+        binary_name: "cursor-agent",
+        install_mode: CliInstallMode::Binary,
+        install_unix: Some("curl -fsSL https://cursor.com/install | bash"),
+        install_win: None,
+        login_command: "cursor-agent login",
+    },
+    CliSpec {
+        agent: BaseCodingAgent::Droid,
+        binary_name: "droid",
+        install_mode: CliInstallMode::Binary,
+        install_unix: Some("curl -fsSL https://app.factory.ai/cli | sh"),
+        install_win: None,
+        login_command: "droid",
+    },
+    CliSpec {
+        agent: BaseCodingAgent::QwenCode,
+        binary_name: "qwen",
+        install_mode: CliInstallMode::Npx,
+        install_unix: None,
+        install_win: None,
+        login_command: "npx -y @qwen-code/qwen-code@0.9.1",
+    },
+    CliSpec {
+        agent: BaseCodingAgent::Copilot,
+        binary_name: "copilot",
+        install_mode: CliInstallMode::Npx,
+        install_unix: None,
+        install_win: None,
+        login_command: "npx -y @github/copilot@0.0.403",
+    },
+    CliSpec {
+        agent: BaseCodingAgent::Amp,
+        binary_name: "amp",
+        install_mode: CliInstallMode::Npx,
+        install_unix: None,
+        install_win: None,
+        login_command: "npx -y @sourcegraph/amp@latest login",
+    },
+];
+
+fn canonical_cli_agent(agent: BaseCodingAgent) -> BaseCodingAgent {
+    match agent {
+        BaseCodingAgent::ClaudeCodeHeaded => BaseCodingAgent::ClaudeCode,
+        BaseCodingAgent::OpencodeHeaded => BaseCodingAgent::Opencode,
+        other => other,
+    }
+}
+
+fn find_cli_binary(name: &str) -> Option<String> {
+    let mut dirs: Vec<std::path::PathBuf> = std::env::var_os("PATH")
+        .map(|p| std::env::split_paths(&p).collect())
+        .unwrap_or_default();
+
+    if let Some(home) = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(std::path::PathBuf::from)
+    {
+        for rel in [
+            ".local/bin",
+            ".opencode/bin",
+            ".cursor/bin",
+            ".droid/bin",
+            "AppData/Local/agy/bin",
+        ] {
+            dirs.push(home.join(rel));
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        dirs.push(std::path::PathBuf::from("/opt/homebrew/bin"));
+        dirs.push(std::path::PathBuf::from("/usr/local/bin"));
+    }
+
+    let candidates: Vec<String> = if cfg!(windows) {
+        vec![format!("{name}.exe"), format!("{name}.cmd"), name.to_string()]
+    } else {
+        vec![name.to_string()]
+    };
+
+    for dir in dirs {
+        for cand in &candidates {
+            let full = dir.join(cand);
+            if full.is_file() {
+                return Some(full.to_string_lossy().into_owned());
+            }
+        }
+    }
+    None
+}
+
+async fn get_cli_statuses(
+    State(_deployment): State<DeploymentImpl>,
+) -> ResponseJson<ApiResponse<Vec<CliStatusInfo>>> {
+    let profiles = ExecutorConfigs::get_cached();
+    let npx_available = find_cli_binary("npx").is_some();
+
+    let statuses = CLI_SPECS
+        .iter()
+        .map(|spec| {
+            let profile_id = ExecutorProfileId::new(spec.agent);
+            let availability = profiles
+                .get_coding_agent(&profile_id)
+                .map(|a| a.get_availability_info())
+                .unwrap_or(AvailabilityInfo::NotFound);
+
+            let (installed, binary_path) = match spec.install_mode {
+                CliInstallMode::Npx => (npx_available, None),
+                CliInstallMode::Binary => {
+                    let path = find_cli_binary(spec.binary_name);
+                    (path.is_some(), path)
+                }
+            };
+
+            let logged_in = matches!(availability, AvailabilityInfo::LoginDetected { .. });
+            let install_supported = if cfg!(windows) {
+                spec.install_win.is_some()
+            } else {
+                spec.install_unix.is_some()
+            };
+
+            CliStatusInfo {
+                agent: spec.agent,
+                binary_name: spec.binary_name.to_string(),
+                install_mode: spec.install_mode,
+                installed,
+                binary_path,
+                logged_in,
+                install_supported,
+                login_command: spec.login_command.to_string(),
+            }
+        })
+        .collect();
+
+    ResponseJson(ApiResponse::success(statuses))
+}
+
+async fn install_cli(
+    State(_deployment): State<DeploymentImpl>,
+    Json(req): Json<CliAgentRequest>,
+) -> ResponseJson<ApiResponse<CliActionResult>> {
+    let canonical = canonical_cli_agent(req.executor);
+    let Some(spec) = CLI_SPECS.iter().find(|s| s.agent == canonical) else {
+        return ResponseJson(ApiResponse::success(CliActionResult {
+            ok: false,
+            message: format!("Unsupported CLI: {:?}", req.executor),
+        }));
+    };
+
+    #[cfg(windows)]
+    let output = {
+        let Some(cmd) = spec.install_win else {
+            return ResponseJson(ApiResponse::success(CliActionResult {
+                ok: false,
+                message: format!(
+                    "Automatic install is not available on Windows for {}. Please install manually.",
+                    spec.binary_name
+                ),
+            }));
+        };
+        tokio::process::Command::new("powershell")
+            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", cmd])
+            .output()
+            .await
+    };
+
+    #[cfg(not(windows))]
+    let output = {
+        let Some(cmd) = spec.install_unix else {
+            return ResponseJson(ApiResponse::success(CliActionResult {
+                ok: false,
+                message: format!("{} is managed via npx and does not need installation.", spec.binary_name),
+            }));
+        };
+        tokio::process::Command::new("bash")
+            .args(["-lc", cmd])
+            .output()
+            .await
+    };
+
+    match output {
+        Ok(out) if out.status.success() => ResponseJson(ApiResponse::success(CliActionResult {
+            ok: true,
+            message: format!("Installed {} successfully.", spec.binary_name),
+        })),
+        Ok(out) => {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            let detail = if !stderr.trim().is_empty() {
+                stderr.trim().to_string()
+            } else {
+                stdout.trim().to_string()
+            };
+            ResponseJson(ApiResponse::success(CliActionResult {
+                ok: false,
+                message: if detail.is_empty() {
+                    format!("Install exited with status {}", out.status)
+                } else {
+                    detail
+                },
+            }))
+        }
+        Err(err) => ResponseJson(ApiResponse::success(CliActionResult {
+            ok: false,
+            message: format!("Failed to run installer: {err}"),
+        })),
+    }
+}
+
+async fn login_cli(
+    State(_deployment): State<DeploymentImpl>,
+    Json(req): Json<CliAgentRequest>,
+) -> ResponseJson<ApiResponse<CliActionResult>> {
+    let canonical = canonical_cli_agent(req.executor);
+    let Some(spec) = CLI_SPECS.iter().find(|s| s.agent == canonical) else {
+        return ResponseJson(ApiResponse::success(CliActionResult {
+            ok: false,
+            message: format!("Unsupported CLI: {:?}", req.executor),
+        }));
+    };
+
+    let full_cmd = if spec.install_mode == CliInstallMode::Binary {
+        find_cli_binary(spec.binary_name)
+            .map(|bin| spec.login_command.replacen(spec.binary_name, &bin, 1))
+            .unwrap_or_else(|| spec.login_command.to_string())
+    } else {
+        spec.login_command.to_string()
+    };
+
+    #[cfg(target_os = "macos")]
+    let spawn_res = {
+        let escaped = full_cmd.replace('\\', "\\\\").replace('"', "\\\"");
+        tokio::process::Command::new("osascript")
+            .args([
+                "-e",
+                "tell application \"Terminal\" to activate",
+                "-e",
+                &format!("tell application \"Terminal\" to do script \"{escaped}\""),
+            ])
+            .spawn()
+    };
+
+    #[cfg(target_os = "windows")]
+    let spawn_res = {
+        tokio::process::Command::new("cmd")
+            .args(["/c", "start", "", "cmd", "/k", &full_cmd])
+            .spawn()
+    };
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let spawn_res = {
+        tokio::process::Command::new("x-terminal-emulator")
+            .args(["-e", "bash", "-lc", &format!("{full_cmd}; exec bash")])
+            .spawn()
+    };
+
+    match spawn_res {
+        Ok(_) => ResponseJson(ApiResponse::success(CliActionResult {
+            ok: true,
+            message: format!("Opened Terminal to run: {full_cmd}"),
+        })),
+        Err(err) => ResponseJson(ApiResponse::success(CliActionResult {
+            ok: false,
+            message: format!("Could not open Terminal automatically ({err}). Run manually: {full_cmd}"),
+        })),
+    }
 }
 
 #[derive(Debug, Deserialize, TS)]

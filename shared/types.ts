@@ -1239,6 +1239,14 @@ name: string, description?: string | null, };
 
 export type AvailabilityInfo = { "type": "LOGIN_DETECTED", last_auth_timestamp: bigint, } | { "type": "INSTALLATION_FOUND" } | { "type": "NOT_FOUND" };
 
+export type CliInstallMode = "npx" | "binary";
+
+export type CliStatusInfo = { agent: BaseCodingAgent, binary_name: string, install_mode: CliInstallMode, installed: boolean, binary_path: string | null, logged_in: boolean, install_supported: boolean, login_command: string, };
+
+export type CliAgentRequest = { executor: BaseCodingAgent, };
+
+export type CliActionResult = { ok: boolean, message: string, };
+
 export type CommandBuilder = { 
 /**
  * Base executable command (e.g., "npx -y @anthropic-ai/claude-code@latest")

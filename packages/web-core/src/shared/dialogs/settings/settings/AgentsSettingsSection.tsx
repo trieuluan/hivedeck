@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
 import {
   SpinnerIcon,
   PlusIcon,
   TrashIcon,
   DotsThreeIcon,
   StarIcon,
+  ArrowsClockwiseIcon,
 } from '@phosphor-icons/react';
 import {
   DropdownMenu,
@@ -18,9 +20,18 @@ import { useMachineProfiles } from '@/shared/hooks/useProfiles';
 import { useUserSystem } from '@/shared/hooks/useUserSystem';
 import { CreateConfigurationDialog } from '../CreateConfigurationDialog';
 import { DeleteConfigurationDialog } from '../DeleteConfigurationDialog';
-import type { BaseCodingAgent, ExecutorConfigs } from 'shared/types';
+import type {
+  BaseCodingAgent,
+  CliStatusInfo,
+  ExecutorConfigs,
+} from 'shared/types';
 import { cn } from '@/shared/lib/utils';
 import { toPrettyCase } from '@/shared/lib/string';
+import { configApi } from '@/shared/lib/api';
+import {
+  isAgentBypassed,
+  isRoutedExecutor,
+} from '@/shared/lib/hiveRouterRouting';
 import {
   SettingsSaveBar,
   TwoColumnPicker,
@@ -31,10 +42,16 @@ import {
 } from './SettingsComponents';
 import { useSettingsDirty } from './SettingsDirtyContext';
 import { useSettingsMachineClient } from './SettingsHostContext';
-import { AgentIcon } from '@/shared/components/AgentIcon';
+import { AgentIcon, getAgentName } from '@/shared/components/AgentIcon';
 import { getExecutorVariantKeys } from '@/shared/lib/executor';
 
 type ExecutorsMap = Record<string, Record<string, Record<string, unknown>>>;
+
+function canonicalCliAgent(agent: BaseCodingAgent): BaseCodingAgent {
+  if (agent === 'CLAUDE_CODE_HEADED') return 'CLAUDE_CODE' as BaseCodingAgent;
+  if (agent === 'OPENCODE_HEADED') return 'OPENCODE' as BaseCodingAgent;
+  return agent;
+}
 
 export function AgentsSettingsSection() {
   const { t } = useTranslation(['settings', 'common']);
@@ -65,6 +82,70 @@ export function AgentsSettingsSection() {
   const [localParsedProfiles, setLocalParsedProfiles] =
     useState<ExecutorConfigs | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+
+  const {
+    data: cliStatuses,
+    isFetching: cliStatusFetching,
+    refetch: refetchCliStatuses,
+  } = useQuery({
+    queryKey: ['agents', 'cli-status'],
+    queryFn: configApi.getCliStatuses,
+    staleTime: 15_000,
+  });
+  const [cliActionBusy, setCliActionBusy] = useState<string | null>(null);
+  const [cliActionNotice, setCliActionNotice] = useState<{
+    agent: BaseCodingAgent;
+    ok: boolean;
+    message: string;
+  } | null>(null);
+
+  const cliStatusMap = useMemo(() => {
+    const map = new Map<BaseCodingAgent, CliStatusInfo>();
+    for (const s of cliStatuses ?? []) {
+      map.set(s.agent, s);
+    }
+    return map;
+  }, [cliStatuses]);
+
+  const isExecutorRouted = (agent: BaseCodingAgent) =>
+    isRoutedExecutor(agent) &&
+    Boolean(config?.nine_router?.route_agents) &&
+    !isAgentBypassed(agent, config?.nine_router?.bypassed_agents);
+
+  const handleInstallCli = async (agent: BaseCodingAgent) => {
+    setCliActionBusy(`install:${agent}`);
+    setCliActionNotice(null);
+    try {
+      const res = await configApi.installCli(agent);
+      setCliActionNotice({ agent, ok: res.ok, message: res.message });
+      await refetchCliStatuses();
+    } catch (err) {
+      setCliActionNotice({
+        agent,
+        ok: false,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setCliActionBusy(null);
+    }
+  };
+
+  const handleLoginCli = async (agent: BaseCodingAgent) => {
+    setCliActionBusy(`login:${agent}`);
+    setCliActionNotice(null);
+    try {
+      const res = await configApi.loginCli(agent);
+      setCliActionNotice({ agent, ok: res.ok, message: res.message });
+    } catch (err) {
+      setCliActionNotice({
+        agent,
+        ok: false,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setCliActionBusy(null);
+    }
+  };
 
   // Initialize selection with default executor when config loads
   useEffect(() => {
@@ -387,18 +468,25 @@ export function AgentsSettingsSection() {
               isFirst
             >
               {Object.keys(localParsedProfiles.executors).map((executor) => {
+                const agentKey = executor as BaseCodingAgent;
                 const isDefault =
                   config?.executor_profile?.executor === executor;
+                const status = cliStatusMap.get(canonicalCliAgent(agentKey));
+                const routed = isExecutorRouted(agentKey);
+                const ready =
+                  status &&
+                  (routed
+                    ? status.installed
+                    : status.installed &&
+                      (status.install_mode === 'npx' || status.logged_in));
                 return (
                   <TwoColumnPickerItem
                     key={executor}
                     selected={selectedExecutorType === executor}
                     onClick={() => {
-                      setSelectedExecutorType(executor as BaseCodingAgent);
+                      setSelectedExecutorType(agentKey);
                       const configs = getExecutorVariantKeys(
-                        localParsedProfiles.executors[
-                          executor as BaseCodingAgent
-                        ]
+                        localParsedProfiles.executors[agentKey]
                       );
                       if (configs.length > 0) {
                         setSelectedConfiguration(configs[0]);
@@ -406,16 +494,35 @@ export function AgentsSettingsSection() {
                     }}
                     leading={
                       <AgentIcon
-                        agent={executor as BaseCodingAgent}
+                        agent={agentKey}
                         className="size-icon-sm shrink-0"
                       />
                     }
                     trailing={
-                      isDefault && (
-                        <TwoColumnPickerBadge variant="brand">
-                          {t('settings.agents.editor.isDefault')}
-                        </TwoColumnPickerBadge>
-                      )
+                      <span className="flex items-center gap-1.5">
+                        {isDefault && (
+                          <TwoColumnPickerBadge variant="brand">
+                            {t('settings.agents.editor.isDefault')}
+                          </TwoColumnPickerBadge>
+                        )}
+                        {status && (
+                          <span
+                            title={
+                              routed
+                                ? 'Via HiveRouter'
+                                : !status.installed
+                                  ? 'Not installed'
+                                  : status.logged_in
+                                    ? 'Logged in'
+                                    : 'Not signed in'
+                            }
+                            className={cn(
+                              'size-2 shrink-0 rounded-full',
+                              ready ? 'bg-success' : 'bg-warning'
+                            )}
+                          />
+                        )}
+                      </span>
                     }
                   >
                     {toPrettyCase(executor)}
@@ -490,6 +597,148 @@ export function AgentsSettingsSection() {
           {/* Config form */}
           {selectedExecutorType && selectedConfiguration && (
             <div className="bg-secondary/50 border border-border rounded-sm p-4">
+              {(() => {
+                const canonical = canonicalCliAgent(selectedExecutorType);
+                const status = cliStatusMap.get(canonical);
+                if (!status) return null;
+                const routed = isExecutorRouted(selectedExecutorType);
+                const installing = cliActionBusy === `install:${canonical}`;
+                const loggingIn = cliActionBusy === `login:${canonical}`;
+                const label = getAgentName(selectedExecutorType);
+                const needsInstall =
+                  status.install_mode === 'binary' && !status.installed;
+
+                return (
+                  <div className="mb-4 space-y-2 border-b border-border/60 pb-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 text-sm font-medium text-high">
+                          <span
+                            className={cn(
+                              'size-2 shrink-0 rounded-full',
+                              needsInstall || (!routed && !status.logged_in)
+                                ? 'bg-warning'
+                                : 'bg-success'
+                            )}
+                          />
+                          {needsInstall ? (
+                            <span>
+                              {label} (
+                              <code className="rounded bg-secondary px-1 py-0.5 font-mono text-xs">
+                                {status.binary_name}
+                              </code>
+                              ) not installed
+                            </span>
+                          ) : routed ? (
+                            <span>Routed via HiveRouter</span>
+                          ) : status.logged_in ? (
+                            <span>Logged in</span>
+                          ) : (
+                            <span>
+                              {status.install_mode === 'npx'
+                                ? 'Ready · npx (not signed in)'
+                                : 'Installed · Not signed in'}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-0.5 truncate text-xs text-low">
+                          {needsInstall
+                            ? `Required to run ${label} crews in Direct mode. Installs ${status.binary_name} to ~/.local/bin.`
+                            : routed
+                              ? 'Uses HiveRouter providers & role combos instead of native CLI login.'
+                              : status.binary_path
+                                ? `Binary: ${status.binary_path}`
+                                : `Managed via npx · ${status.login_command}`}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => refetchCliStatuses()}
+                          disabled={cliStatusFetching || cliActionBusy !== null}
+                          title="Refresh CLI status"
+                          className="rounded border border-border bg-panel p-1.5 text-low hover:text-high disabled:opacity-50"
+                        >
+                          <ArrowsClockwiseIcon
+                            className={cn(
+                              'size-3.5',
+                              cliStatusFetching && 'animate-spin'
+                            )}
+                          />
+                        </button>
+                        {needsInstall ? (
+                          <button
+                            type="button"
+                            onClick={() => handleInstallCli(canonical)}
+                            disabled={
+                              !status.install_supported ||
+                              cliActionBusy !== null
+                            }
+                            className="inline-flex items-center gap-1.5 rounded bg-brand px-3 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                          >
+                            {installing && (
+                              <SpinnerIcon className="size-3 animate-spin" />
+                            )}
+                            Install {status.binary_name}
+                          </button>
+                        ) : (
+                          <>
+                            {status.install_mode === 'binary' &&
+                              status.install_supported && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleInstallCli(canonical)}
+                                  disabled={cliActionBusy !== null}
+                                  className="inline-flex items-center gap-1 rounded border border-border bg-panel px-2.5 py-1 text-xs font-medium text-normal hover:text-high disabled:opacity-50"
+                                >
+                                  {installing && (
+                                    <SpinnerIcon className="size-3 animate-spin" />
+                                  )}
+                                  Update
+                                </button>
+                              )}
+                            <button
+                              type="button"
+                              onClick={() => handleLoginCli(canonical)}
+                              disabled={routed || cliActionBusy !== null}
+                              title={
+                                routed
+                                  ? 'Disabled while routed via HiveRouter. Switch to Direct in Router → Routing to use native login.'
+                                  : `Open Terminal to run: ${status.login_command}`
+                              }
+                              className={cn(
+                                'inline-flex items-center gap-1 rounded px-3 py-1 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50',
+                                status.logged_in || routed
+                                  ? 'border border-border bg-panel text-normal hover:text-high'
+                                  : 'bg-brand text-white hover:opacity-90'
+                              )}
+                            >
+                              {loggingIn && (
+                                <SpinnerIcon className="size-3 animate-spin" />
+                              )}
+                              {routed
+                                ? 'Sign in'
+                                : status.logged_in
+                                  ? 'Re-auth'
+                                  : 'Sign in'}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {cliActionNotice?.agent === canonical && (
+                      <p
+                        className={cn(
+                          'text-xs',
+                          cliActionNotice.ok ? 'text-success' : 'text-error'
+                        )}
+                      >
+                        {cliActionNotice.message}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
               <ExecutorConfigForm
                 key={`${selectedExecutorType}-${selectedConfiguration}`}
                 executor={selectedExecutorType}

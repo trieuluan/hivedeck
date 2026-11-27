@@ -33,6 +33,8 @@ import {
   RenameBranchResponse,
   CheckEditorAvailabilityResponse,
   AvailabilityInfo,
+  CliActionResult,
+  CliStatusInfo,
   BaseCodingAgent,
   ExecutorConfig,
   DraftFollowUpData,
@@ -1247,6 +1249,26 @@ export const configApi = {
       `/api/agents/check-availability?executor=${encodeURIComponent(agent)}`
     );
     return handleApiResponse<AvailabilityInfo>(response);
+  },
+  getCliStatuses: async (): Promise<CliStatusInfo[]> => {
+    const response = await makeRequest('/api/agents/cli-status', {
+      cache: 'no-store',
+    });
+    return handleApiResponse<CliStatusInfo[]>(response);
+  },
+  installCli: async (executor: BaseCodingAgent): Promise<CliActionResult> => {
+    const response = await makeRequest('/api/agents/cli-install', {
+      method: 'POST',
+      body: JSON.stringify({ executor }),
+    });
+    return handleApiResponse<CliActionResult>(response);
+  },
+  loginCli: async (executor: BaseCodingAgent): Promise<CliActionResult> => {
+    const response = await makeRequest('/api/agents/cli-login', {
+      method: 'POST',
+      body: JSON.stringify({ executor }),
+    });
+    return handleApiResponse<CliActionResult>(response);
   },
 };
 
