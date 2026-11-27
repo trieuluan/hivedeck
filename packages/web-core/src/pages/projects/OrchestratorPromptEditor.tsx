@@ -167,7 +167,8 @@ export function OrchestratorPromptEditor({
   const showDefault = rawIsEmpty && resolved?.source === 'default';
 
   return (
-    <section className="mx-auto flex max-w-3xl flex-col gap-base p-double">
+    <div className="h-full w-full overflow-y-auto">
+      <section className="mx-auto flex max-w-3xl flex-col gap-base p-double">
       <header className="flex flex-col gap-1">
         <h1 className="text-xl font-semibold text-high">
           {t('orchestratorPromptEditor.title', 'Orchestrator prompt')}
@@ -270,6 +271,7 @@ export function OrchestratorPromptEditor({
           </pre>
         </details>
       )}
-    </section>
+      </section>
+    </div>
   );
 }
