@@ -3,7 +3,7 @@ use std::{path::Path, process::Stdio, sync::Arc};
 use async_trait::async_trait;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use tokio::{io::AsyncWriteExt, process::Command};
+use tokio::process::Command;
 use ts_rs::TS;
 use workspace_utils::{command_ext::GroupSpawnNoWindowExt, msg_store::MsgStore};
 
@@ -48,7 +48,7 @@ impl Antigravity {
         env: &ExecutionEnv,
     ) -> Result<CommandBuilder, CommandBuildError> {
         let mut builder = CommandBuilder::new(resolve_agy_binary().to_string_lossy().into_owned())
-            .params(["--output-format", "stream-json", "--print"]);
+            .params(["--output-format=stream-json"]);
         if self.dangerously_skip_permissions.unwrap_or(false) {
             builder = builder.extend_params(["--dangerously-skip-permissions"]);
         }
@@ -81,22 +81,18 @@ impl Antigravity {
         let mut command = Command::new(program);
         command
             .kill_on_drop(true)
-            .stdin(Stdio::piped())
+            .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .current_dir(current_dir)
-            .args(&args);
+            .args(&args)
+            .arg(format!("--print={combined_prompt}"));
 
         env.clone()
             .with_profile(&self.cmd)
             .apply_to_command(&mut command);
 
-        let mut child = command.group_spawn_no_window()?;
-
-        if let Some(mut stdin) = child.inner().stdin.take() {
-            stdin.write_all(combined_prompt.as_bytes()).await?;
-            stdin.shutdown().await?;
-        }
+        let child = command.group_spawn_no_window()?;
 
         Ok(child.into())
     }
