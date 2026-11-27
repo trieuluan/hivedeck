@@ -109,6 +109,9 @@ pub enum ExecutorError {
     sqlx(type_name = "TEXT", rename_all = "SCREAMING_SNAKE_CASE")
 )]
 pub enum CodingAgent {
+    #[serde(alias = "CLAUDE")]
+    #[strum_discriminants(serde(alias = "CLAUDE"))]
+    #[strum_discriminants(strum(serialize = "CLAUDE", serialize = "CLAUDE_CODE"))]
     ClaudeCode,
     ClaudeCodeHeaded,
     Amp,
@@ -120,9 +123,15 @@ pub enum CodingAgent {
     #[strum_discriminants(serde(alias = "CURSOR"))]
     #[strum_discriminants(strum(serialize = "CURSOR", serialize = "CURSOR_AGENT"))]
     CursorAgent,
+    #[serde(alias = "QWEN")]
+    #[strum_discriminants(serde(alias = "QWEN"))]
+    #[strum_discriminants(strum(serialize = "QWEN", serialize = "QWEN_CODE"))]
     QwenCode,
     Copilot,
     Droid,
+    #[serde(alias = "AGY")]
+    #[strum_discriminants(serde(alias = "AGY"))]
+    #[strum_discriminants(strum(serialize = "AGY", serialize = "ANTIGRAVITY"))]
     Antigravity,
     #[cfg(feature = "qa-mode")]
     QaMock(QaMockExecutor),
