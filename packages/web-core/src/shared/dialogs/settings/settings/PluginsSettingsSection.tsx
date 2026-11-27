@@ -222,7 +222,12 @@ export function PluginsSettingsSection() {
               />
               Quay lại
             </button>
-            <PluginAvatar name={selectedPlugin.name} size="md" />
+            <PluginAvatar
+              name={selectedPlugin.name}
+              source={selectedPlugin.source}
+              size="md"
+              priority
+            />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="truncate text-sm font-semibold text-high">
@@ -433,6 +438,7 @@ export function PluginsSettingsSection() {
                         name={plugin.name}
                         source={plugin.source}
                         size="sm"
+                        priority
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">

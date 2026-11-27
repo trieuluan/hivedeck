@@ -1,5 +1,49 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/shared/lib/utils';
+
+const MAX_CONCURRENT_AVATARS = 4;
+const loadedAvatars = new Set<string>();
+
+interface AvatarQueueTask {
+  id: number;
+  start: () => void;
+}
+
+let nextTaskId = 1;
+let activeLoads = 0;
+const pendingQueue: AvatarQueueTask[] = [];
+const activeTasks = new Set<number>();
+
+function pumpAvatarQueue() {
+  while (activeLoads < MAX_CONCURRENT_AVATARS && pendingQueue.length > 0) {
+    const task = pendingQueue.shift()!;
+    activeLoads += 1;
+    activeTasks.add(task.id);
+    task.start();
+  }
+}
+
+function enqueueAvatarLoad(priority: boolean, start: () => void): () => void {
+  const id = nextTaskId++;
+  const task: AvatarQueueTask = { id, start };
+  if (priority) {
+    pendingQueue.unshift(task);
+  } else {
+    pendingQueue.push(task);
+  }
+  pumpAvatarQueue();
+
+  return () => {
+    const idx = pendingQueue.findIndex((t) => t.id === id);
+    if (idx !== -1) {
+      pendingQueue.splice(idx, 1);
+    }
+    if (activeTasks.delete(id)) {
+      activeLoads = Math.max(0, activeLoads - 1);
+      pumpAvatarQueue();
+    }
+  };
+}
 
 const TONES = [
   'bg-brand/15 text-brand border-brand/25',
@@ -137,6 +181,7 @@ export function PluginAvatar({
   source,
   installSource,
   size = 'md',
+  priority = false,
   className,
 }: {
   name: string;
@@ -145,18 +190,73 @@ export function PluginAvatar({
   source?: unknown;
   installSource?: string | null;
   size?: 'sm' | 'md';
+  priority?: boolean;
   className?: string;
 }) {
   const logoUrl =
     resolvePluginLogoUrl(icon, logo) ??
     resolvePluginSourceLogoUrl(name, source, installSource);
+  const isClient = typeof window !== 'undefined';
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
-  const showImage = Boolean(logoUrl && failedUrl !== logoUrl);
+  const [canLoad, setCanLoad] = useState<boolean>(
+    () => !isClient || Boolean(logoUrl && loadedAvatars.has(logoUrl))
+  );
+  const containerRef = useRef<HTMLSpanElement>(null);
+  const releaseRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (!isClient || !logoUrl || loadedAvatars.has(logoUrl)) {
+      setCanLoad(true);
+      return;
+    }
+
+    setCanLoad(false);
+    let cancelled = false;
+
+    const scheduleLoad = () => {
+      if (cancelled || releaseRef.current) return;
+      releaseRef.current = enqueueAvatarLoad(priority, () => {
+        if (!cancelled) {
+          setCanLoad(true);
+        }
+      });
+    };
+
+    const el = containerRef.current;
+    if (!priority && el && typeof IntersectionObserver !== 'undefined') {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((entry) => entry.isIntersecting)) {
+            observer.disconnect();
+            scheduleLoad();
+          }
+        },
+        { rootMargin: '120px' }
+      );
+      observer.observe(el);
+      return () => {
+        cancelled = true;
+        observer.disconnect();
+        releaseRef.current?.();
+        releaseRef.current = null;
+      };
+    }
+
+    scheduleLoad();
+    return () => {
+      cancelled = true;
+      releaseRef.current?.();
+      releaseRef.current = null;
+    };
+  }, [isClient, logoUrl, priority]);
+
+  const showImage = Boolean(logoUrl && canLoad && failedUrl !== logoUrl);
   const boxSize = size === 'sm' ? 'h-8 w-8 text-xs' : 'h-10 w-10 text-sm';
 
   if (showImage && logoUrl) {
     return (
       <span
+        ref={containerRef}
         aria-hidden="true"
         className={cn(
           'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-panel p-0.5',
@@ -167,10 +267,19 @@ export function PluginAvatar({
         <img
           src={logoUrl}
           alt=""
-          loading="lazy"
+          referrerPolicy="no-referrer"
           decoding="async"
           className="h-full w-full rounded-[4px] object-contain"
-          onError={() => setFailedUrl(logoUrl)}
+          onLoad={() => {
+            loadedAvatars.add(logoUrl);
+            releaseRef.current?.();
+            releaseRef.current = null;
+          }}
+          onError={() => {
+            setFailedUrl(logoUrl);
+            releaseRef.current?.();
+            releaseRef.current = null;
+          }}
         />
       </span>
     );
@@ -178,6 +287,7 @@ export function PluginAvatar({
 
   return (
     <span
+      ref={containerRef}
       aria-hidden="true"
       className={cn(
         'inline-flex shrink-0 select-none items-center justify-center rounded-md border font-semibold tracking-tight',
