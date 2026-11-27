@@ -50,9 +50,9 @@ function ModelComboboxWidget(props: WidgetProps) {
     onBlur,
     placeholder,
     options,
-    formContext,
+    registry,
   } = props;
-  const ctx = (formContext ?? {}) as ModelComboboxContext;
+  const ctx = (registry?.formContext ?? {}) as ModelComboboxContext;
   const items = useMemo(() => ctx.modelOptions ?? [], [ctx.modelOptions]);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -129,7 +129,7 @@ function ModelComboboxWidget(props: WidgetProps) {
             onClick={ctx.onRefreshModels}
             disabled={disabled || readonly || ctx.loadingModels}
             title="Làm mới danh sách model"
-            className="shrink-0 rounded-sm border border-border bg-secondary p-1.5 text-low hover:text-high disabled:opacity-50"
+            className="flex size-8 shrink-0 items-center justify-center rounded-sm border border-border bg-secondary text-low hover:text-high disabled:opacity-50"
           >
             {ctx.loadingModels ? (
               <SpinnerIcon className="size-3.5 animate-spin" />
@@ -141,7 +141,7 @@ function ModelComboboxWidget(props: WidgetProps) {
       </div>
 
       {open && !disabled && !readonly && (
-        <div className="absolute left-0 right-0 z-50 mt-1 max-h-64 overflow-auto rounded-sm border border-border bg-panel shadow-lg">
+        <div className="absolute left-0 right-0 z-50 mt-1.5 max-h-64 overflow-auto rounded-md border border-border bg-panel shadow-xl">
           {ctx.loadingModels && filtered.length === 0 ? (
             <div className="flex items-center gap-2 px-3 py-2.5 text-xs text-low">
               <SpinnerIcon className="size-3.5 animate-spin" />
