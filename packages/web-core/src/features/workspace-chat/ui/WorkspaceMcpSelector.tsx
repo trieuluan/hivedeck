@@ -181,8 +181,12 @@ export function WorkspaceMcpSelector({
         createPortal(
           <div
             ref={popoverRef}
-            style={{ top: coords.top, right: coords.right }}
-            className="fixed z-50 w-72 -translate-y-full rounded-md border border-border bg-panel p-3 shadow-xl space-y-3 text-xs"
+            style={{
+              top: coords.top,
+              right: coords.right,
+              maxHeight: Math.max(200, coords.top - 16),
+            }}
+            className="fixed z-50 w-72 -translate-y-full overflow-y-auto rounded-md border border-border bg-panel p-3 shadow-xl space-y-3 text-xs"
           >
             {alwaysItems.length > 0 && (
               <div className="space-y-1.5">
