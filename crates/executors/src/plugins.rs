@@ -22,7 +22,7 @@ use crate::{
 
 static WRITE_LOCK: Mutex<()> = Mutex::new(());
 
-const KNOWN_CLIS: [&str; 9] = [
+const KNOWN_CLIS: [&str; 10] = [
     "claude_code",
     "codex",
     "opencode",
@@ -32,6 +32,7 @@ const KNOWN_CLIS: [&str; 9] = [
     "qwen_code",
     "copilot",
     "droid",
+    "antigravity",
 ];
 
 fn default_true() -> bool {
@@ -373,6 +374,7 @@ pub fn cli_supports_skills(cli: &str) -> bool {
             | "cursor_agent"
             | "copilot"
             | "droid"
+            | "antigravity"
     )
 }
 
@@ -1305,6 +1307,61 @@ fn parse_manifest(
         root.join(".claude-plugin/plugin.json")
     } else if root.join("plugin.json").is_file() {
         root.join("plugin.json")
+    } else if root.join("SKILL.md").is_file() {
+        let entry = load_skill_from_path(
+            root,
+            root,
+            default_roles.to_vec(),
+            default_boards.to_vec(),
+            default_skill_clis.to_vec(),
+        )?;
+        let version = expected_version
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+            .or(fallback_version)
+            .unwrap_or("1.0.0")
+            .to_string();
+        return Ok(ParsedManifest {
+            name: entry.name.clone(),
+            version,
+            mcp: Vec::new(),
+            skills: vec![entry],
+            unsupported: Vec::new(),
+            literal_secrets: BTreeMap::new(),
+        });
+    } else if root.join("skills").is_dir() {
+        let skills = scan_skills_dir(
+            root,
+            &root.join("skills"),
+            default_roles,
+            default_boards,
+            default_skill_clis,
+        )?;
+        if skills.is_empty() {
+            return Err(PluginError::BadRequest(
+                "Missing plugin manifest (.claude-plugin/plugin.json or plugin.json)".into(),
+            ));
+        }
+        let dir_name = root
+            .file_name()
+            .and_then(|n| n.to_str())
+            .filter(|n| valid_name(n) && *n != "hivedeck")
+            .map(str::to_string)
+            .unwrap_or_else(|| skills[0].name.clone());
+        let version = expected_version
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+            .or(fallback_version)
+            .unwrap_or("1.0.0")
+            .to_string();
+        return Ok(ParsedManifest {
+            name: dir_name,
+            version,
+            mcp: Vec::new(),
+            skills,
+            unsupported: Vec::new(),
+            literal_secrets: BTreeMap::new(),
+        });
     } else {
         return Err(PluginError::BadRequest(
             "Missing plugin manifest (.claude-plugin/plugin.json or plugin.json)".into(),
@@ -2885,7 +2942,7 @@ pub fn materialize_run_skills(
             let plugin_dir = run_root.join("cursor_plugin");
             (plugin_dir.join("skills"), Some(plugin_dir))
         }
-        "gemini" | "qwen_code" | "amp" | "copilot" | "droid" | "codex" => {
+        "gemini" | "qwen_code" | "amp" | "copilot" | "droid" | "codex" | "antigravity" => {
             let skills_dir = run_root.join("skills");
             (skills_dir.clone(), Some(skills_dir))
         }
@@ -3769,7 +3826,9 @@ mod tests {
                         "{agent} maps to unknown cli {cli}"
                     );
                     assert_eq!(entry.cli.as_deref(), Some(cli));
-                    assert_eq!(entry.mcp, InjectionSupport::Supported);
+                    if agent != BaseCodingAgent::Antigravity {
+                        assert_eq!(entry.mcp, InjectionSupport::Supported);
+                    }
                     assert!(!entry.mcp_mechanism.is_empty());
                     assert!(!entry.skills_mechanism.is_empty());
                 }
