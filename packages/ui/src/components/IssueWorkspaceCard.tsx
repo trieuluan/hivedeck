@@ -172,6 +172,8 @@ function formatExecutorShort(executor?: string | null): string | null {
       return "Gemini";
     case "CURSOR_AGENT":
       return "Cursor";
+    case "ANTIGRAVITY":
+      return "Antigravity";
     default:
       return executor;
   }

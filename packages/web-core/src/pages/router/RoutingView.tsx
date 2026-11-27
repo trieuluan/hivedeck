@@ -1,20 +1,80 @@
 import { useTranslation } from 'react-i18next';
-import { WarningIcon } from '@phosphor-icons/react';
-import type {
-  ComboRole,
-  NineRouterSettings,
-  NineRouterStatus,
-  RoleCombos,
+import { TerminalIcon, WarningIcon } from '@phosphor-icons/react';
+import {
+  BaseCodingAgent,
+  type ComboRole,
+  type NineRouterSettings,
+  type NineRouterStatus,
+  type RoleCombos,
 } from 'shared/types';
+import { Switch } from '@vibe/ui/components/Switch';
 import {
   SettingsCheckbox,
   SettingsSelect,
 } from '@/shared/dialogs/settings/settings/SettingsComponents';
+import { AgentIcon } from '@/shared/components/AgentIcon';
+import { isAgentBypassed } from '@/shared/lib/hiveRouterRouting';
 import { cn } from '@/shared/lib/utils';
 
 const ROLES: ComboRole[] = ['planner', 'coder', 'reviewer', 'fast'];
 /** Select value for "leave this role on the agent's own default model". */
 const NONE = '__none__';
+
+interface CliRoutingEntry {
+  agent: BaseCodingAgent;
+  label: string;
+  cmd: string;
+  directOnly?: boolean;
+  isNew?: boolean;
+  directHint: string;
+}
+
+const CLI_ROUTING_ENTRIES: CliRoutingEntry[] = [
+  {
+    agent: BaseCodingAgent.CLAUDE_CODE,
+    label: 'Claude Code',
+    cmd: 'claude',
+    directHint: 'Direct · Anthropic OAuth / API Key',
+  },
+  {
+    agent: BaseCodingAgent.CODEX,
+    label: 'OpenAI Codex',
+    cmd: 'codex',
+    directHint: 'Direct · ChatGPT / OpenAI API',
+  },
+  {
+    agent: BaseCodingAgent.GEMINI,
+    label: 'Gemini CLI',
+    cmd: 'gemini',
+    directHint: 'Direct · Official OAuth / API Key',
+  },
+  {
+    agent: BaseCodingAgent.ANTIGRAVITY,
+    label: 'Antigravity CLI',
+    cmd: 'agy',
+    directOnly: true,
+    isNew: true,
+    directHint: 'Direct · Antigravity quota (no proxy)',
+  },
+  {
+    agent: BaseCodingAgent.OPENCODE,
+    label: 'OpenCode',
+    cmd: 'opencode',
+    directHint: 'Direct · Native OpenCode config',
+  },
+  {
+    agent: BaseCodingAgent.QWEN_CODE,
+    label: 'Qwen Code',
+    cmd: 'qwen',
+    directHint: 'Direct · Native Qwen config',
+  },
+  {
+    agent: BaseCodingAgent.DROID,
+    label: 'Droid',
+    cmd: 'droid',
+    directHint: 'Direct · Native Droid config',
+  },
+];
 
 /** Fill unset roles with a combo of the same name when one exists. */
 function withDefaultRoles(roles: RoleCombos, combos: string[]): RoleCombos {
@@ -58,6 +118,19 @@ export function RoutingView({
       ...settings,
       roles: { ...settings.roles, [role]: value === NONE ? null : value },
     });
+
+  const setCliRouted = (agent: BaseCodingAgent, routed: boolean) => {
+    const current = new Set(settings.bypassed_agents ?? []);
+    if (routed) {
+      current.delete(agent);
+    } else {
+      current.add(agent);
+    }
+    onSave({
+      ...settings,
+      bypassed_agents: Array.from(current),
+    });
+  };
 
   const options = [
     { value: NONE, label: t('settings.router.routing.agentDefault') },
@@ -131,6 +204,89 @@ export function RoutingView({
               {t('settings.router.routing.noCombos')}
             </p>
           )}
+        </section>
+
+        <section
+          aria-labelledby="cli-routing-bypass"
+          className={cn('space-y-2', !settings.route_agents && 'opacity-60')}
+        >
+          <div className="space-y-0.5">
+            <h3
+              id="cli-routing-bypass"
+              className="text-sm font-semibold text-high"
+            >
+              CLI Routing (Bypass Control)
+            </h3>
+            <p className="text-xs text-low">
+              Choose which coding CLIs route through HiveRouter. Turn off to
+              connect directly to the official provider and avoid proxy OAuth
+              bans.
+            </p>
+          </div>
+          <ul className="divide-y divide-border/60 rounded-sm border border-border">
+            {CLI_ROUTING_ENTRIES.map((entry) => {
+              const isRouted =
+                !entry.directOnly &&
+                settings.route_agents &&
+                !isAgentBypassed(entry.agent, settings.bypassed_agents);
+              const toggleDisabled =
+                entry.directOnly || !settings.route_agents;
+
+              return (
+                <li
+                  key={entry.agent}
+                  className={cn(
+                    'flex items-center justify-between gap-base px-base py-2.5',
+                    entry.isNew && 'bg-brand/5'
+                  )}
+                >
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded border border-border/70 bg-secondary/60">
+                      <AgentIcon agent={entry.agent} className="size-3.5" />
+                      {entry.agent === BaseCodingAgent.ANTIGRAVITY && (
+                        <TerminalIcon className="size-3.5 text-brand" />
+                      )}
+                    </span>
+                    <span className="truncate text-sm font-medium text-high">
+                      {entry.label}
+                    </span>
+                    <code className="rounded border border-border/70 bg-secondary/60 px-1.5 py-0.5 font-mono text-[11px] text-low">
+                      {entry.cmd}
+                    </code>
+                    {entry.isNew && (
+                      <span className="rounded border border-brand/40 bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand">
+                        NEW
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span
+                      className={cn(
+                        'hidden rounded border px-2 py-0.5 text-xs sm:inline-block',
+                        isRouted
+                          ? 'border-brand/40 bg-brand/15 text-brand'
+                          : 'border-border/70 bg-secondary/60 text-low'
+                      )}
+                    >
+                      {isRouted ? 'Via HiveRouter' : entry.directHint}
+                    </span>
+                    <Switch
+                      checked={isRouted}
+                      disabled={toggleDisabled}
+                      aria-label={`Route ${entry.label} through HiveRouter`}
+                      onCheckedChange={(checked) =>
+                        setCliRouted(entry.agent, checked)
+                      }
+                    />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="text-xs text-low">
+            CLIs set to Direct ignore HiveRouter base URLs and role combos,
+            using their native authentication instead.
+          </p>
         </section>
 
         <section className="space-y-1 text-xs text-low">

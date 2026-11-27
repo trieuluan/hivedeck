@@ -255,6 +255,7 @@ pub fn plugin_cli_key(agent: BaseCodingAgent) -> Option<&'static str> {
         BaseCodingAgent::CursorAgent => Some("cursor_agent"),
         BaseCodingAgent::Copilot => Some("copilot"),
         BaseCodingAgent::Droid => Some("droid"),
+        BaseCodingAgent::Antigravity => Some("antigravity"),
         #[cfg(feature = "qa-mode")]
         BaseCodingAgent::QaMock => None,
     }
@@ -334,6 +335,14 @@ pub fn executor_compatibility_for(agent: BaseCodingAgent) -> ExecutorCompatibili
             mcp_mechanism: "--settings (mcp.mcpServers)".into(),
             skills: InjectionSupport::PromptCatalog,
             skills_mechanism: "Prompt catalog (--settings skills uses internal schema)".into(),
+        },
+        BaseCodingAgent::Antigravity => ExecutorCompatibility {
+            executor: agent,
+            cli,
+            mcp: InjectionSupport::Unsupported,
+            mcp_mechanism: "Antigravity CLI uses native ~/.gemini/antigravity MCP config".into(),
+            skills: InjectionSupport::Supported,
+            skills_mechanism: "--add-dir".into(),
         },
         #[cfg(feature = "qa-mode")]
         BaseCodingAgent::QaMock => ExecutorCompatibility {

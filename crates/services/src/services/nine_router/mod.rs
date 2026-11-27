@@ -81,6 +81,9 @@ pub struct NineRouterSettings {
     /// session (keeps prompt caches warm; ADR-036).
     #[serde(default)]
     pub rotate_per_session: bool,
+    /// Executors that bypass HiveRouter and connect directly to their official provider.
+    #[serde(default)]
+    pub bypassed_agents: Vec<executors::executors::BaseCodingAgent>,
 }
 
 impl Default for NineRouterSettings {
@@ -92,7 +95,25 @@ impl Default for NineRouterSettings {
             route_agents: false,
             roles: routing::RoleCombos::default(),
             rotate_per_session: false,
+            bypassed_agents: Vec::new(),
         }
+    }
+}
+
+impl NineRouterSettings {
+    /// Returns true if `agent` should route through HiveRouter.
+    /// Antigravity (`agy`) always connects directly without proxy routing.
+    pub fn is_agent_routed(&self, agent: executors::executors::BaseCodingAgent) -> bool {
+        use executors::executors::BaseCodingAgent;
+        let canonical = match agent {
+            BaseCodingAgent::ClaudeCodeHeaded => BaseCodingAgent::ClaudeCode,
+            BaseCodingAgent::OpencodeHeaded => BaseCodingAgent::Opencode,
+            other => other,
+        };
+        self.route_agents
+            && canonical != BaseCodingAgent::Antigravity
+            && !self.bypassed_agents.contains(&canonical)
+            && !self.bypassed_agents.contains(&agent)
     }
 }
 

@@ -324,7 +324,11 @@ roles: RoleCombos,
  * Spread agent sessions across a combo's models, one provider per
  * session (keeps prompt caches warm; ADR-036).
  */
-rotate_per_session: boolean, };
+rotate_per_session: boolean, 
+/**
+ * Executors that bypass HiveRouter and connect directly to their official provider.
+ */
+bypassed_agents: Array<BaseCodingAgent>, };
 
 export type RoleCombos = { planner: string | null, coder: string | null, reviewer: string | null, fast: string | null, };
 
@@ -631,7 +635,7 @@ export type AddWorkspaceRepoRequest = { repo_id: string, target_branch: string, 
 
 export type AddWorkspaceRepoResponse = { workspace: Workspace, repo: RepoWithTargetBranch, };
 
-export type MergeWorkspaceRequest = { repo_id: string, };
+export type MergeWorkspaceRequest = { repo_id: string, await_approval?: boolean, };
 
 export type ShipWorkspaceRequest = { 
 /**
@@ -674,7 +678,7 @@ export type CommitWorkspaceResponse = {
  */
 committed: boolean, };
 
-export type PushWorkspaceRequest = { repo_id: string, };
+export type PushWorkspaceRequest = { repo_id: string, await_approval?: boolean, };
 
 export type RenameBranchRequest = { new_branch_name: string, };
 
@@ -1223,9 +1227,9 @@ working_dir: string | null, };
 
 export type ScriptRequestLanguage = "Bash";
 
-export enum BaseCodingAgent { CLAUDE_CODE = "CLAUDE_CODE", CLAUDE_CODE_HEADED = "CLAUDE_CODE_HEADED", AMP = "AMP", GEMINI = "GEMINI", CODEX = "CODEX", OPENCODE = "OPENCODE", OPENCODE_HEADED = "OPENCODE_HEADED", CURSOR_AGENT = "CURSOR_AGENT", QWEN_CODE = "QWEN_CODE", COPILOT = "COPILOT", DROID = "DROID" }
+export enum BaseCodingAgent { CLAUDE_CODE = "CLAUDE_CODE", CLAUDE_CODE_HEADED = "CLAUDE_CODE_HEADED", AMP = "AMP", GEMINI = "GEMINI", CODEX = "CODEX", OPENCODE = "OPENCODE", OPENCODE_HEADED = "OPENCODE_HEADED", CURSOR_AGENT = "CURSOR_AGENT", QWEN_CODE = "QWEN_CODE", COPILOT = "COPILOT", DROID = "DROID", ANTIGRAVITY = "ANTIGRAVITY" }
 
-export type CodingAgent = { "CLAUDE_CODE": ClaudeCode } | { "CLAUDE_CODE_HEADED": ClaudeCodeHeaded } | { "AMP": Amp } | { "GEMINI": Gemini } | { "CODEX": Codex } | { "OPENCODE": Opencode } | { "OPENCODE_HEADED": OpencodeHeaded } | { "CURSOR_AGENT": CursorAgent } | { "QWEN_CODE": QwenCode } | { "COPILOT": Copilot } | { "DROID": Droid };
+export type CodingAgent = { "CLAUDE_CODE": ClaudeCode } | { "CLAUDE_CODE_HEADED": ClaudeCodeHeaded } | { "AMP": Amp } | { "GEMINI": Gemini } | { "CODEX": Codex } | { "OPENCODE": Opencode } | { "OPENCODE_HEADED": OpencodeHeaded } | { "CURSOR_AGENT": CursorAgent } | { "QWEN_CODE": QwenCode } | { "COPILOT": Copilot } | { "DROID": Droid } | { "ANTIGRAVITY": Antigravity };
 
 export type SlashCommandDescription = { 
 /**
@@ -1265,7 +1269,7 @@ models?: Array<string>,
  */
 reasoning_by_model?: { [key in string]?: string }, };
 
-export type ExecutorProfile = { recently_used_models?: ExecutorRecentModels | null, } & ({ [key in string]?: { "CLAUDE_CODE": ClaudeCode } | { "CLAUDE_CODE_HEADED": ClaudeCodeHeaded } | { "AMP": Amp } | { "GEMINI": Gemini } | { "CODEX": Codex } | { "OPENCODE": Opencode } | { "OPENCODE_HEADED": OpencodeHeaded } | { "CURSOR_AGENT": CursorAgent } | { "QWEN_CODE": QwenCode } | { "COPILOT": Copilot } | { "DROID": Droid } });
+export type ExecutorProfile = { recently_used_models?: ExecutorRecentModels | null, } & ({ [key in string]?: { "CLAUDE_CODE": ClaudeCode } | { "CLAUDE_CODE_HEADED": ClaudeCodeHeaded } | { "AMP": Amp } | { "GEMINI": Gemini } | { "CODEX": Codex } | { "OPENCODE": Opencode } | { "OPENCODE_HEADED": OpencodeHeaded } | { "CURSOR_AGENT": CursorAgent } | { "QWEN_CODE": QwenCode } | { "COPILOT": Copilot } | { "DROID": Droid } | { "ANTIGRAVITY": Antigravity } });
 
 export type ExecutorConfigs = { executors: { [key in BaseCodingAgent]?: ExecutorProfile }, };
 
@@ -1360,6 +1364,8 @@ auto_compact: boolean, base_command_override?: string | null, additional_params?
 export type QwenCode = { append_prompt: AppendPrompt, model?: string | null, agent?: string | null, yolo?: boolean | null, base_command_override?: string | null, additional_params?: Array<string> | null, env?: { [key in string]?: string } | null, };
 
 export type Droid = { append_prompt: AppendPrompt, autonomy: Autonomy, model?: string | null, reasoning_effort?: DroidReasoningEffort | null, base_command_override?: string | null, additional_params?: Array<string> | null, env?: { [key in string]?: string } | null, };
+
+export type Antigravity = { append_prompt: AppendPrompt, model?: string | null, effort?: string | null, dangerously_skip_permissions?: boolean | null, base_command_override?: string | null, additional_params?: Array<string> | null, env?: { [key in string]?: string } | null, };
 
 export type Autonomy = "normal" | "low" | "medium" | "high" | "skip-permissions-unsafe";
 

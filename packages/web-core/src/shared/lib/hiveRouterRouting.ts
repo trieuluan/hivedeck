@@ -36,6 +36,23 @@ export interface HiveRouterRoutingState {
   routerRunning: boolean;
 }
 
+export function isAgentBypassed(
+  executor: BaseCodingAgent | null | undefined,
+  bypassedAgents: readonly BaseCodingAgent[] | null | undefined
+): boolean {
+  if (!executor) return false;
+  if (executor === BaseCodingAgent.ANTIGRAVITY) return true;
+  const canonical =
+    executor === BaseCodingAgent.CLAUDE_CODE_HEADED
+      ? BaseCodingAgent.CLAUDE_CODE
+      : executor === BaseCodingAgent.OPENCODE_HEADED
+        ? BaseCodingAgent.OPENCODE
+        : executor;
+  return Boolean(
+    bypassedAgents?.includes(executor) || bypassedAgents?.includes(canonical)
+  );
+}
+
 export function useHiveRouterRouting(
   executor: BaseCodingAgent | null | undefined
 ): HiveRouterRoutingState {
@@ -43,7 +60,8 @@ export function useHiveRouterRouting(
   const nineRouter = config?.nine_router;
   const supportsHiveRouter = isRoutedExecutor(executor);
   const routeAgents = Boolean(nineRouter?.route_agents);
-  const isRouted = supportsHiveRouter && routeAgents;
+  const bypassed = isAgentBypassed(executor, nineRouter?.bypassed_agents);
+  const isRouted = supportsHiveRouter && routeAgents && !bypassed;
 
   const { data: status } = useQuery({
     queryKey: ['router', 'status', 'for-selector'],

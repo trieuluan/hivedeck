@@ -33,6 +33,8 @@ export function getAgentName(
       return 'Copilot';
     case BaseCodingAgent.DROID:
       return 'Droid';
+    case BaseCodingAgent.ANTIGRAVITY:
+      return 'Antigravity';
   }
 }
 

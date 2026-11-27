@@ -22,9 +22,9 @@ use crate::{
     command::CommandBuildError,
     env::ExecutionEnv,
     executors::{
-        amp::Amp, claude::ClaudeCode, claude::ClaudeCodeHeaded, codex::Codex, copilot::Copilot,
-        cursor::CursorAgent, droid::Droid, gemini::Gemini, opencode::Opencode,
-        opencode::OpencodeHeaded, qwen::QwenCode,
+        amp::Amp, antigravity::Antigravity, claude::ClaudeCode, claude::ClaudeCodeHeaded,
+        codex::Codex, copilot::Copilot, cursor::CursorAgent, droid::Droid, gemini::Gemini,
+        opencode::Opencode, opencode::OpencodeHeaded, qwen::QwenCode,
     },
     logs::utils::patch,
     mcp_config::McpConfig,
@@ -33,6 +33,7 @@ use crate::{
 
 pub mod acp;
 pub mod amp;
+pub mod antigravity;
 pub mod claude;
 pub mod codex;
 pub mod copilot;
@@ -122,6 +123,7 @@ pub enum CodingAgent {
     QwenCode,
     Copilot,
     Droid,
+    Antigravity,
     #[cfg(feature = "qa-mode")]
     QaMock(QaMockExecutor),
 }
@@ -192,7 +194,7 @@ impl CodingAgent {
                 BaseAgentCapability::SetupHelper,
                 BaseAgentCapability::ContextUsage,
             ],
-            Self::Gemini(_) | Self::QwenCode(_) => {
+            Self::Gemini(_) | Self::QwenCode(_) | Self::Antigravity(_) => {
                 vec![BaseAgentCapability::SessionFork]
             }
             Self::CursorAgent(_) => vec![BaseAgentCapability::SetupHelper],
@@ -730,6 +732,23 @@ mod tests {
                     assert_eq!(
                         compat.skills,
                         crate::plugins::InjectionSupport::PromptCatalog
+                    );
+                }
+                BaseCodingAgent::Antigravity => {
+                    let exec: Antigravity = serde_json::from_str("{}").unwrap();
+                    let args = exec
+                        .build_command_builder(&env)
+                        .unwrap()
+                        .build_initial()
+                        .unwrap();
+                    assert!(
+                        args.args()
+                            .windows(2)
+                            .any(|w| w == ["--add-dir", "/tmp/run-skills"])
+                    );
+                    assert_eq!(
+                        compat.skills,
+                        crate::plugins::InjectionSupport::Supported
                     );
                 }
                 #[cfg(feature = "qa-mode")]

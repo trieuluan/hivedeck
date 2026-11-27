@@ -143,7 +143,7 @@ impl LocalContainerService {
             return None;
         }
         let router = self.config.read().await.nine_router.clone();
-        if !router.route_agents {
+        if !router.is_agent_routed(base) {
             return None;
         }
         if !nine_router::is_reachable(router.port).await {

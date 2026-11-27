@@ -29,6 +29,7 @@ const CLI_LABELS: Record<string, string> = {
   QWEN_CODE: 'Qwen',
   AMP: 'Amp',
   DROID: 'Droid',
+  ANTIGRAVITY: 'Antigravity',
 };
 
 const CLI_BADGE_CLASS: Record<string, string> = {
@@ -45,6 +46,8 @@ const CLI_BADGE_CLASS: Record<string, string> = {
     'border-indigo-500/25 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
   AMP: 'border-rose-500/25 bg-rose-500/10 text-rose-600 dark:text-rose-400',
   DROID: 'border-teal-500/25 bg-teal-500/10 text-teal-600 dark:text-teal-400',
+  ANTIGRAVITY:
+    'border-orange-500/25 bg-orange-500/10 text-orange-600 dark:text-orange-400',
 };
 
 const SKILL_MODES: SkillMode[] = ['on', 'name_only', 'off'];
