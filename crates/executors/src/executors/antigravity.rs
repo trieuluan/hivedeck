@@ -48,7 +48,7 @@ impl Antigravity {
         env: &ExecutionEnv,
     ) -> Result<CommandBuilder, CommandBuildError> {
         let mut builder = CommandBuilder::new(resolve_agy_binary().to_string_lossy().into_owned())
-            .params(["-p", "--output-format=stream-json"]);
+            .params(["--output-format", "stream-json", "--print"]);
         if self.dangerously_skip_permissions.unwrap_or(false) {
             builder = builder.extend_params(["--dangerously-skip-permissions"]);
         }
