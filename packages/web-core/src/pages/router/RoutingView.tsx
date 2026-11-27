@@ -74,6 +74,27 @@ const CLI_ROUTING_ENTRIES: CliRoutingEntry[] = [
     cmd: 'droid',
     directHint: 'Direct · Native Droid config',
   },
+  {
+    agent: BaseCodingAgent.CURSOR_AGENT,
+    label: 'Cursor Agent',
+    cmd: 'cursor-agent',
+    directOnly: true,
+    directHint: 'Direct · Cursor account (no proxy)',
+  },
+  {
+    agent: BaseCodingAgent.COPILOT,
+    label: 'GitHub Copilot',
+    cmd: 'copilot',
+    directOnly: true,
+    directHint: 'Direct · GitHub Copilot (no proxy)',
+  },
+  {
+    agent: BaseCodingAgent.AMP,
+    label: 'Amp',
+    cmd: 'amp',
+    directOnly: true,
+    directHint: 'Direct · Sourcegraph Amp (no proxy)',
+  },
 ];
 
 /** Fill unset roles with a combo of the same name when one exists. */
