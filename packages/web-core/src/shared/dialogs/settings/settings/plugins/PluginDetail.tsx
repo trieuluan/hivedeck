@@ -921,8 +921,8 @@ export function PluginDetail({
         className="flex flex-col justify-between gap-2.5 rounded-md border border-border bg-secondary/20 p-3"
       >
         <div className="space-y-1.5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
               <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border bg-panel text-low">
                 <CodeIcon className="h-3.5 w-3.5" weight="bold" aria-hidden />
               </span>
