@@ -2,15 +2,39 @@ import { useEffect } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { LinkNode } from '@lexical/link';
 
+const ARTIFACT_FILE_URL_RE =
+  /^file:\/\/.*\/\.hivedeck\/artifacts\/([0-9a-fA-F-]{36})\/(.+)$/;
+
+/**
+ * Rewrite local `file://.../.hivedeck/artifacts/<issueId>/<path>` links
+ * into served `/api/issues/<issueId>/artifacts/file?path=...` URLs so
+ * artifact links from agents are clickable in the browser.
+ */
+function rewriteArtifactFileHref(trimmed: string): string | undefined {
+  const match = ARTIFACT_FILE_URL_RE.exec(trimmed);
+  if (!match) return undefined;
+  const [, issueId, rawPath] = match;
+  let decodedPath = rawPath;
+  try {
+    decodedPath = decodeURIComponent(rawPath);
+  } catch {
+    // Keep rawPath if percent-encoding is malformed
+  }
+  return `/api/issues/${issueId}/artifacts/file?path=${encodeURIComponent(decodedPath)}`;
+}
+
 /**
  * Sanitize href to block dangerous protocols.
  * Returns undefined if the href is blocked.
  */
-function sanitizeHref(href?: string): string | undefined {
+export function sanitizeHref(href?: string): string | undefined {
   if (typeof href !== 'string') return undefined;
   const trimmed = href.trim();
   // Block dangerous protocols
   if (/^(javascript|vbscript|data):/i.test(trimmed)) return undefined;
+  // Rewrite local HiveDeck artifact file:// URLs to API file routes
+  const rewrittenArtifact = rewriteArtifactFileHref(trimmed);
+  if (rewrittenArtifact) return rewrittenArtifact;
   // Allow anchors and common relative forms (disabled unless they are app routes)
   if (
     trimmed.startsWith('#') ||
@@ -32,7 +56,7 @@ function sanitizeHref(href?: string): string | undefined {
 /**
  * Check if href is safe and meaningful to open in a new tab.
  */
-function isClickableHref(href?: string): boolean {
+export function isClickableHref(href?: string): boolean {
   if (!href) return false;
   return (
     /^https:\/\//i.test(href) ||
@@ -53,6 +77,9 @@ function applyReadOnlyLinkPolicy(dom: HTMLAnchorElement) {
   }
 
   if (isClickableHref(safeHref)) {
+    if (safeHref !== href) {
+      dom.setAttribute('href', safeHref);
+    }
     dom.setAttribute('target', '_blank');
     dom.setAttribute('rel', 'noopener noreferrer');
     dom.style.cursor = 'pointer';

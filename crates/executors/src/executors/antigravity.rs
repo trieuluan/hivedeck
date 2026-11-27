@@ -1,11 +1,14 @@
-use std::{path::Path, process::Stdio, sync::Arc};
+use std::{collections::HashMap, path::Path, process::Stdio, sync::Arc};
 
 use async_trait::async_trait;
+use futures::StreamExt;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::process::Command;
 use ts_rs::TS;
-use workspace_utils::{command_ext::GroupSpawnNoWindowExt, msg_store::MsgStore};
+use workspace_utils::{
+    command_ext::GroupSpawnNoWindowExt, msg_store::MsgStore, path::make_path_relative,
+};
 
 use crate::{
     command::{CmdOverrides, CommandBuildError, CommandBuilder, apply_overrides},
@@ -14,11 +17,16 @@ use crate::{
     executors::{
         AppendPrompt, AvailabilityInfo, BaseCodingAgent, ExecutorError, SpawnedChild,
         StandardCodingAgentExecutor,
-        claude::{ClaudeLogProcessor, HistoryStrategy},
     },
     logs::{
+        ActionType, CommandExitStatus, CommandRunResult, NormalizedEntry, NormalizedEntryError,
+        NormalizedEntryType, ToolResult, ToolStatus,
         stderr_processor::normalize_stderr_logs,
-        utils::{EntryIndexProvider, patch},
+        utils::{
+            EntryIndexProvider,
+            patch::{self, add_normalized_entry, replace_normalized_entry},
+            shell_command_parsing::CommandCategory,
+        },
     },
     model_selector::{ModelInfo, ModelSelectorConfig, PermissionPolicy},
     profile::ExecutorConfig,
@@ -149,12 +157,10 @@ impl StandardCodingAgentExecutor for Antigravity {
         current_dir: &Path,
     ) -> Vec<tokio::task::JoinHandle<()>> {
         let entry_index_provider = EntryIndexProvider::start_from(&msg_store);
-
-        let h1 = ClaudeLogProcessor::process_logs(
+        let h1 = normalize_agy_logs(
             msg_store.clone(),
-            current_dir,
+            current_dir.to_path_buf(),
             entry_index_provider.clone(),
-            HistoryStrategy::Default,
         );
         let h2 = normalize_stderr_logs(msg_store, entry_index_provider);
 
@@ -275,4 +281,443 @@ async fn discover_agy_models() -> Vec<ModelInfo> {
         });
     }
     models
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "event", rename_all = "snake_case")]
+enum AgyEvent {
+    Init {
+        #[serde(default)]
+        conversation_id: Option<String>,
+        #[serde(default)]
+        init: Option<AgyInit>,
+    },
+    StepUpdate {
+        step_update: AgyStepUpdate,
+    },
+    Result {
+        result: AgyResult,
+    },
+}
+
+#[derive(Debug, Deserialize)]
+struct AgyInit {
+    #[serde(default)]
+    model: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AgyStepUpdate {
+    #[serde(default)]
+    conversation_id: Option<String>,
+    step_index: u64,
+    #[serde(default)]
+    state: String,
+    #[serde(default)]
+    step_type: String,
+    #[serde(default)]
+    text_delta: Option<String>,
+    #[serde(default)]
+    tool_name: Option<String>,
+    #[serde(default)]
+    tool_info: Option<AgyToolInfo>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AgyToolInfo {
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    parameters: Option<serde_json::Value>,
+    #[serde(default)]
+    output: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AgyResult {
+    #[serde(default)]
+    conversation_id: Option<String>,
+    #[serde(default)]
+    status: String,
+    #[serde(default)]
+    response: Option<String>,
+    #[serde(default)]
+    error: Option<String>,
+}
+
+#[derive(Default)]
+struct AgyLogState {
+    session_pushed: bool,
+    streamed_any_response: bool,
+    active_text_steps: HashMap<u64, (usize, String)>,
+    active_tool_steps: HashMap<u64, usize>,
+}
+
+impl AgyLogState {
+    fn maybe_push_session_id(&mut self, msg_store: &Arc<MsgStore>, id: Option<&str>) {
+        if !self.session_pushed
+            && let Some(id) = id
+            && !id.is_empty()
+        {
+            msg_store.push_session_id(id.to_string());
+            self.session_pushed = true;
+        }
+    }
+
+    fn process_line(
+        &mut self,
+        line: &str,
+        msg_store: &Arc<MsgStore>,
+        index_provider: &EntryIndexProvider,
+        worktree_path: &str,
+    ) {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            return;
+        }
+        let Ok(event) = serde_json::from_str::<AgyEvent>(trimmed) else {
+            return;
+        };
+
+        match event {
+            AgyEvent::Init {
+                conversation_id,
+                init,
+            } => {
+                self.maybe_push_session_id(msg_store, conversation_id.as_deref());
+                if let Some(model) = init.and_then(|i| i.model)
+                    && !model.is_empty()
+                {
+                    add_normalized_entry(
+                        msg_store,
+                        index_provider,
+                        NormalizedEntry {
+                            timestamp: None,
+                            entry_type: NormalizedEntryType::SystemMessage,
+                            content: format!("Model: {model}"),
+                            metadata: None,
+                        },
+                    );
+                }
+            }
+            AgyEvent::StepUpdate { step_update } => {
+                self.maybe_push_session_id(msg_store, step_update.conversation_id.as_deref());
+                match step_update.step_type.as_str() {
+                    "agent_response" => self.handle_agent_response(
+                        step_update.step_index,
+                        &step_update.state,
+                        step_update.text_delta.as_deref(),
+                        msg_store,
+                        index_provider,
+                    ),
+                    "tool" => self.handle_tool_step(
+                        step_update,
+                        msg_store,
+                        index_provider,
+                        worktree_path,
+                    ),
+                    _ => {}
+                }
+            }
+            AgyEvent::Result { result } => {
+                self.maybe_push_session_id(msg_store, result.conversation_id.as_deref());
+                if result.status == "SUCCESS" {
+                    if !self.streamed_any_response
+                        && let Some(resp) = result.response
+                        && !resp.trim().is_empty()
+                    {
+                        add_normalized_entry(
+                            msg_store,
+                            index_provider,
+                            NormalizedEntry {
+                                timestamp: None,
+                                entry_type: NormalizedEntryType::AssistantMessage,
+                                content: resp,
+                                metadata: None,
+                            },
+                        );
+                    }
+                } else {
+                    let msg = result
+                        .error
+                        .or(result.response)
+                        .filter(|s| !s.trim().is_empty())
+                        .unwrap_or_else(|| format!("Antigravity finished with status {}", result.status));
+                    add_normalized_entry(
+                        msg_store,
+                        index_provider,
+                        NormalizedEntry {
+                            timestamp: None,
+                            entry_type: NormalizedEntryType::ErrorMessage {
+                                error_type: NormalizedEntryError::Other,
+                            },
+                            content: msg,
+                            metadata: None,
+                        },
+                    );
+                }
+            }
+        }
+    }
+
+    fn handle_agent_response(
+        &mut self,
+        step_index: u64,
+        state: &str,
+        text_delta: Option<&str>,
+        msg_store: &Arc<MsgStore>,
+        index_provider: &EntryIndexProvider,
+    ) {
+        if let Some(delta) = text_delta
+            && !delta.is_empty()
+        {
+            self.streamed_any_response = true;
+            if let Some((entry_idx, acc)) = self.active_text_steps.get_mut(&step_index) {
+                acc.push_str(delta);
+                replace_normalized_entry(
+                    msg_store,
+                    *entry_idx,
+                    NormalizedEntry {
+                        timestamp: None,
+                        entry_type: NormalizedEntryType::AssistantMessage,
+                        content: acc.clone(),
+                        metadata: None,
+                    },
+                );
+            } else {
+                let acc = delta.to_string();
+                let entry_idx = add_normalized_entry(
+                    msg_store,
+                    index_provider,
+                    NormalizedEntry {
+                        timestamp: None,
+                        entry_type: NormalizedEntryType::AssistantMessage,
+                        content: acc.clone(),
+                        metadata: None,
+                    },
+                );
+                self.active_text_steps.insert(step_index, (entry_idx, acc));
+            }
+        }
+        if state == "DONE" {
+            self.active_text_steps.remove(&step_index);
+        }
+    }
+
+    fn handle_tool_step(
+        &mut self,
+        step: AgyStepUpdate,
+        msg_store: &Arc<MsgStore>,
+        index_provider: &EntryIndexProvider,
+        worktree_path: &str,
+    ) {
+        let info = step.tool_info;
+        let raw_name = step
+            .tool_name
+            .or_else(|| info.as_ref().and_then(|i| i.name.clone()))
+            .unwrap_or_else(|| "tool".to_string());
+        let params = info.as_ref().and_then(|i| i.parameters.clone());
+        let output_str = info.as_ref().and_then(|i| i.output.as_ref()).map(value_to_string);
+
+        let status = match step.state.as_str() {
+            "DONE" => ToolStatus::Success,
+            "ERROR" | "FAILED" => ToolStatus::Failed,
+            _ => ToolStatus::Created,
+        };
+
+        let (action_type, content) = build_agy_tool_action(&raw_name, params, output_str, worktree_path);
+        let entry = NormalizedEntry {
+            timestamp: None,
+            entry_type: NormalizedEntryType::ToolUse {
+                tool_name: raw_name,
+                action_type,
+                status,
+            },
+            content,
+            metadata: None,
+        };
+
+        if let Some(&entry_idx) = self.active_tool_steps.get(&step.step_index) {
+            replace_normalized_entry(msg_store, entry_idx, entry);
+        } else {
+            let entry_idx = add_normalized_entry(msg_store, index_provider, entry);
+            self.active_tool_steps.insert(step.step_index, entry_idx);
+        }
+        if matches!(step.state.as_str(), "DONE" | "ERROR" | "FAILED") {
+            self.active_tool_steps.remove(&step.step_index);
+        }
+    }
+}
+
+fn value_to_string(v: &serde_json::Value) -> String {
+    match v {
+        serde_json::Value::String(s) => s.clone(),
+        other => serde_json::to_string_pretty(other).unwrap_or_else(|_| other.to_string()),
+    }
+}
+
+fn extract_str_param(params: Option<&serde_json::Value>, keys: &[&str]) -> Option<String> {
+    let map = params?.as_object()?;
+    for key in keys {
+        if let Some(val) = map.get(*key).and_then(|v| v.as_str())
+            && !val.is_empty()
+        {
+            return Some(val.to_string());
+        }
+    }
+    None
+}
+
+fn build_agy_tool_action(
+    tool_name: &str,
+    params: Option<serde_json::Value>,
+    output: Option<String>,
+    worktree_path: &str,
+) -> (ActionType, String) {
+    let p_ref = params.as_ref();
+    match tool_name {
+        "read_file" | "view_file" => {
+            let raw_path =
+                extract_str_param(p_ref, &["Path", "path", "AbsolutePath"]).unwrap_or_default();
+            let path = make_path_relative(&raw_path, worktree_path);
+            let content = format!("`{path}`");
+            (ActionType::FileRead { path }, content)
+        }
+        "write_file"
+        | "edit_file"
+        | "write_to_file"
+        | "replace_file_content"
+        | "multi_replace_file_content" => {
+            let raw_path =
+                extract_str_param(p_ref, &["Path", "path", "TargetFile"]).unwrap_or_default();
+            let path = make_path_relative(&raw_path, worktree_path);
+            let content = format!("`{path}`");
+            (
+                ActionType::FileEdit {
+                    path,
+                    changes: Vec::new(),
+                },
+                content,
+            )
+        }
+        "run_command" => {
+            let command =
+                extract_str_param(p_ref, &["CommandLine", "command"]).unwrap_or_default();
+            let content = format!("`{command}`");
+            let result = output.map(|out| CommandRunResult {
+                exit_status: Some(CommandExitStatus::Success { success: true }),
+                output: Some(out),
+            });
+            (
+                ActionType::CommandRun {
+                    command,
+                    result,
+                    category: CommandCategory::default(),
+                },
+                content,
+            )
+        }
+        "grep_search" | "find_by_name" | "search_web" => {
+            let query =
+                extract_str_param(p_ref, &["Query", "query", "Pattern", "pattern"])
+                    .unwrap_or_default();
+            let content = format!("`{query}`");
+            (ActionType::Search { query }, content)
+        }
+        _ => (
+            ActionType::Tool {
+                tool_name: tool_name.to_string(),
+                arguments: params,
+                result: output.map(ToolResult::markdown),
+            },
+            tool_name.to_string(),
+        ),
+    }
+}
+
+fn normalize_agy_logs(
+    msg_store: Arc<MsgStore>,
+    current_dir: std::path::PathBuf,
+    entry_index_provider: EntryIndexProvider,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut lines = msg_store.stdout_lines_stream();
+        let worktree_path = current_dir.to_string_lossy().into_owned();
+        let mut state = AgyLogState::default();
+
+        while let Some(Ok(line)) = lines.next().await {
+            state.process_line(&line, &msg_store, &entry_index_provider, &worktree_path);
+        }
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalizes_agy_init_text_tool_and_result_events() {
+        let msg_store = Arc::new(MsgStore::new());
+        let index_provider = EntryIndexProvider::start_from(&msg_store);
+        let mut state = AgyLogState::default();
+        let worktree = "/repo";
+
+        state.process_line(
+            r#"{"event":"init","conversation_id":"conv-123","init":{"model":"gemini-4-hydrogen-medium"}}"#,
+            &msg_store,
+            &index_provider,
+            worktree,
+        );
+        state.process_line(
+            r#"{"event":"step_update","step_update":{"conversation_id":"conv-123","step_index":2,"state":"ACTIVE","step_type":"tool","tool_name":"read_file","tool_info":{"name":"read_file","parameters":{"Path":"/repo/src/main.rs"}}}}"#,
+            &msg_store,
+            &index_provider,
+            worktree,
+        );
+        state.process_line(
+            r#"{"event":"step_update","step_update":{"conversation_id":"conv-123","step_index":2,"state":"DONE","step_type":"tool","tool_name":"read_file","tool_info":{"name":"read_file","parameters":{"Path":"/repo/src/main.rs"},"output":"fn main() {}"}}}"#,
+            &msg_store,
+            &index_provider,
+            worktree,
+        );
+        state.process_line(
+            r#"{"event":"step_update","step_update":{"conversation_id":"conv-123","step_index":3,"state":"ACTIVE","step_type":"agent_response","text_delta":"Hello "}}"#,
+            &msg_store,
+            &index_provider,
+            worktree,
+        );
+        state.process_line(
+            r#"{"event":"step_update","step_update":{"conversation_id":"conv-123","step_index":3,"state":"ACTIVE","step_type":"agent_response","text_delta":"world"}}"#,
+            &msg_store,
+            &index_provider,
+            worktree,
+        );
+        state.process_line(
+            r#"{"event":"step_update","step_update":{"conversation_id":"conv-123","step_index":3,"state":"DONE","step_type":"agent_response"}}"#,
+            &msg_store,
+            &index_provider,
+            worktree,
+        );
+        state.process_line(
+            r#"{"event":"result","result":{"conversation_id":"conv-123","status":"SUCCESS","response":"Hello world"}}"#,
+            &msg_store,
+            &index_provider,
+            worktree,
+        );
+
+        let history = msg_store.get_history();
+        assert!(history.iter().any(|m| {
+            matches!(m, workspace_utils::log_msg::LogMsg::SessionId(id) if id == "conv-123")
+        }));
+        let patches: Vec<_> = history
+            .iter()
+            .filter_map(|m| match m {
+                workspace_utils::log_msg::LogMsg::JsonPatch(p) => Some(p),
+                _ => None,
+            })
+            .collect();
+        // init system msg (1) + tool active add (1) + tool done replace (1) + text add (1) + text replace (1) = 5
+        // result does not duplicate already-streamed response
+        assert_eq!(patches.len(), 5);
+    }
 }
