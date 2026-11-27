@@ -20,7 +20,7 @@ use crate::{
     },
     logs::{
         ActionType, CommandExitStatus, CommandRunResult, NormalizedEntry, NormalizedEntryError,
-        NormalizedEntryType, ToolResult, ToolStatus,
+        NormalizedEntryType, TokenUsageInfo, ToolResult, ToolStatus,
         stderr_processor::normalize_stderr_logs,
         utils::{
             EntryIndexProvider,
@@ -307,6 +307,16 @@ struct AgyInit {
 }
 
 #[derive(Debug, Deserialize)]
+struct AgyUsage {
+    #[serde(default)]
+    input_tokens: u32,
+    #[serde(default)]
+    output_tokens: u32,
+    #[serde(default)]
+    cache_read_tokens: u32,
+}
+
+#[derive(Debug, Deserialize)]
 struct AgyStepUpdate {
     #[serde(default)]
     conversation_id: Option<String>,
@@ -321,6 +331,8 @@ struct AgyStepUpdate {
     tool_name: Option<String>,
     #[serde(default)]
     tool_info: Option<AgyToolInfo>,
+    #[serde(default)]
+    usage: Option<AgyUsage>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -343,14 +355,28 @@ struct AgyResult {
     response: Option<String>,
     #[serde(default)]
     error: Option<String>,
+    #[serde(default)]
+    usage: Option<AgyUsage>,
 }
 
 #[derive(Default)]
 struct AgyLogState {
     session_pushed: bool,
     streamed_any_response: bool,
+    model_context_window: u32,
+    last_context_tokens: u32,
+    session_input_tokens: u32,
+    session_output_tokens: u32,
+    session_cache_read_tokens: u32,
     active_text_steps: HashMap<u64, (usize, String)>,
     active_tool_steps: HashMap<u64, usize>,
+}
+
+fn agy_context_window(model: Option<&str>) -> u32 {
+    match model {
+        Some(m) if m.to_ascii_lowercase().contains("claude") => 200_000,
+        _ => 1_000_000,
+    }
 }
 
 impl AgyLogState {
@@ -362,6 +388,34 @@ impl AgyLogState {
             msg_store.push_session_id(id.to_string());
             self.session_pushed = true;
         }
+    }
+
+    fn emit_token_usage(&self, msg_store: &Arc<MsgStore>, index_provider: &EntryIndexProvider) {
+        let context_window = if self.model_context_window > 0 {
+            self.model_context_window
+        } else {
+            1_000_000
+        };
+        add_normalized_entry(
+            msg_store,
+            index_provider,
+            NormalizedEntry {
+                timestamp: None,
+                entry_type: NormalizedEntryType::TokenUsageInfo(TokenUsageInfo {
+                    total_tokens: self.last_context_tokens,
+                    model_context_window: context_window,
+                    input_tokens: Some(self.session_input_tokens),
+                    output_tokens: Some(self.session_output_tokens),
+                    cache_read_tokens: Some(self.session_cache_read_tokens),
+                    cache_creation_tokens: None,
+                }),
+                content: format!(
+                    "Tokens used: {} / Context window: {}",
+                    self.last_context_tokens, context_window
+                ),
+                metadata: None,
+            },
+        );
     }
 
     fn process_line(
@@ -385,7 +439,9 @@ impl AgyLogState {
                 init,
             } => {
                 self.maybe_push_session_id(msg_store, conversation_id.as_deref());
-                if let Some(model) = init.and_then(|i| i.model)
+                let model = init.and_then(|i| i.model);
+                self.model_context_window = agy_context_window(model.as_deref());
+                if let Some(model) = model
                     && !model.is_empty()
                 {
                     add_normalized_entry(
@@ -403,13 +459,30 @@ impl AgyLogState {
             AgyEvent::StepUpdate { step_update } => {
                 self.maybe_push_session_id(msg_store, step_update.conversation_id.as_deref());
                 match step_update.step_type.as_str() {
-                    "agent_response" => self.handle_agent_response(
-                        step_update.step_index,
-                        &step_update.state,
-                        step_update.text_delta.as_deref(),
-                        msg_store,
-                        index_provider,
-                    ),
+                    "agent_response" => {
+                        let usage = step_update.usage;
+                        self.handle_agent_response(
+                            step_update.step_index,
+                            &step_update.state,
+                            step_update.text_delta.as_deref(),
+                            msg_store,
+                            index_provider,
+                        );
+                        if let Some(u) = usage {
+                            self.last_context_tokens = u
+                                .input_tokens
+                                .saturating_add(u.cache_read_tokens)
+                                .saturating_add(u.output_tokens);
+                            self.session_input_tokens =
+                                self.session_input_tokens.saturating_add(u.input_tokens);
+                            self.session_output_tokens =
+                                self.session_output_tokens.saturating_add(u.output_tokens);
+                            self.session_cache_read_tokens = self
+                                .session_cache_read_tokens
+                                .saturating_add(u.cache_read_tokens);
+                            self.emit_token_usage(msg_store, index_provider);
+                        }
+                    }
                     "tool" => self.handle_tool_step(
                         step_update,
                         msg_store,
@@ -421,6 +494,18 @@ impl AgyLogState {
             }
             AgyEvent::Result { result } => {
                 self.maybe_push_session_id(msg_store, result.conversation_id.as_deref());
+                if let Some(u) = result.usage {
+                    self.session_input_tokens = u.input_tokens;
+                    self.session_output_tokens = u.output_tokens;
+                    self.session_cache_read_tokens = u.cache_read_tokens;
+                    if self.last_context_tokens == 0 {
+                        self.last_context_tokens = u
+                            .input_tokens
+                            .saturating_add(u.cache_read_tokens)
+                            .saturating_add(u.output_tokens);
+                    }
+                    self.emit_token_usage(msg_store, index_provider);
+                }
                 if result.status == "SUCCESS" {
                     if !self.streamed_any_response
                         && let Some(resp) = result.response
@@ -693,13 +778,13 @@ mod tests {
             worktree,
         );
         state.process_line(
-            r#"{"event":"step_update","step_update":{"conversation_id":"conv-123","step_index":3,"state":"DONE","step_type":"agent_response"}}"#,
+            r#"{"event":"step_update","step_update":{"conversation_id":"conv-123","step_index":3,"state":"DONE","step_type":"agent_response","usage":{"input_tokens":1200,"output_tokens":300,"cache_read_tokens":5000}}}"#,
             &msg_store,
             &index_provider,
             worktree,
         );
         state.process_line(
-            r#"{"event":"result","result":{"conversation_id":"conv-123","status":"SUCCESS","response":"Hello world"}}"#,
+            r#"{"event":"result","result":{"conversation_id":"conv-123","status":"SUCCESS","response":"Hello world","usage":{"input_tokens":1200,"output_tokens":300,"cache_read_tokens":5000}}}"#,
             &msg_store,
             &index_provider,
             worktree,
@@ -716,8 +801,7 @@ mod tests {
                 _ => None,
             })
             .collect();
-        // init system msg (1) + tool active add (1) + tool done replace (1) + text add (1) + text replace (1) = 5
-        // result does not duplicate already-streamed response
-        assert_eq!(patches.len(), 5);
+        // init (1) + tool active (1) + tool done (1) + text add (1) + text replace (1) + step usage (1) + result usage (1) = 7
+        assert_eq!(patches.len(), 7);
     }
 }
