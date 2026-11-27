@@ -577,11 +577,17 @@ export function ArtifactLightbox({
   } | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const current = selected;
+  const currentPath = selected?.path ?? null;
+  const currentSize = selected?.size ?? 0;
   const kind = current ? previewKind(current) : null;
   const rawIndex = navigableFiles.findIndex(
-    (file) => file.path === selected?.path
+    (file) => file.path === currentPath
   );
   const index = rawIndex >= 0 ? rawIndex : 0;
+  const sanitizedHtml = useMemo(
+    () => (kind === 'html' && content !== null ? safeHtml(content) : null),
+    [kind, content]
+  );
 
   useEffect(() => {
     setZoomMode('fit');
@@ -590,13 +596,13 @@ export function ArtifactLightbox({
     setContent(null);
     setPreviewError('');
     if (
-      !selected ||
+      !currentPath ||
       (kind !== 'markdown' && kind !== 'html' && kind !== 'text') ||
-      selected.size > previewLimit
+      currentSize > previewLimit
     )
       return;
     const controller = new AbortController();
-    fetch(fileUrl(issueId, selected.path), {
+    fetch(fileUrl(issueId, currentPath), {
       signal: controller.signal,
       cache: 'no-store',
     })
@@ -614,7 +620,7 @@ export function ArtifactLightbox({
           setPreviewError('Không thể tải bản xem trước.');
       });
     return () => controller.abort();
-  }, [issueId, selected, kind]);
+  }, [issueId, currentPath, currentSize, kind]);
 
   const open = current !== null;
   useEffect(() => {
@@ -695,7 +701,7 @@ export function ArtifactLightbox({
         role="dialog"
         aria-modal="true"
         aria-label={current.name}
-        className="fixed inset-0 z-50 flex flex-col bg-zinc-950/95 backdrop-blur-md select-none"
+        className="fixed inset-0 z-50 flex flex-col bg-zinc-950/95 select-none"
         onClick={() => setSelected(null)}
       >
         {/* Top floating bar */}
@@ -925,12 +931,12 @@ export function ArtifactLightbox({
                   </ReactMarkdown>
                 </article>
               )}
-              {kind === 'html' && content !== null && (
+              {kind === 'html' && sanitizedHtml !== null && (
                 <iframe
                   title={current.name}
                   sandbox=""
                   referrerPolicy="no-referrer"
-                  srcDoc={safeHtml(content)}
+                  srcDoc={sanitizedHtml}
                   className="min-h-0 w-full flex-1 rounded-lg bg-white"
                 />
               )}
