@@ -85,7 +85,7 @@ pub struct ExtensionPrefs {
 }
 
 /// The CLIs HiveDeck knows how to inventory and control.
-pub const SUPPORTED_CLIS: [&str; 9] = [
+pub const SUPPORTED_CLIS: [&str; 10] = [
     "CLAUDE_CODE",
     "CODEX",
     "OPENCODE",
@@ -95,6 +95,7 @@ pub const SUPPORTED_CLIS: [&str; 9] = [
     "QWEN_CODE",
     "AMP",
     "DROID",
+    "ANTIGRAVITY",
 ];
 
 static CACHE: RwLock<Option<ExtensionPrefs>> = RwLock::new(None);
@@ -243,6 +244,13 @@ const GENERIC_CLI_SPECS: &[GenericCliSpec] = &[
         config_file: ".factory/mcp.json",
         mcp_key: "mcpServers",
         skill_dirs: &[".factory/skills"],
+    },
+    GenericCliSpec {
+        cli: "ANTIGRAVITY",
+        root_dir: ".gemini/antigravity",
+        config_file: ".gemini/antigravity/mcp_config.json",
+        mcp_key: "mcpServers",
+        skill_dirs: &[".gemini/antigravity/skills", ".agents/skills"],
     },
 ];
 

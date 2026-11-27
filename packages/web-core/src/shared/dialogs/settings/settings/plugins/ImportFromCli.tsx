@@ -23,7 +23,8 @@ type CandidateSource =
   | 'copilot'
   | 'qwen_code'
   | 'amp'
-  | 'droid';
+  | 'droid'
+  | 'antigravity';
 
 type Candidate = {
   name: string;
@@ -43,6 +44,7 @@ const SOURCE_LABEL: Record<CandidateSource, string> = {
   qwen_code: 'Qwen',
   amp: 'Amp',
   droid: 'Droid',
+  antigravity: 'Antigravity',
 };
 
 const SOURCE_BADGE_CLASS: Record<CandidateSource, string> = {
@@ -59,6 +61,8 @@ const SOURCE_BADGE_CLASS: Record<CandidateSource, string> = {
     'border-indigo-500/25 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
   amp: 'border-rose-500/25 bg-rose-500/10 text-rose-600 dark:text-rose-400',
   droid: 'border-teal-500/25 bg-teal-500/10 text-teal-600 dark:text-teal-400',
+  antigravity:
+    'border-orange-500/25 bg-orange-500/10 text-orange-600 dark:text-orange-400',
 };
 
 const candidateKey = (c: Pick<Candidate, 'kind' | 'name'>) =>

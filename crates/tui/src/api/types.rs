@@ -176,6 +176,7 @@ pub const EXECUTORS: &[&str] = &[
     "QWEN_CODE",
     "COPILOT",
     "DROID",
+    "ANTIGRAVITY",
 ];
 
 // ---------------------------------------------------------------------------
