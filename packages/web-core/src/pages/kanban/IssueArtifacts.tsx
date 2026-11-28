@@ -8,6 +8,8 @@ import {
   ArrowSquareOutIcon,
   CaretLeftIcon,
   CaretRightIcon,
+  CheckIcon,
+  CopyIcon,
   DownloadSimpleIcon,
   FileHtmlIcon,
   FileTextIcon,
@@ -746,6 +748,7 @@ export function ArtifactLightbox({
   const [zoomMode, setZoomMode] = useState<'fit' | 'actual'>('fit');
   const [zoomScale, setZoomScale] = useState(1);
   const [prettyJson, setPrettyJson] = useState(true);
+  const [copied, setCopied] = useState(false);
   const [dimensions, setDimensions] = useState<{
     w: number;
     h: number;
@@ -775,6 +778,7 @@ export function ArtifactLightbox({
   useEffect(() => {
     setZoomMode('fit');
     setZoomScale(1);
+    setCopied(false);
     setDimensions(null);
     setContent(null);
     setPreviewError('');
@@ -943,10 +947,38 @@ export function ArtifactLightbox({
                       : 'text-zinc-300 hover:text-white'
                   )}
                 >
-                  Raw
+                  Plain text
                 </button>
               </div>
             )}
+            {(kind === 'text' || kind === 'markdown' || kind === 'html') &&
+              content !== null && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const textToCopy = displayedText ?? content;
+                    void navigator.clipboard.writeText(textToCopy).then(() => {
+                      setCopied(true);
+                      window.setTimeout(() => setCopied(false), 1500);
+                    });
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
+                  aria-label="Copy nội dung"
+                  title="Copy nội dung"
+                >
+                  {copied ? (
+                    <>
+                      <CheckIcon className="size-3.5 text-emerald-400" weight="bold" />
+                      <span className="text-emerald-400">Đã copy</span>
+                    </>
+                  ) : (
+                    <>
+                      <CopyIcon className="size-3.5" />
+                      <span>Copy</span>
+                    </>
+                  )}
+                </button>
+              )}
             {kind === 'image' && (
               <>
                 <div className="inline-flex items-center rounded-lg border border-white/10 bg-white/5 p-0.5 text-xs">
@@ -1116,7 +1148,7 @@ export function ArtifactLightbox({
           )}
           {(kind === 'markdown' || kind === 'html' || kind === 'text') && (
             <div
-              className="flex h-full w-full max-w-4xl flex-col"
+              className="flex h-full w-full max-w-4xl flex-col select-text"
               onClick={(e) => e.stopPropagation()}
             >
               {content === null &&
@@ -1151,26 +1183,32 @@ export function ArtifactLightbox({
                 />
               )}
               {kind === 'text' && displayedText !== null && (
-                <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-white/10 bg-[#0d1117]">
-                  <CodeFileViewer
-                    file={{
-                      name:
-                        isJsonLike && prettyJson
-                          ? current.name.replace(/\.(jsonl|ndjson)$/i, '.jsonc')
-                          : current.name,
-                      contents: displayedText,
-                    }}
-                    options={{
-                      themeType: 'dark',
-                      theme: {
-                        dark: 'github-dark',
-                        light: 'github-light',
-                      },
-                      overflow: 'wrap',
-                      disableFileHeader: true,
-                    }}
-                  />
-                </div>
+                isJsonLike && !prettyJson ? (
+                  <pre className="min-h-0 flex-1 overflow-auto rounded-lg border border-white/10 bg-zinc-900 p-5 font-mono text-xs leading-relaxed text-zinc-100 whitespace-pre-wrap select-text">
+                    {displayedText}
+                  </pre>
+                ) : (
+                  <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-white/10 bg-[#0d1117] select-text">
+                    <CodeFileViewer
+                      file={{
+                        name:
+                          isJsonLike && prettyJson
+                            ? current.name.replace(/\.(jsonl|ndjson)$/i, '.jsonc')
+                            : current.name,
+                        contents: displayedText,
+                      }}
+                      options={{
+                        themeType: 'dark',
+                        theme: {
+                          dark: 'github-dark',
+                          light: 'github-light',
+                        },
+                        overflow: 'wrap',
+                        disableFileHeader: true,
+                      }}
+                    />
+                  </div>
+                )
               )}
             </div>
           )}
