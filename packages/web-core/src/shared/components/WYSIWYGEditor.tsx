@@ -83,6 +83,7 @@ import { Check, Clipboard, Pencil, Trash2 } from 'lucide-react';
 import type { RepoItem } from '@/shared/types/selectionItems';
 import { TagEditDialog } from '@/shared/dialogs/shared/TagEditDialog';
 import { ImagePreviewDialog } from '@/shared/dialogs/wysiwyg/ImagePreviewDialog';
+import { ArtifactPreviewDialog } from '@/shared/dialogs/wysiwyg/ArtifactPreviewDialog';
 import {
   SelectionDialog,
   type SelectionPage,
@@ -651,7 +652,16 @@ const WYSIWYGEditor = forwardRef<WYSIWYGEditorRef, WysiwygProps>(
                   </>
                 )}
                 {/* Link sanitization for read-only mode */}
-                {disabled && <ReadOnlyLinkPlugin />}
+                {disabled && (
+                  <ReadOnlyLinkPlugin
+                    onOpenArtifact={({ issueId: artIssueId, path }) => {
+                      void ArtifactPreviewDialog.show({
+                        issueId: artIssueId,
+                        path,
+                      });
+                    }}
+                  />
+                )}
                 {/* Clickable code for file paths in read-only mode */}
                 {disabled && findMatchingDiffPath && onCodeClick && (
                   <ClickableCodePlugin

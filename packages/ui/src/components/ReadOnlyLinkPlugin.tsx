@@ -66,7 +66,30 @@ export function isClickableHref(href?: string): boolean {
   );
 }
 
-function applyReadOnlyLinkPolicy(dom: HTMLAnchorElement, rawUrl?: string) {
+export interface ArtifactLinkInfo {
+  issueId: string;
+  path: string;
+  href: string;
+}
+
+const API_ARTIFACT_FILE_RE =
+  /^\/api\/issues\/([0-9a-fA-F-]{36})\/artifacts\/file\?([^#]+)(?:#.*)?$/;
+
+export function parseArtifactHref(href?: string): ArtifactLinkInfo | undefined {
+  if (!href) return undefined;
+  const match = API_ARTIFACT_FILE_RE.exec(href);
+  if (!match) return undefined;
+  const [, issueId, query] = match;
+  const path = new URLSearchParams(query).get('path');
+  if (!path) return undefined;
+  return { issueId, path, href };
+}
+
+function applyReadOnlyLinkPolicy(
+  dom: HTMLAnchorElement,
+  rawUrl?: string,
+  onOpenArtifact?: (info: ArtifactLinkInfo) => void
+) {
   const href = rawUrl ?? dom.getAttribute('href') ?? undefined;
   const safeHref = sanitizeHref(href);
 
@@ -74,17 +97,25 @@ function applyReadOnlyLinkPolicy(dom: HTMLAnchorElement, rawUrl?: string) {
     dom.removeAttribute('href');
     dom.style.cursor = 'not-allowed';
     dom.style.pointerEvents = 'none';
+    dom.onclick = null;
     return;
   }
 
   if (isClickableHref(safeHref)) {
+    const artifactInfo = onOpenArtifact ? parseArtifactHref(safeHref) : undefined;
     dom.setAttribute('href', safeHref);
     dom.setAttribute('target', '_blank');
     dom.setAttribute('rel', 'noopener noreferrer');
     dom.style.cursor = 'pointer';
     dom.style.pointerEvents = 'auto';
     dom.removeAttribute('aria-disabled');
-    dom.onclick = (e) => e.stopPropagation();
+    dom.onclick = (e) => {
+      e.stopPropagation();
+      if (artifactInfo && onOpenArtifact) {
+        e.preventDefault();
+        onOpenArtifact(artifactInfo);
+      }
+    };
   } else {
     dom.removeAttribute('href');
     dom.style.cursor = 'not-allowed';
@@ -92,6 +123,7 @@ function applyReadOnlyLinkPolicy(dom: HTMLAnchorElement, rawUrl?: string) {
     dom.setAttribute('role', 'link');
     dom.setAttribute('aria-disabled', 'true');
     dom.title = href ?? '';
+    dom.onclick = null;
   }
 }
 
@@ -99,9 +131,14 @@ function applyReadOnlyLinkPolicy(dom: HTMLAnchorElement, rawUrl?: string) {
  * Plugin that handles link sanitization and security attributes in read-only mode.
  * - Blocks dangerous protocols (javascript:, vbscript:, data:)
  * - HTTPS, local loopback HTTP, and app/artifact routes: clickable with target="_blank"
+ * - Artifact links open inside HiveDeck lightbox when `onOpenArtifact` is provided
  * - Other internal/relative links (./, ../, #): rendered but not clickable
  */
-export function ReadOnlyLinkPlugin() {
+export function ReadOnlyLinkPlugin({
+  onOpenArtifact,
+}: {
+  onOpenArtifact?: (info: ArtifactLinkInfo) => void;
+}) {
   const [editor] = useLexicalComposerContext();
 
   useEffect(() => {
@@ -117,7 +154,7 @@ export function ReadOnlyLinkPlugin() {
             if (!dom || !(dom instanceof HTMLAnchorElement)) continue;
             const node = $getNodeByKey(nodeKey);
             const rawUrl = $isLinkNode(node) ? node.getURL() : undefined;
-            applyReadOnlyLinkPolicy(dom, rawUrl);
+            applyReadOnlyLinkPolicy(dom, rawUrl, onOpenArtifact);
           }
         });
       }
@@ -128,13 +165,13 @@ export function ReadOnlyLinkPlugin() {
       for (const node of $nodesOfType(LinkNode)) {
         const dom = editor.getElementByKey(node.getKey());
         if (dom instanceof HTMLAnchorElement) {
-          applyReadOnlyLinkPolicy(dom, node.getURL());
+          applyReadOnlyLinkPolicy(dom, node.getURL(), onOpenArtifact);
         }
       }
     });
 
     return unregister;
-  }, [editor]);
+  }, [editor, onOpenArtifact]);
 
   return null;
 }

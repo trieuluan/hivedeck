@@ -222,6 +222,20 @@ async fn file(
 }
 
 fn secure_artifact_response(mut response: Response) -> Response {
+    if let Some(content_type) = response.headers().get(axum::http::header::CONTENT_TYPE)
+        && let Ok(ct_str) = content_type.to_str()
+    {
+        let lower = ct_str.to_ascii_lowercase();
+        let needs_utf8 = (lower.starts_with("text/")
+            || lower.starts_with("application/json")
+            || lower.starts_with("application/javascript"))
+            && !lower.contains("charset=");
+        if needs_utf8 && let Ok(updated) = format!("{ct_str}; charset=utf-8").parse() {
+            response
+                .headers_mut()
+                .insert(axum::http::header::CONTENT_TYPE, updated);
+        }
+    }
     response.headers_mut().insert(
         axum::http::header::CONTENT_SECURITY_POLICY,
         "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:; media-src data:"
@@ -277,7 +291,14 @@ mod tests {
 
     #[test]
     fn artifact_responses_are_sandboxed_and_not_sniffed() {
-        let response = secure_artifact_response(Response::new(Body::empty()));
+        let mut raw = Response::new(Body::empty());
+        raw.headers_mut()
+            .insert(header::CONTENT_TYPE, "text/markdown".parse().unwrap());
+        let response = secure_artifact_response(raw);
+        assert_eq!(
+            response.headers()[header::CONTENT_TYPE],
+            "text/markdown; charset=utf-8"
+        );
         assert!(
             response.headers()[header::CONTENT_SECURITY_POLICY]
                 .to_str()

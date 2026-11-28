@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isClickableHref, sanitizeHref } from './ReadOnlyLinkPlugin';
+import {
+  isClickableHref,
+  parseArtifactHref,
+  sanitizeHref,
+} from './ReadOnlyLinkPlugin';
 
 describe('ReadOnlyLinkPlugin href policy', () => {
   it('rewrites local .hivedeck/artifacts file:// URLs to /api/issues/.../artifacts/file', () => {
@@ -10,6 +14,11 @@ describe('ReadOnlyLinkPlugin href policy', () => {
       '/api/issues/81c2f344-be88-4208-93a2-52b6aca17ade/artifacts/file?path=11f04665-b42a-43f4-ab5f-3ebc8506581d%2Fmockup.html'
     );
     expect(isClickableHref(sanitized)).toBe(true);
+    expect(parseArtifactHref(sanitized)).toEqual({
+      issueId: '81c2f344-be88-4208-93a2-52b6aca17ade',
+      path: '11f04665-b42a-43f4-ab5f-3ebc8506581d/mockup.html',
+      href: sanitized,
+    });
   });
 
   it('preserves #line fragments outside the path query param', () => {
@@ -20,6 +29,11 @@ describe('ReadOnlyLinkPlugin href policy', () => {
       '/api/issues/81c2f344-be88-4208-93a2-52b6aca17ade/artifacts/file?path=bde1d4dd-4888-4461-b41f-849e950c741d%2Fmockup.html#L701-L760'
     );
     expect(isClickableHref(sanitized)).toBe(true);
+    expect(parseArtifactHref(sanitized)).toEqual({
+      issueId: '81c2f344-be88-4208-93a2-52b6aca17ade',
+      path: 'bde1d4dd-4888-4461-b41f-849e950c741d/mockup.html',
+      href: sanitized,
+    });
   });
 
   it('blocks non-artifact file:// URLs and dangerous protocols', () => {

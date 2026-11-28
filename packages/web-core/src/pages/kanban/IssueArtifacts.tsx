@@ -953,20 +953,19 @@ export function ArtifactLightbox({
                     <MagnifyingGlassPlusIcon className="size-3.5" />
                   </button>
                 </div>
-
-                <a
-                  href={fileUrl(issueId, current.path)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-lg border border-white/10 bg-white/5 p-2 text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
-                  aria-label="Mở tab mới"
-                  title="Mở ảnh gốc ở tab mới"
-                >
-                  <ArrowSquareOutIcon className="size-4" />
-                </a>
               </>
             )}
 
+            <a
+              href={fileUrl(issueId, current.path)}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg border border-white/10 bg-white/5 p-2 text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
+              aria-label="Mở tab mới"
+              title="Mở ở tab mới"
+            >
+              <ArrowSquareOutIcon className="size-4" />
+            </a>
             <a
               href={fileUrl(issueId, current.path)}
               download={current.name}
