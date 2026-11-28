@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { File as CodeFileViewer } from '@pierre/diffs/react';
 import {
   ArrowSquareOutIcon,
   CaretLeftIcon,
@@ -104,16 +105,42 @@ export function previewKind(file: Pick<Artifact, 'name' | 'mime'>) {
     return 'markdown';
   if (/\.html?$/i.test(file.name) && file.mime === 'text/html') return 'html';
   if (
-    /\.(txt|log|json|toml|ya?ml|tsx?|jsx?|rs|py|css|sh|sql)$/i.test(
+    /\.(txt|log|jsonl?|ndjson|csv|tsv|xml|toml|ya?ml|tsx?|jsx?|rs|py|css|sh|sql)$/i.test(
       file.name
     ) &&
     (file.mime.startsWith('text/') ||
       file.mime === 'application/json' ||
+      file.mime === 'application/x-ndjson' ||
+      file.mime === 'application/ndjson' ||
       file.mime === 'application/javascript' ||
+      file.mime === 'application/xml' ||
       file.mime === 'application/octet-stream')
   )
     return 'text';
   return 'unsupported';
+}
+
+export function formatJsonContent(fileName: string, content: string): string {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith('.jsonl') || lower.endsWith('.ndjson')) {
+    return content
+      .split(/\r?\n/)
+      .filter((line) => line.trim().length > 0)
+      .map((line, idx) => {
+        try {
+          const parsed = JSON.parse(line);
+          return `// #${idx + 1}\n${JSON.stringify(parsed, null, 2)}`;
+        } catch {
+          return line;
+        }
+      })
+      .join('\n\n');
+  }
+  try {
+    return JSON.stringify(JSON.parse(content), null, 2);
+  } catch {
+    return content;
+  }
 }
 
 export function safeHtml(content: string) {
@@ -718,6 +745,7 @@ export function ArtifactLightbox({
   const [previewError, setPreviewError] = useState('');
   const [zoomMode, setZoomMode] = useState<'fit' | 'actual'>('fit');
   const [zoomScale, setZoomScale] = useState(1);
+  const [prettyJson, setPrettyJson] = useState(true);
   const [dimensions, setDimensions] = useState<{
     w: number;
     h: number;
@@ -727,6 +755,9 @@ export function ArtifactLightbox({
   const currentPath = selected?.path ?? null;
   const currentSize = selected?.size ?? 0;
   const kind = current ? previewKind(current) : null;
+  const isJsonLike = Boolean(
+    current && /\.(json|jsonl|ndjson)$/i.test(current.name)
+  );
   const rawIndex = navigableFiles.findIndex(
     (file) => file.path === currentPath
   );
@@ -735,6 +766,11 @@ export function ArtifactLightbox({
     () => (kind === 'html' && content !== null ? safeHtml(content) : null),
     [kind, content]
   );
+  const displayedText = useMemo(() => {
+    if (kind !== 'text' || content === null || !current) return content;
+    if (!isJsonLike || !prettyJson) return content;
+    return formatJsonContent(current.name, content);
+  }, [kind, content, current, isJsonLike, prettyJson]);
 
   useEffect(() => {
     setZoomMode('fit');
@@ -883,6 +919,34 @@ export function ArtifactLightbox({
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
+            {kind === 'text' && isJsonLike && (
+              <div className="inline-flex items-center rounded-lg border border-white/10 bg-white/5 p-0.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setPrettyJson(true)}
+                  className={cn(
+                    'rounded-md px-2 py-1 font-medium transition-colors',
+                    prettyJson
+                      ? 'bg-brand text-white'
+                      : 'text-zinc-300 hover:text-white'
+                  )}
+                >
+                  Format JSON
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrettyJson(false)}
+                  className={cn(
+                    'rounded-md px-2 py-1 font-medium transition-colors',
+                    !prettyJson
+                      ? 'bg-brand text-white'
+                      : 'text-zinc-300 hover:text-white'
+                  )}
+                >
+                  Raw
+                </button>
+              </div>
+            )}
             {kind === 'image' && (
               <>
                 <div className="inline-flex items-center rounded-lg border border-white/10 bg-white/5 p-0.5 text-xs">
@@ -1086,10 +1150,27 @@ export function ArtifactLightbox({
                   className="min-h-0 w-full flex-1 rounded-lg bg-white"
                 />
               )}
-              {kind === 'text' && content !== null && (
-                <pre className="min-h-0 flex-1 overflow-auto rounded-lg border border-white/10 bg-zinc-900 p-5 font-mono text-xs leading-relaxed text-zinc-100 whitespace-pre-wrap">
-                  {content}
-                </pre>
+              {kind === 'text' && displayedText !== null && (
+                <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-white/10 bg-[#0d1117]">
+                  <CodeFileViewer
+                    file={{
+                      name:
+                        isJsonLike && prettyJson
+                          ? current.name.replace(/\.(jsonl|ndjson)$/i, '.jsonc')
+                          : current.name,
+                      contents: displayedText,
+                    }}
+                    options={{
+                      themeType: 'dark',
+                      theme: {
+                        dark: 'github-dark',
+                        light: 'github-light',
+                      },
+                      overflow: 'wrap',
+                      disableFileHeader: true,
+                    }}
+                  />
+                </div>
               )}
             </div>
           )}

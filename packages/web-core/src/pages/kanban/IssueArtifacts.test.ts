@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { fileUrl, outputs, previewKind, size } from './IssueArtifacts';
+import {
+  fileUrl,
+  formatJsonContent,
+  outputs,
+  previewKind,
+  size,
+} from './IssueArtifacts';
 
 describe('artifacts', () => {
   it('compares declared outputs with file extensions', () => {
@@ -45,5 +51,17 @@ describe('artifacts', () => {
       'unsupported'
     );
     expect(previewKind({ name: 'movie.mp4', mime: 'video/mp4' })).toBe('video');
+    expect(
+      previewKind({ name: 'analysis.jsonl', mime: 'application/octet-stream' })
+    ).toBe('text');
+  });
+
+  it('formats minified JSON and JSONL into readable multi-line blocks', () => {
+    expect(formatJsonContent('data.json', '{"a":1,"b":[2,3]}')).toBe(
+      '{\n  "a": 1,\n  "b": [\n    2,\n    3\n  ]\n}'
+    );
+    expect(
+      formatJsonContent('analysis.jsonl', '{"id":1}\n{"id":2,"ok":true}\n')
+    ).toBe('// #1\n{\n  "id": 1\n}\n\n// #2\n{\n  "id": 2,\n  "ok": true\n}');
   });
 });
