@@ -550,6 +550,7 @@ mod tests {
             "list_workspaces".to_string(),
             "merge_issue".to_string(),
             "propose_revision_approval".to_string(),
+            "read_artifact".to_string(),
             "remove_issue_tag".to_string(),
             "respond_to_approval".to_string(),
             "run_issue_in_workspace".to_string(),

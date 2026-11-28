@@ -54,6 +54,9 @@ describe('artifacts', () => {
     expect(
       previewKind({ name: 'analysis.jsonl', mime: 'application/octet-stream' })
     ).toBe('text');
+    expect(
+      previewKind({ name: 'vision.swift', mime: 'application/octet-stream' })
+    ).toBe('text');
   });
 
   it('formats minified JSON and JSONL into readable multi-line blocks', () => {

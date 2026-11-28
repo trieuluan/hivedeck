@@ -421,6 +421,18 @@ struct McpGetIssueRequest {
     issue_id: Uuid,
 }
 
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct McpReadArtifactRequest {
+    #[schemars(description = "The ID of the issue that owns the artifact")]
+    issue_id: Uuid,
+    #[schemars(description = "Relative artifact path as returned by list_artifacts")]
+    path: String,
+    #[schemars(
+        description = "Optional maximum UTF-8 bytes to return for text artifacts (default 65536, max 262144)"
+    )]
+    max_bytes: Option<usize>,
+}
+
 #[derive(Debug, Deserialize)]
 struct Artifact {
     path: String,
@@ -457,9 +469,84 @@ impl McpServer {
         let rows: Vec<_> = files.into_iter().map(|file| {
             let query: String = reqwest::Url::parse_with_params("http://localhost/", &[("path", &file.path)])
                 .expect("static URL is valid").query().unwrap_or_default().to_owned();
-            serde_json::json!({"name": file.name, "mime": file.mime, "size": file.size, "execution_id": file.execution_id, "url": format!("/api/issues/{issue_id}/artifacts/file?{query}")})
+            serde_json::json!({"path": file.path, "name": file.name, "mime": file.mime, "size": file.size, "execution_id": file.execution_id, "url": format!("/api/issues/{issue_id}/artifacts/file?{query}")})
         }).collect();
         McpServer::success_compact(&rows)
+    }
+
+    #[tool(
+        description = "Read the UTF-8 text content of an issue artifact (Markdown, JSON, JSONL, HTML, code, logs). Pass `issue_id` and `path` from `list_artifacts`."
+    )]
+    async fn read_artifact(
+        &self,
+        Parameters(McpReadArtifactRequest {
+            issue_id,
+            path,
+            max_bytes,
+        }): Parameters<McpReadArtifactRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let mut parsed = reqwest::Url::parse(&self.url(&format!(
+            "/api/issues/{issue_id}/artifacts/file"
+        )))
+        .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+        parsed.query_pairs_mut().append_pair("path", &path);
+
+        let response = match self.client.get(parsed).send().await {
+            Ok(resp) => resp,
+            Err(error) => return McpServer::err(error.to_string(), None),
+        };
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return McpServer::err(format!("Failed to read artifact ({status}): {body}"), None);
+        }
+
+        let mime = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("application/octet-stream")
+            .to_string();
+        let bytes = match response.bytes().await {
+            Ok(b) => b,
+            Err(error) => return McpServer::err(error.to_string(), None),
+        };
+
+        let lower_mime = mime.to_ascii_lowercase();
+        let is_binary_mime = lower_mime.starts_with("image/")
+            || lower_mime.starts_with("video/")
+            || lower_mime.starts_with("audio/")
+            || lower_mime == "application/pdf";
+        if is_binary_mime {
+            return McpServer::success_compact(&serde_json::json!({
+                "path": path,
+                "mime": mime,
+                "size": bytes.len(),
+                "binary": true,
+                "note": "Binary artifact cannot be returned as UTF-8 text."
+            }));
+        }
+
+        let limit = max_bytes.unwrap_or(65_536).clamp(1, 262_144);
+        let text = String::from_utf8_lossy(&bytes);
+        let truncated = text.len() > limit;
+        let content = if truncated {
+            let mut end = limit;
+            while end > 0 && !text.is_char_boundary(end) {
+                end -= 1;
+            }
+            text[..end].to_string()
+        } else {
+            text.into_owned()
+        };
+
+        McpServer::success_compact(&serde_json::json!({
+            "path": path,
+            "mime": mime,
+            "size": bytes.len(),
+            "truncated": truncated,
+            "content": content
+        }))
     }
     #[tool(
         description = "Create a new issue in a project. `project_id` is optional if running inside a workspace linked to a remote project."

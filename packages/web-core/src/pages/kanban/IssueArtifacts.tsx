@@ -107,7 +107,7 @@ export function previewKind(file: Pick<Artifact, 'name' | 'mime'>) {
     return 'markdown';
   if (/\.html?$/i.test(file.name) && file.mime === 'text/html') return 'html';
   if (
-    /\.(txt|log|jsonl?|ndjson|csv|tsv|xml|toml|ya?ml|tsx?|jsx?|rs|py|css|sh|sql)$/i.test(
+    /\.(txt|log|jsonl?|ndjson|csv|tsv|xml|toml|ya?ml|tsx?|jsx?|rs|py|swift|kt|kts|dart|go|rb|php|java|c|cpp|h|hpp|cs|vue|svelte|astro|proto|graphql|gql|css|scss|less|sh|zsh|bash|sql|srt|vtt|ass|ini|conf|env)$/i.test(
       file.name
     ) &&
     (file.mime.startsWith('text/') ||

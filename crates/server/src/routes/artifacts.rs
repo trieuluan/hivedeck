@@ -214,17 +214,104 @@ async fn file(
         .map_err(io_error)?
         .join(issue_id.to_string());
     let target = resolve(&issue_dir, &path)?;
-    let response = ServeFile::new(target)
+    let response = ServeFile::new(&target)
         .oneshot(request.map(Body::new))
         .await
         .unwrap_or_else(|error| match error {});
-    Ok(secure_artifact_response(response.into_response()))
+    Ok(secure_artifact_response(
+        response.into_response(),
+        Some(&target),
+    ))
 }
 
-fn secure_artifact_response(mut response: Response) -> Response {
-    if let Some(content_type) = response.headers().get(axum::http::header::CONTENT_TYPE)
-        && let Ok(ct_str) = content_type.to_str()
-    {
+fn is_inline_text_extension(ext: &str) -> bool {
+    matches!(
+        ext.to_ascii_lowercase().as_str(),
+        "txt"
+            | "log"
+            | "md"
+            | "markdown"
+            | "json"
+            | "jsonl"
+            | "ndjson"
+            | "csv"
+            | "tsv"
+            | "xml"
+            | "toml"
+            | "yaml"
+            | "yml"
+            | "ts"
+            | "tsx"
+            | "js"
+            | "jsx"
+            | "mjs"
+            | "cjs"
+            | "rs"
+            | "py"
+            | "swift"
+            | "kt"
+            | "kts"
+            | "dart"
+            | "go"
+            | "rb"
+            | "php"
+            | "java"
+            | "c"
+            | "cpp"
+            | "h"
+            | "hpp"
+            | "cs"
+            | "vue"
+            | "svelte"
+            | "astro"
+            | "proto"
+            | "graphql"
+            | "gql"
+            | "css"
+            | "scss"
+            | "less"
+            | "sh"
+            | "zsh"
+            | "bash"
+            | "sql"
+            | "srt"
+            | "vtt"
+            | "ass"
+            | "ini"
+            | "conf"
+            | "env"
+    )
+}
+
+fn secure_artifact_response(mut response: Response, target: Option<&Path>) -> Response {
+    let ext = target
+        .and_then(|p| p.extension())
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    let current_ct = response
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
+
+    let needs_text_override = is_inline_text_extension(ext)
+        && matches!(
+            current_ct.as_deref().map(str::to_ascii_lowercase).as_deref(),
+            None | Some("application/octet-stream") | Some("video/mp2t")
+        );
+
+    if needs_text_override {
+        let mime = match ext.to_ascii_lowercase().as_str() {
+            "md" | "markdown" => "text/markdown; charset=utf-8",
+            "json" => "application/json; charset=utf-8",
+            _ => "text/plain; charset=utf-8",
+        };
+        if let Ok(val) = mime.parse() {
+            response
+                .headers_mut()
+                .insert(axum::http::header::CONTENT_TYPE, val);
+        }
+    } else if let Some(ct_str) = current_ct {
         let lower = ct_str.to_ascii_lowercase();
         let needs_utf8 = (lower.starts_with("text/")
             || lower.starts_with("application/json")
@@ -236,6 +323,25 @@ fn secure_artifact_response(mut response: Response) -> Response {
                 .insert(axum::http::header::CONTENT_TYPE, updated);
         }
     }
+
+    if !response
+        .headers()
+        .contains_key(axum::http::header::CONTENT_DISPOSITION)
+        && let Some(file_name) = target.and_then(|p| p.file_name()).and_then(|n| n.to_str())
+    {
+        let sanitized: String = file_name
+            .chars()
+            .filter(|c| !matches!(c, '"' | '\r' | '\n' | '\\'))
+            .collect();
+        if !sanitized.is_empty()
+            && let Ok(val) = format!("inline; filename=\"{sanitized}\"").parse()
+        {
+            response
+                .headers_mut()
+                .insert(axum::http::header::CONTENT_DISPOSITION, val);
+        }
+    }
+
     response.headers_mut().insert(
         axum::http::header::CONTENT_SECURITY_POLICY,
         "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:; media-src data:"
@@ -294,10 +400,14 @@ mod tests {
         let mut raw = Response::new(Body::empty());
         raw.headers_mut()
             .insert(header::CONTENT_TYPE, "text/markdown".parse().unwrap());
-        let response = secure_artifact_response(raw);
+        let response = secure_artifact_response(raw, Some(Path::new("/tmp/audit.md")));
         assert_eq!(
             response.headers()[header::CONTENT_TYPE],
             "text/markdown; charset=utf-8"
+        );
+        assert_eq!(
+            response.headers()[header::CONTENT_DISPOSITION],
+            "inline; filename=\"audit.md\""
         );
         assert!(
             response.headers()[header::CONTENT_SECURITY_POLICY]
@@ -308,6 +418,21 @@ mod tests {
         assert_eq!(
             response.headers()[header::X_CONTENT_TYPE_OPTIONS],
             "nosniff"
+        );
+
+        let mut swift_raw = Response::new(Body::empty());
+        swift_raw.headers_mut().insert(
+            header::CONTENT_TYPE,
+            "application/octet-stream".parse().unwrap(),
+        );
+        let swift_resp = secure_artifact_response(swift_raw, Some(Path::new("/tmp/vision.swift")));
+        assert_eq!(
+            swift_resp.headers()[header::CONTENT_TYPE],
+            "text/plain; charset=utf-8"
+        );
+        assert_eq!(
+            swift_resp.headers()[header::CONTENT_DISPOSITION],
+            "inline; filename=\"vision.swift\""
         );
     }
 
