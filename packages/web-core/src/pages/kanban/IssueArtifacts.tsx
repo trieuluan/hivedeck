@@ -203,29 +203,84 @@ export function IssueArtifacts({
   }, [files, searchQuery, sortOrder, typeFilter]);
   const [selected, setSelected] = useState<Artifact | null>(null);
   const [deleteError, setDeleteError] = useState('');
+  const [expandedOldGroups, setExpandedOldGroups] = useState<
+    Record<string, boolean>
+  >({});
+  const [pruning, setPruning] = useState(false);
   const returnFocus = useRef<HTMLElement | null>(null);
-  const navigableFiles = sortedFiles.length > 0 ? sortedFiles : files;
 
-  async function remove(file: Artifact) {
+  const scopeGroups = useMemo(() => {
+    const map = new Map<string, { id: string; files: Artifact[]; latestTs: number; totalSize: number }>();
+    for (const file of sortedFiles) {
+      const scopeId = file.execution_id || 'default';
+      const ts = Date.parse(file.created_at) || 0;
+      const existing = map.get(scopeId);
+      if (existing) {
+        existing.files.push(file);
+        existing.latestTs = Math.max(existing.latestTs, ts);
+        existing.totalSize += file.size;
+      } else {
+        map.set(scopeId, {
+          id: scopeId,
+          files: [file],
+          latestTs: ts,
+          totalSize: file.size,
+        });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.latestTs - a.latestTs);
+  }, [sortedFiles]);
+
+  const latestGroup = scopeGroups[0] ?? null;
+  const oldGroups = scopeGroups.slice(1);
+  const navigableFiles = useMemo(() => {
+    if (!latestGroup) return files;
+    const visible = [...latestGroup.files];
+    for (const g of oldGroups) {
+      if (expandedOldGroups[g.id]) visible.push(...g.files);
+    }
+    return visible.length > 0 ? visible : files;
+  }, [latestGroup, oldGroups, expandedOldGroups, files]);
+
+  async function removeFiles(targetFiles: Artifact[], title: string, message: string) {
     const result = await ConfirmDialog.show({
-      title: 'Delete artifact?',
-      message: `Permanently delete “${file.path}”? This cannot be undone.`,
-      confirmText: 'Delete artifact',
+      title,
+      message,
+      confirmText: 'Xoá',
       variant: 'destructive',
     });
     if (result !== 'confirmed') return;
     setDeleteError('');
+    setPruning(true);
     try {
-      const response = await fetch(
-        `/api/issues/${issueId}/artifacts?${new URLSearchParams({ path: file.path })}`,
-        { method: 'DELETE' }
+      await Promise.all(
+        targetFiles.map(async (f) => {
+          const response = await fetch(
+            `/api/issues/${issueId}/artifacts?${new URLSearchParams({ path: f.path })}`,
+            { method: 'DELETE' }
+          );
+          if (!response.ok || !(await response.json()).success) {
+            throw new Error();
+          }
+        })
       );
-      if (!response.ok || !(await response.json()).success) throw new Error();
-      setSelected(null);
+      if (selected && targetFiles.some((f) => f.path === selected.path)) {
+        setSelected(null);
+      }
       await client.invalidateQueries({ queryKey: key });
     } catch {
       setDeleteError('Could not delete artifact. Please try again.');
+    } finally {
+      setPruning(false);
     }
+  }
+
+  async function remove(file: Artifact) {
+    await removeFiles(
+      [file],
+      'Delete artifact?',
+      `Permanently delete “${file.path}”? This cannot be undone.`
+    );
   }
 
   return (
@@ -365,14 +420,102 @@ export function IssueArtifacts({
           Không tìm thấy tệp phù hợp.
         </p>
       )}
-      <div
-        className={cn(
-          view === 'grid'
-            ? 'grid grid-cols-1 sm:grid-cols-2 gap-3'
-            : 'divide-y divide-border overflow-hidden rounded-lg border border-border bg-panel/70'
-        )}
-      >
-        {sortedFiles.map((file) => {
+      {oldGroups.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-panel/60 px-3 py-2 text-xs">
+          <span className="text-low">
+            Đang hiển thị bản mới nhất (
+            <span className="font-mono text-high">
+              {latestGroup?.id.slice(0, 8)}
+            </span>
+            ). Có{' '}
+            <strong className="text-high">{oldGroups.length}</strong> nhóm cũ
+            hơn (
+            {oldGroups.reduce((acc, g) => acc + g.files.length, 0)} tệp ·{' '}
+            {size(oldGroups.reduce((acc, g) => acc + g.totalSize, 0))}).
+          </span>
+          <button
+            type="button"
+            disabled={pruning}
+            onClick={() => {
+              const oldFiles = oldGroups.flatMap((g) => g.files);
+              void removeFiles(
+                oldFiles,
+                'Dọn các bản artifacts cũ?',
+                `Xoá ${oldFiles.length} tệp thuộc ${oldGroups.length} nhóm cũ, chỉ giữ lại bản mới nhất?`
+              );
+            }}
+            className="rounded-md border border-error/35 bg-error/10 px-2.5 py-1 text-[11px] font-medium text-error transition-colors hover:bg-error/20 disabled:opacity-50"
+          >
+            {pruning ? 'Đang dọn…' : 'Dọn bản cũ'}
+          </button>
+        </div>
+      )}
+      {scopeGroups.map((group, groupIdx) => {
+        const isOld = groupIdx > 0;
+        const isExpanded = !isOld || !!expandedOldGroups[group.id];
+        return (
+          <div key={group.id} className="space-y-2">
+            {scopeGroups.length > 1 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-panel/70 px-3 py-2 text-xs">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span
+                    className={cn(
+                      'rounded-full border px-2 py-0.5 text-[10px] font-medium',
+                      isOld
+                        ? 'border-border bg-secondary text-low'
+                        : 'border-brand/40 bg-brand/15 text-brand'
+                    )}
+                  >
+                    {isOld ? 'Bản cũ' : 'Mới nhất'}
+                  </span>
+                  <span className="font-mono text-high" title={group.id}>
+                    {group.id.slice(0, 8)}
+                  </span>
+                  <span className="text-low">
+                    · {group.files.length} tệp · {size(group.totalSize)}
+                  </span>
+                </div>
+                {isOld && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedOldGroups((prev) => ({
+                          ...prev,
+                          [group.id]: !prev[group.id],
+                        }))
+                      }
+                      className="rounded border border-border bg-secondary/60 px-2 py-0.5 text-[11px] text-normal hover:bg-secondary hover:text-high"
+                    >
+                      {isExpanded ? 'Thu gọn' : 'Mở xem'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pruning}
+                      onClick={() =>
+                        void removeFiles(
+                          group.files,
+                          'Xoá nhóm artifacts cũ?',
+                          `Xoá ${group.files.length} tệp trong nhóm ${group.id.slice(0, 8)}?`
+                        )
+                      }
+                      className="rounded border border-error/35 bg-error/10 px-2 py-0.5 text-[11px] text-error hover:bg-error/20 disabled:opacity-50"
+                    >
+                      Xoá
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            {isExpanded && (
+              <div
+                className={cn(
+                  view === 'grid'
+                    ? 'grid grid-cols-1 sm:grid-cols-2 gap-3'
+                    : 'divide-y divide-border overflow-hidden rounded-lg border border-border bg-panel/70'
+                )}
+              >
+                {group.files.map((file) => {
           const url = fileUrl(issueId, file.path);
           const fileKind = previewKind(file);
           const relTime = formatRelativeTime(file.created_at);
@@ -542,7 +685,11 @@ export function IssueArtifacts({
             </article>
           );
         })}
-      </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
       <ArtifactLightbox
         issueId={issueId}
         selected={selected}

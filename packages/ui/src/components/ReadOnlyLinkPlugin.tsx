@@ -4,7 +4,7 @@ import { $isLinkNode, LinkNode } from '@lexical/link';
 import { $getNodeByKey, $nodesOfType } from 'lexical';
 
 const ARTIFACT_FILE_URL_RE =
-  /^file:\/\/.*\/\.hivedeck\/artifacts\/([0-9a-fA-F-]{36})\/(.+)$/;
+  /^file:\/\/.*\/\.hivedeck\/artifacts\/([0-9a-fA-F-]{36})\/([^?#]+)(?:\?[^#]*)?(#.*)?$/;
 
 /**
  * Rewrite local `file://.../.hivedeck/artifacts/<issueId>/<path>` links
@@ -14,14 +14,14 @@ const ARTIFACT_FILE_URL_RE =
 function rewriteArtifactFileHref(trimmed: string): string | undefined {
   const match = ARTIFACT_FILE_URL_RE.exec(trimmed);
   if (!match) return undefined;
-  const [, issueId, rawPath] = match;
+  const [, issueId, rawPath, fragment = ''] = match;
   let decodedPath = rawPath;
   try {
     decodedPath = decodeURIComponent(rawPath);
   } catch {
     // Keep rawPath if percent-encoding is malformed
   }
-  return `/api/issues/${issueId}/artifacts/file?path=${encodeURIComponent(decodedPath)}`;
+  return `/api/issues/${issueId}/artifacts/file?path=${encodeURIComponent(decodedPath)}${fragment}`;
 }
 
 /**

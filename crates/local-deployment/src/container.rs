@@ -2997,7 +2997,7 @@ impl ContainerService for LocalContainerService {
         if let Some((issue_id, _)) = artifact_issue {
             let dir = utils::path::artifacts_dir()?
                 .join(issue_id.to_string())
-                .join(execution_process.id.to_string());
+                .join(workspace.id.to_string());
             tokio::fs::create_dir_all(&dir)
                 .await
                 .map_err(|error| anyhow!(error))?;
@@ -3130,6 +3130,10 @@ impl ContainerService for LocalContainerService {
             .await;
         let mut artifact_action = routed_action.as_ref().unwrap_or(executor_action).clone();
         if artifact_issue.is_some() {
+            let is_follow_up = matches!(
+                artifact_action.typ,
+                ExecutorActionType::CodingAgentFollowUpRequest(_)
+            );
             let prompt = match &mut artifact_action.typ {
                 ExecutorActionType::CodingAgentInitialRequest(request) => Some(&mut request.prompt),
                 ExecutorActionType::CodingAgentFollowUpRequest(request) => {
@@ -3139,6 +3143,9 @@ impl ContainerService for LocalContainerService {
             };
             if let Some(prompt) = prompt {
                 prompt.push_str("\nFile output not committed to git must be written to $HIVEDECK_ARTIFACTS_DIR.");
+                if is_follow_up {
+                    prompt.push_str("\n$HIVEDECK_ARTIFACTS_DIR is shared across follow-up turns in this workspace: update existing artifact files in place and remove any obsolete files no longer in your final output set.");
+                }
             }
         }
         // Codex receives MCP guidance via `params.developer_instructions`;

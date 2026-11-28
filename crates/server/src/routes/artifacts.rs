@@ -126,8 +126,8 @@ fn collect(
                 size: metadata.len(),
                 execution_id,
                 created_at: metadata
-                    .created()
-                    .or_else(|_| metadata.modified())
+                    .modified()
+                    .or_else(|_| metadata.created())
                     .map(DateTime::<Utc>::from)
                     .map_err(io_error)?,
             });

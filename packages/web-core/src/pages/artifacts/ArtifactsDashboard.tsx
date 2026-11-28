@@ -162,6 +162,7 @@ function IssueArtifactCard({
   view,
   busy,
   onRemove,
+  onPruneOld,
   onOpenFile,
 }: {
   issueId: string;
@@ -172,6 +173,7 @@ function IssueArtifactCard({
   view: 'grid' | 'list';
   busy: string | null;
   onRemove: (issueId: string, label: string) => void;
+  onPruneOld: (issueId: string, label: string, oldFiles: ArtifactFile[]) => void;
   onOpenFile: (
     issueId: string,
     file: Artifact,
@@ -290,6 +292,22 @@ function IssueArtifactCard({
             >
               Mở card ↗
             </a>
+          )}
+          {executions.length > 1 && (
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() =>
+                onPruneOld(
+                  issueId,
+                  label,
+                  executions.slice(1).flatMap(([, list]) => list)
+                )
+              }
+              className="rounded-md border border-error/35 bg-error/10 px-2.5 py-1 text-xs text-error hover:bg-error/20 disabled:opacity-50"
+            >
+              Chỉ giữ bản mới nhất
+            </button>
           )}
           <button
             type="button"
@@ -503,6 +521,46 @@ export function ArtifactsDashboard() {
     }
   }
 
+  async function pruneOld(
+    issueId: string,
+    label: string,
+    oldFiles: ArtifactFile[]
+  ) {
+    const result = await ConfirmDialog.show({
+      title: 'Chỉ giữ bản mới nhất?',
+      message: `Xoá ${oldFiles.length} tệp artifacts cũ của “${label}”, chỉ giữ lại workspace/bản mới nhất?`,
+      confirmText: 'Xoá bản cũ',
+      variant: 'destructive',
+    });
+    if (result !== 'confirmed') return;
+    setBusy(issueId);
+    setDeleteError('');
+    try {
+      await Promise.all(
+        oldFiles.map(async (f) => {
+          const response = await fetch(
+            `/api/issues/${issueId}/artifacts?${new URLSearchParams({ path: f.path })}`,
+            { method: 'DELETE' }
+          );
+          if (!response.ok || !(await response.json()).success) {
+            throw new Error('Delete failed');
+          }
+        })
+      );
+      setSelection((prev) =>
+        prev?.issueId === issueId &&
+        oldFiles.some((f) => f.path === prev.file.path)
+          ? null
+          : prev
+      );
+      await client.invalidateQueries({ queryKey: ['artifacts'] });
+    } catch {
+      setDeleteError('Could not delete old artifacts. Please try again.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <main className="h-full overflow-y-auto p-double text-normal">
       <div className="mx-auto max-w-5xl space-y-double">
@@ -604,6 +662,9 @@ export function ArtifactsDashboard() {
                   view={view}
                   busy={busy}
                   onRemove={(id, lbl) => void remove(id, lbl)}
+                  onPruneOld={(id, lbl, oldFiles) =>
+                    void pruneOld(id, lbl, oldFiles)
+                  }
                   onOpenFile={(id, file, trigger) => {
                     returnFocus.current = trigger;
                     setSelection({ issueId: id, file });

@@ -12,6 +12,16 @@ describe('ReadOnlyLinkPlugin href policy', () => {
     expect(isClickableHref(sanitized)).toBe(true);
   });
 
+  it('preserves #line fragments outside the path query param', () => {
+    const fileUrl =
+      'file:///Users/louis/.hivedeck/artifacts/81c2f344-be88-4208-93a2-52b6aca17ade/bde1d4dd-4888-4461-b41f-849e950c741d/mockup.html#L701-L760';
+    const sanitized = sanitizeHref(fileUrl);
+    expect(sanitized).toBe(
+      '/api/issues/81c2f344-be88-4208-93a2-52b6aca17ade/artifacts/file?path=bde1d4dd-4888-4461-b41f-849e950c741d%2Fmockup.html#L701-L760'
+    );
+    expect(isClickableHref(sanitized)).toBe(true);
+  });
+
   it('blocks non-artifact file:// URLs and dangerous protocols', () => {
     expect(sanitizeHref('file:///etc/passwd')).toBeUndefined();
     expect(sanitizeHref('javascript:alert(1)')).toBeUndefined();
