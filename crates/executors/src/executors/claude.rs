@@ -892,7 +892,14 @@ fn captain_args(env: &ExecutionEnv) -> Vec<String> {
         args.push(agents.clone());
     }
     if env.vars.contains_key(CAPTAIN_MCP_CONFIG_ENV) {
-        args.push(format!("--allowedTools={CAPTAIN_ALLOWED_TOOLS}"));
+        let mut allowed = vec![CAPTAIN_ALLOWED_TOOLS.to_string()];
+        for server in &env.mcp_servers {
+            let prefix = format!("mcp__{}", server.name);
+            if !allowed.iter().any(|item| item == &prefix) {
+                allowed.push(prefix);
+            }
+        }
+        args.push(format!("--allowedTools={}", allowed.join(",")));
     }
     args
 }
@@ -4187,6 +4194,31 @@ mod captain_args_tests {
                 "--agents".to_string(),
                 "{\"a\":1}".to_string(),
                 "--allowedTools=mcp__hivedeck,Read,Glob,Grep".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn captain_env_allows_injected_mcp_servers() {
+        let mut env = ExecutionEnv::new(RepoContext::default(), false, String::new());
+        env.insert(CAPTAIN_AGENTS_ENV, "{\"a\":1}");
+        env.insert(CAPTAIN_MCP_CONFIG_ENV, "{\"m\":1}");
+        env.mcp_servers.push(crate::mcp_registry::InjectedMcpServer {
+            name: "codemap".to_string(),
+            transport: "stdio".to_string(),
+            command: Some("npx".to_string()),
+            args: vec![],
+            url: None,
+            headers: Default::default(),
+            env: Default::default(),
+            instructions: None,
+        });
+        assert_eq!(
+            captain_args(&env),
+            vec![
+                "--agents".to_string(),
+                "{\"a\":1}".to_string(),
+                "--allowedTools=mcp__hivedeck,Read,Glob,Grep,mcp__codemap".to_string(),
             ]
         );
     }
